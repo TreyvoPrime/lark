@@ -77,7 +77,9 @@ public final class Server {
             }
             String method = exchange.getRequestMethod();
             String path = exchange.getRequestURI().getPath();
-            if (path.startsWith("/api/")) {
+            if ("/lark.zip".equals(path) && ("GET".equals(method) || "HEAD".equals(method))) {
+                sendDownload(exchange, method);
+            } else if (path.startsWith("/api/")) {
                 if (!method.equals("GET") && !method.equals("HEAD")) {
                     String mark = exchange.getRequestHeaders().getFirst("X-Lark");
                     if (!"1".equals(mark)) {
@@ -273,6 +275,26 @@ public final class Server {
                 .put("javaVersion", System.getProperty("java.version", ""))
                 .put("projectsDir", settings.projectsDir().toString())
                 .put("version", Settings.VERSION);
+    }
+
+    /** The copy you can save to your own computer: jar, Windows bat, and shell script. */
+    private void sendDownload(HttpExchange exchange, String method) throws IOException {
+        Path zip = Path.of("release", "lark.zip").toAbsolutePath().normalize();
+        if (!Files.isRegularFile(zip)) {
+            send(exchange, 404, "text/plain; charset=utf-8",
+                    "lark.zip is not packed on this computer yet.".getBytes(StandardCharsets.UTF_8));
+            return;
+        }
+        byte[] data = Files.readAllBytes(zip);
+        exchange.getResponseHeaders().set("Content-Disposition", "attachment; filename=\"lark.zip\"");
+        if ("HEAD".equals(method)) {
+            exchange.getResponseHeaders().set("Content-Type", "application/zip");
+            exchange.getResponseHeaders().set("Cache-Control", "no-store");
+            exchange.sendResponseHeaders(200, -1);
+            exchange.close();
+            return;
+        }
+        send(exchange, 200, "application/zip", data);
     }
 
     private void staticFile(HttpExchange exchange, String path) throws IOException {

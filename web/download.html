@@ -1,0 +1,104 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Download Lark</title>
+  <link rel="icon" href="favicon.svg">
+  <style>
+    :root { color-scheme: dark; }
+    body {
+      margin: 0;
+      min-height: 100vh;
+      display: grid;
+      place-items: center;
+      padding: 24px;
+      background: #12110f;
+      color: #f3eee4;
+      font-family: Inter, "Segoe UI", "Helvetica Neue", sans-serif;
+    }
+    main {
+      width: min(540px, 100%);
+      background: #1c1a17;
+      border: 1px solid #322e28;
+      border-radius: 16px;
+      padding: 28px 28px 22px;
+      box-shadow: 0 24px 70px rgba(0, 0, 0, 0.45);
+    }
+    h1 {
+      margin: 0 0 8px;
+      font-family: "Liberation Serif", Palatino, Georgia, serif;
+      font-weight: 500;
+      font-size: 36px;
+      letter-spacing: -0.03em;
+    }
+    p, li { line-height: 1.55; }
+    p { color: #a3988a; }
+    ol { margin: 18px 0; padding-left: 1.2em; }
+    code {
+      font-family: "JetBrains Mono", "Cascadia Mono", ui-monospace, monospace;
+      color: #f0e2c8;
+      font-size: 0.92em;
+    }
+    a { color: #e3a45a; }
+    button, a.fallback {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      margin-top: 4px;
+      background: #e3a45a;
+      color: #2a1c0c;
+      font: inherit;
+      font-weight: 650;
+      border: 0;
+      border-radius: 10px;
+      padding: 12px 18px;
+      cursor: pointer;
+      text-decoration: none;
+    }
+    button:disabled { opacity: 0.7; cursor: progress; }
+    #status { min-height: 1.4em; color: #f3eee4; }
+    .quiet { font-size: 14px; }
+  </style>
+</head>
+<body>
+  <main>
+    <h1>Save Lark</h1>
+    <p>Click the button. Your browser should put <code>lark.zip</code> in your downloads folder. That earlier link pointed at a file on the computer running Lark, so there was nothing for your browser to save.</p>
+    <p><button id="save" type="button">Download lark.zip</button></p>
+    <p id="status" role="status"></p>
+    <ol>
+      <li>Unzip <code>lark.zip</code>. You should see <code>lark.jar</code> and <code>Start Lark.bat</code> in the same folder.</li>
+      <li>On Windows, double-click <code>Start Lark.bat</code>. You do not need to <code>cd</code> first. On Mac or Linux, open that folder and run <code>./start-lark.sh</code>.</li>
+      <li>Lark needs a JDK 17 or newer. If the window says Java is missing, install one from <a href="https://adoptium.net">adoptium.net</a> and start Lark again.</li>
+    </ol>
+    <p class="quiet">If the button does nothing, right-click <a id="direct" href="/lark.zip">this link</a> and choose “Save link as…”, then name the file <code>lark.zip</code>.</p>
+  </main>
+  <script>
+    const button = document.getElementById("save");
+    const status = document.getElementById("status");
+    button.addEventListener("click", async () => {
+      button.disabled = true;
+      status.textContent = "Fetching the zip…";
+      try {
+        const response = await fetch("/lark.zip", { cache: "no-store" });
+        if (!response.ok) throw new Error("The zip is not available (" + response.status + ").");
+        const blob = await response.blob();
+        const url = URL.createObjectURL(blob);
+        const link = document.createElement("a");
+        link.href = url;
+        link.download = "lark.zip";
+        document.body.appendChild(link);
+        link.click();
+        link.remove();
+        setTimeout(() => URL.revokeObjectURL(url), 4000);
+        status.textContent = "Your browser should be saving lark.zip now. Check the downloads folder.";
+      } catch (error) {
+        status.textContent = error.message + " Use the link below.";
+      } finally {
+        button.disabled = false;
+      }
+    });
+  </script>
+</body>
+</html>
