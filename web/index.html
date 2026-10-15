@@ -1,0 +1,207 @@
+<!DOCTYPE html>
+<html lang="en" data-theme="ink">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Lark</title>
+  <link rel="icon" href="favicon.svg">
+  <link rel="stylesheet" href="vendor/codemirror/codemirror.min.css">
+  <link rel="stylesheet" href="vendor/codemirror/addon/dialog/dialog.css">
+  <link rel="stylesheet" href="vendor/codemirror/addon/hint/show-hint.css">
+  <link rel="stylesheet" href="css/app.css">
+  <script>
+    try {
+      var savedTheme = localStorage.getItem("lark-theme");
+      if (savedTheme) document.documentElement.dataset.theme = savedTheme;
+    } catch (e) {}
+  </script>
+</head>
+<body>
+  <div id="shell">
+    <header id="top">
+      <div class="brand">
+        <svg viewBox="0 0 24 24" aria-hidden="true">
+          <path d="M3 16c4.2-.7 6-6 9-11 2.8 5 4.8 10.2 9 11" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/>
+          <path d="M7 16.5h10" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/>
+        </svg>
+        <span class="word">Lark</span>
+      </div>
+      <button id="files-toggle" type="button">Files</button>
+      <button id="outline-show" type="button">Outline</button>
+      <label class="project-pick">
+        <span class="sr">Project</span>
+        <select id="project"></select>
+      </label>
+      <button id="project-menu" type="button" data-pop="menu-project">Project</button>
+      <div class="grow"></div>
+      <label class="main-pick">
+        <span>Main</span>
+        <select id="main-class"></select>
+      </label>
+      <button id="run" type="button" class="primary" title="Ctrl+Enter">Run</button>
+      <button id="github" type="button">GitHub</button>
+      <button id="theme" type="button" data-pop="menu-theme">Ink</button>
+      <button id="help" type="button" data-pop="menu-help" aria-label="Keyboard shortcuts">?</button>
+    </header>
+
+    <div id="workspace">
+      <aside id="files">
+        <div class="splitter" data-split="files"></div>
+        <div class="pane-head">
+          <span>Files</span>
+          <span class="pane-actions">
+            <button type="button" id="new-class">Class</button>
+            <button type="button" id="new-file">File</button>
+            <button type="button" id="new-folder">Folder</button>
+          </span>
+        </div>
+        <div id="tree"></div>
+      </aside>
+      <div id="center">
+        <div id="editor-pane">
+          <div id="tabs"></div>
+          <div id="editor"></div>
+          <div id="empty" hidden>
+            <h2>No file open</h2>
+            <p>Choose a class on the left, or create one.</p>
+            <button type="button" id="empty-new" class="primary">New class</button>
+          </div>
+        </div>
+        <section id="console">
+          <div class="splitter" data-split="console"></div>
+          <div class="pane-head">
+            <div class="tabs-inline">
+              <button type="button" id="tab-output" class="on">Output</button>
+              <button type="button" id="tab-problems">Problems</button>
+            </div>
+            <label class="args">Arguments <input id="args" type="text" placeholder="optional" spellcheck="false"></label>
+            <button type="button" id="clear-console">Clear</button>
+          </div>
+          <pre id="console-out">Run a class and the output shows up here.</pre>
+          <div id="problems" hidden></div>
+          <details id="stdin-wrap">
+            <summary>Program input</summary>
+            <textarea id="stdin" rows="2" spellcheck="false" placeholder="Sent to the program as standard input"></textarea>
+          </details>
+        </section>
+      </div>
+      <aside id="outline">
+        <div class="splitter" data-split="outline"></div>
+        <div class="pane-head"><span>Outline</span><button type="button" id="outline-toggle" class="pane-actions">Hide</button></div>
+        <div id="outline-list"></div>
+      </aside>
+    </div>
+    <footer id="status">
+      <span id="status-path">Lark</span>
+      <span id="status-save"></span>
+      <span class="grow"></span>
+      <span id="status-cursor">Ln 1, Col 1</span>
+      <span id="status-java"></span>
+    </footer>
+  </div>
+
+  <div id="menu-project" class="popover menu" hidden>
+    <button type="button" data-act="new-project">New project</button>
+    <button type="button" data-act="import-folder">Import folder</button>
+    <button type="button" data-act="import-zip">Import zip</button>
+    <button type="button" data-act="download">Download zip</button>
+    <button type="button" data-act="copy-path">Copy folder path</button>
+    <button type="button" data-act="delete-project" class="danger">Delete project</button>
+    <p id="path-note" class="path-note"></p>
+  </div>
+  <div id="menu-theme" class="popover menu" hidden>
+    <button type="button" data-theme-choice="ink"><i class="swatch" style="background:#e3a45a"></i>Ink</button>
+    <button type="button" data-theme-choice="paper"><i class="swatch" style="background:#b85c38"></i>Paper</button>
+    <button type="button" data-theme-choice="tide"><i class="swatch" style="background:#7dcec0"></i>Tide</button>
+    <button type="button" data-theme-choice="copper"><i class="swatch" style="background:#e08b6a"></i>Copper</button>
+    <button type="button" data-theme-choice="chalk"><i class="swatch" style="background:#2f6f8f"></i>Chalk</button>
+  </div>
+  <div id="menu-help" class="popover" hidden>
+    <ul class="help-list">
+      <li><span>Run</span><kbd>Ctrl+Enter</kbd></li>
+      <li><span>Save</span><kbd>Ctrl+S</kbd></li>
+      <li><span>Open file</span><kbd>Ctrl+P</kbd></li>
+      <li><span>Complete</span><kbd>Ctrl+Space</kbd></li>
+      <li><span>Find</span><kbd>Ctrl+F</kbd></li>
+      <li><span>Comment</span><kbd>Ctrl+/</kbd></li>
+      <li><span>Files</span><kbd>Ctrl+B</kbd></li>
+    </ul>
+    <p class="path-note">On a Mac, use Command instead of Ctrl.</p>
+  </div>
+  <div id="context" hidden></div>
+
+  <div id="scrim" hidden></div>
+  <aside id="drawer" hidden>
+    <div class="drawer-head">
+      <h2>GitHub</h2>
+      <div class="grow"></div>
+      <button type="button" id="drawer-close">Close</button>
+    </div>
+    <div class="drawer-body">
+      <p>Lark sends your files as one commit. You don't need the git command installed. The token stays in your home folder and is only sent to GitHub.</p>
+      <p>Use a personal access token with repository contents access. Creating a repository also needs permission to create repositories. <a href="https://github.com/settings/tokens" target="_blank" rel="noreferrer">Tokens live here.</a></p>
+      <div class="block">
+        <strong id="gh-status">Not connected</strong>
+        <label>Personal access token
+          <input id="gh-token" type="password" autocomplete="off" spellcheck="false" placeholder="github_pat_…">
+        </label>
+        <div class="row">
+          <button type="button" id="gh-save" class="action primary">Save and connect</button>
+          <button type="button" id="gh-forget" class="action">Forget token</button>
+        </div>
+      </div>
+      <div class="block">
+        <label>Your repositories
+          <select id="gh-repos"><option value="">Load them after connecting</option></select>
+        </label>
+        <label>Owner <input id="gh-owner" type="text" spellcheck="false" autocomplete="off"></label>
+        <label>Repository <input id="gh-repo" type="text" spellcheck="false" autocomplete="off"></label>
+        <label>Branch <input id="gh-branch" type="text" value="main" spellcheck="false"></label>
+        <label>Commit message <input id="gh-message" type="text" value="Update from Lark" spellcheck="false"></label>
+        <label class="check"><input id="gh-create" type="checkbox"> Create the repository if it isn't there</label>
+        <div class="row">
+          <button type="button" id="gh-push" class="action primary">Push</button>
+          <button type="button" id="gh-pull" class="action">Pull into a new project</button>
+        </div>
+        <p id="gh-result"></p>
+      </div>
+    </div>
+  </aside>
+
+  <div id="modal" hidden>
+    <form id="modal-form">
+      <h2 id="modal-title"></h2>
+      <p id="modal-note"></p>
+      <div id="modal-fields"></div>
+      <div class="modal-actions">
+        <button type="button" id="modal-cancel">Cancel</button>
+        <button type="submit" id="modal-ok" class="primary">OK</button>
+      </div>
+    </form>
+  </div>
+
+  <div id="palette" hidden>
+    <div class="palette-card">
+      <input id="palette-input" type="text" placeholder="Open a file" spellcheck="false" autocomplete="off">
+      <div id="palette-list"></div>
+    </div>
+  </div>
+  <div id="toasts"></div>
+  <div id="boot">Opening your workspace…</div>
+  <input id="import-folder" type="file" webkitdirectory multiple hidden>
+  <input id="import-zip" type="file" accept=".zip,application/zip" hidden>
+
+  <script src="vendor/codemirror/codemirror.min.js"></script>
+  <script src="vendor/codemirror/mode/clike/clike.min.js"></script>
+  <script src="vendor/codemirror/addon/edit/closebrackets.min.js"></script>
+  <script src="vendor/codemirror/addon/edit/matchbrackets.min.js"></script>
+  <script src="vendor/codemirror/addon/selection/active-line.min.js"></script>
+  <script src="vendor/codemirror/addon/comment/comment.min.js"></script>
+  <script src="vendor/codemirror/addon/dialog/dialog.min.js"></script>
+  <script src="vendor/codemirror/addon/search/searchcursor.min.js"></script>
+  <script src="vendor/codemirror/addon/search/search.min.js"></script>
+  <script src="vendor/codemirror/addon/hint/show-hint.min.js"></script>
+  <script src="js/java.js"></script>
+  <script src="js/app.js"></script>
+</body>
+</html>
