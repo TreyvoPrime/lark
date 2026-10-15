@@ -71,12 +71,12 @@ public final class Server {
     private void handle(HttpExchange exchange) {
         try {
             String host = exchange.getRequestHeaders().getFirst("Host");
-            if (!localHost(host)) {
+            String method = exchange.getRequestMethod();
+            String path = exchange.getRequestURI().getPath();
+            if (!localHost(host) && !publicDownload(path, method)) {
                 sendJson(exchange, 403, new Json.Obj().put("ok", false).put("error", "Lark only answers on localhost."));
                 return;
             }
-            String method = exchange.getRequestMethod();
-            String path = exchange.getRequestURI().getPath();
             if ("/lark.zip".equals(path) && ("GET".equals(method) || "HEAD".equals(method))) {
                 sendDownload(exchange, method);
             } else if (path.startsWith("/api/")) {
@@ -369,6 +369,12 @@ public final class Server {
 
     private static String decode(String value) {
         return URLDecoder.decode(value, StandardCharsets.UTF_8);
+    }
+
+    /** The zip and its save page can be opened from a normal browser. Everything else stays on this machine. */
+    private static boolean publicDownload(String path, String method) {
+        if (!"GET".equals(method) && !"HEAD".equals(method)) return false;
+        return "/lark.zip".equals(path) || "/download.html".equals(path) || "/favicon.svg".equals(path);
     }
 
     static boolean localHost(String host) {
