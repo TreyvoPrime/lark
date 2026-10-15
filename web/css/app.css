@@ -151,7 +151,11 @@ body {
   background: var(--bg);
 }
 button, input, select, textarea { font: inherit; color: inherit; }
+button, a.as-button, select {
+  transition: background 140ms ease, border-color 140ms ease, color 140ms ease, transform 140ms ease;
+}
 button { cursor: pointer; }
+button:active, a.as-button:active { transform: translateY(1px); }
 button:disabled { opacity: 0.5; cursor: default; }
 .sr {
   position: absolute;
@@ -651,6 +655,15 @@ li.CodeMirror-hint-active { background: var(--select); color: var(--text); }
   #status { gap: 8px; }
   #status-java { display: none; }
 }
+#modal form, .palette-card, .toast, .popover {
+  animation: lark-rise 160ms ease;
+}
+@keyframes lark-rise {
+  from { opacity: 0; transform: translateY(6px); }
+  to { opacity: 1; transform: none; }
+}
+#boot { transition: opacity 180ms ease; }
+
 @media (prefers-reduced-motion: reduce) {
-  * { transition: none !important; }
+  * { transition: none !important; animation: none !important; }
 }

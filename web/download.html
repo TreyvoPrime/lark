@@ -7,98 +7,121 @@
   <link rel="icon" href="favicon.svg">
   <style>
     :root { color-scheme: dark; }
+    * { box-sizing: border-box; }
     body {
       margin: 0;
       min-height: 100vh;
-      display: grid;
-      place-items: center;
-      padding: 24px;
-      background: #12110f;
+      background:
+        radial-gradient(900px 420px at 10% -10%, rgba(227, 164, 90, 0.16), transparent 60%),
+        #12110f;
       color: #f3eee4;
       font-family: Inter, "Segoe UI", "Helvetica Neue", sans-serif;
     }
-    main {
-      width: min(540px, 100%);
+    main { width: min(920px, calc(100% - 32px)); margin: 0 auto; padding: 48px 0 64px; }
+    header.brand { display: flex; align-items: center; gap: 10px; color: #e3a45a; }
+    header.brand svg { width: 28px; height: 28px; }
+    h1 {
+      margin: 18px 0 8px;
+      font-family: "Liberation Serif", Palatino, Georgia, serif;
+      font-weight: 500;
+      font-size: clamp(36px, 6vw, 56px);
+      letter-spacing: -0.03em;
+      line-height: 1.05;
+    }
+    .lead { max-width: 62ch; color: #a3988a; font-size: 17px; line-height: 1.55; }
+    .note {
+      display: inline-block;
+      margin-top: 14px;
+      padding: 6px 10px;
+      border: 1px solid #322e28;
+      border-radius: 999px;
+      color: #f0e2c8;
+      background: #1c1a17;
+      font-size: 13px;
+    }
+    .grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 12px; margin-top: 28px; }
+    article {
       background: #1c1a17;
       border: 1px solid #322e28;
       border-radius: 16px;
-      padding: 28px 28px 22px;
-      box-shadow: 0 24px 70px rgba(0, 0, 0, 0.45);
+      padding: 18px;
+      display: flex;
+      flex-direction: column;
+      gap: 8px;
+      min-height: 220px;
     }
-    h1 {
-      margin: 0 0 8px;
-      font-family: "Liberation Serif", Palatino, Georgia, serif;
-      font-weight: 500;
-      font-size: 36px;
-      letter-spacing: -0.03em;
-    }
-    p, li { line-height: 1.55; }
-    p { color: #a3988a; }
-    ol { margin: 18px 0; padding-left: 1.2em; }
-    code {
-      font-family: "JetBrains Mono", "Cascadia Mono", ui-monospace, monospace;
-      color: #f0e2c8;
-      font-size: 0.92em;
-    }
-    a { color: #e3a45a; }
-    button, a.fallback {
+    article.pick { border-color: #e3a45a; box-shadow: 0 0 0 1px #e3a45a; }
+    h2 { margin: 0; font-size: 18px; font-weight: 650; }
+    p { margin: 0; color: #a3988a; line-height: 1.5; }
+    code { font-family: "JetBrains Mono", "Cascadia Mono", ui-monospace, monospace; color: #f0e2c8; font-size: 0.92em; }
+    a.dl {
+      margin-top: auto;
       display: inline-flex;
-      align-items: center;
       justify-content: center;
-      margin-top: 4px;
+      text-decoration: none;
       background: #e3a45a;
       color: #2a1c0c;
-      font: inherit;
-      font-weight: 650;
-      border: 0;
+      font-weight: 700;
       border-radius: 10px;
-      padding: 12px 18px;
-      cursor: pointer;
-      text-decoration: none;
+      padding: 12px 14px;
     }
-    button:disabled { opacity: 0.7; cursor: progress; }
+    a.dl:hover { filter: brightness(1.06); }
+    ol { margin: 28px 0 0; padding-left: 1.2em; line-height: 1.6; }
+    a { color: #e3a45a; }
     #status { min-height: 1.4em; color: #f3eee4; }
-    .quiet { font-size: 14px; }
+    @media (max-width: 760px) { .grid { grid-template-columns: 1fr; } }
   </style>
 </head>
 <body>
   <main>
-    <h1>Save Lark</h1>
-    <p>Click the button. Your browser should put <code>lark.zip</code> in your downloads folder. That earlier link pointed at a file on the computer running Lark, so there was nothing for your browser to save.</p>
-    <p><button id="save" type="button">Download lark.zip</button></p>
-    <p id="status" role="status"></p>
+    <header class="brand">
+      <svg viewBox="0 0 24 24" aria-hidden="true">
+        <path d="M3 16c4.2-.7 6-6 9-11 2.8 5 4.8 10.2 9 11" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/>
+        <path d="M7 16.5h10" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/>
+      </svg>
+      <strong>Lark</strong>
+    </header>
+    <h1>One folder. Any computer.</h1>
+    <p class="lead">Download Lark, unzip it, and open the launcher for this computer. It stays in your user folder. It does not install for every account, and it does not ask for an administrator username or password.</p>
+    <span class="note">Windows, Mac, and Linux use the same folder</span>
+    <div class="grid">
+      <article id="card-windows">
+        <h2>Windows</h2>
+        <p>Unzip, then double-click <code>Start Lark.bat</code>.</p>
+        <a class="dl" href="/lark-windows.zip">Download for Windows</a>
+      </article>
+      <article id="card-mac">
+        <h2>Mac</h2>
+        <p>Unzip, then double-click <code>Start Lark.command</code>. If macOS warns you, right-click it and choose Open.</p>
+        <a class="dl" href="/lark-mac.zip">Download for Mac</a>
+      </article>
+      <article id="card-linux">
+        <h2>Linux</h2>
+        <p>Unzip, open that folder in a terminal, and run <code>./start-lark.sh</code>.</p>
+        <a class="dl" href="/lark-linux.zip">Download for Linux</a>
+      </article>
+    </div>
+    <p id="status"></p>
     <ol>
-      <li>Unzip <code>lark.zip</code>. You should see <code>lark.jar</code> and <code>Start Lark.bat</code> in the same folder.</li>
-      <li>On Windows, double-click <code>Start Lark.bat</code>. You do not need to <code>cd</code> first. On Mac or Linux, open that folder and run <code>./start-lark.sh</code>.</li>
-      <li>Lark needs a JDK 17 or newer. If the window says Java is missing, install one from <a href="https://adoptium.net">adoptium.net</a> and start Lark again.</li>
+      <li>Save the zip into Downloads or Documents. You do not need permission to write anywhere else.</li>
+      <li>Unzip it. You should see <code>lark.jar</code> next to the launcher.</li>
+      <li>Open the launcher. If Java 17 or newer is already on the computer, Lark uses it. If not, it downloads a private copy into your user folder the first time. That download needs the internet. It still does not need an admin password.</li>
     </ol>
-    <p class="quiet">If the button does nothing, right-click <a id="direct" href="/lark.zip">this link</a> and choose “Save link as…”, then name the file <code>lark.zip</code>.</p>
   </main>
   <script>
-    const button = document.getElementById("save");
+    const platform = (navigator.userAgentData && navigator.userAgentData.platform) || navigator.platform || "";
+    const ua = navigator.userAgent || "";
+    let key = "linux";
+    if (/Win/i.test(platform) || /Windows/i.test(ua)) key = "windows";
+    else if (/Mac/i.test(platform) || /Mac OS/i.test(ua)) key = "mac";
+    const card = document.getElementById("card-" + key);
+    if (card) card.classList.add("pick");
     const status = document.getElementById("status");
-    button.addEventListener("click", async () => {
-      button.disabled = true;
-      status.textContent = "Fetching the zip…";
-      try {
-        const response = await fetch("/lark.zip", { cache: "no-store" });
-        if (!response.ok) throw new Error("The zip is not available (" + response.status + ").");
-        const blob = await response.blob();
-        const url = URL.createObjectURL(blob);
-        const link = document.createElement("a");
-        link.href = url;
-        link.download = "lark.zip";
-        document.body.appendChild(link);
-        link.click();
-        link.remove();
-        setTimeout(() => URL.revokeObjectURL(url), 4000);
-        status.textContent = "Your browser should be saving lark.zip now. Check the downloads folder.";
-      } catch (error) {
-        status.textContent = error.message + " Use the link below.";
-      } finally {
-        button.disabled = false;
-      }
-    });
+    status.textContent = key === "windows"
+      ? "This looks like Windows. Use the Windows button."
+      : key === "mac"
+        ? "This looks like a Mac. Use the Mac button."
+        : "This looks like Linux. Use the Linux button.";
   </script>
 </body>
 </html>

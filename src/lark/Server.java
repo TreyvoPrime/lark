@@ -77,8 +77,8 @@ public final class Server {
                 sendJson(exchange, 403, new Json.Obj().put("ok", false).put("error", "Lark only answers on localhost."));
                 return;
             }
-            if ("/lark.zip".equals(path) && ("GET".equals(method) || "HEAD".equals(method))) {
-                sendDownload(exchange, method);
+            if (downloadName(path) != null && ("GET".equals(method) || "HEAD".equals(method))) {
+                sendDownload(exchange, method, downloadName(path));
             } else if (path.startsWith("/api/")) {
                 if (!method.equals("GET") && !method.equals("HEAD")) {
                     String mark = exchange.getRequestHeaders().getFirst("X-Lark");
@@ -277,16 +277,24 @@ public final class Server {
                 .put("version", Settings.VERSION);
     }
 
-    /** The copy you can save to your own computer: jar, Windows bat, and shell script. */
-    private void sendDownload(HttpExchange exchange, String method) throws IOException {
-        Path zip = Path.of("release", "lark.zip").toAbsolutePath().normalize();
+    private static String downloadName(String path) {
+        if ("/lark.zip".equals(path)) return "lark.zip";
+        if ("/lark-windows.zip".equals(path)) return "lark-windows.zip";
+        if ("/lark-mac.zip".equals(path)) return "lark-mac.zip";
+        if ("/lark-linux.zip".equals(path)) return "lark-linux.zip";
+        return null;
+    }
+
+    /** A portable copy: the jar plus launchers for Windows, Mac, and Linux. */
+    private void sendDownload(HttpExchange exchange, String method, String name) throws IOException {
+        Path zip = Path.of("release", name).toAbsolutePath().normalize();
         if (!Files.isRegularFile(zip)) {
             send(exchange, 404, "text/plain; charset=utf-8",
-                    "lark.zip is not packed on this computer yet.".getBytes(StandardCharsets.UTF_8));
+                    (name + " is not packed on this computer yet.").getBytes(StandardCharsets.UTF_8));
             return;
         }
         byte[] data = Files.readAllBytes(zip);
-        exchange.getResponseHeaders().set("Content-Disposition", "attachment; filename=\"lark.zip\"");
+        exchange.getResponseHeaders().set("Content-Disposition", "attachment; filename=\"" + name + "\"");
         if ("HEAD".equals(method)) {
             exchange.getResponseHeaders().set("Content-Type", "application/zip");
             exchange.getResponseHeaders().set("Cache-Control", "no-store");
@@ -374,7 +382,7 @@ public final class Server {
     /** The zip and its save page can be opened from a normal browser. Everything else stays on this machine. */
     private static boolean publicDownload(String path, String method) {
         if (!"GET".equals(method) && !"HEAD".equals(method)) return false;
-        return "/lark.zip".equals(path) || "/download.html".equals(path) || "/favicon.svg".equals(path);
+        return downloadName(path) != null || "/download.html".equals(path) || "/favicon.svg".equals(path);
     }
 
     static boolean localHost(String host) {
