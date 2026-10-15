@@ -39,7 +39,7 @@ The jar is the editor. Running it still needs a JDK, because that is what compil
 - Edit with Java highlighting, bracket matching, find, comment toggle, and completion for names in the project (`Ctrl+Space`).
 - Run the main class. Compiler errors show under Problems and open the line.
 - Switch themes: Ink, Paper, Tide, Copper, and Chalk.
-- Push the project to GitHub, or pull a repository into a new project. A personal access token with repository contents access is enough. Creating a repository also needs permission to create repositories. The token is stored in `~/.lark/settings.json` and is only sent to GitHub.
+- Sign in with GitHub, authorize Lark, and clone a repository from the list. Push sends the open project as one commit. A personal access token still works. Credentials stay in `~/.lark/settings.json` and are only sent to GitHub.
 - Import a folder or a zip, and download the project as a zip.
 
 `Ctrl+Enter` runs. `Ctrl+P` opens a file. `Ctrl+S` saves. On a Mac, use Command.

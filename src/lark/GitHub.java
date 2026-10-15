@@ -8,6 +8,7 @@ import java.net.http.HttpRequest;
 import java.net.http.HttpResponse;
 import java.nio.charset.StandardCharsets;
 import java.time.Duration;
+import java.security.SecureRandom;
 import java.util.ArrayList;
 import java.util.Base64;
 import java.util.List;
@@ -21,6 +22,13 @@ public final class GitHub {
             .followRedirects(HttpClient.Redirect.NORMAL)
             .build();
 
+    private final SecureRandom random = new SecureRandom();
+    private volatile int generation;
+    private String pendingState = "";
+    private String pendingBase = "";
+    private long pendingUntil;
+    private boolean expectInstall;
+
     public GitHub(Settings settings) {
         this.settings = settings;
     }
@@ -30,6 +38,7 @@ public final class GitHub {
             settings.githubToken = "";
             settings.githubLogin = "";
             settings.save();
+            generation++;
             return new Json.Obj().put("ok", true).put("login", "");
         }
         token = token.trim();
@@ -43,28 +52,172 @@ public final class GitHub {
         settings.githubToken = token;
         settings.githubLogin = login;
         settings.save();
+        generation++;
         return new Json.Obj().put("ok", true).put("login", login);
+    }
+
+    public synchronized Json.Obj beginLogin(String base) {
+        String state = newState();
+        pendingState = state;
+        pendingBase = base;
+        pendingUntil = System.currentTimeMillis() + 15 * 60_000L;
+        expectInstall = false;
+        String url;
+        if (settings.githubClientId == null || settings.githubClientId.isBlank()) {
+            url = base + "/api/github/begin?state=" + enc(state);
+        } else {
+            url = authorizeUrl(base, state);
+        }
+        return new Json.Obj().put("ok", true).put("url", url).put("generation", generation);
+    }
+
+    public Json.Obj status() {
+        boolean tokenSet = settings.githubToken != null && !settings.githubToken.isBlank();
+        return new Json.Obj()
+                .put("ok", true)
+                .put("tokenSet", tokenSet)
+                .put("login", settings.githubLogin == null ? "" : settings.githubLogin)
+                .put("generation", generation);
+    }
+
+    public synchronized String beginPage(String state) {
+        if (!fresh(state)) return page("Sign-in expired", "<p>Close this window and click Sign in with GitHub again.</p>");
+        String appName = "Lark " + state.substring(0, 4);
+        Json.Obj manifest = new Json.Obj()
+                .put("name", appName)
+                .put("url", pendingBase + "/")
+                .put("description", "Lark edits Java on this computer and clones repositories you choose.")
+                .put("redirect_url", pendingBase + "/api/github/created/" + state)
+                .put("callback_urls", new Json.Arr().add(pendingBase + "/api/github/oauth"))
+                .put("public", false)
+                .put("request_oauth_on_install", true)
+                .put("default_events", new Json.Arr())
+                .put("default_permissions", new Json.Obj().put("contents", "write").put("metadata", "read"))
+                .put("hook_attributes", new Json.Obj().put("active", false));
+        return """
+                <!DOCTYPE html>
+                <html lang="en"><head><meta charset="utf-8"><title>Sign in to GitHub</title>
+                <style>body{margin:0;min-height:100vh;display:grid;place-items:center;background:#12110f;color:#f3eee4;font-family:Inter,Segoe UI,sans-serif}
+                main{width:min(460px,calc(100% - 32px));background:#1c1a17;border:1px solid #322e28;border-radius:16px;padding:24px}
+                h1{font-family:Georgia,serif;font-weight:500;font-size:32px;margin:0 0 8px}
+                p{color:#a3988a;line-height:1.5}button{background:#e3a45a;color:#2a1c0c;border:0;border-radius:10px;padding:12px 16px;font-weight:700;cursor:pointer}</style>
+                </head><body><main>
+                <h1>Continue on GitHub</h1>
+                <p>GitHub will ask you to add Lark to your account, then to authorize it. Choose <strong>All repositories</strong> so every repo you can clone shows up. Lark never sees your GitHub password.</p>
+                <form method="post" action="https://github.com/settings/apps/new">
+                <input type="hidden" name="manifest" value="__MANIFEST__">
+                <button type="submit">Continue to GitHub</button>
+                </form></main>
+                <script>document.forms[0].submit()</script>
+                </body></html>
+                """.replace("__MANIFEST__", esc(manifest.write()));
+    }
+
+    public synchronized String createdPage(String state, String code) {
+        if (!fresh(state)) return page("Sign-in expired", "<p>Close this window and click Sign in with GitHub again.</p>");
+        if (code == null || code.isBlank()) {
+            return page("GitHub didn't finish", "<p>Close this window and click Sign in with GitHub again.</p>");
+        }
+        Api created = postAbsolute("https://api.github.com/app-manifests/" + enc(code) + "/conversions", null, "application/vnd.github+json");
+        if (created.status < 200 || created.status >= 300 || created.obj == null) {
+            return page("GitHub didn't add Lark", "<p>" + esc(githubMessage(created)) + "</p>");
+        }
+        String clientId = created.obj.str("client_id", "");
+        String secret = created.obj.str("client_secret", "");
+        String slug = created.obj.str("slug", "");
+        if (clientId.isBlank() || secret.isBlank() || !slug.matches("[A-Za-z0-9-]{1,80}")) {
+            return page("GitHub didn't add Lark", "<p>The response was missing the app details. Close this window and try again.</p>");
+        }
+        settings.githubClientId = clientId;
+        settings.githubClientSecret = secret;
+        settings.githubAppSlug = slug;
+        settings.save();
+        expectInstall = true;
+        String install = "https://github.com/apps/" + slug + "/installations/new?state=" + enc(state);
+        return page("Choose your repositories", """
+                <p>On the next GitHub page, choose <strong>All repositories</strong> and authorize Lark. Then this window can close.</p>
+                <p><a href="%s">Continue to GitHub</a></p>
+                <script>location.replace("%s")</script>
+                """.formatted(esc(install), esc(install)));
+    }
+
+    public synchronized String oauthPage(String code, String state, String error, String description) {
+        if (error != null && !error.isBlank()) {
+            String extra = "";
+            if (settings.githubAppSlug != null && settings.githubAppSlug.matches("[A-Za-z0-9-]{1,80}")) {
+                extra = "<p><a href=\"https://github.com/apps/" + settings.githubAppSlug
+                        + "/installations/new\">Choose repositories on GitHub</a></p>";
+            }
+            String why = description == null || description.isBlank() ? "Authorization was cancelled." : description;
+            return page("Not signed in", "<p>" + esc(why) + "</p>" + extra);
+        }
+        boolean stateOk = fresh(state) || (expectInstall && System.currentTimeMillis() <= pendingUntil);
+        if (!stateOk) return page("Sign-in expired", "<p>Close this window and click Sign in with GitHub again.</p>");
+        if (code == null || code.isBlank()) {
+            return page("GitHub didn't finish", "<p>Close this window and click Sign in with GitHub again.</p>");
+        }
+        Json.Obj body = new Json.Obj()
+                .put("client_id", settings.githubClientId)
+                .put("client_secret", settings.githubClientSecret)
+                .put("code", code)
+                .put("redirect_uri", pendingBase + "/api/github/oauth");
+        Api token = postAbsolute("https://github.com/login/oauth/access_token", body.write(), "application/json");
+        if (token.obj == null || token.obj.str("access_token") == null) {
+            return page("GitHub didn't authorize Lark", "<p>" + esc(githubMessage(token)) + "</p>");
+        }
+        try {
+            Json.Obj saved = saveToken(token.obj.str("access_token"));
+            expectInstall = false;
+            pendingState = "";
+            String login = saved.str("login", "");
+            return page("Signed in", "<p>Lark is connected as @" + esc(login) + ". You can close this window.</p>");
+        } catch (RequestFail e) {
+            return page("GitHub didn't authorize Lark", "<p>" + esc(e.getMessage()) + "</p>");
+        }
+    }
+
+    private String authorizeUrl(String base, String state) {
+        return "https://github.com/login/oauth/authorize?client_id=" + enc(settings.githubClientId)
+                + "&redirect_uri=" + enc(base + "/api/github/oauth")
+                + "&state=" + enc(state);
+    }
+
+    private boolean fresh(String state) {
+        return state != null && state.equals(pendingState) && System.currentTimeMillis() <= pendingUntil;
+    }
+
+    private String newState() {
+        byte[] bytes = new byte[16];
+        random.nextBytes(bytes);
+        StringBuilder out = new StringBuilder();
+        for (byte b : bytes) out.append(String.format("%02x", b));
+        return out.toString();
     }
 
     public Json.Obj repos() {
         String token = requireToken();
-        Api res = call(token, "GET",
-                "/user/repos?per_page=100&sort=updated&affiliation=owner,collaborator,organization_member", null);
-        expectOk(token, res);
         Json.Arr repos = new Json.Arr();
-        if (res.array != null) {
-            for (Json.Value value : res.array.values()) {
-                if (!(value instanceof Json.Obj repo)) continue;
-                String full = repo.str("full_name", "");
-                int slash = full.indexOf('/');
-                if (slash <= 0) continue;
-                repos.add(new Json.Obj()
-                        .put("owner", full.substring(0, slash))
-                        .put("name", full.substring(slash + 1))
-                        .put("fullName", full)
-                        .put("private", repo.bool("private"))
-                        .put("defaultBranch", repo.str("default_branch", "main")));
+        for (int page = 1; page <= 5; page++) {
+            Api res = call(token, "GET", "/user/repos?per_page=100&page=" + page
+                    + "&sort=updated&affiliation=owner,collaborator,organization_member", null);
+            expectOk(token, res);
+            int count = 0;
+            if (res.array != null) {
+                for (Json.Value value : res.array.values()) {
+                    if (!(value instanceof Json.Obj repo)) continue;
+                    count++;
+                    String full = repo.str("full_name", "");
+                    int slash = full.indexOf('/');
+                    if (slash <= 0) continue;
+                    repos.add(new Json.Obj()
+                            .put("owner", full.substring(0, slash))
+                            .put("name", full.substring(slash + 1))
+                            .put("fullName", full)
+                            .put("private", repo.bool("private"))
+                            .put("defaultBranch", repo.str("default_branch", "main")));
+                }
             }
+            if (count < 100) break;
         }
         return new Json.Obj().put("ok", true).put("repos", repos);
     }
@@ -225,6 +378,56 @@ public final class GitHub {
         expectOk(token, res);
     }
 
+    private Api postAbsolute(String url, String json, String accept) {
+        try {
+            HttpRequest.Builder builder = HttpRequest.newBuilder(URI.create(url))
+                    .timeout(Duration.ofSeconds(45))
+                    .header("Accept", accept)
+                    .header("User-Agent", "Lark-IDE");
+            if (json == null) builder.POST(HttpRequest.BodyPublishers.noBody());
+            else {
+                builder.header("Content-Type", "application/json");
+                builder.POST(HttpRequest.BodyPublishers.ofString(json));
+            }
+            HttpResponse<String> response = http.send(builder.build(), HttpResponse.BodyHandlers.ofString());
+            return Api.parse(response.statusCode(), response.body());
+        } catch (InterruptedException e) {
+            Thread.currentThread().interrupt();
+            throw new RequestFail(502, "The GitHub request was interrupted.");
+        } catch (IOException e) {
+            throw new RequestFail(502, "Couldn't reach GitHub.");
+        }
+    }
+
+    private static String githubMessage(Api res) {
+        if (res == null) return "GitHub didn't answer.";
+        if (res.obj != null) {
+            String description = res.obj.str("error_description");
+            if (description != null && !description.isBlank()) return description;
+            String message = res.obj.str("message");
+            if (message != null && !message.isBlank()) return message;
+            String error = res.obj.str("error");
+            if (error != null && !error.isBlank()) return error;
+        }
+        return "GitHub returned " + res.status + ".";
+    }
+
+    private static String page(String title, String body) {
+        return """
+                <!DOCTYPE html>
+                <html lang="en"><head><meta charset="utf-8"><title>__TITLE__</title>
+                <style>body{margin:0;min-height:100vh;display:grid;place-items:center;background:#12110f;color:#f3eee4;font-family:Inter,Segoe UI,sans-serif}
+                main{width:min(460px,calc(100% - 32px));background:#1c1a17;border:1px solid #322e28;border-radius:16px;padding:24px}
+                h1{font-family:Georgia,serif;font-weight:500;font-size:32px;margin:0 0 8px}p,a{line-height:1.5}p{color:#a3988a}a{color:#e3a45a}</style>
+                </head><body><main><h1>__TITLE__</h1>__BODY__</main></body></html>
+                """.replace("__TITLE__", esc(title)).replace("__BODY__", body);
+    }
+
+    private static String esc(String value) {
+        if (value == null) return "";
+        return value.replace("&", "&amp;").replace("<", "&lt;").replace(">", "&gt;").replace("\"", "&quot;");
+    }
+
     private Api call(String token, String method, String path, String body) {
         try {
             HttpRequest.Builder builder = HttpRequest.newBuilder(URI.create("https://api.github.com" + path))
@@ -260,7 +463,7 @@ public final class GitHub {
 
     private String requireToken() {
         if (settings.githubToken == null || settings.githubToken.isBlank()) {
-            throw new RequestFail(400, "Add a GitHub token first. It needs access to repository contents.");
+            throw new RequestFail(400, "Sign in to GitHub first.");
         }
         return settings.githubToken;
     }

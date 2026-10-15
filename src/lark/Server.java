@@ -212,6 +212,27 @@ public final class Server {
                     body.str("branch", "main")));
             return;
         }
+        if ("/api/github/login".equals(path) && "POST".equals(method)) {
+            sendJson(exchange, 200, github.beginLogin("http://127.0.0.1:" + port));
+            return;
+        }
+        if ("/api/github/status".equals(path) && "GET".equals(method)) {
+            sendJson(exchange, 200, github.status());
+            return;
+        }
+        if ("/api/github/begin".equals(path) && "GET".equals(method)) {
+            sendHtml(exchange, github.beginPage(query(exchange, "state")));
+            return;
+        }
+        if (path.startsWith("/api/github/created/") && "GET".equals(method)) {
+            sendHtml(exchange, github.createdPage(decode(path.substring("/api/github/created/".length())), query(exchange, "code")));
+            return;
+        }
+        if ("/api/github/oauth".equals(path) && "GET".equals(method)) {
+            sendHtml(exchange, github.oauthPage(query(exchange, "code"), query(exchange, "state"),
+                    query(exchange, "error"), query(exchange, "error_description")));
+            return;
+        }
         if (parts.length >= 4 && "api".equals(parts[1]) && "projects".equals(parts[2])) {
             String id = decode(parts[3]);
             String tail = parts.length >= 5 ? parts[4] : "";
@@ -401,6 +422,10 @@ public final class Server {
 
     private static void sendJson(HttpExchange exchange, int status, Json.Value value) throws IOException {
         send(exchange, status, "application/json; charset=utf-8", value.write().getBytes(StandardCharsets.UTF_8));
+    }
+
+    private static void sendHtml(HttpExchange exchange, String html) throws IOException {
+        send(exchange, 200, "text/html; charset=utf-8", html.getBytes(StandardCharsets.UTF_8));
     }
 
     private static void send(HttpExchange exchange, int status, String type, byte[] data) throws IOException {

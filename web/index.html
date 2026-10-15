@@ -64,7 +64,7 @@
           <div id="editor"></div>
           <div id="empty" hidden>
             <h2>No file open</h2>
-            <p>Choose a class on the left, or create one.</p>
+            <p>Files are on the left. The open class is described on the right.</p>
             <button type="button" id="empty-new" class="primary">New class</button>
           </div>
         </div>
@@ -88,7 +88,7 @@
       </div>
       <aside id="outline">
         <div class="splitter" data-split="outline"></div>
-        <div class="pane-head"><span>Outline</span><button type="button" id="outline-toggle" class="pane-actions">Hide</button></div>
+        <div class="pane-head"><span>In this file</span><button type="button" id="outline-toggle" class="pane-actions">Hide</button></div>
         <div id="outline-list"></div>
       </aside>
     </div>
@@ -139,33 +139,38 @@
       <button type="button" id="drawer-close">Close</button>
     </div>
     <div class="drawer-body">
-      <p>Lark sends your files as one commit. You don't need the git command installed. The token stays in your home folder and is only sent to GitHub.</p>
-      <p>Use a personal access token with repository contents access. Creating a repository also needs permission to create repositories. <a href="https://github.com/settings/tokens" target="_blank" rel="noreferrer">Tokens live here.</a></p>
-      <div class="block">
-        <strong id="gh-status">Not connected</strong>
-        <label>Personal access token
-          <input id="gh-token" type="password" autocomplete="off" spellcheck="false" placeholder="github_pat_…">
-        </label>
+      <section id="gh-signed-out">
+        <p>Sign in with GitHub and authorize Lark. Your repositories then show up here, and you can clone one into a project.</p>
+        <button type="button" id="gh-signin" class="action primary">Sign in with GitHub</button>
+        <p id="gh-wait"></p>
+        <details>
+          <summary>Use a token instead</summary>
+          <label>Personal access token
+            <input id="gh-token" type="password" autocomplete="off" spellcheck="false" placeholder="github_pat_… or ghp_…">
+          </label>
+          <button type="button" id="gh-save" class="action">Connect with token</button>
+        </details>
+      </section>
+      <section id="gh-signed-in" hidden>
         <div class="row">
-          <button type="button" id="gh-save" class="action primary">Save and connect</button>
-          <button type="button" id="gh-forget" class="action">Forget token</button>
+          <strong id="gh-status">Signed in</strong>
+          <button type="button" id="gh-forget" class="action">Sign out</button>
         </div>
-      </div>
-      <div class="block">
-        <label>Your repositories
-          <select id="gh-repos"><option value="">Load them after connecting</option></select>
+        <label>Repositories you can clone
+          <input id="gh-filter" type="text" placeholder="Search" spellcheck="false" autocomplete="off">
         </label>
-        <label>Owner <input id="gh-owner" type="text" spellcheck="false" autocomplete="off"></label>
-        <label>Repository <input id="gh-repo" type="text" spellcheck="false" autocomplete="off"></label>
-        <label>Branch <input id="gh-branch" type="text" value="main" spellcheck="false"></label>
-        <label>Commit message <input id="gh-message" type="text" value="Update from Lark" spellcheck="false"></label>
-        <label class="check"><input id="gh-create" type="checkbox"> Create the repository if it isn't there</label>
-        <div class="row">
-          <button type="button" id="gh-push" class="action primary">Push</button>
-          <button type="button" id="gh-pull" class="action">Pull into a new project</button>
+        <div id="gh-repo-list" class="repo-list"></div>
+        <div class="block">
+          <h3>Push this project</h3>
+          <p id="gh-target">Choose a repository above.</p>
+          <label>Commit message <input id="gh-message" type="text" value="Update from Lark" spellcheck="false"></label>
+          <div class="row">
+            <button type="button" id="gh-push" class="action primary">Push</button>
+            <button type="button" id="gh-new-repo" class="action">New repository</button>
+          </div>
+          <p id="gh-result"></p>
         </div>
-        <p id="gh-result"></p>
-      </div>
+      </section>
     </div>
   </aside>
 

@@ -156,6 +156,7 @@ button, a.as-button, select {
 }
 button { cursor: pointer; }
 button:active, a.as-button:active { transform: translateY(1px); }
+.tree-row:active, .outline-row:active, .tab .close:active, .tab-name:active { transform: none; }
 button:disabled { opacity: 0.5; cursor: default; }
 .sr {
   position: absolute;
@@ -257,10 +258,9 @@ select:focus, input:focus, textarea:focus, button:focus-visible {
   height: 36px;
   padding: 0 8px 0 12px;
   border-bottom: 1px solid var(--line);
-  color: var(--muted);
-  font-size: 12px;
-  letter-spacing: 0.04em;
-  text-transform: uppercase;
+  color: var(--text);
+  font-size: 13px;
+  font-weight: 650;
 }
 .pane-actions { margin-left: auto; display: flex; gap: 4px; }
 .pane-actions button, .tabs-inline button {
@@ -280,29 +280,40 @@ select:focus, input:focus, textarea:focus, button:focus-visible {
   text-align: left;
   border: 0;
   background: transparent;
-  border-radius: 7px;
+  border-radius: 8px;
   color: var(--text);
+  transition: background 120ms ease, color 120ms ease;
 }
 .tree-row {
   display: flex;
   align-items: center;
   gap: 6px;
-  height: 28px;
+  height: 32px;
   padding-right: 8px;
 }
 .tree-row .chev { width: 14px; color: var(--faint); flex: none; }
 .tree-row .name { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.tree-row .kind, .outline-row .kind {
+  margin-left: auto;
+  font-size: 11px;
+  color: var(--faint);
+  font-family: var(--font);
+}
+.tree-row.java .kind { color: var(--accent); }
 .tree-row:hover, .outline-row:hover, .problem:hover, .menu button:hover, .palette-item:hover,
 .palette-item.active { background: var(--hover); }
 .tree-row.active { box-shadow: inset 2px 0 0 var(--accent); background: var(--hover); }
 .tree-row.selected { background: var(--select); }
 .tree-row.java .name { color: var(--text); }
 .outline-row {
-  display: block;
-  padding: 5px 8px;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 6px 8px;
   font-family: var(--mono);
   font-size: 12px;
 }
+.outline-row .kind { text-transform: lowercase; }
 .outline-row.method { color: var(--muted); }
 #editor-pane { position: relative; min-height: 0; display: flex; flex-direction: column; }
 #tabs {
@@ -320,14 +331,15 @@ select:focus, input:focus, textarea:focus, button:focus-visible {
   align-items: center;
   gap: 6px;
   border: 0;
-  border-bottom: 2px solid transparent;
   background: transparent;
   color: var(--muted);
-  padding: 0 8px;
+  padding: 0 10px;
+  margin-top: 6px;
   white-space: nowrap;
-  border-radius: 0;
+  border-radius: 8px 8px 0 0;
+  transition: background 120ms ease, color 120ms ease;
 }
-.tab.on { color: var(--text); border-bottom-color: var(--accent); }
+.tab.on { color: var(--text); background: var(--bg-elev); }
 .tab-name { border: 0; background: transparent; color: inherit; padding: 0; }
 .tab .close {
   border: 0;
@@ -450,23 +462,59 @@ button.linkish {
 }
 .path-note { margin: 6px 8px; color: var(--faint); font-size: 12px; word-break: break-all; }
 
-#scrim { position: fixed; inset: 0; background: rgba(0, 0, 0, 0.28); z-index: 35; }
+#scrim { position: fixed; inset: 0; background: rgba(0, 0, 0, 0.28); z-index: 35; opacity: 0; transition: opacity 180ms ease; }
+#scrim.show { opacity: 1; }
 #drawer {
   position: fixed;
   top: 52px;
   right: 0;
   bottom: 28px;
-  width: min(420px, 100%);
+  width: min(460px, 100%);
   background: var(--bg-elev);
   border-left: 1px solid var(--line);
   z-index: 40;
   display: flex;
   flex-direction: column;
   box-shadow: var(--shadow);
+  opacity: 0;
+  transform: translateX(16px);
+  transition: transform 180ms ease, opacity 180ms ease;
+}
+#drawer.show { opacity: 1; transform: none; }
+#github.connected::before {
+  content: "";
+  display: inline-block;
+  width: 7px;
+  height: 7px;
+  margin-right: 6px;
+  border-radius: 50%;
+  background: var(--green);
+  vertical-align: 1px;
 }
 .drawer-head, .drawer-body { padding: 14px 16px; }
 .drawer-head { border-bottom: 1px solid var(--line); }
 .drawer-head h2 { font-family: var(--serif); font-size: 28px; font-weight: 500; margin: 0; }
+.drawer h3 { margin: 0; font-size: 15px; }
+.drawer details { color: var(--muted); }
+.drawer summary { cursor: pointer; }
+.drawer-body section[hidden] { display: none; }
+.repo-list { display: flex; flex-direction: column; gap: 6px; max-height: min(42vh, 360px); overflow: auto; }
+.repo {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  padding: 8px 10px;
+  background: var(--bg);
+  cursor: pointer;
+  transition: border-color 120ms ease, background 120ms ease;
+}
+.repo.on { border-color: var(--accent); background: color-mix(in srgb, var(--accent) 12%, var(--bg)); }
+.repo .meta { display: flex; flex-direction: column; min-width: 0; }
+.repo .meta strong { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.repo .meta span { color: var(--muted); font-size: 12px; }
+.repo .action { margin-left: auto; flex: none; }
 .drawer-body { overflow: auto; display: flex; flex-direction: column; gap: 14px; }
 .drawer label { display: flex; flex-direction: column; gap: 4px; color: var(--muted); font-size: 12px; }
 .drawer input, .drawer select, .drawer textarea { width: 100%; }

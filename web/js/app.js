@@ -282,7 +282,10 @@
     const name = document.createElement("span");
     name.className = "name";
     name.textContent = node.name;
-    row.append(chev, name);
+    const kind = document.createElement("span");
+    kind.className = "kind";
+    kind.textContent = node.dir ? "Folder" : node.path.endsWith(".java") ? "Class" : "File";
+    row.append(chev, name, kind);
     row.addEventListener("click", () => {
       state.selected = node.path;
       if (node.dir) {
@@ -411,7 +414,10 @@
       btn.type = "button";
       btn.className = "outline-row " + sym.kind;
       btn.style.paddingLeft = (8 + sym.indent * 12) + "px";
-      btn.textContent = sym.name + (sym.kind === "method" ? sym.detail || "()" : "");
+      const kind = document.createElement("span");
+      kind.className = "kind";
+      kind.textContent = sym.kind;
+      btn.append(document.createTextNode(sym.name + (sym.kind === "method" ? sym.detail || "()" : "")), kind);
       btn.addEventListener("click", () => jumpTo(file.path, sym.line, 1));
       box.appendChild(btn);
     });
@@ -1029,82 +1035,184 @@
     await refreshProjects(data.id);
   }
 
+  let githubPoll = 0;
+  let githubRepos = [];
+  let githubTarget = null;
+
   function openDrawer() {
     closePopovers();
-    $("drawer").hidden = false;
-    $("scrim").hidden = false;
-    if (state.settings && state.settings.githubLogin) {
-      $("gh-status").textContent = "Connected as @" + state.settings.githubLogin;
-      if (!$("gh-owner").value) $("gh-owner").value = state.settings.githubLogin;
-    } else if (state.settings && state.settings.tokenSet) {
-      $("gh-status").textContent = "A token is saved";
-    } else {
-      $("gh-status").textContent = "Not connected";
-    }
-    if (state.project && !$("gh-repo").value) $("gh-repo").value = state.project.id;
+    const drawer = $("drawer");
+    const scrim = $("scrim");
+    drawer.hidden = false;
+    scrim.hidden = false;
+    requestAnimationFrame(() => {
+      drawer.classList.add("show");
+      scrim.classList.add("show");
+    });
+    showGithub();
     if (state.settings && state.settings.tokenSet) loadRepos();
   }
 
   function closeDrawer() {
-    $("drawer").hidden = true;
-    $("scrim").hidden = true;
+    $("drawer").classList.remove("show");
+    $("scrim").classList.remove("show");
+    setTimeout(() => {
+      if ($("drawer").classList.contains("show")) return;
+      $("drawer").hidden = true;
+      $("scrim").hidden = true;
+    }, 180);
+  }
+
+  function showGithub() {
+    const signedIn = Boolean(state.settings && state.settings.tokenSet);
+    $("gh-signed-out").hidden = signedIn;
+    $("gh-signed-in").hidden = !signedIn;
+    $("github").classList.toggle("connected", signedIn);
+    if (signedIn) {
+      const login = state.settings.githubLogin ? "@" + state.settings.githubLogin : "Signed in";
+      $("gh-status").textContent = login;
+    }
+    renderGithubTarget();
+  }
+
+  function renderGithubTarget() {
+    const target = $("gh-target");
+    if (!target) return;
+    if (!githubTarget) {
+      target.textContent = "Choose a repository to push this project, or create a new one.";
+      return;
+    }
+    target.textContent = "Push goes to " + githubTarget.owner + "/" + githubTarget.repo + " on " + githubTarget.branch + ".";
   }
 
   async function saveToken() {
     const token = $("gh-token").value.trim();
-    if (!token) return toast("Paste a token, or use Forget token.");
+    if (!token) return toast("Paste a token first.");
     try {
       const data = await api("POST", "/api/github/token", { token: token });
       state.settings.tokenSet = Boolean(data.login);
       state.settings.githubLogin = data.login || "";
       $("gh-token").value = "";
-      $("gh-status").textContent = data.login ? "Connected as @" + data.login : "Not connected";
+      showGithub();
       if (data.login) {
-        $("gh-owner").value = data.login;
-        toast("Connected as @" + data.login);
+        toast("Signed in as @" + data.login);
         loadRepos();
       }
     } catch (err) {
-      $("gh-result").textContent = err.message;
+      toast(err.message);
     }
+  }
+
+  async function signIn() {
+    const popup = window.open("", "lark-github", "width=540,height=760");
+    $("gh-wait").textContent = "GitHub is opening. Authorize Lark there, and choose All repositories.";
+    try {
+      const before = await api("GET", "/api/github/status");
+      const data = await api("POST", "/api/github/login");
+      if (popup) popup.location.href = data.url;
+      else window.open(data.url, "_blank", "noopener");
+      window.clearInterval(githubPoll);
+      let ticks = 0;
+      githubPoll = window.setInterval(async () => {
+        ticks += 1;
+        if (ticks > 90) {
+          window.clearInterval(githubPoll);
+          $("gh-wait").textContent = "Still waiting. If you closed the window, click Sign in again.";
+          return;
+        }
+        try {
+          const status = await api("GET", "/api/github/status");
+          if (status.generation !== before.generation && status.tokenSet) {
+            window.clearInterval(githubPoll);
+            state.settings.tokenSet = true;
+            state.settings.githubLogin = status.login || "";
+            $("gh-wait").textContent = "";
+            showGithub();
+            toast("Signed in as @" + (status.login || "GitHub"));
+            loadRepos();
+          }
+        } catch (err) {
+          // Keep waiting. The next tick tries again.
+        }
+      }, 1000);
+    } catch (err) {
+      if (popup) popup.close();
+      $("gh-wait").textContent = err.message;
+    }
+  }
+
+  function renderRepoList() {
+    const box = $("gh-repo-list");
+    const query = ($("gh-filter").value || "").trim().toLowerCase();
+    box.replaceChildren();
+    const rows = githubRepos.filter((repo) => !query || repo.fullName.toLowerCase().includes(query));
+    if (!rows.length) {
+      const empty = document.createElement("p");
+      empty.className = "muted";
+      empty.textContent = githubRepos.length ? "No repository matches that search." : "No repositories yet. Choose All repositories when you authorize, then sign in again.";
+      box.appendChild(empty);
+      return;
+    }
+    rows.forEach((repo) => {
+      const row = document.createElement("div");
+      const selected = githubTarget && githubTarget.owner === repo.owner && githubTarget.repo === repo.name;
+      row.className = "repo" + (selected ? " on" : "");
+      const meta = document.createElement("div");
+      meta.className = "meta";
+      const title = document.createElement("strong");
+      title.textContent = repo.fullName;
+      const detail = document.createElement("span");
+      detail.textContent = (repo.private ? "Private" : "Public") + " · " + (repo.defaultBranch || "main");
+      meta.append(title, detail);
+      const clone = document.createElement("button");
+      clone.type = "button";
+      clone.className = "action";
+      clone.textContent = "Clone";
+      clone.addEventListener("click", (event) => {
+        event.stopPropagation();
+        cloneRepo(repo);
+      });
+      row.addEventListener("click", () => {
+        githubTarget = { owner: repo.owner, repo: repo.name, branch: repo.defaultBranch || "main", create: false };
+        renderGithubTarget();
+        renderRepoList();
+      });
+      row.append(meta, clone);
+      box.appendChild(row);
+    });
   }
 
   async function loadRepos() {
+    const box = $("gh-repo-list");
+    box.textContent = "Loading repositories…";
     try {
       const data = await api("GET", "/api/github/repos");
-      const select = $("gh-repos");
-      select.replaceChildren();
-      const blank = document.createElement("option");
-      blank.value = "";
-      blank.textContent = data.repos.length ? "Choose a repository" : "No repositories yet";
-      select.appendChild(blank);
-      data.repos.forEach((repo) => {
-        const opt = document.createElement("option");
-        opt.value = repo.fullName;
-        opt.textContent = repo.fullName + (repo.private ? "  · private" : "");
-        opt.dataset.owner = repo.owner;
-        opt.dataset.name = repo.name;
-        opt.dataset.branch = repo.defaultBranch || "main";
-        select.appendChild(opt);
-      });
+      githubRepos = data.repos || [];
+      renderRepoList();
     } catch (err) {
-      $("gh-result").textContent = err.message;
+      box.textContent = err.message;
     }
   }
 
-  async function pushProject() {
+  async function pushProject(createNew) {
     if (!state.project) return toast("Open a project first.");
+    let target = githubTarget;
+    if (createNew) {
+      const repo = (state.project.id || "project").toLowerCase().replace(/[^a-z0-9_.-]+/g, "-").replace(/^-+|-+$/g, "").slice(0, 80) || "project";
+      target = { owner: state.settings.githubLogin || "", repo: repo, branch: "main", create: true };
+    }
+    if (!target || !target.owner || !target.repo) return toast("Choose a repository first.");
     await flushSaves();
-    $("gh-result").textContent = "Pushing…";
+    $("gh-result").textContent = createNew ? "Creating and pushing…" : "Pushing…";
     $("gh-push").disabled = true;
     try {
       const data = await api("POST", "/api/github/push", {
         project: state.project.id,
-        owner: $("gh-owner").value.trim(),
-        repo: $("gh-repo").value.trim(),
-        branch: $("gh-branch").value.trim() || "main",
+        owner: target.owner,
+        repo: target.repo,
+        branch: target.branch || "main",
         message: $("gh-message").value.trim(),
-        create: $("gh-create").checked
+        create: Boolean(target.create)
       });
       $("gh-result").textContent = "";
       const link = document.createElement("a");
@@ -1113,6 +1221,8 @@
       link.rel = "noreferrer";
       link.textContent = "Pushed " + data.files + " files";
       $("gh-result").appendChild(link);
+      githubTarget = { owner: target.owner, repo: target.repo, branch: target.branch || "main", create: false };
+      renderGithubTarget();
       loadRepos();
     } catch (err) {
       $("gh-result").textContent = err.message;
@@ -1121,22 +1231,19 @@
     }
   }
 
-  async function pullProject() {
-    $("gh-result").textContent = "Pulling…";
-    $("gh-pull").disabled = true;
+  async function cloneRepo(repo) {
+    $("gh-result").textContent = "Cloning " + repo.fullName + "…";
     try {
       const data = await api("POST", "/api/github/pull", {
-        owner: $("gh-owner").value.trim(),
-        repo: $("gh-repo").value.trim(),
-        branch: $("gh-branch").value.trim() || "main"
+        owner: repo.owner,
+        repo: repo.name,
+        branch: repo.defaultBranch || "main"
       });
-      $("gh-result").textContent = "Brought in " + data.files + " files.";
+      toast("Cloned " + repo.fullName + " (" + data.files + " files)");
       closeDrawer();
       await refreshProjects(data.id);
     } catch (err) {
       $("gh-result").textContent = err.message;
-    } finally {
-      $("gh-pull").disabled = false;
     }
   }
 
@@ -1269,25 +1376,21 @@
     $("github").addEventListener("click", openDrawer);
     $("drawer-close").addEventListener("click", closeDrawer);
     $("scrim").addEventListener("click", closeDrawer);
-    $("gh-save").addEventListener("click", saveToken);
+    $("gh-signin").addEventListener("click", () => signIn());
+    $("gh-save").addEventListener("click", () => saveToken());
+    $("gh-filter").addEventListener("input", renderRepoList);
     $("gh-forget").addEventListener("click", () => {
       $("gh-token").value = "";
       api("POST", "/api/github/token", { token: "" }).then(() => {
         state.settings.tokenSet = false;
         state.settings.githubLogin = "";
-        $("gh-status").textContent = "Not connected";
-        $("gh-repos").replaceChildren();
+        githubRepos = [];
+        githubTarget = null;
+        showGithub();
       }).catch((err) => toast(err.message));
     });
-    $("gh-repos").addEventListener("change", () => {
-      const opt = $("gh-repos").selectedOptions[0];
-      if (!opt || !opt.dataset.owner) return;
-      $("gh-owner").value = opt.dataset.owner;
-      $("gh-repo").value = opt.dataset.name;
-      $("gh-branch").value = opt.dataset.branch || "main";
-    });
-    $("gh-push").addEventListener("click", () => pushProject());
-    $("gh-pull").addEventListener("click", () => pullProject());
+    $("gh-push").addEventListener("click", () => pushProject(false));
+    $("gh-new-repo").addEventListener("click", () => pushProject(true));
     $("tab-output").addEventListener("click", () => showConsoleTab("output"));
     $("tab-problems").addEventListener("click", () => showConsoleTab("problems"));
     $("clear-console").addEventListener("click", () => {
@@ -1370,6 +1473,7 @@
       bind();
       state.settings = await api("GET", "/api/settings");
       applyTheme(state.settings.theme, false);
+      showGithub();
       const version = (state.settings.javaVersion || "").split(".")[0];
       $("status-java").textContent = version ? "Java " + version : "";
       const data = await api("GET", "/api/projects");
