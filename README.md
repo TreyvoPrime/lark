@@ -1,8 +1,8 @@
 # Lark
 
-Lark is a small Java IDE. It is meant to feel lighter than IntelliJ or Eclipse, and more useful than a single browser text box: several files and classes, an outline, compile and run, problems that jump to the line, and a push to GitHub.
+Lark is a small Java IDE: several files and classes, an outline, compile and run, problems that jump to the line, and GitHub clone/push. It is meant to feel lighter than IntelliJ or Eclipse, and more useful than a single browser text box.
 
-The only thing you install is a JDK 17 or newer. There is no Gradle, no Electron, and no plugin download. If Java is missing, the portable launcher downloads a private copy into your user folder. That step does not ask for an administrator password.
+The only install is a JDK 17 or newer. There is no Gradle, no Electron, and no plugin download. If Java is missing, the portable launcher downloads a private copy into your user folder. That step does not ask for an administrator password.
 
 ## Take it to any computer
 
@@ -14,7 +14,7 @@ Unzip the portable folder into Downloads or Documents. The same folder works on 
 
 Lark opens in its own window. It does not install into Program Files, and it does not need an administrator username or password. Build the zips with `./packaging/make-release.sh`.
 
-## Run it
+## Run from source
 
 ```bash
 ./lark.sh
@@ -38,8 +38,8 @@ The jar is the editor. Running it still needs a JDK, because that is what compil
 - Keep more than one project, each with packages, classes, interfaces, records, and enums.
 - Edit with Java highlighting, bracket matching, find, comment toggle, and completion for names in the project (`Ctrl+Space`).
 - Run the main class. Compiler errors show under Problems and open the line.
-- Switch themes: Ink, Paper, Tide, Copper, and Chalk.
-- Sign in with GitHub, authorize Lark, and clone a repository from the list. Push sends the open project as one commit. A personal access token still works. Credentials stay in `~/.lark/settings.json` and are only sent to GitHub.
+- Themes: Desk, Daylight, Moss, Ember, and Fog.
+- Connect GitHub with a classic personal access token (`repo` scope). Lark lists repositories you can clone, and can push the open project. Browser sign-in is available too; Lark refreshes those tokens when GitHub allows it. Credentials stay in `~/.lark/settings.json` and are only sent to GitHub.
 - Import a folder or a zip, and download the project as a zip.
 
 `Ctrl+Enter` runs. `Ctrl+P` opens a file. `Ctrl+S` saves. On a Mac, use Command.

@@ -5,15 +5,25 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.attribute.PosixFilePermission;
 import java.util.EnumSet;
+import java.util.Map;
 import java.util.Set;
 
 /** Preferences stored in the home folder. The GitHub token never leaves this machine except for GitHub. */
 public final class Settings {
-    public static final String VERSION = "1.2.0";
-    public static final Set<String> THEMES = Set.of("ink", "paper", "tide", "copper", "chalk");
+    public static final String VERSION = "1.3.0";
+    public static final Set<String> THEMES = Set.of("desk", "daylight", "moss", "ember", "fog");
+    private static final Map<String, String> THEME_ALIASES = Map.of(
+            "ink", "desk",
+            "paper", "daylight",
+            "tide", "moss",
+            "copper", "ember",
+            "chalk", "fog"
+    );
 
-    public String theme = "ink";
+    public String theme = "desk";
     public String githubToken = "";
+    public String githubRefreshToken = "";
+    public long githubTokenExpiresAt;
     public String githubLogin = "";
     public String githubClientId = "";
     public String githubClientSecret = "";
@@ -39,9 +49,12 @@ public final class Settings {
         if (!Files.isRegularFile(file)) return settings;
         try {
             Json.Obj obj = Json.parseObj(Files.readString(file));
-            String theme = obj.str("theme", "ink");
-            settings.theme = THEMES.contains(theme) ? theme : "ink";
+            String theme = obj.str("theme", "desk");
+            theme = THEME_ALIASES.getOrDefault(theme, theme);
+            settings.theme = THEMES.contains(theme) ? theme : "desk";
             settings.githubToken = obj.str("githubToken", "");
+            settings.githubRefreshToken = obj.str("githubRefreshToken", "");
+            settings.githubTokenExpiresAt = obj.longVal("githubTokenExpiresAt");
             settings.githubLogin = obj.str("githubLogin", "");
             settings.githubClientId = obj.str("githubClientId", "");
             settings.githubClientSecret = obj.str("githubClientSecret", "");
@@ -60,6 +73,8 @@ public final class Settings {
             Json.Obj obj = new Json.Obj()
                     .put("theme", theme)
                     .put("githubToken", githubToken == null ? "" : githubToken)
+                    .put("githubRefreshToken", githubRefreshToken == null ? "" : githubRefreshToken)
+                    .put("githubTokenExpiresAt", githubTokenExpiresAt)
                     .put("githubLogin", githubLogin == null ? "" : githubLogin)
                     .put("githubClientId", githubClientId == null ? "" : githubClientId)
                     .put("githubClientSecret", githubClientSecret == null ? "" : githubClientSecret)
@@ -77,6 +92,13 @@ public final class Settings {
         } catch (IOException e) {
             throw new RequestFail(500, "Couldn't save settings.");
         }
+    }
+
+    public void clearGithubSession() {
+        githubToken = "";
+        githubRefreshToken = "";
+        githubTokenExpiresAt = 0;
+        githubLogin = "";
     }
 
     public Path projectsDir() {

@@ -12,63 +12,62 @@
       margin: 0;
       min-height: 100vh;
       background:
-        radial-gradient(900px 420px at 10% -10%, rgba(227, 164, 90, 0.16), transparent 60%),
-        #12110f;
-      color: #f3eee4;
-      font-family: Inter, "Segoe UI", "Helvetica Neue", sans-serif;
+        radial-gradient(900px 420px at 8% -12%, rgba(127, 154, 108, 0.16), transparent 58%),
+        #171a18;
+      color: #e6ebe4;
+      font-family: Cantarell, "Noto Sans", "Segoe UI", sans-serif;
     }
     main { width: min(920px, calc(100% - 32px)); margin: 0 auto; padding: 48px 0 64px; }
-    header.brand { display: flex; align-items: center; gap: 10px; color: #e3a45a; }
-    header.brand svg { width: 28px; height: 28px; }
+    header.brand { display: flex; align-items: center; gap: 10px; color: #7f9a6c; font-family: "JetBrains Mono", ui-monospace, monospace; font-size: 14px; font-weight: 600; letter-spacing: 0.02em; }
+    header.brand svg { width: 20px; height: 20px; }
     h1 {
       margin: 18px 0 8px;
-      font-family: "Liberation Serif", Palatino, Georgia, serif;
-      font-weight: 500;
-      font-size: clamp(36px, 6vw, 56px);
-      letter-spacing: -0.03em;
-      line-height: 1.05;
+      font-weight: 650;
+      font-size: clamp(28px, 5vw, 40px);
+      letter-spacing: -0.02em;
+      line-height: 1.1;
     }
-    .lead { max-width: 62ch; color: #a3988a; font-size: 17px; line-height: 1.55; }
+    .lead { max-width: 62ch; color: #9aa89a; font-size: 16px; line-height: 1.55; }
     .note {
       display: inline-block;
       margin-top: 14px;
-      padding: 6px 10px;
-      border: 1px solid #322e28;
+      padding: 5px 9px;
+      border: 1px solid #2c342f;
       border-radius: 999px;
-      color: #f0e2c8;
-      background: #1c1a17;
+      color: #dfe6d8;
+      background: #1f2421;
       font-size: 13px;
     }
     .grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 12px; margin-top: 28px; }
     article {
-      background: #1c1a17;
-      border: 1px solid #322e28;
-      border-radius: 16px;
+      background: #1f2421;
+      border: 1px solid #2c342f;
+      border-radius: 10px;
       padding: 18px;
       display: flex;
       flex-direction: column;
       gap: 8px;
-      min-height: 220px;
+      min-height: 210px;
     }
-    article.pick { border-color: #e3a45a; box-shadow: 0 0 0 1px #e3a45a; }
-    h2 { margin: 0; font-size: 18px; font-weight: 650; }
-    p { margin: 0; color: #a3988a; line-height: 1.5; }
-    code { font-family: "JetBrains Mono", "Cascadia Mono", ui-monospace, monospace; color: #f0e2c8; font-size: 0.92em; }
+    article.pick { border-color: #7f9a6c; }
+    h2 { margin: 0; font-size: 17px; font-weight: 650; }
+    p { margin: 0; color: #9aa89a; line-height: 1.5; }
+    code { font-family: "JetBrains Mono", ui-monospace, monospace; color: #dfe6d8; font-size: 0.92em; }
     a.dl {
       margin-top: auto;
       display: inline-flex;
       justify-content: center;
       text-decoration: none;
-      background: #e3a45a;
-      color: #2a1c0c;
+      background: #7f9a6c;
+      color: #12170f;
       font-weight: 700;
-      border-radius: 10px;
-      padding: 12px 14px;
+      border-radius: 6px;
+      padding: 11px 14px;
     }
-    a.dl:hover { filter: brightness(1.06); }
+    a.dl:hover { filter: brightness(1.05); }
     ol { margin: 28px 0 0; padding-left: 1.2em; line-height: 1.6; }
-    a { color: #e3a45a; }
-    #status { min-height: 1.4em; color: #f3eee4; }
+    a { color: #9bb58a; }
+    #status { min-height: 1.4em; color: #e6ebe4; }
     @media (max-width: 760px) { .grid { grid-template-columns: 1fr; } }
   </style>
 </head>
@@ -82,7 +81,7 @@
       <strong>Lark</strong>
     </header>
     <h1>One folder. Any computer.</h1>
-    <p class="lead">Download Lark, unzip it, and open the launcher for this computer. It stays in your user folder. It does not install for every account, and it does not ask for an administrator username or password.</p>
+    <p class="lead">Download Lark, unzip it, and open the launcher for this computer. It stays in your user folder. It does not ask for an administrator username or password.</p>
     <span class="note">Windows, Mac, and Linux use the same folder</span>
     <div class="grid">
       <article id="card-windows">
@@ -92,7 +91,7 @@
       </article>
       <article id="card-mac">
         <h2>Mac</h2>
-        <p>Unzip, then double-click <code>Start Lark.command</code>. If macOS warns you, right-click it and choose Open.</p>
+        <p>Unzip, then double-click <code>Start Lark.command</code>. If macOS warns you, right-click and choose Open.</p>
         <a class="dl" href="/lark-mac.zip">Download for Mac</a>
       </article>
       <article id="card-linux">
@@ -103,9 +102,10 @@
     </div>
     <p id="status"></p>
     <ol>
-      <li>Save the zip into Downloads or Documents. You do not need permission to write anywhere else.</li>
+      <li>Save the zip into Downloads or Documents.</li>
       <li>Unzip it. You should see <code>lark.jar</code> next to the launcher.</li>
-      <li>Open the launcher. If Java 17 or newer is already on the computer, Lark uses it. If not, it downloads a private copy into your user folder the first time. That download needs the internet. It still does not need an admin password.</li>
+      <li>Open the launcher. If Java is missing, Lark downloads a private copy into your user folder the first time.</li>
+      <li>In Lark, open GitHub, create a classic token with the <code>repo</code> scope, paste it, and connect.</li>
     </ol>
   </main>
   <script>

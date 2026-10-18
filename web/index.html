@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<html lang="en" data-theme="ink">
+<html lang="en" data-theme="desk">
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
@@ -12,7 +12,8 @@
   <script>
     try {
       var savedTheme = localStorage.getItem("lark-theme");
-      if (savedTheme) document.documentElement.dataset.theme = savedTheme;
+      var aliases = { ink: "desk", paper: "daylight", tide: "moss", copper: "ember", chalk: "fog" };
+      if (savedTheme) document.documentElement.dataset.theme = aliases[savedTheme] || savedTheme;
     } catch (e) {}
   </script>
 </head>
@@ -40,8 +41,7 @@
       </label>
       <button id="run" type="button" class="primary" title="Ctrl+Enter">Run</button>
       <button id="github" type="button">GitHub</button>
-      <a class="as-button" href="/download.html">Download</a>
-      <button id="theme" type="button" data-pop="menu-theme">Ink</button>
+      <button id="theme" type="button" data-pop="menu-theme">Desk</button>
       <button id="help" type="button" data-pop="menu-help" aria-label="Keyboard shortcuts">?</button>
     </header>
 
@@ -63,8 +63,8 @@
           <div id="tabs"></div>
           <div id="editor"></div>
           <div id="empty" hidden>
-            <h2>No file open</h2>
-            <p>Files are on the left. The open class is described on the right.</p>
+            <h2>Pick a file</h2>
+            <p>Open something from the tree, or start a new class.</p>
             <button type="button" id="empty-new" class="primary">New class</button>
           </div>
         </div>
@@ -88,7 +88,7 @@
       </div>
       <aside id="outline">
         <div class="splitter" data-split="outline"></div>
-        <div class="pane-head"><span>In this file</span><button type="button" id="outline-toggle" class="pane-actions">Hide</button></div>
+        <div class="pane-head"><span>Outline</span><button type="button" id="outline-toggle" class="pane-actions">Hide</button></div>
         <div id="outline-list"></div>
       </aside>
     </div>
@@ -111,11 +111,11 @@
     <p id="path-note" class="path-note"></p>
   </div>
   <div id="menu-theme" class="popover menu" hidden>
-    <button type="button" data-theme-choice="ink"><i class="swatch" style="background:#e3a45a"></i>Ink</button>
-    <button type="button" data-theme-choice="paper"><i class="swatch" style="background:#b85c38"></i>Paper</button>
-    <button type="button" data-theme-choice="tide"><i class="swatch" style="background:#7dcec0"></i>Tide</button>
-    <button type="button" data-theme-choice="copper"><i class="swatch" style="background:#e08b6a"></i>Copper</button>
-    <button type="button" data-theme-choice="chalk"><i class="swatch" style="background:#2f6f8f"></i>Chalk</button>
+    <button type="button" data-theme-choice="desk"><i class="swatch" style="background:#7f9a6c"></i>Desk</button>
+    <button type="button" data-theme-choice="daylight"><i class="swatch" style="background:#4a6b58"></i>Daylight</button>
+    <button type="button" data-theme-choice="moss"><i class="swatch" style="background:#6f9e8c"></i>Moss</button>
+    <button type="button" data-theme-choice="ember"><i class="swatch" style="background:#c4845a"></i>Ember</button>
+    <button type="button" data-theme-choice="fog"><i class="swatch" style="background:#5b7388"></i>Fog</button>
   </div>
   <div id="menu-help" class="popover" hidden>
     <ul class="help-list">
@@ -140,29 +140,38 @@
     </div>
     <div class="drawer-body">
       <section id="gh-signed-out">
-        <p>Sign in with GitHub and authorize Lark. Your repositories then show up here, and you can clone one into a project.</p>
-        <button type="button" id="gh-signin" class="action primary">Sign in with GitHub</button>
-        <p id="gh-wait"></p>
-        <details>
-          <summary>Use a token instead</summary>
-          <label>Personal access token
-            <input id="gh-token" type="password" autocomplete="off" spellcheck="false" placeholder="github_pat_… or ghp_…">
-          </label>
-          <button type="button" id="gh-save" class="action">Connect with token</button>
+        <p class="gh-lead">Connect once. Lark can then list your repositories, clone them, and push this project.</p>
+        <ol class="gh-steps">
+          <li>
+            <button type="button" id="gh-create-token" class="action primary">Create a GitHub token</button>
+            <span class="gh-hint">Opens GitHub with the <code>repo</code> scope already selected. Choose classic token, generate, then copy it.</span>
+          </li>
+          <li>
+            <label>Paste the token here
+              <input id="gh-token" type="password" autocomplete="off" spellcheck="false" placeholder="ghp_…">
+            </label>
+            <button type="button" id="gh-save" class="action primary">Connect</button>
+          </li>
+        </ol>
+        <p id="gh-wait" class="gh-wait"></p>
+        <details class="gh-alt">
+          <summary>Browser sign-in instead</summary>
+          <p>If you prefer, Lark can open GitHub and ask you to authorize it. Tokens from that path can expire; Lark refreshes them when it can.</p>
+          <button type="button" id="gh-signin" class="action">Sign in with GitHub</button>
         </details>
       </section>
       <section id="gh-signed-in" hidden>
-        <div class="row">
-          <strong id="gh-status">Signed in</strong>
+        <div class="row gh-account">
+          <strong id="gh-status">Connected</strong>
           <button type="button" id="gh-forget" class="action">Sign out</button>
         </div>
-        <label>Repositories you can clone
-          <input id="gh-filter" type="text" placeholder="Search" spellcheck="false" autocomplete="off">
+        <label>Your repositories
+          <input id="gh-filter" type="text" placeholder="Filter by name" spellcheck="false" autocomplete="off">
         </label>
         <div id="gh-repo-list" class="repo-list"></div>
         <div class="block">
           <h3>Push this project</h3>
-          <p id="gh-target">Choose a repository above.</p>
+          <p id="gh-target">Choose a repository above, or create a new one.</p>
           <label>Commit message <input id="gh-message" type="text" value="Update from Lark" spellcheck="false"></label>
           <div class="row">
             <button type="button" id="gh-push" class="action primary">Push</button>

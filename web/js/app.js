@@ -1,5 +1,23 @@
 (function () {
-  const THEME_NAMES = { ink: "Ink", paper: "Paper", tide: "Tide", copper: "Copper", chalk: "Chalk" };
+  const THEME_NAMES = {
+    desk: "Desk",
+    daylight: "Daylight",
+    moss: "Moss",
+    ember: "Ember",
+    fog: "Fog",
+    ink: "Desk",
+    paper: "Daylight",
+    tide: "Moss",
+    copper: "Ember",
+    chalk: "Fog"
+  };
+  const THEME_CANON = {
+    ink: "desk",
+    paper: "daylight",
+    tide: "moss",
+    copper: "ember",
+    chalk: "fog"
+  };
   const state = {
     settings: null,
     projects: [],
@@ -46,11 +64,12 @@
   }
 
   function themeName(theme) {
-    return THEME_NAMES[theme] || "Ink";
+    return THEME_NAMES[theme] || "Desk";
   }
 
   function applyTheme(theme, save) {
-    if (!THEME_NAMES[theme]) theme = "ink";
+    theme = THEME_CANON[theme] || theme;
+    if (!THEME_NAMES[theme] || !["desk", "daylight", "moss", "ember", "fog"].includes(theme)) theme = "desk";
     document.documentElement.dataset.theme = theme;
     try { localStorage.setItem("lark-theme", theme); } catch (e) {}
     $("theme").textContent = themeName(theme);
@@ -1069,7 +1088,7 @@
     $("gh-signed-in").hidden = !signedIn;
     $("github").classList.toggle("connected", signedIn);
     if (signedIn) {
-      const login = state.settings.githubLogin ? "@" + state.settings.githubLogin : "Signed in";
+      const login = state.settings.githubLogin ? "Connected as @" + state.settings.githubLogin : "Connected";
       $("gh-status").textContent = login;
     }
     renderGithubTarget();
@@ -1087,18 +1106,21 @@
 
   async function saveToken() {
     const token = $("gh-token").value.trim();
-    if (!token) return toast("Paste a token first.");
+    if (!token) return toast("Paste the token from GitHub first.");
+    $("gh-wait").textContent = "Checking that token with GitHub…";
     try {
       const data = await api("POST", "/api/github/token", { token: token });
       state.settings.tokenSet = Boolean(data.login);
       state.settings.githubLogin = data.login || "";
       $("gh-token").value = "";
+      $("gh-wait").textContent = "";
       showGithub();
       if (data.login) {
-        toast("Signed in as @" + data.login);
+        toast("Connected as @" + data.login);
         loadRepos();
       }
     } catch (err) {
+      $("gh-wait").textContent = err.message;
       toast(err.message);
     }
   }
@@ -1377,7 +1399,22 @@
     $("drawer-close").addEventListener("click", closeDrawer);
     $("scrim").addEventListener("click", closeDrawer);
     $("gh-signin").addEventListener("click", () => signIn());
+    $("gh-create-token").addEventListener("click", () => {
+      window.open(
+        "https://github.com/settings/tokens/new?description=Lark&scopes=repo",
+        "_blank",
+        "noopener"
+      );
+      $("gh-wait").textContent = "After GitHub shows the token, copy it, come back here, and paste it below.";
+      $("gh-token").focus();
+    });
     $("gh-save").addEventListener("click", () => saveToken());
+    $("gh-token").addEventListener("keydown", (event) => {
+      if (event.key === "Enter") {
+        event.preventDefault();
+        saveToken();
+      }
+    });
     $("gh-filter").addEventListener("input", renderRepoList);
     $("gh-forget").addEventListener("click", () => {
       $("gh-token").value = "";

@@ -35,25 +35,56 @@ public final class GitHub {
 
     public Json.Obj saveToken(String token) {
         if (token == null || token.isBlank()) {
-            settings.githubToken = "";
-            settings.githubLogin = "";
+            settings.clearGithubSession();
             settings.save();
             generation++;
             return new Json.Obj().put("ok", true).put("login", "");
         }
-        token = token.trim();
+        token = cleanToken(token);
+        if (token.length() < 20) {
+            throw new RequestFail(400, "That doesn't look like a complete GitHub token. Copy the whole token and paste it again.");
+        }
         Api user = call(token, "GET", "/user", null);
         if (user.status == 401 || user.status == 403) {
-            throw new RequestFail(401, "GitHub didn't accept that token.");
+            throw new RequestFail(401, explainRejectedToken(token, user));
         }
         expectOk(token, user);
         String login = user.obj == null ? "" : user.obj.str("login", "");
         if (login.isBlank()) throw new RequestFail(502, "GitHub didn't return an account name.");
         settings.githubToken = token;
         settings.githubLogin = login;
+        // A pasted personal access token does not expire the way app tokens do.
+        if (!token.startsWith("ghu_") && !token.startsWith("gho_")) {
+            settings.githubRefreshToken = "";
+            settings.githubTokenExpiresAt = 0;
+        }
         settings.save();
         generation++;
         return new Json.Obj().put("ok", true).put("login", login);
+    }
+
+    public void storeOAuthTokens(String accessToken, String refreshToken, long expiresInSeconds) {
+        accessToken = cleanToken(accessToken);
+        if (accessToken.isBlank()) throw new RequestFail(401, "GitHub didn't return an access token.");
+        settings.githubToken = accessToken;
+        settings.githubRefreshToken = refreshToken == null ? "" : refreshToken.trim();
+        if (expiresInSeconds > 0) {
+            settings.githubTokenExpiresAt = System.currentTimeMillis() + Math.max(60, expiresInSeconds - 120) * 1000L;
+        } else {
+            settings.githubTokenExpiresAt = 0;
+        }
+        Api user = call(accessToken, "GET", "/user", null);
+        if (user.status == 401 || user.status == 403) {
+            settings.clearGithubSession();
+            settings.save();
+            throw new RequestFail(401, explainRejectedToken(accessToken, user));
+        }
+        expectOk(accessToken, user);
+        String login = user.obj == null ? "" : user.obj.str("login", "");
+        if (login.isBlank()) throw new RequestFail(502, "GitHub didn't return an account name.");
+        settings.githubLogin = login;
+        settings.save();
+        generation++;
     }
 
     public synchronized Json.Obj beginLogin(String base) {
@@ -166,14 +197,50 @@ public final class GitHub {
             return page("GitHub didn't authorize Lark", "<p>" + esc(githubMessage(token)) + "</p>");
         }
         try {
-            Json.Obj saved = saveToken(token.obj.str("access_token"));
+            applyTokenResponse(token.obj);
             expectInstall = false;
             pendingState = "";
-            String login = saved.str("login", "");
+            String login = settings.githubLogin == null ? "" : settings.githubLogin;
             return page("Signed in", "<p>Lark is connected as @" + esc(login) + ". You can close this window.</p>");
         } catch (RequestFail e) {
             return page("GitHub didn't authorize Lark", "<p>" + esc(e.getMessage()) + "</p>");
         }
+    }
+
+    private void applyTokenResponse(Json.Obj body) {
+        String access = body.str("access_token", "");
+        String refresh = body.str("refresh_token", "");
+        long expires = body.longVal("expires_in");
+        if (expires <= 0) {
+            String raw = body.str("expires_in", "");
+            if (!raw.isBlank()) {
+                try { expires = Long.parseLong(raw.trim()); } catch (NumberFormatException ignored) { expires = 0; }
+            }
+        }
+        storeOAuthTokens(access, refresh, expires);
+    }
+
+    private synchronized void refreshAccessToken() {
+        if (settings.githubRefreshToken == null || settings.githubRefreshToken.isBlank()) {
+            throw new RequestFail(401, "Your GitHub sign-in expired. Open GitHub in Lark and connect again.");
+        }
+        if (settings.githubClientId == null || settings.githubClientId.isBlank()
+                || settings.githubClientSecret == null || settings.githubClientSecret.isBlank()) {
+            throw new RequestFail(401, "Your GitHub sign-in expired. Open GitHub in Lark and connect again.");
+        }
+        Json.Obj body = new Json.Obj()
+                .put("client_id", settings.githubClientId)
+                .put("client_secret", settings.githubClientSecret)
+                .put("grant_type", "refresh_token")
+                .put("refresh_token", settings.githubRefreshToken);
+        Api token = postAbsolute("https://github.com/login/oauth/access_token", body.write(), "application/json");
+        if (token.obj == null || token.obj.str("access_token") == null) {
+            settings.clearGithubSession();
+            settings.save();
+            generation++;
+            throw new RequestFail(401, "GitHub needs you to connect again. Your last sign-in expired.");
+        }
+        applyTokenResponse(token.obj);
     }
 
     private String authorizeUrl(String base, String state) {
@@ -429,12 +496,25 @@ public final class GitHub {
     }
 
     private Api call(String token, String method, String path, String body) {
+        Api first = callOnce(token, method, path, body);
+        if (first.status != 401 && first.status != 403) return first;
+        if (settings.githubRefreshToken == null || settings.githubRefreshToken.isBlank()) return first;
+        if (token == null || !token.equals(settings.githubToken)) return first;
+        try {
+            refreshAccessToken();
+        } catch (RequestFail ignored) {
+            return first;
+        }
+        return callOnce(settings.githubToken, method, path, body);
+    }
+
+    private Api callOnce(String token, String method, String path, String body) {
         try {
             HttpRequest.Builder builder = HttpRequest.newBuilder(URI.create("https://api.github.com" + path))
                     .timeout(Duration.ofSeconds(45))
                     .header("Authorization", "Bearer " + token)
                     .header("Accept", "application/vnd.github+json")
-                    .header("User-Agent", "Lark-IDE")
+                    .header("User-Agent", "Lark-IDE/" + Settings.VERSION)
                     .header("X-GitHub-Api-Version", "2022-11-28");
             if (body == null) {
                 builder.method(method, HttpRequest.BodyPublishers.noBody());
@@ -457,15 +537,54 @@ public final class GitHub {
         String message = "GitHub returned " + res.status + ".";
         if (res.obj != null && res.obj.str("message") != null) message = res.obj.str("message");
         if (token != null && !token.isBlank() && message.contains(token)) message = message.replace(token, "••••");
+        if (res.status == 401 || res.status == 403) {
+            message = explainRejectedToken(token, res);
+        } else if (message.toLowerCase(Locale.ROOT).contains("resource not accessible")) {
+            message = "That GitHub token can see your account, but not this repository. "
+                    + "Create a classic token with the repo scope, or give a fine-grained token Contents access to the repos you need.";
+        }
         int status = res.status == 401 ? 401 : (res.status >= 400 && res.status < 500 ? 400 : 502);
         throw new RequestFail(status, message);
     }
 
     private String requireToken() {
+        ensureFreshToken();
         if (settings.githubToken == null || settings.githubToken.isBlank()) {
-            throw new RequestFail(400, "Sign in to GitHub first.");
+            throw new RequestFail(400, "Connect to GitHub first.");
         }
         return settings.githubToken;
+    }
+
+    private synchronized void ensureFreshToken() {
+        if (settings.githubToken == null || settings.githubToken.isBlank()) return;
+        if (settings.githubTokenExpiresAt <= 0) return;
+        if (System.currentTimeMillis() < settings.githubTokenExpiresAt) return;
+        refreshAccessToken();
+    }
+
+    private static String cleanToken(String token) {
+        if (token == null) return "";
+        return token.trim().replaceAll("\\s+", "");
+    }
+
+    private String explainRejectedToken(String token, Api res) {
+        String raw = githubMessage(res).toLowerCase(Locale.ROOT);
+        if (token != null && token.startsWith("github_pat_")) {
+            return "GitHub rejected that fine-grained token. For Lark, create a classic token with the repo scope "
+                    + "(it starts with ghp_), then paste it here.";
+        }
+        if (raw.contains("bad credentials") || raw.contains("invalid") || raw.contains("expired")
+                || raw.contains("requires authentication")) {
+            return "GitHub says that token is invalid or expired. Create a new classic token with the repo scope and paste it again.";
+        }
+        if (raw.contains("resource not accessible")) {
+            return "That token cannot reach the repositories Lark needs. Create a classic token with the repo scope.";
+        }
+        String message = githubMessage(res);
+        if (message.isBlank() || message.startsWith("GitHub returned")) {
+            return "GitHub didn't accept that token. Create a classic token with the repo scope and try again.";
+        }
+        return message;
     }
 
     private static boolean messageHas(Api res, String word) {

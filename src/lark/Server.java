@@ -125,7 +125,12 @@ public final class Server {
             if ("PUT".equals(method)) {
                 Json.Obj body = body(exchange);
                 if (body.has("theme")) {
-                    String theme = body.str("theme", "ink");
+                    String theme = body.str("theme", "desk");
+                    if ("ink".equals(theme)) theme = "desk";
+                    if ("paper".equals(theme)) theme = "daylight";
+                    if ("tide".equals(theme)) theme = "moss";
+                    if ("copper".equals(theme)) theme = "ember";
+                    if ("chalk".equals(theme)) theme = "fog";
                     if (!Settings.THEMES.contains(theme)) throw new RequestFail(400, "Unknown theme.");
                     settings.theme = theme;
                 }
@@ -308,8 +313,8 @@ public final class Server {
 
     /** A portable copy: the jar plus launchers for Windows, Mac, and Linux. */
     private void sendDownload(HttpExchange exchange, String method, String name) throws IOException {
-        Path zip = Path.of("release", name).toAbsolutePath().normalize();
-        if (!Files.isRegularFile(zip)) {
+        Path zip = findRelease(name);
+        if (zip == null) {
             send(exchange, 404, "text/plain; charset=utf-8",
                     (name + " is not packed on this computer yet.").getBytes(StandardCharsets.UTF_8));
             return;
@@ -363,6 +368,24 @@ public final class Server {
             }
         } catch (Exception ignored) {
             // Fall through to the files packed in the jar.
+        }
+        return null;
+    }
+
+    private static Path findRelease(String name) {
+        Path cwd = Path.of("release", name).toAbsolutePath().normalize();
+        if (Files.isRegularFile(cwd)) return cwd;
+        try {
+            var location = Lark.class.getProtectionDomain().getCodeSource().getLocation();
+            if (location != null) {
+                Path parent = Path.of(location.toURI()).getParent();
+                Path beside = parent.resolve("release").resolve(name);
+                if (Files.isRegularFile(beside)) return beside.normalize();
+                Path sibling = parent.resolve(name);
+                if (Files.isRegularFile(sibling)) return sibling.normalize();
+            }
+        } catch (Exception ignored) {
+            // Missing release files are fine for a portable copy.
         }
         return null;
     }
