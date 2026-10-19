@@ -6,7 +6,7 @@ The only install is a JDK 17 or newer. There is no Gradle, no Electron, and no p
 
 ## Download
 
-Grab a portable zip from **[GitHub Releases](../../releases/latest)** (Windows, Mac, or Linux). Unzip into Downloads or Documents, then:
+Grab a portable zip from **[GitHub Releases](https://github.com/TreyvoPrime/lark/releases/latest)** (Windows, Mac, or Linux). Unzip into Downloads or Documents, then:
 
 - Windows: double-click `Start Lark.bat`
 - Mac: double-click `Start Lark.command`
@@ -16,8 +16,8 @@ No administrator password. The same folder works on every OS — use the launche
 
 After the public repo is published, stable links look like:
 
-- `https://github.com/<you>/lark/releases/latest`
-- `https://github.com/<you>/lark/releases/latest/download/lark-windows.zip`
+- `https://github.com/TreyvoPrime/lark/releases/latest`
+- `https://github.com/TreyvoPrime/lark/releases/latest/download/lark-windows.zip`
 
 Publish or refresh those assets with `./packaging/publish-github.sh` (requires `gh auth login`).
 
