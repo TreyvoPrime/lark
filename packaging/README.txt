@@ -1,7 +1,7 @@
-Lark 1.9.2
+Lark 1.9.3
 
-Unzip this WHOLE folder into Downloads or Documents. Keep every file together.
-Tip: rename the folder to something simple like Lark — avoid parentheses in the path.
+Unzip this WHOLE folder into a simple path like C:\Users\YOU\Lark. Keep every file together.
+Tip: avoid parentheses in the folder name, and do not unzip zip-inside-zip.
 
 Windows
   1. Open the unzipped folder.
@@ -9,6 +9,10 @@ Windows
   3. Double-click "Start Lark.bat"  (or "Start Lark.vbs" if the window flashes away).
   4. A black window STAYS OPEN. Your browser opens to Lark.
   5. Leave that window open while you use Lark.
+
+If Windows will not delete old Lark files:
+  Double-click "Stop Lark and Clean Cache.bat" — it closes locked Java processes
+  and clears %LOCALAPPDATA%\Lark. Then delete the old folder (reboot once if needed).
 
 Mac
   Double-click "Start Lark.command". If macOS blocks it: right-click → Open → Open.
