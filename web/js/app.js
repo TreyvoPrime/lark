@@ -63,7 +63,6 @@
   const docs = new Map();
   const parsedCache = new Map();
   const lineMarks = [];
-  const lineWidgets = [];
   let cm = null;
   let suppress = false;
   let paletteIndex = 0;
@@ -1493,40 +1492,21 @@
   function clearMarks() {
     lineMarks.forEach((mark) => mark.doc.removeLineClass(mark.line, "background", mark.cls));
     lineMarks.length = 0;
-    lineWidgets.forEach((w) => {
-      try { w.clear(); } catch (_) { /* already gone */ }
-    });
-    lineWidgets.length = 0;
   }
 
   function markErrors() {
     clearMarks();
     if (!cm) return;
-    const activePath = state.active;
     allProblems().forEach((problem) => {
+      // Only highlight real compile/runtime errors in the editor — no under-line tip boxes.
+      if (problem.severity === "warning") return;
       const resolved = resolveProblemFile(problem.file);
       const doc = docs.get(resolved);
       if (!doc) return;
       const line = problem.line - 1;
       if (line < 0 || line >= doc.lineCount()) return;
-      const cls = problem.severity === "warning" ? "cm-warn-line" : "cm-problem-line";
-      doc.addLineClass(line, "background", cls);
-      lineMarks.push({ doc: doc, line: line, cls: cls });
-      // In-editor hint under the bad line (active file only, so the editor stays readable).
-      if (resolved === activePath && (problem.plain || problem.hint)) {
-        const el = document.createElement("div");
-        el.className = "cm-error-hint " + (problem.severity === "warning" ? "warn" : "error");
-        const title = document.createElement("strong");
-        title.textContent = problem.plain || problem.message;
-        el.appendChild(title);
-        if (problem.hint) {
-          const tip = document.createElement("span");
-          tip.textContent = problem.hint;
-          el.appendChild(tip);
-        }
-        const widget = cm.addLineWidget(line, el, { coverGutter: false, noHScroll: true });
-        lineWidgets.push(widget);
-      }
+      doc.addLineClass(line, "background", "cm-problem-line");
+      lineMarks.push({ doc: doc, line: line, cls: "cm-problem-line" });
     });
   }
 

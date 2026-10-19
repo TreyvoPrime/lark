@@ -427,9 +427,8 @@
       if (depth < 0) depth = 0;
       while (stack.length && depth <= stack[stack.length - 1].depth) stack.pop();
     }
-    const warnings = accessorWarnings(symbols)
-      .concat(braceWarnings(source))
-      .concat(styleWarnings(source));
+    // Do not nag about missing getters/setters in the editor — use Java → Quick fix instead.
+    const warnings = braceWarnings(source).concat(styleWarnings(source));
     return {
       pkg: pkg,
       imports: imports,
