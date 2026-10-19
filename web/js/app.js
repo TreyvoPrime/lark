@@ -10,6 +10,14 @@
     midnight: "Midnight",
     citrus: "Citrus",
     harbor: "Harbor",
+    graphite: "Graphite & Teal",
+    navy: "Midnight Blue",
+    terminal: "Terminal Green",
+    parchment: "Paper & Ink",
+    ultraviolet: "Ultraviolet",
+    forest: "Forest",
+    monochrome: "Monochrome",
+    amber: "Amber Terminal",
     ink: "Desk",
     paper: "Daylight",
     tide: "Moss",
@@ -27,7 +35,11 @@
     kawaii: "blossom",
     pink: "blossom"
   };
-  const THEME_IDS = ["desk", "daylight", "moss", "ember", "fog", "blossom", "candy", "midnight", "citrus", "harbor"];
+  const THEME_IDS = [
+    "desk", "daylight", "moss", "ember", "fog",
+    "blossom", "candy", "midnight", "citrus", "harbor",
+    "graphite", "navy", "terminal", "parchment", "ultraviolet", "forest", "monochrome", "amber"
+  ];
   const state = {
     settings: null,
     projects: [],

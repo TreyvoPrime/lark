@@ -51,7 +51,7 @@ The jar is the editor. Running it still needs a JDK, because that is what compil
 - Keep more than one project, each with packages, classes, interfaces, records, and enums.
 - Edit with Java highlighting, bracket matching, find, comment toggle, and completion for names in the project (`Ctrl+Space`).
 - Run the main class. Compiler errors show under Problems and open the line.
-- Themes: Desk, Daylight, Moss, Ember, Fog, Blossom (kawaii pink), Candy, Midnight, Citrus, and Harbor — IntelliJ-style syntax colors with JetBrains Mono.
+- Themes include Graphite & Teal, Midnight Blue, Terminal Green, Paper & Ink, Ultraviolet, Forest, Monochrome, Amber Terminal, plus Blossom (kawaii pink), Candy, and the original Desk/Daylight set — IntelliJ-style syntax with JetBrains Mono.
 - Change editor font size and UI zoom under **Aa**, or with `Ctrl+=` / `Ctrl+-` / `Ctrl+0`.
 - Answer interactive programs in the reply box under Output (so `Scanner.nextLine()` works for Y/N prompts).
 - Welcome page on first open (new project, recent projects, practice tips).

@@ -1,4 +1,4 @@
-Lark 1.8.3
+Lark 1.8.4
 
 Unzip this WHOLE folder into Downloads or Documents. Keep every file together.
 Tip: rename the folder to something simple like Lark — avoid parentheses in the path.
