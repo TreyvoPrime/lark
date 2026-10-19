@@ -54,18 +54,33 @@ java_major() {
   printf '%s\n' "$line" | sed -n 's/.* version "\([0-9][0-9]*\).*/\1/p'
 }
 
-usable_java() {
+# Complete JDK: bin/java + lib/jvm.cfg + runnable 17+.
+jdk_ok() {
   bin=$1
   [ -n "$bin" ] && [ -x "$bin" ] || return 1
+  root=$(CDPATH= cd -- "$(dirname "$bin")/.." && pwd)
+  [ -f "$root/lib/jvm.cfg" ] || return 1
+  [ -e "$root/bin/java" ] || return 1
   major=$(java_major "$bin")
   [ -n "${major:-}" ] || return 1
   [ "$major" -ge 17 ] || return 1
+  return 0
+}
+
+usable_java() {
+  bin=$1
+  jdk_ok "$bin" || return 1
   printf '%s\n' "$bin"
 }
 
 system_java() {
   command -v java >/dev/null 2>&1 || return 1
-  usable_java "$(command -v java)"
+  bin=$(command -v java)
+  # System installs may be symlinks; require a working 17+ binary.
+  major=$(java_major "$bin")
+  [ -n "${major:-}" ] || return 1
+  [ "$major" -ge 17 ] || return 1
+  printf '%s\n' "$bin"
 }
 
 env_java() {
@@ -92,41 +107,92 @@ beside_java() {
 }
 
 private_java() {
-  found=$(find "$LARK_HOME" -type f -path '*/bin/java' 2>/dev/null | head -n 1 || true)
-  if [ -n "$found" ]; then
-    usable_java "$found" && return 0
-  fi
+  [ -d "$LARK_HOME" ] || return 1
+  found=$(find "$LARK_HOME" -type f -path '*/bin/java' 2>/dev/null | head -n 20 || true)
+  for bin in $found; do
+    if usable_java "$bin" >/dev/null; then
+      printf '%s\n' "$bin"
+      return 0
+    fi
+  done
   return 1
+}
+
+purge_broken_private() {
+  [ -d "$LARK_HOME" ] || return 0
+  find "$LARK_HOME" -type f -path '*/bin/java' 2>/dev/null | while read -r bin; do
+    if ! jdk_ok "$bin"; then
+      root=$(CDPATH= cd -- "$(dirname "$bin")/.." && pwd)
+      echo "Removing broken Java folder: $root"
+      rm -rf "$root"
+    fi
+  done
+  rm -rf "$LARK_HOME/_staging" 2>/dev/null || true
+}
+
+zip_ok() {
+  zip=$1
+  [ -f "$zip" ] || return 1
+  size=$(wc -c <"$zip" | tr -d ' ')
+  # Real Temurin JDK archives are large; reject truncated/HTML responses.
+  [ "$size" -ge 40000000 ] || {
+    echo "Archive looks incomplete ($size bytes). Ignoring it."
+    return 1
+  }
+  return 0
+}
+
+unpack_zip_to_home() {
+  zip=$1
+  zip_ok "$zip" || return 1
+  stage="$LARK_HOME/_staging"
+  rm -rf "$stage"
+  mkdir -p "$stage"
+  echo "Unpacking Java..."
+  if ! tar -xzf "$zip" -C "$stage" 2>/dev/null; then
+    tar -xf "$zip" -C "$stage" || {
+      rm -rf "$stage"
+      return 1
+    }
+  fi
+  found=$(find "$stage" -type f -path '*/bin/java' 2>/dev/null | head -n 1 || true)
+  if [ -z "$found" ] || ! jdk_ok "$found"; then
+    echo "Unpacked Java is incomplete (missing lib/jvm.cfg)."
+    rm -rf "$stage"
+    return 1
+  fi
+  root=$(CDPATH= cd -- "$(dirname "$found")/.." && pwd)
+  dest="$LARK_HOME/$(basename "$root")"
+  rm -rf "$dest"
+  mv "$root" "$dest"
+  rm -rf "$stage"
+  jdk_ok "$dest/bin/java"
 }
 
 unpack_local_zip() {
   for zip in "$ROOT/jdk.zip" "$ROOT/java.zip" "$ROOT"/OpenJDK*.zip "$ROOT"/*jdk*.zip; do
     [ -f "$zip" ] || continue
-    echo "Found $(basename "$zip") — unpacking into your home folder..."
-    mkdir -p "$LARK_HOME"
-    tar -xzf "$zip" -C "$LARK_HOME" 2>/dev/null || tar -xf "$zip" -C "$LARK_HOME"
-    private_java && return 0
+    echo "Found $(basename "$zip") — checking and unpacking..."
+    unpack_zip_to_home "$zip" && private_java && return 0
   done
   return 1
 }
 
 school_help() {
-  cat <<'EOF'
+  cat <<EOF
 
 ==============================
 School / locked-PC help
 ==============================
-Lark needs Java 17 or newer. On locked school networks the automatic
-download can fail (firewall, proxy, or certificate checks).
+Lark needs a complete Java 17+ JDK. Partial downloads leave errors like
+"could not open .../lib/jvm.cfg".
 
 Fix it without an admin password — pick one:
-  1. Put a portable JDK zip next to start-lark.sh as jdk.zip, then run again.
-  2. Or unzip a JDK into a folder named "jdk" next to this script
-     so that jdk/bin/java exists.
-  3. Or set LARK_JDK to a JDK folder that already has bin/java.
-
-Download a JDK at home on another network if needed:
-  https://adoptium.net/
+  1. Delete the folder  $HOME/.lark/jdk  then run Start Lark again.
+  2. Or put a full JDK zip next to this script as jdk.zip
+     (from https://adoptium.net/).
+  3. Or unzip a JDK into a folder named "jdk" next to this script
+     so that jdk/bin/java and jdk/lib/jvm.cfg both exist.
 ==============================
 
 EOF
@@ -167,10 +233,22 @@ fetch_java() {
       return 1
     fi
   fi
-  tar -xzf "$tmp" -C "$LARK_HOME" 2>/dev/null || tar -xf "$tmp" -C "$LARK_HOME"
+  if ! zip_ok "$tmp"; then
+    rm -f "$tmp"
+    school_help
+    return 1
+  fi
+  unpack_zip_to_home "$tmp"
+  status=$?
   rm -f "$tmp"
+  [ "$status" -eq 0 ] || {
+    school_help
+    return 1
+  }
   private_java
 }
+
+purge_broken_private
 
 JAVA_BIN=$(env_java || true)
 if [ -z "$JAVA_BIN" ]; then
@@ -189,7 +267,7 @@ if [ -z "$JAVA_BIN" ]; then
   JAVA_BIN=$(fetch_java || true)
 fi
 if [ -z "$JAVA_BIN" ]; then
-  echo "Lark could not find Java 17 or newer."
+  echo "Lark could not find a complete Java 17 or newer."
   school_help
   exit 1
 fi
