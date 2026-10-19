@@ -411,6 +411,12 @@ public final class Server {
             send(exchange, 404, "text/plain; charset=utf-8", "Not found".getBytes(StandardCharsets.UTF_8));
             return;
         }
+        // Stamp asset URLs so browsers cannot keep a stale app.js after an update.
+        if (rel.endsWith(".html")) {
+            String html = new String(data, StandardCharsets.UTF_8)
+                    .replace("__LARK_V__", Settings.VERSION);
+            data = html.getBytes(StandardCharsets.UTF_8);
+        }
         send(exchange, 200, mime(rel), data);
     }
 

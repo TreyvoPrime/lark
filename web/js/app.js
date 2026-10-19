@@ -66,11 +66,6 @@
   let modalResolve = null;
 
   const $ = (id) => document.getElementById(id);
-  /** Bind a click/input handler if the element exists (safe for optional UI). */
-  function on(id, event, handler) {
-    const el = $(id);
-    if (el) el.addEventListener(event, handler);
-  }
 
   async function api(method, path, body) {
     const res = await fetch(path, {
@@ -1880,10 +1875,10 @@
     }
     const checkBtn = $("setting-check-updates");
     if (checkBtn) checkBtn.addEventListener("click", () => checkUpdates(true));
-    on("update-later", "click", () => hideUpdateBanner());
-    on("update-skip", "click", () => skipUpdate().catch((err) => toast(err.message)));
-    on("update-now", "click", () => installUpdate().catch((err) => toast(err.message)));
-    on("update-restart", "click", () => restartAfterUpdate().catch((err) => toast(err.message)));
+    if ($("update-later")) $("update-later").addEventListener("click", () => hideUpdateBanner());
+    if ($("update-skip")) $("update-skip").addEventListener("click", () => skipUpdate().catch((err) => toast(err.message)));
+    if ($("update-now")) $("update-now").addEventListener("click", () => installUpdate().catch((err) => toast(err.message)));
+    if ($("update-restart")) $("update-restart").addEventListener("click", () => restartAfterUpdate().catch((err) => toast(err.message)));
     $("menu-project").addEventListener("click", (event) => {
       const act = event.target.dataset.act;
       if (!act) return;
