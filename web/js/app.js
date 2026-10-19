@@ -186,6 +186,8 @@
       scheduleSave(path);
       renderStructure();
       refreshLocalProblems();
+      renderProblems();
+      markErrors();
       setSaveStatus("Saving…");
     });
     cm.on("cursorActivity", () => {
