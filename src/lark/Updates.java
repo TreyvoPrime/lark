@@ -281,6 +281,7 @@ public final class Updates {
         writeLaunchResource("lark/launch/StartLark.vbs", installDir.resolve("Start Lark.vbs"));
         writeLaunchResource("lark/launch/finish-update.bat", installDir.resolve("finish-update.bat"));
         writeLaunchResource("lark/launch/StopLarkClean.bat", installDir.resolve("Stop Lark and Clean Cache.bat"));
+        writeLaunchResource("lark/launch/WipeLark.bat", installDir.resolve("Wipe Lark From This PC.bat"));
         writeLaunchResource("lark/launch/start-lark.sh", installDir.resolve("start-lark.sh"));
         writeLaunchResource("lark/launch/start-lark.sh", installDir.resolve("Start Lark.command"));
         try {
@@ -449,6 +450,7 @@ public final class Updates {
                 } else if ("Start Lark.bat".equals(base) || "Start Lark.vbs".equals(base)
                         || "finish-update.bat".equals(base)
                         || "Stop Lark and Clean Cache.bat".equals(base)
+                        || "Wipe Lark From This PC.bat".equals(base)
                         || "start-lark.sh".equals(base) || "Start Lark.command".equals(base)) {
                     Files.copy(zin, installDir.resolve(base), StandardCopyOption.REPLACE_EXISTING);
                 }

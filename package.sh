@@ -12,6 +12,7 @@ cp "packaging/Start Lark.bat" build/lark/launch/StartLark.bat
 cp "packaging/Start Lark.vbs" build/lark/launch/StartLark.vbs
 cp packaging/finish-update.bat build/lark/launch/finish-update.bat
 cp "packaging/Stop Lark and Clean Cache.bat" build/lark/launch/StopLarkClean.bat
+cp "packaging/Wipe Lark From This PC.bat" build/lark/launch/WipeLark.bat
 cp packaging/start-lark.sh build/lark/launch/start-lark.sh
 jar --create --file dist/lark.jar --main-class lark.Lark -C build . -C . web
 echo "Wrote dist/lark.jar"

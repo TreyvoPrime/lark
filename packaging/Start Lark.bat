@@ -40,6 +40,11 @@ echo Lark boot %DATE% %TIME%> "%LOG%"
 echo ROOT=%ROOT%>> "%LOG%"
 echo RUNDIR=%RUNDIR%>> "%LOG%"
 
+rem Refuse Windows "Open zip" / Temp preview folders — those never include lark.jar.
+echo %ROOT%| find /I "\Temp\" >nul && goto :bad_temp
+echo %ROOT%| find /I "\AppData\Local\Temp\" >nul && goto :bad_temp
+echo %ROOT%| find /I ".zip." >nul && goto :bad_temp
+
 :apply_pending
 if not exist "%PENDING%" goto :stage_run
 set /a TRIES+=1
@@ -131,9 +136,34 @@ echo   %RUNJAR%
 echo FAIL: run copy>> "%LOG%"
 goto :fail
 
+:bad_temp
+echo.
+echo ERROR: You opened Lark from a TEMP / ZIP preview folder.
+echo That is NOT a real install — Windows only extracts one file there,
+echo so lark.jar is missing.
+echo.
+echo Folder:
+echo   %ROOT%
+echo.
+echo Do this instead:
+echo   1. Close this window
+echo   2. Run "Wipe Lark From This PC.bat" if you have it
+echo      ^(or download it from the latest GitHub release^)
+echo   3. Download lark-windows.zip
+echo   4. Right-click the zip -^> Extract All...
+echo      to: C:\Users\%USERNAME%\Lark
+echo   5. Open THAT folder and double-click Start Lark.bat
+echo      ^(you must see Start Lark.bat, lark.jar, and jdk\ together^)
+echo.
+echo FAIL: temp/zip preview folder>> "%LOG%"
+goto :fail
+
 :missing_jar
-echo ERROR: lark.jar is missing.
+echo ERROR: lark.jar is missing next to Start Lark.bat.
 echo Expected: %JAR%
+echo.
+echo You are not in a complete Lark folder. Extract the FULL zip first.
+echo Correct destination example: C:\Users\%USERNAME%\Lark
 echo FAIL: missing jar>> "%LOG%"
 goto :fail
 
