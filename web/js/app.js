@@ -1855,7 +1855,8 @@
     $("github").addEventListener("click", openDrawer);
     $("drawer-close").addEventListener("click", closeDrawer);
     $("scrim").addEventListener("click", closeDrawer);
-    $("gh-signin").addEventListener("click", () => signIn());
+    const ghSignIn = $("gh-oauth") || $("gh-signin");
+    if (ghSignIn) ghSignIn.addEventListener("click", () => signIn());
     $("gh-create-token").addEventListener("click", () => {
       window.open(
         "https://github.com/settings/tokens/new?description=Lark&scopes=repo",
