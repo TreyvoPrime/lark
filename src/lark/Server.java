@@ -432,17 +432,26 @@ public final class Server {
     }
 
     private static Path findWeb() {
-        Path cwd = Path.of("web").toAbsolutePath().normalize();
-        if (Files.isRegularFile(cwd.resolve("index.html"))) return cwd;
+        // Packaged launches (java -jar … / Start Lark) must use the UI packed in
+        // the jar. A leftover web/ folder next to an unzip — or beside the run
+        // copy — used to serve stale app.js and resurrect bugs like "on is not defined".
         try {
             var location = Lark.class.getProtectionDomain().getCodeSource().getLocation();
             if (location != null) {
-                Path beside = Path.of(location.toURI()).getParent().resolve("web");
-                if (Files.isRegularFile(beside.resolve("index.html"))) return beside.normalize();
+                Path path = Path.of(location.toURI());
+                if (Files.isRegularFile(path) && path.getFileName().toString().endsWith(".jar")) {
+                    return null;
+                }
             }
         } catch (Exception ignored) {
-            // Fall through to the files packed in the jar.
+            // Fall through to the source-tree web/ folder for java -cp builds.
         }
+        String install = System.getProperty("lark.install");
+        if (install != null && !install.isBlank()) return null;
+        if ("jar".equalsIgnoreCase(System.getProperty("lark.ui", ""))) return null;
+
+        Path cwd = Path.of("web").toAbsolutePath().normalize();
+        if (Files.isRegularFile(cwd.resolve("index.html"))) return cwd;
         return null;
     }
 

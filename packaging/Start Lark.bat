@@ -90,8 +90,10 @@ if not exist "%JAVAC%" goto :missing_javac
 if not exist "%JVMCFG%" goto :missing_cfg
 
 if not exist "%RUNDIR%" mkdir "%RUNDIR%" >nul 2>&1
-echo Staging run copy...
+echo Staging fresh run copy...
 echo Staging run copy to %RUNJAR%>> "%LOG%"
+rem Always replace the run copy so an old LocalAppData jar cannot stick around.
+if exist "%RUNJAR%" del /f /q "%RUNJAR%" >nul 2>&1
 copy /y "%JAR%" "%RUNJAR%" >nul
 if not exist "%RUNJAR%" goto :copy_fail
 
@@ -112,7 +114,8 @@ echo JAR=%JAR%>> "%LOG%"
 echo RUNJAR=%RUNJAR%>> "%LOG%"
 
 rem Install folder stays unlocked. Updates write there; we always run the copy.
-"%JAVA%" "-Dlark.install=%ROOT%" -jar "%RUNJAR%"
+rem Force jar UI (ignore any leftover web\ folder in the install directory).
+"%JAVA%" "-Dlark.install=%ROOT%" "-Dlark.ui=jar" -jar "%RUNJAR%"
 set "ERR=%ERRORLEVEL%"
 echo Java exit code %ERR%>> "%LOG%"
 

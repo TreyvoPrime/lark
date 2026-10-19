@@ -2326,6 +2326,11 @@
     try {
       ensureEditor();
       bind();
+      let larkVer = "";
+      try {
+        const health = await api("GET", "/api/health");
+        larkVer = health.version || "";
+      } catch (_) { /* optional */ }
       state.settings = await api("GET", "/api/settings");
       applyTheme(state.settings.theme, false);
       applyDisplay({
@@ -2335,7 +2340,11 @@
       if ($("setting-update-feed")) $("setting-update-feed").value = state.settings.updateFeed || "";
       showGithub();
       const version = (state.settings.javaVersion || "").split(".")[0];
-      $("status-java").textContent = version ? "Java " + version : "";
+      const bits = [];
+      if (larkVer) bits.push("Lark " + larkVer);
+      if (version) bits.push("Java " + version);
+      $("status-java").textContent = bits.join(" · ");
+      if ($("status-path") && larkVer) $("status-path").textContent = "Lark " + larkVer;
       const data = await api("GET", "/api/projects");
       state.projects = data.projects;
       renderProjects();
