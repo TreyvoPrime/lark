@@ -142,10 +142,11 @@ public final class Updates {
         try {
             zip = Files.createTempFile("lark-update-", ".zip");
             downloadTo(downloadUrl, zip);
-            extractUpdate(zip, extracted, installDir);
-            // Always refresh launchers from this jar too, so Windows gets the
-            // run-from-copy Start Lark.bat even if the zip layout changes.
+            // Seed launchers from the running jar first, then let the update zip
+            // overwrite them. Never refresh AFTER extract — that would clobber the
+            // new Start Lark.bat with the old one still loaded in memory.
             refreshLaunchers(installDir);
+            extractUpdate(zip, extracted, installDir);
             try {
                 Files.move(extracted, pending, StandardCopyOption.REPLACE_EXISTING, StandardCopyOption.ATOMIC_MOVE);
             } catch (AtomicMoveNotSupportedException e) {
@@ -154,14 +155,14 @@ public final class Updates {
             if (!Files.isRegularFile(pending)) {
                 throw new RequestFail(500, "The update downloaded, but Lark couldn't stage the new jar.");
             }
-            // Prefer swapping the install jar now. Launchers run from a copy, so this
-            // file usually is not locked. If Windows still holds it, leave .pending.
+            // Windows Start Lark runs a COPY under %LOCALAPPDATA%\Lark\run, so the
+            // install jar is usually free to replace while Lark is open. If AV or
+            // Explorer still holds it, leave .pending for the launcher's retry loop.
             boolean applied = tryApplyPending(pending, target, bak);
             if (!applied) {
-                // Brief retries help when Explorer or AV still holds the handle.
-                for (int i = 0; i < 8 && !applied; i++) {
+                for (int i = 0; i < 20 && !applied; i++) {
                     try {
-                        Thread.sleep(250);
+                        Thread.sleep(300);
                     } catch (InterruptedException ie) {
                         Thread.currentThread().interrupt();
                         break;
@@ -182,7 +183,7 @@ public final class Updates {
                     .put("pending", true)
                     .put("applied", false)
                     .put("canRestart", true)
-                    .put("message", "Update ready. Click Restart Lark — or close Lark and open Start Lark again.");
+                    .put("message", "Update downloaded. Click Restart Lark — Start Lark will finish swapping the jar (close other Lark windows if it asks).");
         } catch (RequestFail e) {
             throw e;
         } catch (Exception e) {
@@ -235,9 +236,10 @@ public final class Updates {
         } catch (Exception e) {
             throw new RequestFail(500, e.getMessage() == null ? "Couldn't restart Lark." : e.getMessage());
         }
+        // Give finish-update.bat time to start before this JVM exits and unlocks files.
         Thread stopper = new Thread(() -> {
             try {
-                Thread.sleep(600);
+                Thread.sleep(1500);
             } catch (InterruptedException ignored) {
                 Thread.currentThread().interrupt();
             }

@@ -1,11 +1,11 @@
 @echo off
 rem ============================================================================
-rem  Lark for Windows — path-safe boot
-rem  Works even when the folder name has spaces or parentheses
-rem  e.g. "lark-windows (6)"
-rem  - No multi-line IF ( ) blocks with paths (those break on "(")
+rem  Lark for Windows — path-safe boot + update-safe run
+rem  Works when the folder name has spaces or parentheses.
+rem  - No multi-line IF ( ) blocks with paths
 rem  - Window stays open via cmd /k
-rem  - Bundled jdk\bin\java.exe + lark.jar in this folder
+rem  - Runs a COPY of lark.jar under %%LOCALAPPDATA%%\Lark\run
+rem    so the install jar is never locked and updates can replace it
 rem ============================================================================
 setlocal EnableExtensions
 title Lark
@@ -25,6 +25,10 @@ set "JVMCFG=%ROOT%\jdk\lib\jvm.cfg"
 set "JAR=%ROOT%\lark.jar"
 set "PENDING=%ROOT%\lark.jar.pending"
 set "BAK=%ROOT%\lark.jar.bak"
+set "RUNDIR=%LOCALAPPDATA%\Lark\run"
+if not defined LOCALAPPDATA set "RUNDIR=%TEMP%\Lark\run"
+set "RUNJAR=%RUNDIR%\lark.jar"
+set "TRIES=0"
 
 echo ========== Lark boot ==========
 echo Folder: %ROOT%
@@ -34,36 +38,64 @@ echo.
 
 echo Lark boot %DATE% %TIME%> "%LOG%"
 echo ROOT=%ROOT%>> "%LOG%"
+echo RUNDIR=%RUNDIR%>> "%LOG%"
 
-if not exist "%PENDING%" goto :after_update
-echo Applying update...
-echo Applying pending update>> "%LOG%"
+:apply_pending
+if not exist "%PENDING%" goto :stage_run
+set /a TRIES+=1
+echo Applying update... try %TRIES%/40
+echo Applying pending update try %TRIES%>> "%LOG%"
 if exist "%BAK%" del /f /q "%BAK%" >nul 2>&1
 if exist "%JAR%" ren "%JAR%" "lark.jar.bak" >nul 2>&1
-if exist "%JAR%" goto :update_locked
+if exist "%JAR%" goto :pending_wait
 ren "%PENDING%" "lark.jar" >nul 2>&1
-if not exist "%JAR%" goto :update_failed
+if not exist "%JAR%" goto :pending_wait
 if exist "%BAK%" del /f /q "%BAK%" >nul 2>&1
 echo Update applied.
+echo Update applied>> "%LOG%"
 echo.
-goto :after_update
+goto :stage_run
+
+:pending_wait
+rem Put the live jar back if rename of pending failed mid-way.
+if exist "%BAK%" if not exist "%JAR%" ren "%BAK%" "lark.jar" >nul 2>&1
+if "%TRIES%"=="40" goto :update_locked
+echo Waiting for lark.jar to unlock...
+ping -n 2 127.0.0.1 >nul
+goto :apply_pending
 
 :update_locked
-echo Could not replace lark.jar — close other Lark windows and try again.
-echo FAIL: could not rename lark.jar>> "%LOG%"
+echo.
+echo Install folder is still locked — launching the new jar from a run copy anyway.
+echo Close other Lark windows later so the next Start Lark can finish the swap.
+echo WARN: install jar locked; running pending via run copy>> "%LOG%"
+if not exist "%RUNDIR%" mkdir "%RUNDIR%" >nul 2>&1
+copy /y "%PENDING%" "%RUNJAR%" >nul
+if not exist "%RUNJAR%" goto :fail_locked
+if not exist "%JAVA%" goto :missing_java
+if not exist "%JAVAC%" goto :missing_javac
+if not exist "%JVMCFG%" goto :missing_cfg
+goto :launch
+
+:fail_locked
+echo Could not replace or copy the update jar.
+echo Close EVERY Lark window, wait a few seconds, then try Start Lark again.
+echo FAIL: could not rename or stage pending>> "%LOG%"
 goto :fail
 
-:update_failed
-if exist "%BAK%" ren "%BAK%" "lark.jar" >nul 2>&1
-echo Update failed.
-echo FAIL: pending rename>> "%LOG%"
-goto :fail
-
-:after_update
+:stage_run
 if not exist "%JAR%" goto :missing_jar
 if not exist "%JAVA%" goto :missing_java
 if not exist "%JAVAC%" goto :missing_javac
 if not exist "%JVMCFG%" goto :missing_cfg
+
+if not exist "%RUNDIR%" mkdir "%RUNDIR%" >nul 2>&1
+echo Staging run copy...
+echo Staging run copy to %RUNJAR%>> "%LOG%"
+copy /y "%JAR%" "%RUNJAR%" >nul
+if not exist "%RUNJAR%" goto :copy_fail
+
+:launch
 
 echo Checking Java...
 "%JAVA%" -version
@@ -71,14 +103,16 @@ if errorlevel 1 goto :java_broken
 echo.
 echo Starting Lark with:
 echo   %JAVA%
-echo   %JAR%
+echo   install: %JAR%
+echo   running: %RUNJAR%
 echo.
 echo Launching java -jar>> "%LOG%"
 echo JAVA=%JAVA%>> "%LOG%"
 echo JAR=%JAR%>> "%LOG%"
+echo RUNJAR=%RUNJAR%>> "%LOG%"
 
-rem ROOT from %CD% has no trailing backslash — safe inside quotes.
-"%JAVA%" "-Dlark.install=%ROOT%" -jar "%JAR%"
+rem Install folder stays unlocked. Updates write there; we always run the copy.
+"%JAVA%" "-Dlark.install=%ROOT%" -jar "%RUNJAR%"
 set "ERR=%ERRORLEVEL%"
 echo Java exit code %ERR%>> "%LOG%"
 
@@ -87,6 +121,12 @@ if not "%ERR%"=="0" goto :java_exit_fail
 echo Lark has closed.
 echo You can close this window.
 exit /b 0
+
+:copy_fail
+echo ERROR: Could not copy lark.jar to:
+echo   %RUNJAR%
+echo FAIL: run copy>> "%LOG%"
+goto :fail
 
 :missing_jar
 echo ERROR: lark.jar is missing.
@@ -103,7 +143,7 @@ echo   Start Lark.bat
 echo   lark.jar
 echo   jdk\bin\java.exe
 echo.
-echo Tip: rename the folder to remove parentheses, e.g. C:\Users\...\Lark
+echo Tip: unzip into a simple folder, e.g. C:\Users\%USERNAME%\Lark
 echo Download:
 echo   https://github.com/TreyvoPrime/lark/releases/latest/download/lark-windows.zip
 echo FAIL: missing bundled java>> "%LOG%"
@@ -137,9 +177,9 @@ echo ---------- lark-boot.log ----------
 if exist "%LOG%" type "%LOG%"
 echo -----------------------------------
 echo.
-echo Fix: unzip into a simple folder name without parentheses, e.g.
-echo   C:\Users\%USERNAME%\Lark
-echo Then double-click Start Lark.bat again.
+echo If an update is stuck: close all Lark windows, delete lark.jar.bak if present,
+echo then double-click Start Lark.bat again. Or re-download the full zip into
+echo C:\Users\%USERNAME%\Lark ^(avoid unzipping zip-inside-zip folders^).
 echo.
 pause
 exit /b 1
