@@ -6,6 +6,7 @@ ROOT=$(CDPATH= cd -- "$(dirname "$0")" && pwd)
 cd "$ROOT"
 JAR="$ROOT/lark.jar"
 PENDING="$ROOT/lark.jar.pending"
+LARK_HOME="${LARK_HOME:-$HOME/.lark/jdk}"
 
 apply_update() {
   echo "Applying Lark update..."
@@ -53,25 +54,82 @@ java_major() {
   printf '%s\n' "$line" | sed -n 's/.* version "\([0-9][0-9]*\).*/\1/p'
 }
 
-system_java() {
-  command -v java >/dev/null 2>&1 || return 1
-  major=$(java_major java)
+usable_java() {
+  bin=$1
+  [ -n "$bin" ] && [ -x "$bin" ] || return 1
+  major=$(java_major "$bin")
   [ -n "${major:-}" ] || return 1
   [ "$major" -ge 17 ] || return 1
-  printf '%s\n' java
+  printf '%s\n' "$bin"
 }
 
-private_java() {
-  home="$HOME/.lark/jdk"
-  found=$(find "$home" -type f -path '*/bin/java' 2>/dev/null | head -n 1 || true)
-  if [ -n "$found" ]; then
-    major=$(java_major "$found")
-    if [ -n "${major:-}" ] && [ "$major" -ge 17 ]; then
-      printf '%s\n' "$found"
-      return 0
+system_java() {
+  command -v java >/dev/null 2>&1 || return 1
+  usable_java "$(command -v java)"
+}
+
+env_java() {
+  if [ -n "${LARK_JDK:-}" ]; then
+    if [ -x "$LARK_JDK/bin/java" ]; then
+      usable_java "$LARK_JDK/bin/java" && return 0
+    fi
+    if [ -x "$LARK_JDK" ]; then
+      usable_java "$LARK_JDK" && return 0
     fi
   fi
   return 1
+}
+
+beside_java() {
+  if [ -x "$ROOT/jdk/bin/java" ]; then
+    usable_java "$ROOT/jdk/bin/java" && return 0
+  fi
+  found=$(find "$ROOT/jdk" -type f -path '*/bin/java' 2>/dev/null | head -n 1 || true)
+  if [ -n "$found" ]; then
+    usable_java "$found" && return 0
+  fi
+  return 1
+}
+
+private_java() {
+  found=$(find "$LARK_HOME" -type f -path '*/bin/java' 2>/dev/null | head -n 1 || true)
+  if [ -n "$found" ]; then
+    usable_java "$found" && return 0
+  fi
+  return 1
+}
+
+unpack_local_zip() {
+  for zip in "$ROOT/jdk.zip" "$ROOT/java.zip" "$ROOT"/OpenJDK*.zip "$ROOT"/*jdk*.zip; do
+    [ -f "$zip" ] || continue
+    echo "Found $(basename "$zip") — unpacking into your home folder..."
+    mkdir -p "$LARK_HOME"
+    tar -xzf "$zip" -C "$LARK_HOME" 2>/dev/null || tar -xf "$zip" -C "$LARK_HOME"
+    private_java && return 0
+  done
+  return 1
+}
+
+school_help() {
+  cat <<'EOF'
+
+==============================
+School / locked-PC help
+==============================
+Lark needs Java 17 or newer. On locked school networks the automatic
+download can fail (firewall, proxy, or certificate checks).
+
+Fix it without an admin password — pick one:
+  1. Put a portable JDK zip next to start-lark.sh as jdk.zip, then run again.
+  2. Or unzip a JDK into a folder named "jdk" next to this script
+     so that jdk/bin/java exists.
+  3. Or set LARK_JDK to a JDK folder that already has bin/java.
+
+Download a JDK at home on another network if needed:
+  https://adoptium.net/
+==============================
+
+EOF
 }
 
 fetch_java() {
@@ -93,27 +151,46 @@ fetch_java() {
       exit 1
       ;;
   esac
-  home="$HOME/.lark/jdk"
-  mkdir -p "$home"
+  mkdir -p "$LARK_HOME"
   url="https://api.adoptium.net/v3/binary/latest/21/ga/${osname}/${archname}/jdk/hotspot/normal/eclipse?project=jdk"
   echo "Lark is downloading a private copy of Java into your home folder."
   echo "This does not ask for an administrator password."
   tmp=$(mktemp)
-  curl -fL --retry 3 --retry-delay 2 -o "$tmp" "$url"
-  tar -xzf "$tmp" -C "$home"
+  # Prefer a normal TLS download; fall back to insecure only if the school
+  # proxy breaks certificate checks (same class of failure as Windows 0x80092012).
+  if ! curl -fL --retry 3 --retry-delay 2 -o "$tmp" "$url"; then
+    echo "Retrying download with relaxed certificate checks..."
+    if ! curl -fLk --retry 3 --retry-delay 2 -o "$tmp" "$url"; then
+      rm -f "$tmp"
+      echo "Could not download Java. School firewalls and proxies often block this step."
+      school_help
+      return 1
+    fi
+  fi
+  tar -xzf "$tmp" -C "$LARK_HOME" 2>/dev/null || tar -xf "$tmp" -C "$LARK_HOME"
   rm -f "$tmp"
   private_java
 }
 
-JAVA_BIN=$(system_java || true)
+JAVA_BIN=$(env_java || true)
+if [ -z "$JAVA_BIN" ]; then
+  JAVA_BIN=$(beside_java || true)
+fi
+if [ -z "$JAVA_BIN" ]; then
+  JAVA_BIN=$(system_java || true)
+fi
 if [ -z "$JAVA_BIN" ]; then
   JAVA_BIN=$(private_java || true)
+fi
+if [ -z "$JAVA_BIN" ]; then
+  JAVA_BIN=$(unpack_local_zip || true)
 fi
 if [ -z "$JAVA_BIN" ]; then
   JAVA_BIN=$(fetch_java || true)
 fi
 if [ -z "$JAVA_BIN" ]; then
   echo "Lark could not find Java 17 or newer."
+  school_help
   exit 1
 fi
 
