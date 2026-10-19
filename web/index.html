@@ -29,18 +29,18 @@
         <span class="word">Lark</span>
       </div>
       <button id="files-toggle" type="button">Files</button>
-      <button id="outline-show" type="button">Outline</button>
       <label class="project-pick">
         <span class="sr">Project</span>
         <select id="project"></select>
       </label>
       <button id="project-menu" type="button" data-pop="menu-project">Project</button>
+      <button id="java-assist" type="button" data-pop="menu-assist">Java</button>
       <div class="grow"></div>
       <label class="main-pick">
         <span>Main</span>
         <select id="main-class"></select>
       </label>
-      <button id="run" type="button" class="primary" title="Ctrl+Enter">Run</button>
+      <button id="run" type="button" class="primary run-btn" title="Ctrl+Enter">Run</button>
       <button id="github" type="button">GitHub</button>
       <button id="theme" type="button" data-pop="menu-theme">Desk</button>
       <button id="settings" type="button" data-pop="menu-settings">Aa</button>
@@ -59,6 +59,10 @@
           </span>
         </div>
         <div id="tree"></div>
+        <div id="structure">
+          <div class="pane-head structure-head"><span>Structure</span></div>
+          <div id="structure-list"></div>
+        </div>
       </aside>
       <div id="center">
         <div id="editor-pane">
@@ -68,6 +72,40 @@
             <h2>Pick a file</h2>
             <p>Open something from the tree, or start a new class.</p>
             <button type="button" id="empty-new" class="primary">New class</button>
+          </div>
+          <div id="welcome" hidden>
+            <div class="welcome-inner">
+              <div class="welcome-brand">
+                <svg viewBox="0 0 24 24" aria-hidden="true">
+                  <path d="M3 16c4.2-.7 6-6 9-11 2.8 5 4.8 10.2 9 11" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/>
+                  <path d="M7 16.5h10" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/>
+                </svg>
+                <h1>Lark</h1>
+              </div>
+              <p class="welcome-lead">A lightweight Java IDE for school and practice — classes, run, GitHub, and helpful Java tools.</p>
+              <div class="welcome-grid">
+                <section>
+                  <h2>Start</h2>
+                  <button type="button" class="welcome-action" data-welcome="new-project">New project…</button>
+                  <button type="button" class="welcome-action" data-welcome="import-folder">Open folder…</button>
+                  <button type="button" class="welcome-action" data-welcome="import-zip">Open zip…</button>
+                  <button type="button" class="welcome-action" data-welcome="github">Clone from GitHub…</button>
+                </section>
+                <section>
+                  <h2>Recent</h2>
+                  <div id="welcome-recent" class="welcome-recent"></div>
+                </section>
+                <section>
+                  <h2>Practice tips</h2>
+                  <ul class="welcome-tips">
+                    <li>Use <strong>Java → Generate getters/setters</strong> while learning encapsulation.</li>
+                    <li>Type <code>/**</code> above a method for a Javadoc stub.</li>
+                    <li>Press <kbd>Ctrl+Space</kbd> for keywords and project classes.</li>
+                    <li>When a program asks Y/N, answer in the Output reply box — not while naming a class.</li>
+                  </ul>
+                </section>
+              </div>
+            </div>
           </div>
         </div>
         <section id="console">
@@ -93,15 +131,11 @@
           </details>
         </section>
       </div>
-      <aside id="outline">
-        <div class="splitter" data-split="outline"></div>
-        <div class="pane-head"><span>Outline</span><button type="button" id="outline-toggle" class="pane-actions">Hide</button></div>
-        <div id="outline-list"></div>
-      </aside>
     </div>
     <footer id="status">
       <span id="status-path">Lark</span>
       <span id="status-save"></span>
+      <span id="status-sig"></span>
       <span class="grow"></span>
       <span id="status-cursor">Ln 1, Col 1</span>
       <span id="status-java"></span>
@@ -114,8 +148,17 @@
     <button type="button" data-act="import-zip">Import zip</button>
     <button type="button" data-act="download">Download zip</button>
     <button type="button" data-act="copy-path">Copy folder path</button>
+    <button type="button" data-act="show-welcome">Welcome page</button>
     <button type="button" data-act="delete-project" class="danger">Delete project</button>
     <p id="path-note" class="path-note"></p>
+  </div>
+  <div id="menu-assist" class="popover menu" hidden>
+    <button type="button" data-assist="getters">Generate getters / setters…</button>
+    <button type="button" data-assist="ctor">Generate constructor…</button>
+    <button type="button" data-assist="summary">Show class members</button>
+    <button type="button" data-assist="explain">Explain private / public / static / this</button>
+    <button type="button" data-assist="import">Suggest import for word at cursor</button>
+    <button type="button" data-assist="fix">Quick fix: missing accessors</button>
   </div>
   <div id="menu-theme" class="popover menu" hidden>
     <button type="button" data-theme-choice="desk"><i class="swatch" style="background:#cc7832"></i>Desk</button>
@@ -160,13 +203,13 @@
       <li><span>Open file</span><kbd>Ctrl+P</kbd></li>
       <li><span>Complete</span><kbd>Ctrl+Space</kbd></li>
       <li><span>Find</span><kbd>Ctrl+F</kbd></li>
+      <li><span>Replace</span><kbd>Ctrl+H</kbd></li>
+      <li><span>Undo / Redo</span><kbd>Ctrl+Z / Ctrl+Y</kbd></li>
       <li><span>Comment</span><kbd>Ctrl+/</kbd></li>
       <li><span>Files</span><kbd>Ctrl+B</kbd></li>
-      <li><span>Zoom in</span><kbd>Ctrl+=</kbd></li>
-      <li><span>Zoom out</span><kbd>Ctrl+-</kbd></li>
-      <li><span>Reset zoom</span><kbd>Ctrl+0</kbd></li>
+      <li><span>Zoom</span><kbd>Ctrl+= / Ctrl+-</kbd></li>
     </ul>
-    <p class="path-note">On a Mac, use Command instead of Ctrl.</p>
+    <p class="path-note">On a Mac, use Command instead of Ctrl. Type /** above a method for Javadoc.</p>
   </div>
   <div id="context" hidden></div>
 
@@ -195,8 +238,7 @@
         <p id="gh-wait" class="gh-wait"></p>
         <details class="gh-alt">
           <summary>Browser sign-in instead</summary>
-          <p>If you prefer, Lark can open GitHub and ask you to authorize it. Tokens from that path can expire; Lark refreshes them when it can.</p>
-          <button type="button" id="gh-signin" class="action">Sign in with GitHub</button>
+          <button type="button" id="gh-oauth" class="action">Sign in with browser</button>
         </details>
       </section>
       <section id="gh-signed-in" hidden>

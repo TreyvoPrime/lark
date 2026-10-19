@@ -29,6 +29,7 @@
     selected: null,
     collapsed: new Set(),
     problems: [],
+    localProblems: [],
     job: null,
     poll: null,
     dirty: new Set(),
@@ -167,11 +168,15 @@
         "Cmd-/": "toggleComment",
         "Ctrl-F": "find",
         "Cmd-F": "find",
-        "Ctrl-Space": (editor) => CodeMirror.showHint(editor, completeHint, { completeSingle: false })
+        "Ctrl-H": "replace",
+        "Cmd-Alt-F": "replace",
+        "Ctrl-Space": (editor) => CodeMirror.showHint(editor, completeHint, { completeSingle: false }),
+        "Cmd-Space": (editor) => CodeMirror.showHint(editor, completeHint, { completeSingle: false })
       }
     });
-    cm.on("change", () => {
+    cm.on("change", (editor, change) => {
       if (suppress || !state.active) return;
+      maybeExpandJavadoc(editor, change);
       const path = state.active;
       const file = fileByPath(path);
       if (file) file.content = cm.getValue();
@@ -179,13 +184,36 @@
       renderTabs();
       clearMarks();
       scheduleSave(path);
-      renderOutline();
+      renderStructure();
+      refreshLocalProblems();
       setSaveStatus("Saving…");
     });
     cm.on("cursorActivity", () => {
       const cursor = cm.getCursor();
       $("status-cursor").textContent = "Ln " + (cursor.line + 1) + ", Col " + (cursor.ch + 1);
+      updateSignatureHelp();
     });
+  }
+
+  function maybeExpandJavadoc(editor, change) {
+    if (!change || !change.text || change.origin === "setValue") return;
+    if (change.text.length !== 1) return;
+    const inserted = change.text[0];
+    if (inserted !== "*" && inserted !== "/") return;
+    const lineNo = change.from.line;
+    const line = editor.getLine(lineNo) || "";
+    const trimmed = line.trim();
+    if (trimmed !== "/**") return;
+    const indent = line.match(/^\s*/)[0];
+    const stub = [
+      "/**",
+      indent + " * ",
+      indent + " */"
+    ].join("\n");
+    suppress = true;
+    editor.replaceRange(stub, { line: lineNo, ch: 0 }, { line: lineNo, ch: line.length });
+    editor.setCursor({ line: lineNo + 1, ch: (indent + " * ").length });
+    suppress = false;
   }
 
   function completeHint(editor) {
@@ -200,9 +228,16 @@
     const names = new Map();
     state.files.forEach((file) => {
       if (!file.path.endsWith(".java")) return;
-      parsedFile(file).symbols.forEach((sym) => {
-        if (!names.has(sym.name)) names.set(sym.name, sym.kind);
+      const parsed = parsedFile(file);
+      parsed.symbols.forEach((sym) => {
+        if (!names.has(sym.name)) names.set(sym.name, sym.kind + (sym.signature ? "  " + sym.signature : ""));
       });
+    });
+    (window.LarkJava.keywords || []).forEach((word) => {
+      if (!names.has(word)) names.set(word, "keyword");
+    });
+    (window.LarkJava.typeWords || []).forEach((word) => {
+      if (!names.has(word)) names.set(word, "type");
     });
     const lower = prefix.toLowerCase();
     const list = [];
@@ -210,16 +245,36 @@
       if (prefix && !name.startsWith(prefix) && !name.toLowerCase().startsWith(lower)) return;
       list.push({ text: name, displayText: name + "  " + kind });
     });
-    if (prefix && "println".startsWith(lower)) {
-      list.push({ text: "System.out.println(", displayText: "println" });
+    if (!prefix || "println".startsWith(lower)) {
+      list.push({ text: "System.out.println(", displayText: "println  snippet" });
+    }
+    if (!prefix || "printf".startsWith(lower)) {
+      list.push({ text: "System.out.printf(", displayText: "printf  snippet" });
     }
     list.sort((a, b) => a.displayText.localeCompare(b.displayText));
     if (!list.length) return null;
     return {
-      list: list.slice(0, 40),
+      list: list.slice(0, 60),
       from: CodeMirror.Pos(cursor.line, from),
       to: CodeMirror.Pos(cursor.line, cursor.ch)
     };
+  }
+
+  function updateSignatureHelp() {
+    const el = $("status-sig");
+    if (!el || !cm || !state.active || !state.active.endsWith(".java")) {
+      if (el) el.textContent = "";
+      return;
+    }
+    const file = fileByPath(state.active);
+    if (!file) { el.textContent = ""; return; }
+    const parsed = parsedFile(file);
+    const line = cm.getCursor().line + 1;
+    let best = null;
+    parsed.symbols.forEach((sym) => {
+      if ((sym.kind === "method" || sym.kind === "ctor") && sym.line <= line) best = sym;
+    });
+    el.textContent = best && best.signature ? best.signature : "";
   }
 
   function scheduleSave(path) {
@@ -410,15 +465,53 @@
   }
 
   function showEmpty() {
+    hideWelcome();
     $("empty").hidden = false;
     $("editor").hidden = true;
-    renderOutline();
+    renderStructure();
     $("status-path").textContent = state.project ? state.project.name : "Lark";
+  }
+
+  function showWelcome() {
+    const welcome = $("welcome");
+    if (!welcome) return;
+    $("empty").hidden = true;
+    $("editor").hidden = true;
+    welcome.hidden = false;
+    renderWelcomeRecent();
+    $("status-path").textContent = "Welcome";
+    document.title = "Lark";
+  }
+
+  function hideWelcome() {
+    const welcome = $("welcome");
+    if (welcome) welcome.hidden = true;
+  }
+
+  function renderWelcomeRecent() {
+    const box = $("welcome-recent");
+    if (!box) return;
+    box.replaceChildren();
+    if (!state.projects.length) {
+      const p = document.createElement("p");
+      p.className = "muted";
+      p.textContent = "No projects yet. Create one to begin.";
+      box.appendChild(p);
+      return;
+    }
+    state.projects.slice(0, 8).forEach((project) => {
+      const btn = document.createElement("button");
+      btn.type = "button";
+      btn.textContent = project.name;
+      btn.addEventListener("click", () => openProject(project.id).catch((err) => toast(err.message)));
+      box.appendChild(btn);
+    });
   }
 
   function openPath(path) {
     const file = fileByPath(path);
     if (!file) return;
+    hideWelcome();
     ensureEditor();
     if (!state.open.includes(path)) state.open.push(path);
     state.active = path;
@@ -437,38 +530,45 @@
     cm.refresh();
     renderTabs();
     renderTree();
-    renderOutline();
+    renderStructure();
     const cursor = cm.getCursor();
     $("status-cursor").textContent = "Ln " + (cursor.line + 1) + ", Col " + (cursor.ch + 1);
     const crumbs = path.split("/").join(" / ");
     const pkg = path.endsWith(".java") ? parsedFile(file).pkg : "";
     $("status-path").textContent = (pkg ? "package " + pkg + "  ·  " : "") + crumbs;
     document.title = "Lark — " + (state.project ? state.project.name : path);
+    refreshLocalProblems();
     markErrors();
+    updateSignatureHelp();
   }
 
-  function renderOutline() {
-    const box = $("outline-list");
+  function renderStructure() {
+    const box = $("structure-list");
+    if (!box) return;
     box.replaceChildren();
     const file = state.active ? fileByPath(state.active) : null;
     if (!file || !file.path.endsWith(".java")) {
-      box.appendChild(note("Open a Java file to see its types."));
+      box.appendChild(note("Open a .java file."));
       return;
     }
-    const symbols = parsedFile(file).symbols.filter((sym) => sym.kind !== "field");
+    const symbols = parsedFile(file).symbols;
     if (!symbols.length) {
-      box.appendChild(note("No types in this file."));
+      box.appendChild(note("No members yet."));
       return;
     }
     symbols.forEach((sym) => {
       const btn = document.createElement("button");
       btn.type = "button";
       btn.className = "outline-row " + sym.kind;
-      btn.style.paddingLeft = (8 + sym.indent * 12) + "px";
+      btn.style.paddingLeft = (6 + sym.indent * 10) + "px";
       const kind = document.createElement("span");
       kind.className = "kind";
       kind.textContent = sym.kind;
-      btn.append(document.createTextNode(sym.name + (sym.kind === "method" ? sym.detail || "()" : "")), kind);
+      const label = sym.kind === "method" || sym.kind === "ctor"
+        ? sym.name + (sym.detail || "()")
+        : (sym.kind === "field" ? sym.detail + " " + sym.name : sym.name);
+      btn.append(document.createTextNode(label), kind);
+      btn.title = sym.signature || label;
       btn.addEventListener("click", () => jumpTo(file.path, sym.line, 1));
       box.appendChild(btn);
     });
@@ -526,6 +626,8 @@
   }
 
   async function openProject(id) {
+    hideWelcome();
+    try { localStorage.setItem("lark-skip-welcome", "1"); } catch (e) {}
     const data = await api("GET", "/api/projects/" + encodeURIComponent(id));
     state.project = data.project;
     state.files = (data.project.files || []).filter((file) => !file.binary && !file.tooBig);
@@ -577,6 +679,9 @@
 
   async function createClass() {
     if (!state.project) return toast("Create a project first.");
+    // Pause console autofocus while the dialog is open.
+    const reply = $("console-reply");
+    if (reply) reply.dataset.armed = "1";
     const dir = selectedDir();
     const values = await formDialog({
       title: "New class",
@@ -596,6 +701,195 @@
     if (fileByPath(path)) return toast("There's already a file at " + path + ".");
     const content = classTemplate(values.kind, name, pkg);
     await writeNewFile(path, content);
+  }
+
+  function currentJavaParsed() {
+    if (!state.active || !state.active.endsWith(".java")) return null;
+    const file = fileByPath(state.active);
+    return file ? parsedFile(file) : null;
+  }
+
+  function insertBeforeClassClose(code) {
+    if (!cm || !code) return;
+    const text = cm.getValue();
+    let depth = 0;
+    let insertPos = null;
+    for (let i = 0; i < text.length; i++) {
+      const c = text[i];
+      if (c === "{") depth++;
+      else if (c === "}") {
+        depth--;
+        if (depth === 0) {
+          insertPos = i;
+          break;
+        }
+      }
+    }
+    if (insertPos == null) insertPos = text.length;
+    const before = text.slice(0, insertPos);
+    const line = cm.posFromIndex(insertPos).line;
+    const insert = (before.endsWith("\n") ? "" : "\n") + "\n" + code + (code.endsWith("\n") ? "" : "\n");
+    suppress = true;
+    cm.replaceRange(insert, cm.posFromIndex(insertPos), cm.posFromIndex(insertPos));
+    suppress = false;
+    cm.setCursor({ line: line + 2, ch: 0 });
+    const file = fileByPath(state.active);
+    if (file) file.content = cm.getValue();
+    state.dirty.add(state.active);
+    scheduleSave(state.active);
+    renderStructure();
+    refreshLocalProblems();
+    renderProblems();
+    markErrors();
+  }
+
+  async function pickFields(title, fields) {
+    if (!fields.length) {
+      toast("This class has no fields yet.");
+      return null;
+    }
+    const box = $("modal-fields");
+    $("modal-title").textContent = title;
+    $("modal-note").textContent = "Choose fields, then continue.";
+    $("modal-ok").textContent = "Generate";
+    box.replaceChildren();
+    fields.forEach((field, index) => {
+      const label = document.createElement("label");
+      label.className = "field-check";
+      const input = document.createElement("input");
+      input.type = "checkbox";
+      input.name = "f" + index;
+      input.checked = true;
+      input.value = field.name;
+      label.append(input, document.createTextNode(" " + (field.type || field.detail || "?") + " " + field.name));
+      box.appendChild(label);
+    });
+    $("modal").hidden = false;
+    box.querySelector("input")?.focus();
+    return new Promise((resolve) => {
+      modalResolve = (values) => {
+        if (!values) return resolve(null);
+        const chosen = fields.filter((_, index) => {
+          const el = box.querySelector('input[name="f' + index + '"]');
+          return el && el.checked;
+        });
+        resolve(chosen);
+      };
+    });
+  }
+
+  async function runAssist(act) {
+    const parsed = currentJavaParsed();
+    if (!parsed && act !== "explain") return toast("Open a Java class first.");
+    if (act === "explain") {
+      await formDialog({
+        title: "Java modifiers",
+        ok: "Got it",
+        note:
+          window.LarkJava.explain("private") + "\n\n" +
+          window.LarkJava.explain("public") + "\n\n" +
+          window.LarkJava.explain("static") + "\n\n" +
+          window.LarkJava.explain("this"),
+        fields: []
+      });
+      return;
+    }
+    const summary = window.LarkJava.classSummary(parsed);
+    if (act === "summary") {
+      const lines = [];
+      summary.types.forEach((t) => lines.push(t.kind + " " + t.name));
+      if (summary.fields.length) {
+        lines.push("", "Fields:");
+        summary.fields.forEach((f) => lines.push("  " + (f.mods || []).join(" ") + " " + (f.type || f.detail) + " " + f.name));
+      }
+      if (summary.constructors.length) {
+        lines.push("", "Constructors:");
+        summary.constructors.forEach((c) => lines.push("  " + (c.signature || c.name + c.detail)));
+      }
+      if (summary.methods.length) {
+        lines.push("", "Methods:");
+        summary.methods.forEach((m) => lines.push("  " + (m.signature || m.name + m.detail)));
+      }
+      await formDialog({ title: "Class members", ok: "Close", note: lines.join("\n") || "Nothing found.", fields: [] });
+      return;
+    }
+    if (act === "getters") {
+      const chosen = await pickFields("Generate getters / setters", summary.fields);
+      if (!chosen || !chosen.length) return;
+      const mode = await formDialog({
+        title: "What to generate",
+        ok: "Insert",
+        fields: [{
+          name: "which",
+          label: "Generate",
+          type: "select",
+          value: "both",
+          options: ["both", "getters", "setters"]
+        }]
+      });
+      if (!mode) return;
+      const wantGet = mode.which !== "setters";
+      const wantSet = mode.which !== "getters";
+      const code = window.LarkJava.generateGetterSetter(chosen, wantGet, wantSet);
+      insertBeforeClassClose(code);
+      toast("Inserted accessors.");
+      return;
+    }
+    if (act === "ctor") {
+      const chosen = await pickFields("Generate constructor", summary.fields);
+      if (!chosen || !chosen.length) return;
+      const type = summary.types.find((t) => t.kind === "class") || summary.types[0];
+      if (!type) return toast("No class found in this file.");
+      const code = window.LarkJava.generateConstructor(type.name, chosen);
+      insertBeforeClassClose(code);
+      toast("Inserted constructor.");
+      return;
+    }
+    if (act === "import") {
+      if (!cm) return;
+      const token = cm.getTokenAt(cm.getCursor()).string.replace(/[^\w]/g, "");
+      if (!token) return toast("Put the cursor on a type name first.");
+      const projectTypes = [];
+      state.files.forEach((file) => {
+        if (!file.path.endsWith(".java")) return;
+        const p = parsedFile(file);
+        p.symbols.forEach((sym) => {
+          if (sym.indent === 0 && (sym.kind === "class" || sym.kind === "interface" || sym.kind === "enum" || sym.kind === "record")) {
+            projectTypes.push({ name: sym.name, pkg: p.pkg });
+          }
+        });
+      });
+      const suggestions = window.LarkJava.suggestImports(token, projectTypes);
+      if (!suggestions.length) return toast("No import suggestion for " + token + ".");
+      const already = parsed.imports || [];
+      const pick = suggestions.find((s) => !already.includes(s)) || suggestions[0];
+      if (already.includes(pick)) return toast(pick + " is already imported.");
+      const text = cm.getValue();
+      let insertAt = 0;
+      const pkgMatch = text.match(/^\s*package\s+[\w.]+\s*;\s*\n/);
+      if (pkgMatch) insertAt = pkgMatch[0].length;
+      const line = "import " + pick + ";\n";
+      suppress = true;
+      cm.replaceRange(pkgMatch ? line : line + "\n", { line: 0, ch: insertAt }, { line: 0, ch: insertAt });
+      suppress = false;
+      const file = fileByPath(state.active);
+      if (file) file.content = cm.getValue();
+      state.dirty.add(state.active);
+      scheduleSave(state.active);
+      toast("Added import " + pick);
+      return;
+    }
+    if (act === "fix") {
+      const missing = (parsed.accessors || []).filter((info) => {
+        const mods = info.field.mods || [];
+        return mods.indexOf("private") >= 0 && (!info.hasGetter || !info.hasSetter);
+      });
+      if (!missing.length) return toast("No missing accessors found.");
+      const fields = missing.map((info) => info.field);
+      const code = window.LarkJava.generateGetterSetter(fields, true, true);
+      insertBeforeClassClose(code);
+      toast("Added missing getters/setters.");
+    }
   }
 
   async function createFile() {
@@ -760,6 +1054,7 @@
     $("modal-ok").textContent = ok || "OK";
     $("modal-note").textContent = note || "";
     $("modal-note").hidden = !note;
+    $("modal-note").style.whiteSpace = note && note.includes("\n") ? "pre-wrap" : "";
     const box = $("modal-fields");
     box.replaceChildren();
     (fields || []).forEach((field) => {
@@ -821,16 +1116,41 @@
     }
   }
 
+  function isDialogTyping() {
+    const modal = $("modal");
+    if (modal && !modal.hidden) return true;
+    const welcome = $("welcome");
+    if (welcome && !welcome.hidden) return true;
+    const el = document.activeElement;
+    if (!el) return false;
+    if (el.id === "console-input" || el.id === "console-send") return false;
+    const tag = (el.tagName || "").toLowerCase();
+    if (tag === "input" || tag === "textarea" || tag === "select") return true;
+    if (el.isContentEditable) return true;
+    return false;
+  }
+
   function setRunning(running, acceptsInput) {
     $("run").textContent = running ? "Stop" : "Run";
     const reply = $("console-reply");
     if (!reply) return;
-    const show = !!(running && (acceptsInput !== false));
+    const show = !!(running && acceptsInput);
+    const wasHidden = reply.hidden;
     reply.hidden = !show;
-    if (show) {
+    if (!show) {
+      delete reply.dataset.armed;
+      return;
+    }
+    // Only steal focus the first time the reply box appears — never while naming a class.
+    if (wasHidden || !reply.dataset.armed) {
+      reply.dataset.armed = "1";
       const input = $("console-input");
-      if (input && document.activeElement !== input) {
-        setTimeout(() => input.focus(), 180);
+      if (input && !isDialogTyping()) {
+        setTimeout(() => {
+          if (isDialogTyping()) return;
+          if (reply.hidden) return;
+          input.focus();
+        }, 120);
       }
     }
   }
@@ -903,14 +1223,15 @@
 
   function renderProblems() {
     const box = $("problems");
-    const count = state.problems.length;
+    const problems = allProblems();
+    const count = problems.length;
     $("tab-problems").textContent = count ? "Problems " + count : "Problems";
     box.replaceChildren();
     if (!count) {
       box.appendChild(note("No problems."));
       return;
     }
-    state.problems.forEach((problem) => {
+    problems.forEach((problem) => {
       const btn = document.createElement("button");
       btn.type = "button";
       btn.className = "problem " + problem.severity;
@@ -942,7 +1263,7 @@
 
   function markErrors() {
     clearMarks();
-    state.problems.forEach((problem) => {
+    allProblems().forEach((problem) => {
       const doc = docs.get(problem.file) || docs.get(resolveProblemFile(problem.file));
       if (!doc) return;
       const line = problem.line - 1;
@@ -989,11 +1310,37 @@
   function toggleFiles() {
     if (window.innerWidth <= 760) {
       $("files").classList.toggle("open");
-      $("outline").classList.remove("open");
       return;
     }
     $("shell").classList.toggle("files-collapsed");
     if (cm) cm.refresh();
+  }
+
+  function refreshLocalProblems() {
+    if (!state.active || !state.active.endsWith(".java")) {
+      state.localProblems = [];
+      return;
+    }
+    const file = fileByPath(state.active);
+    if (!file) {
+      state.localProblems = [];
+      return;
+    }
+    const warnings = parsedFile(file).warnings || [];
+    state.localProblems = warnings.map((item) => ({
+      file: file.path,
+      line: item.line,
+      column: item.column || 1,
+      severity: item.severity || "warning",
+      message: item.message,
+      code: item.code || ""
+    }));
+  }
+
+  function allProblems() {
+    const compile = state.problems || [];
+    const local = state.localProblems || [];
+    return compile.concat(local);
   }
 
   function openPalette() {
@@ -1328,7 +1675,6 @@
   function savePanels() {
     localStorage.setItem("lark-panels", JSON.stringify({
       files: getComputedStyle(document.documentElement).getPropertyValue("--files-w").trim(),
-      outline: getComputedStyle(document.documentElement).getPropertyValue("--outline-w").trim(),
       console: getComputedStyle(document.documentElement).getPropertyValue("--console-h").trim()
     }));
   }
@@ -1340,7 +1686,6 @@
     })();
     if (saved) {
       if (saved.files) style.setProperty("--files-w", saved.files);
-      if (saved.outline) style.setProperty("--outline-w", saved.outline);
       if (saved.console) style.setProperty("--console-h", saved.console);
     }
     function drag(handle, kind, onMove) {
@@ -1354,7 +1699,6 @@
           x: event.clientX,
           y: event.clientY,
           files: $("files").getBoundingClientRect().width,
-          outline: $("outline").getBoundingClientRect().width,
           console: $("console").getBoundingClientRect().height,
           center: $("center").getBoundingClientRect().height
         };
@@ -1378,9 +1722,6 @@
     }
     drag(document.querySelector("[data-split=files]"), "col", (ev, start) => {
       style.setProperty("--files-w", Math.min(420, Math.max(160, start.files + ev.clientX - start.x)) + "px");
-    });
-    drag(document.querySelector("[data-split=outline]"), "col", (ev, start) => {
-      style.setProperty("--outline-w", Math.min(360, Math.max(140, start.outline - (ev.clientX - start.x))) + "px");
     });
     const consoleSplit = document.querySelector("[data-split=console]");
     drag(consoleSplit, "row", (ev, start) => {
@@ -1411,22 +1752,6 @@
     $("new-file").addEventListener("click", () => createFile().catch((err) => toast(err.message)));
     $("new-folder").addEventListener("click", () => createFolder().catch((err) => toast(err.message)));
     $("files-toggle").addEventListener("click", toggleFiles);
-    $("outline-show").addEventListener("click", () => {
-      if (window.innerWidth <= 1100) {
-        $("outline").classList.toggle("open");
-        $("files").classList.remove("open");
-      } else {
-        $("shell").classList.toggle("outline-collapsed");
-        if (cm) cm.refresh();
-      }
-    });
-    $("outline-toggle").addEventListener("click", () => {
-      if (window.innerWidth <= 1100) $("outline").classList.remove("open");
-      else {
-        $("shell").classList.toggle("outline-collapsed");
-        if (cm) cm.refresh();
-      }
-    });
     $("project").addEventListener("change", () => {
       const id = $("project").value;
       if (id && (!state.project || state.project.id !== id)) {
@@ -1440,6 +1765,7 @@
         .catch((err) => toast(err.message));
     });
     $("project-menu").addEventListener("click", (event) => togglePopover(event.currentTarget));
+    if ($("java-assist")) $("java-assist").addEventListener("click", (event) => togglePopover(event.currentTarget));
     $("theme").addEventListener("click", (event) => togglePopover(event.currentTarget));
     $("settings").addEventListener("click", (event) => togglePopover(event.currentTarget));
     $("help").addEventListener("click", (event) => togglePopover(event.currentTarget));
@@ -1486,9 +1812,27 @@
           await navigator.clipboard.writeText(state.project.path);
           toast("Copied " + state.project.path);
         },
+        "show-welcome": () => { showWelcome(); },
         "delete-project": deleteProject
       }[act];
       if (action) Promise.resolve(action()).catch((err) => toast(err.message));
+    });
+    if ($("menu-assist")) {
+      $("menu-assist").addEventListener("click", (event) => {
+        const act = event.target.dataset.assist;
+        if (!act) return;
+        closePopovers();
+        runAssist(act).catch((err) => toast(err.message));
+      });
+    }
+    document.querySelectorAll("[data-welcome]").forEach((button) => {
+      button.addEventListener("click", () => {
+        const act = button.dataset.welcome;
+        if (act === "new-project") newProject().catch((err) => toast(err.message));
+        else if (act === "import-folder") $("import-folder").click();
+        else if (act === "import-zip") $("import-zip").click();
+        else if (act === "github") $("github").click();
+      });
     });
     document.querySelectorAll("[data-theme-choice]").forEach((button) => {
       button.addEventListener("click", () => {
@@ -1602,6 +1946,7 @@
         closePopovers();
       }
       if ((event.ctrlKey || event.metaKey) && event.key === "Enter") {
+        if (!$("modal").hidden || isDialogTyping()) return;
         event.preventDefault();
         run().catch((err) => toast(err.message));
         return;
@@ -1721,10 +2066,19 @@
       renderProjects();
       const hash = decodeURIComponent((location.hash || "").replace(/^#/, ""));
       const known = (id) => state.projects.some((project) => project.id === id);
-      const id = known(hash) ? hash : known(state.settings.lastProject) ? state.settings.lastProject : (state.projects[0] && state.projects[0].id);
-      if (id) await openProject(id);
-      else showEmpty();
+      const skipWelcome = (() => {
+        try { return localStorage.getItem("lark-skip-welcome") === "1"; } catch (e) { return false; }
+      })();
+      const id = known(hash) ? hash : (skipWelcome && known(state.settings.lastProject) ? state.settings.lastProject : "");
       $("boot").hidden = true;
+      if (id) {
+        try { localStorage.setItem("lark-skip-welcome", "1"); } catch (e) {}
+        await openProject(id);
+      } else if (state.projects.length && known(state.settings.lastProject) && skipWelcome) {
+        await openProject(state.settings.lastProject);
+      } else {
+        showWelcome();
+      }
       if (cm && state.active) {
         cm.refresh();
         cm.focus();

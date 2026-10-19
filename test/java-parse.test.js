@@ -23,7 +23,7 @@ const names = parsed.symbols.map((s) => s.kind + " " + s.name);
 assert.ok(names.includes("class Book"), names.join(", "));
 assert.ok(names.includes("method lend"), names.join(", "));
 assert.ok(names.includes("method title"), names.join(", "));
-assert.ok(names.includes("method Book"), names.join(", "));
+assert.ok(names.includes("ctor Book") || names.includes("method Book"), names.join(", "));
 assert.ok(!names.some((n) => n.includes("IllegalStateException")), names.join(", "));
 assert.ok(!names.some((n) => n.includes("if")), names.join(", "));
 

@@ -1,8 +1,7 @@
 :root,
 [data-theme="desk"] {
   color-scheme: dark;
-  --files-w: 248px;
-  --outline-w: 220px;
+  --files-w: 268px;
   --console-h: 188px;
   --editor-font-size: 14px;
   --ui-zoom: 1;
@@ -232,9 +231,28 @@ button.primary {
   background: var(--accent);
   color: var(--accent-ink);
   border-color: transparent;
-  font-weight: 650;
+  font-weight: 700;
 }
 button.primary:hover { filter: brightness(1.06); }
+#run.run-btn {
+  min-width: 72px;
+  padding: 6px 16px;
+  font-size: 13px;
+  font-weight: 800;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  background: #3d8fd1;
+  color: #ffffff;
+  border: 1px solid #5aa7e0;
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.18);
+}
+#run.run-btn:hover { filter: brightness(1.08); }
+[data-theme="daylight"] #run.run-btn,
+[data-theme="fog"] #run.run-btn {
+  background: #1f6feb;
+  border-color: #1f6feb;
+  color: #ffffff;
+}
 button.danger { color: var(--red); }
 select, input[type="text"], input[type="password"], textarea {
   background: var(--bg-sunken);
@@ -252,18 +270,25 @@ select:focus, input:focus, textarea:focus, button:focus-visible {
 
 #workspace {
   display: grid;
-  grid-template-columns: var(--files-w) minmax(0, 1fr) var(--outline-w);
+  grid-template-columns: var(--files-w) minmax(0, 1fr);
   min-height: 0;
   position: relative;
 }
-#files, #outline, #console {
+#files, #console {
   background: var(--bg-elev);
   min-height: 0;
   min-width: 0;
 }
 #files { border-right: 1px solid var(--line); display: flex; flex-direction: column; position: relative; }
-#outline { border-left: 1px solid var(--line); display: flex; flex-direction: column; position: relative; }
-#outline-toggle { margin-left: auto; text-transform: none; letter-spacing: 0; }
+#structure {
+  border-top: 1px solid var(--line);
+  max-height: 38%;
+  min-height: 96px;
+  display: flex;
+  flex-direction: column;
+}
+.structure-head { height: 28px; }
+#structure-list { overflow: auto; flex: 1; padding: 4px 6px 8px; }
 #center {
   display: grid;
   grid-template-rows: minmax(96px, 1fr) var(--console-h);
@@ -291,7 +316,7 @@ select:focus, input:focus, textarea:focus, button:focus-visible {
   color: var(--muted);
 }
 .pane-actions button:hover, .tabs-inline button:hover { background: var(--hover); color: var(--text); }
-#tree, #outline-list, #problems { overflow: auto; flex: 1; padding: 6px; }
+#tree, #problems { overflow: auto; flex: 1; padding: 6px; }
 .tree-row, .outline-row, .problem, .menu button, .palette-item {
   width: 100%;
   text-align: left;
@@ -331,7 +356,18 @@ select:focus, input:focus, textarea:focus, button:focus-visible {
   font-size: 12px;
 }
 .outline-row .kind { text-transform: lowercase; }
-.outline-row.method { color: var(--muted); }
+.outline-row.method, .outline-row.ctor { color: var(--muted); }
+.outline-row.field { color: var(--syn-type); }
+.field-check {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin: 6px 0;
+  color: var(--text);
+  font-family: var(--mono);
+  font-size: 13px;
+}
+#modal-note { white-space: pre-wrap; }
 #editor-pane { position: relative; min-height: 0; display: flex; flex-direction: column; }
 #tabs {
   display: flex;
@@ -505,7 +541,6 @@ button.linkish {
   touch-action: none;
 }
 #files .splitter { top: 0; right: -5px; width: 10px; bottom: 0; cursor: col-resize; }
-#outline .splitter { top: 0; left: -5px; width: 10px; bottom: 0; cursor: col-resize; }
 #console .splitter {
   left: 0;
   right: 0;
@@ -799,22 +834,95 @@ li.CodeMirror-hint-active { background: var(--select); color: var(--text); }
 
 #shell.files-collapsed { --files-w: 0px; }
 #shell.files-collapsed #files { border: 0; overflow: hidden; }
-#shell.outline-collapsed { --outline-w: 0px; }
-#shell.outline-collapsed #outline { border: 0; overflow: hidden; }
 
-@media (max-width: 1100px) {
-  #workspace { grid-template-columns: var(--files-w) minmax(0, 1fr); }
-  #outline {
-    display: none;
-    position: absolute;
-    z-index: 20;
-    top: 0;
-    right: 0;
-    bottom: 0;
-    width: min(280px, 88vw);
-    border-left: 1px solid var(--line);
-  }
-  #outline.open { display: flex; }
+#welcome {
+  position: absolute;
+  inset: 0;
+  z-index: 4;
+  overflow: auto;
+  background:
+    radial-gradient(700px 320px at 12% -10%, color-mix(in srgb, var(--accent) 18%, transparent), transparent 60%),
+    var(--bg);
+  padding: 36px 28px 48px;
+}
+#welcome[hidden] { display: none; }
+.welcome-inner { width: min(920px, 100%); margin: 0 auto; }
+.welcome-brand {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  color: var(--accent);
+}
+.welcome-brand svg { width: 36px; height: 36px; }
+.welcome-brand h1 {
+  margin: 0;
+  font-size: clamp(32px, 5vw, 44px);
+  font-weight: 700;
+  letter-spacing: -0.03em;
+  color: var(--text);
+}
+.welcome-lead {
+  max-width: 54ch;
+  color: var(--muted);
+  line-height: 1.55;
+  margin: 12px 0 28px;
+}
+.welcome-grid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 22px;
+}
+.welcome-grid h2 {
+  margin: 0 0 10px;
+  font-size: 13px;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: var(--muted);
+}
+.welcome-action {
+  display: block;
+  width: 100%;
+  text-align: left;
+  margin: 0 0 6px;
+  padding: 9px 11px;
+  border: 1px solid var(--line);
+  border-radius: 6px;
+  background: var(--bg-elev);
+  color: var(--text);
+}
+.welcome-action:hover { border-color: var(--accent); background: var(--hover); }
+.welcome-recent { display: flex; flex-direction: column; gap: 6px; }
+.welcome-recent button {
+  text-align: left;
+  border: 0;
+  background: transparent;
+  color: var(--accent);
+  padding: 6px 0;
+}
+.welcome-recent .muted { color: var(--muted); font-size: 13px; }
+.welcome-tips {
+  margin: 0;
+  padding-left: 1.1em;
+  color: var(--muted);
+  line-height: 1.55;
+  font-size: 13px;
+}
+.welcome-tips code, .welcome-tips kbd {
+  font-family: var(--mono);
+  font-size: 12px;
+  color: var(--text);
+}
+#status-sig {
+  color: var(--muted);
+  font-family: var(--mono);
+  font-size: 12px;
+  max-width: 42vw;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+@media (max-width: 900px) {
+  .welcome-grid { grid-template-columns: 1fr; }
 }
 @media (max-width: 760px) {
   #shell { grid-template-rows: auto minmax(0, 1fr) 28px; }
