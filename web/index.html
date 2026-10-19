@@ -1,0 +1,317 @@
+<!DOCTYPE html>
+<html lang="en" data-theme="desk">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Lark</title>
+  <link rel="icon" href="favicon.svg">
+  <link rel="stylesheet" href="vendor/codemirror/codemirror.min.css">
+  <link rel="stylesheet" href="vendor/codemirror/addon/dialog/dialog.css">
+  <link rel="stylesheet" href="vendor/codemirror/addon/hint/show-hint.css">
+  <link rel="stylesheet" href="css/fonts.css">
+  <link rel="stylesheet" href="css/app.css?v=__LARK_V__">
+  <script>
+    try {
+      var savedTheme = localStorage.getItem("lark-theme");
+      var aliases = { ink: "desk", paper: "daylight", tide: "moss", copper: "ember", chalk: "fog", kawaii: "blossom", pink: "blossom" };
+      if (savedTheme) document.documentElement.dataset.theme = aliases[savedTheme] || savedTheme;
+    } catch (e) {}
+  </script>
+</head>
+<body>
+  <div id="shell">
+    <header id="top">
+      <div class="brand">
+        <svg viewBox="0 0 24 24" aria-hidden="true">
+          <path d="M3 16c4.2-.7 6-6 9-11 2.8 5 4.8 10.2 9 11" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/>
+          <path d="M7 16.5h10" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/>
+        </svg>
+        <span class="word">Lark</span>
+      </div>
+      <button id="files-toggle" type="button">Files</button>
+      <label class="project-pick">
+        <span class="sr">Project</span>
+        <select id="project"></select>
+      </label>
+      <button id="project-menu" type="button" data-pop="menu-project">Project</button>
+      <button id="java-assist" type="button" data-pop="menu-assist">Java</button>
+      <div class="grow"></div>
+      <label class="main-pick">
+        <span>Main</span>
+        <select id="main-class"></select>
+      </label>
+      <button id="run" type="button" class="primary run-btn" title="Ctrl+Enter">Run</button>
+      <button id="github" type="button">GitHub</button>
+      <button id="theme" type="button" data-pop="menu-theme">Desk</button>
+      <button id="settings" type="button" data-pop="menu-settings">Aa</button>
+      <button id="help" type="button" data-pop="menu-help" aria-label="Keyboard shortcuts">?</button>
+    </header>
+
+    <div id="workspace">
+      <aside id="files">
+        <div class="splitter" data-split="files"></div>
+        <div class="pane-head">
+          <span>Files</span>
+          <span class="pane-actions">
+            <button type="button" id="new-class">Class</button>
+            <button type="button" id="new-file">File</button>
+            <button type="button" id="new-folder">Folder</button>
+          </span>
+        </div>
+        <div id="tree"></div>
+        <div id="structure">
+          <div class="pane-head structure-head"><span>Structure</span></div>
+          <div id="structure-list"></div>
+        </div>
+      </aside>
+      <div id="center">
+        <div id="editor-pane">
+          <div id="tabs"></div>
+          <div id="editor"></div>
+          <div id="empty" hidden>
+            <h2>Pick a file</h2>
+            <p>Open something from the tree, or start a new class.</p>
+            <button type="button" id="empty-new" class="primary">New class</button>
+          </div>
+          <div id="welcome" hidden>
+            <div class="welcome-inner">
+              <div class="welcome-brand">
+                <svg viewBox="0 0 24 24" aria-hidden="true">
+                  <path d="M3 16c4.2-.7 6-6 9-11 2.8 5 4.8 10.2 9 11" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/>
+                  <path d="M7 16.5h10" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/>
+                </svg>
+                <h1>Lark</h1>
+              </div>
+              <p class="welcome-lead">A lightweight Java IDE for school and practice — classes, run, GitHub, and helpful Java tools.</p>
+              <div class="welcome-grid">
+                <section>
+                  <h2>Start</h2>
+                  <button type="button" class="welcome-action" data-welcome="new-project">New project…</button>
+                  <button type="button" class="welcome-action" data-welcome="import-folder">Open folder…</button>
+                  <button type="button" class="welcome-action" data-welcome="import-zip">Open zip…</button>
+                  <button type="button" class="welcome-action" data-welcome="github">Clone from GitHub…</button>
+                </section>
+                <section>
+                  <h2>Recent</h2>
+                  <div id="welcome-recent" class="welcome-recent"></div>
+                </section>
+                <section>
+                  <h2>Practice tips</h2>
+                  <ul class="welcome-tips">
+                    <li>Use <strong>Java → Generate getters/setters</strong> while learning encapsulation.</li>
+                    <li>Type <code>/**</code> above a method for a Javadoc stub.</li>
+                    <li>Press <kbd>Ctrl+Space</kbd> for keywords and project classes.</li>
+                    <li>When a program asks Y/N, answer in the Output reply box — not while naming a class.</li>
+                  </ul>
+                </section>
+              </div>
+            </div>
+          </div>
+        </div>
+        <section id="console">
+          <div class="splitter" data-split="console"></div>
+          <div class="pane-head">
+            <div class="tabs-inline">
+              <button type="button" id="tab-output" class="on">Output</button>
+              <button type="button" id="tab-problems">Problems</button>
+            </div>
+            <label class="args">Arguments <input id="args" type="text" placeholder="optional" spellcheck="false"></label>
+            <button type="button" id="clear-console">Clear</button>
+          </div>
+          <pre id="console-out">Run a class and the output shows up here.</pre>
+          <div id="problems" hidden></div>
+          <div id="console-reply" class="console-reply" hidden>
+            <span class="console-reply-label">Program is waiting for input</span>
+            <input id="console-input" type="text" placeholder="Type Y or N, then Enter" spellcheck="false" autocomplete="off">
+            <button type="button" id="console-send" class="primary">Send</button>
+          </div>
+          <details id="stdin-wrap">
+            <summary>Starter input (optional — for answers you already know)</summary>
+            <textarea id="stdin" rows="2" spellcheck="false" placeholder="Lines sent when the program starts. While it runs, use the reply box above."></textarea>
+          </details>
+        </section>
+      </div>
+    </div>
+    <footer id="status">
+      <span id="status-path">Lark</span>
+      <span id="status-save"></span>
+      <span id="status-sig"></span>
+      <span class="grow"></span>
+      <span id="status-cursor">Ln 1, Col 1</span>
+      <span id="status-java"></span>
+    </footer>
+  </div>
+
+  <div id="menu-project" class="popover menu" hidden>
+    <button type="button" data-act="new-project">New project</button>
+    <button type="button" data-act="import-folder">Import folder</button>
+    <button type="button" data-act="import-zip">Import zip</button>
+    <button type="button" data-act="download">Download zip</button>
+    <button type="button" data-act="copy-path">Copy folder path</button>
+    <button type="button" data-act="show-welcome">Welcome page</button>
+    <button type="button" data-act="delete-project" class="danger">Delete project</button>
+    <p id="path-note" class="path-note"></p>
+  </div>
+  <div id="menu-assist" class="popover menu" hidden>
+    <button type="button" data-assist="getters">Generate getters / setters…</button>
+    <button type="button" data-assist="ctor">Generate constructor…</button>
+    <button type="button" data-assist="summary">Show class members</button>
+    <button type="button" data-assist="explain">Explain private / public / static / this</button>
+    <button type="button" data-assist="import">Suggest import for word at cursor</button>
+    <button type="button" data-assist="fix">Quick fix: missing accessors</button>
+  </div>
+  <div id="menu-theme" class="popover menu" hidden>
+    <button type="button" data-theme-choice="graphite"><i class="swatch" style="background:#36cfc9"></i>Graphite &amp; Teal</button>
+    <button type="button" data-theme-choice="navy"><i class="swatch" style="background:#4d8dff"></i>Midnight Blue</button>
+    <button type="button" data-theme-choice="terminal"><i class="swatch" style="background:#9fe870"></i>Terminal Green</button>
+    <button type="button" data-theme-choice="parchment"><i class="swatch" style="background:#4169a1"></i>Paper &amp; Ink</button>
+    <button type="button" data-theme-choice="ultraviolet"><i class="swatch" style="background:#a78bfa"></i>Ultraviolet</button>
+    <button type="button" data-theme-choice="forest"><i class="swatch" style="background:#8fc9a3"></i>Forest</button>
+    <button type="button" data-theme-choice="monochrome"><i class="swatch" style="background:#d4d4d4"></i>Monochrome</button>
+    <button type="button" data-theme-choice="amber"><i class="swatch" style="background:#ffb454"></i>Amber Terminal</button>
+    <button type="button" data-theme-choice="blossom"><i class="swatch" style="background:#ff6b9d"></i>Blossom</button>
+    <button type="button" data-theme-choice="candy"><i class="swatch" style="background:#ff7eb3"></i>Candy</button>
+    <button type="button" data-theme-choice="desk"><i class="swatch" style="background:#cc7832"></i>Desk</button>
+    <button type="button" data-theme-choice="daylight"><i class="swatch" style="background:#0033b3"></i>Daylight</button>
+    <button type="button" data-theme-choice="moss"><i class="swatch" style="background:#e0a070"></i>Moss</button>
+    <button type="button" data-theme-choice="ember"><i class="swatch" style="background:#e89a5c"></i>Ember</button>
+    <button type="button" data-theme-choice="fog"><i class="swatch" style="background:#1750eb"></i>Fog</button>
+    <button type="button" data-theme-choice="midnight"><i class="swatch" style="background:#5b9fd4"></i>Midnight</button>
+    <button type="button" data-theme-choice="citrus"><i class="swatch" style="background:#e8a317"></i>Citrus</button>
+    <button type="button" data-theme-choice="harbor"><i class="swatch" style="background:#3db8c5"></i>Harbor</button>
+  </div>
+  <div id="menu-settings" class="popover" hidden>
+    <label class="settings-row">Font size
+      <input id="setting-font" type="range" min="11" max="24" step="1" value="14">
+      <output id="setting-font-out">14</output>
+    </label>
+    <label class="settings-row">Zoom
+      <input id="setting-zoom" type="range" min="80" max="150" step="5" value="100">
+      <output id="setting-zoom-out">100%</output>
+    </label>
+    <button type="button" id="setting-zoom-reset">Reset zoom</button>
+    <p class="path-note">Ctrl + and Ctrl - also zoom. Ctrl 0 resets.</p>
+    <hr class="settings-rule">
+    <label class="settings-row settings-stack">Update feed URL
+      <input id="setting-update-feed" type="url" spellcheck="false" placeholder="https://…/update.json">
+    </label>
+    <button type="button" id="setting-check-updates">Check for updates</button>
+    <p id="setting-update-status" class="path-note"></p>
+  </div>
+  <div id="update-banner" class="update-banner" hidden>
+    <div>
+      <strong id="update-title">Update available</strong>
+      <p id="update-notes"></p>
+    </div>
+    <div class="update-actions">
+      <button type="button" id="update-later">Later</button>
+      <button type="button" id="update-skip">Skip</button>
+      <button type="button" id="update-now" class="primary">Update now</button>
+      <button type="button" id="update-restart" class="primary" hidden>Restart Lark</button>
+    </div>
+  </div>
+  <div id="menu-help" class="popover" hidden>
+    <ul class="help-list">
+      <li><span>Run</span><kbd>Ctrl+Enter</kbd></li>
+      <li><span>Save</span><kbd>Ctrl+S</kbd></li>
+      <li><span>Open file</span><kbd>Ctrl+P</kbd></li>
+      <li><span>Complete</span><kbd>Ctrl+Space</kbd></li>
+      <li><span>Find</span><kbd>Ctrl+F</kbd></li>
+      <li><span>Replace</span><kbd>Ctrl+H</kbd></li>
+      <li><span>Undo / Redo</span><kbd>Ctrl+Z / Ctrl+Y</kbd></li>
+      <li><span>Comment</span><kbd>Ctrl+/</kbd></li>
+      <li><span>Files</span><kbd>Ctrl+B</kbd></li>
+      <li><span>Zoom</span><kbd>Ctrl+= / Ctrl+-</kbd></li>
+    </ul>
+    <p class="path-note">On a Mac, use Command instead of Ctrl. Type /** above a method for Javadoc.</p>
+  </div>
+  <div id="context" hidden></div>
+
+  <div id="scrim" hidden></div>
+  <aside id="drawer" hidden>
+    <div class="drawer-head">
+      <h2>GitHub</h2>
+      <div class="grow"></div>
+      <button type="button" id="drawer-close">Close</button>
+    </div>
+    <div class="drawer-body">
+      <section id="gh-signed-out">
+        <p class="gh-lead">Connect once. Lark can then list your repositories, clone them, and push this project.</p>
+        <ol class="gh-steps">
+          <li>
+            <button type="button" id="gh-create-token" class="action primary">Create a GitHub token</button>
+            <span class="gh-hint">Opens GitHub with the <code>repo</code> scope already selected. Choose classic token, generate, then copy it.</span>
+          </li>
+          <li>
+            <label>Paste the token here
+              <input id="gh-token" type="password" autocomplete="off" spellcheck="false" placeholder="ghp_…">
+            </label>
+            <button type="button" id="gh-save" class="action primary">Connect</button>
+          </li>
+        </ol>
+        <p id="gh-wait" class="gh-wait"></p>
+        <details class="gh-alt">
+          <summary>Browser sign-in instead</summary>
+          <button type="button" id="gh-oauth" class="action">Sign in with browser</button>
+        </details>
+      </section>
+      <section id="gh-signed-in" hidden>
+        <div class="row gh-account">
+          <strong id="gh-status">Connected</strong>
+          <button type="button" id="gh-forget" class="action">Sign out</button>
+        </div>
+        <label>Your repositories
+          <input id="gh-filter" type="text" placeholder="Filter by name" spellcheck="false" autocomplete="off">
+        </label>
+        <div id="gh-repo-list" class="repo-list"></div>
+        <div class="block">
+          <h3>Push this project</h3>
+          <p id="gh-target">Choose a repository above, or create a new one.</p>
+          <label>Commit message <input id="gh-message" type="text" value="Update from Lark" spellcheck="false"></label>
+          <div class="row">
+            <button type="button" id="gh-push" class="action primary">Push</button>
+            <button type="button" id="gh-new-repo" class="action">New repository</button>
+          </div>
+          <p id="gh-result"></p>
+        </div>
+      </section>
+    </div>
+  </aside>
+
+  <div id="modal" hidden>
+    <form id="modal-form">
+      <h2 id="modal-title"></h2>
+      <p id="modal-note"></p>
+      <div id="modal-fields"></div>
+      <div class="modal-actions">
+        <button type="button" id="modal-cancel">Cancel</button>
+        <button type="submit" id="modal-ok" class="primary">OK</button>
+      </div>
+    </form>
+  </div>
+
+  <div id="palette" hidden>
+    <div class="palette-card">
+      <input id="palette-input" type="text" placeholder="Open a file" spellcheck="false" autocomplete="off">
+      <div id="palette-list"></div>
+    </div>
+  </div>
+  <div id="toasts"></div>
+  <div id="boot">Opening your workspace…</div>
+  <input id="import-folder" type="file" webkitdirectory multiple hidden>
+  <input id="import-zip" type="file" accept=".zip,application/zip" hidden>
+
+  <script src="vendor/codemirror/codemirror.min.js"></script>
+  <script src="vendor/codemirror/mode/clike/clike.min.js"></script>
+  <script src="vendor/codemirror/addon/edit/closebrackets.min.js"></script>
+  <script src="vendor/codemirror/addon/edit/matchbrackets.min.js"></script>
+  <script src="vendor/codemirror/addon/selection/active-line.min.js"></script>
+  <script src="vendor/codemirror/addon/comment/comment.min.js"></script>
+  <script src="vendor/codemirror/addon/dialog/dialog.min.js"></script>
+  <script src="vendor/codemirror/addon/search/searchcursor.min.js"></script>
+  <script src="vendor/codemirror/addon/search/search.min.js"></script>
+  <script src="vendor/codemirror/addon/hint/show-hint.min.js"></script>
+  <script src="js/java.js?v=__LARK_V__"></script>
+  <script src="js/app.js?v=__LARK_V__"></script>
+</body>
+</html>
