@@ -1,0 +1,35 @@
+Crowns of the Atlantic
+Age of History II: Definitive Edition
+
+1. Copy this whole folder into the game's mods directory, so the game sees:
+   mods/CrownsOfTheAtlantic/mod.txt
+
+2. Enable the mod from the in-game mod list.
+
+3. The civilization files live in game/civilizations/. If a new tag does not
+   show in the editor, append every line from reference/register.txt to the
+   base game's game/Civilizations.txt. Do not replace that file.
+   This mod does not ship Civilizations.txt, because a mod copy would
+   replace the full vanilla list.
+
+4. In the scenario editor, or with Add Civilization before the game starts,
+   give one of the new tags some provinces. Events look at the year and the
+   tag, so set the start year inside the window named in INSTALL notes below.
+
+5. If an event shows its key (atl_charter.t) instead of the sentence, reselect
+   your language in the settings. That reloads Bundle.properties.
+
+Play as a chartered colony (North Carolina, South Carolina, Virginia,
+New England, New France, Louisiana, Acadia, Florida) from 1607 to 1779 to
+start the charter chain. The chain needs the previous event, then enough
+provinces or gold for the later steps.
+
+National events: Ayiti or Saint-Domingue 1791-1805, Rio de la Plata 1809-1816,
+Gran Colombia 1819-1830, Texas 1836-1845, California 1846-1850, Liberia
+1821-1847, Cuba 1868-1898. The congress seat event covers the independent
+states from 1816 to 1847.
+
+ReligionID in each civilization file is 0, the first religion in the game.
+Change it if you want a different religion from game/Religions.json.
+
+Do not delete id.txt if the game creates one when you publish to the Workshop.
