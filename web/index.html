@@ -13,7 +13,7 @@
   <script>
     try {
       var savedTheme = localStorage.getItem("lark-theme");
-      var aliases = { ink: "desk", paper: "daylight", tide: "moss", copper: "ember", chalk: "fog" };
+      var aliases = { ink: "desk", paper: "daylight", tide: "moss", copper: "ember", chalk: "fog", kawaii: "blossom", pink: "blossom" };
       if (savedTheme) document.documentElement.dataset.theme = aliases[savedTheme] || savedTheme;
     } catch (e) {}
   </script>
@@ -166,6 +166,11 @@
     <button type="button" data-theme-choice="moss"><i class="swatch" style="background:#e0a070"></i>Moss</button>
     <button type="button" data-theme-choice="ember"><i class="swatch" style="background:#e89a5c"></i>Ember</button>
     <button type="button" data-theme-choice="fog"><i class="swatch" style="background:#1750eb"></i>Fog</button>
+    <button type="button" data-theme-choice="blossom"><i class="swatch" style="background:#ff6b9d"></i>Blossom</button>
+    <button type="button" data-theme-choice="candy"><i class="swatch" style="background:#ff7eb3"></i>Candy</button>
+    <button type="button" data-theme-choice="midnight"><i class="swatch" style="background:#5b9fd4"></i>Midnight</button>
+    <button type="button" data-theme-choice="citrus"><i class="swatch" style="background:#e8a317"></i>Citrus</button>
+    <button type="button" data-theme-choice="harbor"><i class="swatch" style="background:#3db8c5"></i>Harbor</button>
   </div>
   <div id="menu-settings" class="popover" hidden>
     <label class="settings-row">Font size

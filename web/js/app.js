@@ -5,19 +5,29 @@
     moss: "Moss",
     ember: "Ember",
     fog: "Fog",
+    blossom: "Blossom",
+    candy: "Candy",
+    midnight: "Midnight",
+    citrus: "Citrus",
+    harbor: "Harbor",
     ink: "Desk",
     paper: "Daylight",
     tide: "Moss",
     copper: "Ember",
-    chalk: "Fog"
+    chalk: "Fog",
+    kawaii: "Blossom",
+    pink: "Blossom"
   };
   const THEME_CANON = {
     ink: "desk",
     paper: "daylight",
     tide: "moss",
     copper: "ember",
-    chalk: "fog"
+    chalk: "fog",
+    kawaii: "blossom",
+    pink: "blossom"
   };
+  const THEME_IDS = ["desk", "daylight", "moss", "ember", "fog", "blossom", "candy", "midnight", "citrus", "harbor"];
   const state = {
     settings: null,
     projects: [],
@@ -75,7 +85,7 @@
 
   function applyTheme(theme, save) {
     theme = THEME_CANON[theme] || theme;
-    if (!THEME_NAMES[theme] || !["desk", "daylight", "moss", "ember", "fog"].includes(theme)) theme = "desk";
+    if (!THEME_NAMES[theme] || !THEME_IDS.includes(theme)) theme = "desk";
     document.documentElement.dataset.theme = theme;
     try { localStorage.setItem("lark-theme", theme); } catch (e) {}
     $("theme").textContent = themeName(theme);
