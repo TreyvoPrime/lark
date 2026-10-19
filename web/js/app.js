@@ -791,6 +791,28 @@
 
   function setRunning(running) {
     $("run").textContent = running ? "Stop" : "Run";
+    const reply = $("console-reply");
+    if (!reply) return;
+    reply.hidden = !running;
+    if (running) {
+      const input = $("console-input");
+      if (input && document.activeElement !== input) {
+        setTimeout(() => input.focus(), 0);
+      }
+    }
+  }
+
+  async function sendConsoleInput() {
+    if (!state.job || state.job.done) return toast("Run a program first.");
+    const input = $("console-input");
+    const text = input.value;
+    input.value = "";
+    try {
+      await api("POST", "/api/run/" + state.job.id + "/input", { text: text });
+      input.focus();
+    } catch (err) {
+      toast(err.message);
+    }
   }
 
   async function poll(id) {
@@ -811,6 +833,7 @@
         }
         return;
       }
+      setRunning(true);
       state.poll = setTimeout(() => poll(id), 200);
     } catch (err) {
       setRunning(false);
@@ -1436,6 +1459,15 @@
       renderProblems();
       renderConsole("");
       showConsoleTab("output");
+    });
+    $("console-send").addEventListener("click", () => {
+      sendConsoleInput().catch((err) => toast(err.message));
+    });
+    $("console-input").addEventListener("keydown", (event) => {
+      if (event.key === "Enter") {
+        event.preventDefault();
+        sendConsoleInput().catch((err) => toast(err.message));
+      }
     });
     $("modal-form").addEventListener("submit", (event) => {
       event.preventDefault();

@@ -409,6 +409,25 @@ button.linkish {
   font: inherit;
   text-decoration: underline;
 }
+.console-reply {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+  border-top: 1px solid var(--line);
+  padding: 6px 10px;
+  background: var(--bg-elev);
+}
+.console-reply[hidden] { display: none; }
+.console-reply input {
+  flex: 1;
+  min-width: 0;
+}
+.console-reply button {
+  border: 1px solid var(--line);
+  background: var(--bg);
+  border-radius: 5px;
+  padding: 5px 10px;
+}
 #stdin-wrap { border-top: 1px solid var(--line); padding: 4px 12px 8px; color: var(--muted); font-size: 12px; }
 #stdin-wrap textarea { width: 100%; margin-top: 6px; resize: vertical; }
 .splitter {

@@ -197,6 +197,13 @@ public final class Server {
             sendJson(exchange, 200, new Json.Obj().put("ok", true));
             return;
         }
+        if (parts.length == 5 && "api".equals(parts[1]) && "run".equals(parts[2]) && "input".equals(parts[4])
+                && "POST".equals(method)) {
+            Json.Obj body = body(exchange);
+            runner.writeInput(decode(parts[3]), body.str("text", ""));
+            sendJson(exchange, 200, new Json.Obj().put("ok", true));
+            return;
+        }
         if ("/api/github/token".equals(path) && "POST".equals(method)) {
             sendJson(exchange, 200, github.saveToken(body(exchange).str("token", "")));
             return;

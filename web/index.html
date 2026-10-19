@@ -80,9 +80,13 @@
           </div>
           <pre id="console-out">Run a class and the output shows up here.</pre>
           <div id="problems" hidden></div>
+          <div id="console-reply" class="console-reply" hidden>
+            <input id="console-input" type="text" placeholder="Type a reply (Y/N) and press Enter" spellcheck="false" autocomplete="off">
+            <button type="button" id="console-send">Send</button>
+          </div>
           <details id="stdin-wrap">
-            <summary>Program input</summary>
-            <textarea id="stdin" rows="2" spellcheck="false" placeholder="Sent to the program as standard input"></textarea>
+            <summary>Starter input (optional)</summary>
+            <textarea id="stdin" rows="2" spellcheck="false" placeholder="Lines sent when the program starts. While it runs, use the reply box above."></textarea>
           </details>
         </section>
       </div>

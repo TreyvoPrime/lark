@@ -73,6 +73,15 @@ public final class Runner {
         job.cancel();
     }
 
+    /** Sends a line to a running program's standard input. */
+    public void writeInput(String id, String text) {
+        Job job = jobs.get(id);
+        if (job == null) throw new RequestFail(404, "That run is gone.");
+        if (text == null) text = "";
+        if (text.length() > 20_000) throw new RequestFail(400, "That input is too long.");
+        job.writeInput(text);
+    }
+
     private void prune() {
         if (jobs.size() < 40) return;
         long now = System.currentTimeMillis();
@@ -135,7 +144,10 @@ public final class Runner {
         run.addAll(splitArgs(args));
         job.phase = "run";
         job.append("\n" + format(run) + "\n");
-        int exit = executeProcess(run, project, stdin, 20, job, null, null, true);
+        if (stdin == null || stdin.isBlank()) {
+            job.append("(Type under Output if the program asks a question.)\n");
+        }
+        int exit = executeProcess(run, project, stdin, 300, job, null, null, true);
         if (!job.cancelled) job.append("\n— exited " + exit + "\n");
         job.finish(exit);
     }
@@ -154,15 +166,19 @@ public final class Runner {
         job.process = process;
         Thread outThread = gobble(process.getInputStream(), echo ? job : null, stdout);
         Thread errThread = gobble(process.getErrorStream(), echo ? job : null, stderr);
-        try (OutputStream os = process.getOutputStream()) {
+        OutputStream os = process.getOutputStream();
+        job.attachStdin(os);
+        try {
             if (stdin != null && !stdin.isEmpty()) {
                 os.write(stdin.getBytes(StandardCharsets.UTF_8));
                 if (!stdin.endsWith("\n")) os.write('\n');
+                os.flush();
             }
         } catch (IOException ignored) {
             // The program may have closed stdin already.
         }
         boolean finished = process.waitFor(seconds, TimeUnit.SECONDS);
+        job.closeStdin();
         if (!finished) {
             process.destroyForcibly();
             if (job.cancelled) job.append("\nStopped.\n");
@@ -318,10 +334,44 @@ public final class Runner {
         volatile int exitCode;
         volatile long finishedAt;
         volatile Process process;
+        private OutputStream stdin;
         List<Problem> problems = List.of();
 
         Job(String id) {
             this.id = id;
+        }
+
+        synchronized void attachStdin(OutputStream stream) {
+            stdin = stream;
+        }
+
+        synchronized void closeStdin() {
+            OutputStream stream = stdin;
+            stdin = null;
+            if (stream == null) return;
+            try {
+                stream.close();
+            } catch (IOException ignored) {
+                // Already closed by the program.
+            }
+        }
+
+        synchronized void writeInput(String text) {
+            if (done || cancelled) {
+                throw new RequestFail(400, "That program already finished.");
+            }
+            OutputStream stream = stdin;
+            if (stream == null) {
+                throw new RequestFail(400, "That program isn't accepting input right now.");
+            }
+            if (!text.endsWith("\n")) text = text + "\n";
+            try {
+                stream.write(text.getBytes(StandardCharsets.UTF_8));
+                stream.flush();
+                append(text);
+            } catch (IOException e) {
+                throw new RequestFail(400, "Couldn't send that input. The program may have closed it.");
+            }
         }
 
         synchronized void append(String text) {

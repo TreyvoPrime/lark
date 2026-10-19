@@ -10,7 +10,7 @@ import java.util.Set;
 
 /** Preferences stored in the home folder. The GitHub token never leaves this machine except for GitHub. */
 public final class Settings {
-    public static final String VERSION = "1.3.0";
+    public static final String VERSION = "1.3.1";
     public static final Set<String> THEMES = Set.of("desk", "daylight", "moss", "ember", "fog");
     private static final Map<String, String> THEME_ALIASES = Map.of(
             "ink", "desk",
