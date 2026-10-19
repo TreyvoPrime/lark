@@ -54,13 +54,14 @@ java_major() {
   printf '%s\n' "$line" | sed -n 's/.* version "\([0-9][0-9]*\).*/\1/p'
 }
 
-# Complete JDK: bin/java + lib/jvm.cfg + runnable 17+.
+# Complete JDK: bin/java + bin/javac + lib/jvm.cfg + runnable 17+.
 jdk_ok() {
   bin=$1
   [ -n "$bin" ] && [ -x "$bin" ] || return 1
   root=$(CDPATH= cd -- "$(dirname "$bin")/.." && pwd)
   [ -f "$root/lib/jvm.cfg" ] || return 1
-  [ -e "$root/bin/java" ] || return 1
+  [ -x "$root/bin/java" ] || return 1
+  [ -x "$root/bin/javac" ] || return 1
   major=$(java_major "$bin")
   [ -n "${major:-}" ] || return 1
   [ "$major" -ge 17 ] || return 1
@@ -115,6 +116,56 @@ private_java() {
       return 0
     fi
   done
+  return 1
+}
+
+try_java_bins() {
+  for bin in "$@"; do
+    [ -n "$bin" ] && [ -x "$bin" ] || continue
+    if usable_java "$bin" >/dev/null; then
+      echo "Using Java from IntelliJ / JetBrains: $bin" >&2
+      printf '%s\n' "$bin"
+      return 0
+    fi
+  done
+  return 1
+}
+
+# Reuse IntelliJ-downloaded JDKs (~/.jdks) or the IDE's bundled JetBrains Runtime.
+intellij_java() {
+  if [ -d "$HOME/.jdks" ]; then
+    # shellcheck disable=SC2046
+    try_java_bins $(find "$HOME/.jdks" -type f -path '*/bin/java' 2>/dev/null | head -n 20) && return 0
+  fi
+
+  case "$(uname -s)" in
+    Darwin)
+      try_java_bins \
+        "/Applications/IntelliJ IDEA.app/Contents/jbr/Contents/Home/bin/java" \
+        "/Applications/IntelliJ IDEA CE.app/Contents/jbr/Contents/Home/bin/java" \
+        "/Applications/IntelliJ IDEA Ultimate.app/Contents/jbr/Contents/Home/bin/java" \
+        "/Applications/Android Studio.app/Contents/jbr/Contents/Home/bin/java" \
+        && return 0
+      toolbox="$HOME/Library/Application Support/JetBrains/Toolbox/apps"
+      if [ -d "$toolbox" ]; then
+        # shellcheck disable=SC2046
+        try_java_bins $(find "$toolbox" -type f -path '*/jbr/Contents/Home/bin/java' 2>/dev/null | head -n 20) && return 0
+      fi
+      ;;
+    Linux)
+      try_java_bins \
+        /snap/intellij-idea-community/current/jbr/bin/java \
+        /snap/intellij-idea-ultimate/current/jbr/bin/java \
+        /usr/share/idea/jbr/bin/java \
+        /usr/lib/intellij-idea/jbr/bin/java \
+        && return 0
+      for root in "$HOME/.local/share/JetBrains/Toolbox/apps" /opt; do
+        [ -d "$root" ] || continue
+        # shellcheck disable=SC2046
+        try_java_bins $(find "$root" -type f -path '*/jbr/bin/java' 2>/dev/null | head -n 20) && return 0
+      done
+      ;;
+  esac
   return 1
 }
 
@@ -188,10 +239,12 @@ Lark needs a complete Java 17+ JDK. Partial downloads leave errors like
 "could not open .../lib/jvm.cfg".
 
 Fix it without an admin password — pick one:
-  1. Delete the folder  $HOME/.lark/jdk  then run Start Lark again.
-  2. Or put a full JDK zip next to this script as jdk.zip
+  1. Install IntelliJ IDEA (or download a JDK inside IntelliJ). Lark will
+     reuse that same Java automatically.
+  2. Delete the folder  $HOME/.lark/jdk  then run Start Lark again.
+  3. Or put a full JDK zip next to this script as jdk.zip
      (from https://adoptium.net/).
-  3. Or unzip a JDK into a folder named "jdk" next to this script
+  4. Or unzip a JDK into a folder named "jdk" next to this script
      so that jdk/bin/java and jdk/lib/jvm.cfg both exist.
 ==============================
 
@@ -256,6 +309,9 @@ if [ -z "$JAVA_BIN" ]; then
 fi
 if [ -z "$JAVA_BIN" ]; then
   JAVA_BIN=$(system_java || true)
+fi
+if [ -z "$JAVA_BIN" ]; then
+  JAVA_BIN=$(intellij_java || true)
 fi
 if [ -z "$JAVA_BIN" ]; then
   JAVA_BIN=$(private_java || true)

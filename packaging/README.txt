@@ -1,4 +1,4 @@
-Lark 1.6.5
+Lark 1.6.6
 
 Unzip this folder into Downloads or Documents.
 Lark does not install for every user, and it never asks for an administrator password.
@@ -18,11 +18,16 @@ If Java 17 or newer is already installed, Lark uses it.
 If not, the launcher downloads a private copy into your user folder (.lark/jdk).
 That needs the internet the first time only. It still does not need an admin password.
 
+Java discovery order: LARK_JDK, a jdk folder beside Start Lark, system Java,
+IntelliJ (~/.jdks or the IDE's bundled JBR), then Lark's private copy.
+If IntelliJ IDEA is installed, Lark reuses that same JDK so school PCs do not
+need a second download.
+
 School networks: if the Java download fails or you see "could not open ...\lib\jvm.cfg",
 the JDK copy is incomplete. Start Lark deletes broken copies and retries. You can also:
+  - Use IntelliJ (or download a JDK inside IntelliJ) and open Start Lark again, or
   - Delete %USERPROFILE%\.lark\jdk (or ~/.lark/jdk) and open Start Lark again, or
-  - Drop a full jdk.zip from https://adoptium.net/ beside Start Lark, or
-  - Unzip a JDK into a folder named "jdk" so jdk\bin\java.exe and jdk\lib\jvm.cfg exist.
+  - Drop a full jdk.zip from https://adoptium.net/ beside Start Lark.
 On Windows the launcher uses school-friendly SSL settings and rejects truncated downloads.
 
 When a program asks a question (Y/N), type the answer in the reply box under Output and press Enter.

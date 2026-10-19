@@ -54,16 +54,20 @@ if defined JAVAEXE (
   goto :launch
 )
 
-rem 4) Private copy already downloaded and complete
+rem 4) IntelliJ / JetBrains JDKs already on this PC (share with IntelliJ)
+call :find_intellij
+if defined JAVAEXE goto :launch
+
+rem 5) Private copy already downloaded and complete
 if not exist "%LARK_HOME%" mkdir "%LARK_HOME%"
 call :findprivate
 if defined JAVAEXE goto :launch
 
-rem 5) Unpack a JDK zip placed next to Start Lark.bat
+rem 6) Unpack a JDK zip placed next to Start Lark.bat
 call :unpack_local_zip
 if defined JAVAEXE goto :launch
 
-rem 6) Download Temurin into the user folder (school-network hardened)
+rem 7) Download Temurin into the user folder (school-network hardened)
 echo.
 echo Lark is downloading a private copy of Java into your user folder.
 echo It does not ask for an administrator password.
@@ -249,7 +253,7 @@ for %%Z in ("%~dp0jdk.zip" "%~dp0java.zip" "%~dp0OpenJDK*.zip" "%~dp0*jdk*.zip")
 exit /b 0
 
 :jdk_ok
-rem Requires a real JDK tree: bin\java.exe + lib\jvm.cfg (+ runnable -version).
+rem Requires a real JDK: java + javac + lib\jvm.cfg + major >= 17.
 set "CAND=%~1"
 if not defined CAND exit /b 1
 if /I "%CAND%"=="java" exit /b 0
@@ -257,9 +261,78 @@ if not exist "%CAND%" exit /b 1
 for %%J in ("%CAND%") do (
   if not exist "%%~dpJ..\lib\jvm.cfg" exit /b 1
   if not exist "%%~dpJ..\bin\java.exe" exit /b 1
+  if not exist "%%~dpJ..\bin\javac.exe" exit /b 1
 )
-"%CAND%" -version >nul 2>&1
-if errorlevel 1 exit /b 1
+set "JVER="
+set "MAJOR="
+for /f "tokens=3" %%V in ('"%CAND%" -version 2^>^&1') do (
+  set "JVER=%%~V"
+  goto :jdk_ok_parsed
+)
+:jdk_ok_parsed
+if not defined JVER exit /b 1
+for /f "tokens=1 delims=." %%M in ("!JVER!") do set "MAJOR=%%M"
+if not defined MAJOR exit /b 1
+if "!MAJOR!"=="1" exit /b 1
+if !MAJOR! LSS 17 exit /b 1
+exit /b 0
+
+:find_intellij
+rem Prefer JDKs IntelliJ downloaded for projects (~/.jdks), then the IDE's own JBR.
+set "JAVAEXE="
+if exist "%USERPROFILE%\.jdks" (
+  for /f "delims=" %%J in ('dir /s /b "%USERPROFILE%\.jdks\java.exe" 2^>nul') do (
+    call :jdk_ok "%%J"
+    if not errorlevel 1 (
+      set "JAVAEXE=%%J"
+      echo Using Java from IntelliJ JDKs: %%J
+      exit /b 0
+    )
+  )
+)
+call :try_jbr_dir "%LOCALAPPDATA%\Programs"
+if defined JAVAEXE exit /b 0
+call :try_jbr_dir "%ProgramFiles%\JetBrains"
+if defined JAVAEXE exit /b 0
+if exist "%ProgramFiles(x86)%\JetBrains" call :try_jbr_dir "%ProgramFiles(x86)%\JetBrains"
+if defined JAVAEXE exit /b 0
+call :try_jbr_dir "%ProgramFiles%\Android"
+if defined JAVAEXE exit /b 0
+rem JetBrains Toolbox installs (IntelliJ / Android Studio channels)
+if exist "%LOCALAPPDATA%\JetBrains\Toolbox\apps" (
+  for /f "delims=" %%J in ('dir /s /b "%LOCALAPPDATA%\JetBrains\Toolbox\apps\jbr\bin\java.exe" 2^>nul') do (
+    call :jdk_ok "%%J"
+    if not errorlevel 1 (
+      set "JAVAEXE=%%J"
+      echo Using Java from JetBrains Toolbox: %%J
+      exit /b 0
+    )
+  )
+)
+exit /b 0
+
+:try_jbr_dir
+if not exist "%~1" exit /b 0
+for /d %%D in ("%~1\IntelliJ IDEA*") do (
+  if exist "%%D\jbr\bin\java.exe" (
+    call :jdk_ok "%%D\jbr\bin\java.exe"
+    if not errorlevel 1 (
+      set "JAVAEXE=%%D\jbr\bin\java.exe"
+      echo Using Java from IntelliJ: !JAVAEXE!
+      exit /b 0
+    )
+  )
+)
+for /d %%D in ("%~1\Android Studio*") do (
+  if exist "%%D\jbr\bin\java.exe" (
+    call :jdk_ok "%%D\jbr\bin\java.exe"
+    if not errorlevel 1 (
+      set "JAVAEXE=%%D\jbr\bin\java.exe"
+      echo Using Java from Android Studio: !JAVAEXE!
+      exit /b 0
+    )
+  )
+)
 exit /b 0
 
 :purge_broken_private
@@ -286,10 +359,12 @@ echo Lark needs a complete Java 17+ JDK. Partial downloads leave errors like
 echo "could not open ...\lib\jvm.cfg".
 echo.
 echo Fix it without an admin password — pick one:
-echo   1. Delete the folder  %USERPROFILE%\.lark\jdk  then open Start Lark again.
-echo   2. Or put a full JDK zip next to Start Lark.bat as jdk.zip
+echo   1. Install IntelliJ IDEA ^(or download a JDK inside IntelliJ^). Lark will
+echo      reuse that same Java automatically.
+echo   2. Delete the folder  %USERPROFILE%\.lark\jdk  then open Start Lark again.
+echo   3. Or put a full JDK zip next to Start Lark.bat as jdk.zip
 echo      ^(from https://adoptium.net/ — Windows x64 JDK .zip^).
-echo   3. Or unzip a JDK into a folder named "jdk" next to Start Lark.bat
+echo   4. Or unzip a JDK into a folder named "jdk" next to Start Lark.bat
 echo      so that jdk\bin\java.exe and jdk\lib\jvm.cfg both exist.
 echo ==============================
 echo.
