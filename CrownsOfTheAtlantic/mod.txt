@@ -1,0 +1,6 @@
+{
+	Name: "Crowns of the Atlantic",
+	Description: "Sixteen Atlantic civilizations, their flags, and a chain of charter, revolt, and congress events.",
+	Tags: [ "Scenario", "Mod", "Events" ],
+	ChangeNote: "First release. Civilizations, flags, translations, and event scripts.",
+}
