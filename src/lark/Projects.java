@@ -599,7 +599,7 @@ public final class Projects {
         Path file = resolve(root, rel);
         Files.createDirectories(file.getParent());
         Path tmp = file.resolveSibling(file.getFileName().toString() + ".larktmp");
-        Files.writeString(tmp, content);
+        Files.writeString(tmp, content, StandardCharsets.UTF_8);
         try {
             Files.move(tmp, file, StandardCopyOption.REPLACE_EXISTING, StandardCopyOption.ATOMIC_MOVE);
         } catch (IOException e) {

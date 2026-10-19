@@ -78,6 +78,38 @@
     }
   }
 
+  function applyDisplay(opts, save) {
+    if (!state.settings) state.settings = {};
+    let fontSize = Number(opts && opts.fontSize != null ? opts.fontSize : state.settings.fontSize || 14);
+    let zoom = Number(opts && opts.zoom != null ? opts.zoom : state.settings.zoom || 100);
+    if (!Number.isFinite(fontSize)) fontSize = 14;
+    if (!Number.isFinite(zoom)) zoom = 100;
+    fontSize = Math.min(24, Math.max(11, Math.round(fontSize)));
+    zoom = Math.min(150, Math.max(80, Math.round(zoom / 5) * 5));
+    state.settings.fontSize = fontSize;
+    state.settings.zoom = zoom;
+    document.documentElement.style.setProperty("--editor-font-size", fontSize + "px");
+    document.documentElement.style.setProperty("--ui-zoom", String(zoom / 100));
+    const fontSlider = $("setting-font");
+    const zoomSlider = $("setting-zoom");
+    if (fontSlider) fontSlider.value = String(fontSize);
+    if (zoomSlider) zoomSlider.value = String(zoom);
+    if ($("setting-font-out")) $("setting-font-out").textContent = String(fontSize);
+    if ($("setting-zoom-out")) $("setting-zoom-out").textContent = zoom + "%";
+    if (cm) {
+      cm.getWrapperElement().style.fontSize = fontSize + "px";
+      cm.refresh();
+    }
+    if (save) {
+      api("PUT", "/api/settings", { fontSize: fontSize, zoom: zoom }).catch((err) => toast(err.message));
+    }
+  }
+
+  function bumpZoom(delta) {
+    const current = state.settings && state.settings.zoom ? state.settings.zoom : 100;
+    applyDisplay({ zoom: current + delta }, true);
+  }
+
   function fileByPath(path) {
     return state.files.find((file) => file.path === path);
   }
@@ -1292,6 +1324,14 @@
     }
   }
 
+  function savePanels() {
+    localStorage.setItem("lark-panels", JSON.stringify({
+      files: getComputedStyle(document.documentElement).getPropertyValue("--files-w").trim(),
+      outline: getComputedStyle(document.documentElement).getPropertyValue("--outline-w").trim(),
+      console: getComputedStyle(document.documentElement).getPropertyValue("--console-h").trim()
+    }));
+  }
+
   function bindSplitters() {
     const style = document.documentElement.style;
     const saved = (() => {
@@ -1302,41 +1342,58 @@
       if (saved.outline) style.setProperty("--outline-w", saved.outline);
       if (saved.console) style.setProperty("--console-h", saved.console);
     }
-    function drag(handle, onMove) {
+    function drag(handle, kind, onMove) {
       if (!handle) return;
       handle.addEventListener("pointerdown", (event) => {
+        if (event.button !== 0) return;
         event.preventDefault();
+        handle.setPointerCapture(event.pointerId);
+        document.body.classList.add(kind === "row" ? "dragging" : "dragging-col");
         const start = {
           x: event.clientX,
           y: event.clientY,
           files: $("files").getBoundingClientRect().width,
           outline: $("outline").getBoundingClientRect().width,
-          console: $("console").getBoundingClientRect().height
+          console: $("console").getBoundingClientRect().height,
+          center: $("center").getBoundingClientRect().height
         };
-        const move = (ev) => onMove(ev, start);
-        const up = () => {
+        const move = (ev) => {
+          if (!handle.hasPointerCapture(ev.pointerId)) return;
+          onMove(ev, start);
+        };
+        const up = (ev) => {
+          try { handle.releasePointerCapture(ev.pointerId); } catch (e) {}
           handle.removeEventListener("pointermove", move);
           handle.removeEventListener("pointerup", up);
-          localStorage.setItem("lark-panels", JSON.stringify({
-            files: getComputedStyle(document.documentElement).getPropertyValue("--files-w").trim(),
-            outline: getComputedStyle(document.documentElement).getPropertyValue("--outline-w").trim(),
-            console: getComputedStyle(document.documentElement).getPropertyValue("--console-h").trim()
-          }));
+          handle.removeEventListener("pointercancel", up);
+          document.body.classList.remove("dragging", "dragging-col");
+          savePanels();
           if (cm) cm.refresh();
         };
         handle.addEventListener("pointermove", move);
         handle.addEventListener("pointerup", up);
+        handle.addEventListener("pointercancel", up);
       });
     }
-    drag(document.querySelector("[data-split=files]"), (ev, start) => {
-      style.setProperty("--files-w", Math.min(420, Math.max(180, start.files + ev.clientX - start.x)) + "px");
+    drag(document.querySelector("[data-split=files]"), "col", (ev, start) => {
+      style.setProperty("--files-w", Math.min(420, Math.max(160, start.files + ev.clientX - start.x)) + "px");
     });
-    drag(document.querySelector("[data-split=outline]"), (ev, start) => {
-      style.setProperty("--outline-w", Math.min(360, Math.max(160, start.outline - (ev.clientX - start.x))) + "px");
+    drag(document.querySelector("[data-split=outline]"), "col", (ev, start) => {
+      style.setProperty("--outline-w", Math.min(360, Math.max(140, start.outline - (ev.clientX - start.x))) + "px");
     });
-    drag(document.querySelector("[data-split=console]"), (ev, start) => {
-      style.setProperty("--console-h", Math.min(window.innerHeight * 0.55, Math.max(96, start.console - (ev.clientY - start.y))) + "px");
+    const consoleSplit = document.querySelector("[data-split=console]");
+    drag(consoleSplit, "row", (ev, start) => {
+      const max = Math.max(140, start.center - 96);
+      const next = Math.min(max, Math.max(72, start.console - (ev.clientY - start.y)));
+      style.setProperty("--console-h", next + "px");
     });
+    if (consoleSplit) {
+      consoleSplit.addEventListener("dblclick", () => {
+        style.setProperty("--console-h", "188px");
+        savePanels();
+        if (cm) cm.refresh();
+      });
+    }
   }
 
   function isTyping(target) {
@@ -1383,7 +1440,21 @@
     });
     $("project-menu").addEventListener("click", (event) => togglePopover(event.currentTarget));
     $("theme").addEventListener("click", (event) => togglePopover(event.currentTarget));
+    $("settings").addEventListener("click", (event) => togglePopover(event.currentTarget));
     $("help").addEventListener("click", (event) => togglePopover(event.currentTarget));
+    $("setting-font").addEventListener("input", () => {
+      applyDisplay({ fontSize: Number($("setting-font").value) }, false);
+    });
+    $("setting-font").addEventListener("change", () => {
+      applyDisplay({ fontSize: Number($("setting-font").value) }, true);
+    });
+    $("setting-zoom").addEventListener("input", () => {
+      applyDisplay({ zoom: Number($("setting-zoom").value) }, false);
+    });
+    $("setting-zoom").addEventListener("change", () => {
+      applyDisplay({ zoom: Number($("setting-zoom").value) }, true);
+    });
+    $("setting-zoom-reset").addEventListener("click", () => applyDisplay({ zoom: 100 }, true));
     $("menu-project").addEventListener("click", (event) => {
       const act = event.target.dataset.act;
       if (!act) return;
@@ -1523,6 +1594,21 @@
         flushSaves().catch((err) => toast(err.message));
         return;
       }
+      if ((event.ctrlKey || event.metaKey) && (event.key === "=" || event.key === "+" || event.code === "Equal")) {
+        event.preventDefault();
+        bumpZoom(5);
+        return;
+      }
+      if ((event.ctrlKey || event.metaKey) && (event.key === "-" || event.code === "Minus")) {
+        event.preventDefault();
+        bumpZoom(-5);
+        return;
+      }
+      if ((event.ctrlKey || event.metaKey) && (key === "0" || event.code === "Digit0")) {
+        event.preventDefault();
+        applyDisplay({ zoom: 100 }, true);
+        return;
+      }
       if (isTyping(event.target)) return;
       if ((event.ctrlKey || event.metaKey) && key === "p") {
         event.preventDefault();
@@ -1532,7 +1618,16 @@
         toggleFiles();
       }
     });
-    window.addEventListener("resize", () => { if (cm) cm.refresh(); });
+    window.addEventListener("resize", () => {
+      const consoleH = parseFloat(getComputedStyle(document.documentElement).getPropertyValue("--console-h")) || 188;
+      const center = $("center").getBoundingClientRect().height;
+      const max = Math.max(140, center - 96);
+      if (consoleH > max) {
+        document.documentElement.style.setProperty("--console-h", max + "px");
+        savePanels();
+      }
+      if (cm) cm.refresh();
+    });
     bindSplitters();
   }
 
@@ -1542,6 +1637,10 @@
       bind();
       state.settings = await api("GET", "/api/settings");
       applyTheme(state.settings.theme, false);
+      applyDisplay({
+        fontSize: state.settings.fontSize || 14,
+        zoom: state.settings.zoom || 100
+      }, false);
       showGithub();
       const version = (state.settings.javaVersion || "").split(".")[0];
       $("status-java").textContent = version ? "Java " + version : "";

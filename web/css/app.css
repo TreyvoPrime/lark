@@ -4,69 +4,74 @@
   --files-w: 248px;
   --outline-w: 220px;
   --console-h: 188px;
-  --font: Cantarell, "Noto Sans", "Segoe UI", sans-serif;
+  --editor-font-size: 14px;
+  --ui-zoom: 1;
+  --font: "JetBrains Mono", "Cascadia Mono", "Liberation Mono", ui-monospace, monospace;
   --mono: "JetBrains Mono", "Cascadia Mono", "Liberation Mono", ui-monospace, monospace;
-  --bg: #171a18;
-  --bg-elev: #1f2421;
-  --bg-sunken: #121512;
-  --line: #2c342f;
-  --text: #e6ebe4;
-  --muted: #9aa89a;
-  --faint: #6f7b70;
-  --accent: #7f9a6c;
-  --accent-ink: #12170f;
-  --green: #8fbf8a;
-  --red: #c9786c;
-  --warn: #c9a86a;
-  --hover: rgba(230, 235, 228, 0.06);
-  --select: #2d3830;
-  --shadow: 0 12px 28px rgba(0, 0, 0, 0.28);
-  --syn-keyword: #9bb58a;
-  --syn-string: #c4c99a;
-  --syn-comment: #6f7b70;
-  --syn-number: #d0b07a;
-  --syn-type: #dfe6d8;
-  --syn-annotation: #b8a0b0;
-  --syn-def: #f2f5ee;
-  --syn-atom: #d0b07a;
-  --syn-operator: #a8b5a8;
+  --bg: #2b2b2b;
+  --bg-elev: #3c3f41;
+  --bg-sunken: #2b2b2b;
+  --line: #515151;
+  --text: #a9b7c6;
+  --muted: #87939a;
+  --faint: #606366;
+  --accent: #6897bb;
+  --accent-ink: #1b1b1b;
+  --green: #6a8759;
+  --red: #bc3f3c;
+  --warn: #bbb529;
+  --hover: rgba(255, 255, 255, 0.06);
+  --select: #214283;
+  --shadow: 0 12px 28px rgba(0, 0, 0, 0.35);
+  /* IntelliJ Darcula-like token colors */
+  --syn-keyword: #cc7832;
+  --syn-string: #6a8759;
+  --syn-comment: #808080;
+  --syn-number: #6897bb;
+  --syn-type: #ffc66d;
+  --syn-annotation: #bbb529;
+  --syn-def: #ffc66d;
+  --syn-atom: #9876aa;
+  --syn-operator: #a9b7c6;
+  --syn-variable: #a9b7c6;
 }
 
 [data-theme="daylight"] {
   color-scheme: light;
-  --bg: #ecefe8;
-  --bg-elev: #f7f8f4;
-  --bg-sunken: #e2e6de;
-  --line: #cfd6c8;
-  --text: #222822;
-  --muted: #5f6a5f;
-  --faint: #7d887d;
-  --accent: #4a6b58;
-  --accent-ink: #f4faf5;
-  --green: #2f6e45;
-  --red: #9a453c;
+  --bg: #f5f5f5;
+  --bg-elev: #ffffff;
+  --bg-sunken: #ffffff;
+  --line: #d4d4d4;
+  --text: #080808;
+  --muted: #6c6c6c;
+  --faint: #8c8c8c;
+  --accent: #3d6ea3;
+  --accent-ink: #ffffff;
+  --green: #067d17;
+  --red: #c72222;
   --warn: #8a5f18;
-  --hover: rgba(34, 40, 34, 0.05);
-  --select: #d7e0d2;
+  --hover: rgba(0, 0, 0, 0.05);
+  --select: #a6d2ff;
   --shadow: 0 12px 28px rgba(40, 50, 40, 0.12);
-  --syn-keyword: #3f654f;
-  --syn-string: #2f6e45;
-  --syn-comment: #7d887d;
-  --syn-number: #8a5f18;
-  --syn-type: #2e3a45;
-  --syn-annotation: #6a4d72;
-  --syn-def: #222822;
-  --syn-atom: #8a5f18;
-  --syn-operator: #556055;
+  --syn-keyword: #0033b3;
+  --syn-string: #067d17;
+  --syn-comment: #8c8c8c;
+  --syn-number: #1750eb;
+  --syn-type: #000000;
+  --syn-annotation: #9e880d;
+  --syn-def: #00627a;
+  --syn-atom: #871094;
+  --syn-operator: #080808;
+  --syn-variable: #080808;
 }
 
 [data-theme="moss"] {
   color-scheme: dark;
-  --bg: #121816;
-  --bg-elev: #1a221f;
-  --bg-sunken: #0d1210;
-  --line: #27332e;
-  --text: #e2efe8;
+  --bg: #1e2622;
+  --bg-elev: #27312c;
+  --bg-sunken: #1a211d;
+  --line: #3a4740;
+  --text: #c8d7cf;
   --muted: #8eaaa0;
   --faint: #6a8178;
   --accent: #6f9e8c;
@@ -75,81 +80,88 @@
   --red: #d48880;
   --warn: #d2b878;
   --hover: rgba(226, 239, 232, 0.06);
-  --select: #24332e;
-  --syn-keyword: #7fb39f;
-  --syn-string: #c9d6a4;
-  --syn-comment: #6a8178;
-  --syn-number: #d2b878;
-  --syn-type: #eef6f1;
-  --syn-annotation: #c4a8c0;
-  --syn-def: #f4fffa;
-  --syn-atom: #d2b878;
-  --syn-operator: #a9bbb4;
+  --select: #2f4a40;
+  --syn-keyword: #e0a070;
+  --syn-string: #8fce8a;
+  --syn-comment: #6f857c;
+  --syn-number: #7eb6e0;
+  --syn-type: #e8c87a;
+  --syn-annotation: #d4c05a;
+  --syn-def: #e8c87a;
+  --syn-atom: #c9a0e0;
+  --syn-operator: #c8d7cf;
+  --syn-variable: #c8d7cf;
 }
 
 [data-theme="ember"] {
   color-scheme: dark;
-  --bg: #1a1614;
-  --bg-elev: #241f1c;
-  --bg-sunken: #12100e;
-  --line: #3a312c;
-  --text: #f0e7df;
+  --bg: #241c18;
+  --bg-elev: #312621;
+  --bg-sunken: #1c1512;
+  --line: #4a3a32;
+  --text: #e8d8cc;
   --muted: #b3a295;
   --faint: #84786e;
-  --accent: #c4845a;
+  --accent: #d08955;
   --accent-ink: #1f140e;
   --green: #96b98f;
   --red: #d07a6e;
   --warn: #d2b06a;
   --hover: rgba(240, 231, 223, 0.06);
-  --select: #3a302a;
-  --syn-keyword: #d09a70;
-  --syn-string: #d6c49a;
-  --syn-comment: #84786e;
-  --syn-number: #e0b888;
-  --syn-type: #f5ece4;
-  --syn-annotation: #c9a0b0;
-  --syn-def: #fff8f2;
-  --syn-atom: #e0b888;
-  --syn-operator: #c4b2a4;
+  --select: #4a3428;
+  --syn-keyword: #e89a5c;
+  --syn-string: #98c070;
+  --syn-comment: #8a7c72;
+  --syn-number: #7eb0e0;
+  --syn-type: #f0c070;
+  --syn-annotation: #d4c05a;
+  --syn-def: #f0c070;
+  --syn-atom: #c9a0e0;
+  --syn-operator: #e8d8cc;
+  --syn-variable: #e8d8cc;
 }
 
 [data-theme="fog"] {
   color-scheme: light;
   --bg: #eef1f4;
   --bg-elev: #f8fafb;
-  --bg-sunken: #e3e8ed;
+  --bg-sunken: #ffffff;
   --line: #cfd6de;
   --text: #1e2730;
   --muted: #5c6975;
   --faint: #7d8894;
-  --accent: #5b7388;
+  --accent: #3f6f98;
   --accent-ink: #f3f8fc;
   --green: #2f6e4a;
   --red: #9a453c;
   --warn: #8a5f18;
   --hover: rgba(30, 39, 48, 0.05);
-  --select: #d5dee7;
+  --select: #c5daf0;
   --shadow: 0 12px 28px rgba(30, 39, 48, 0.12);
-  --syn-keyword: #3f5f78;
-  --syn-string: #2f6e4a;
+  --syn-keyword: #0033b3;
+  --syn-string: #067d17;
   --syn-comment: #7d8894;
-  --syn-number: #8a5f18;
-  --syn-type: #243344;
-  --syn-annotation: #6a4d72;
-  --syn-def: #1e2730;
-  --syn-atom: #8a5f18;
-  --syn-operator: #4d5a68;
+  --syn-number: #1750eb;
+  --syn-type: #00627a;
+  --syn-annotation: #9e880d;
+  --syn-def: #00627a;
+  --syn-atom: #871094;
+  --syn-operator: #1e2730;
+  --syn-variable: #1e2730;
 }
 
 * { box-sizing: border-box; }
 html, body { height: 100%; margin: 0; }
+html { zoom: var(--ui-zoom); }
 body {
   font-family: var(--font);
-  font-size: 14px;
+  font-size: 13px;
   color: var(--text);
   background: var(--bg);
+  font-feature-settings: "liga" 1, "calt" 1;
 }
+body.dragging { cursor: row-resize; user-select: none; }
+body.dragging-col { cursor: col-resize; user-select: none; }
 button, input, select, textarea { font: inherit; color: inherit; }
 button, a.as-button, select {
   transition: background 140ms ease, border-color 140ms ease, color 140ms ease, transform 140ms ease;
@@ -254,7 +266,7 @@ select:focus, input:focus, textarea:focus, button:focus-visible {
 #outline-toggle { margin-left: auto; text-transform: none; letter-spacing: 0; }
 #center {
   display: grid;
-  grid-template-rows: minmax(0, 1fr) var(--console-h);
+  grid-template-rows: minmax(96px, 1fr) var(--console-h);
   min-height: 0;
   min-width: 0;
 }
@@ -389,7 +401,14 @@ select:focus, input:focus, textarea:focus, button:focus-visible {
   font-size: 12.5px;
   line-height: 1.5;
 }
-#console-out { padding: 8px 12px 14px; white-space: pre-wrap; background: var(--bg-sunken); }
+#console-out {
+  padding: 8px 12px 14px;
+  white-space: pre-wrap;
+  background: var(--bg-sunken);
+  font-family: var(--mono);
+  font-size: calc(var(--editor-font-size) - 1px);
+  overflow-wrap: anywhere;
+}
 #problems[hidden], #console-out[hidden] { display: none; }
 .problem {
   display: flex;
@@ -432,12 +451,30 @@ button.linkish {
 #stdin-wrap textarea { width: 100%; margin-top: 6px; resize: vertical; }
 .splitter {
   position: absolute;
-  z-index: 2;
+  z-index: 5;
   background: transparent;
+  touch-action: none;
 }
-#files .splitter { top: 0; right: -3px; width: 6px; bottom: 0; cursor: col-resize; }
-#outline .splitter { top: 0; left: -3px; width: 6px; bottom: 0; cursor: col-resize; }
-#console .splitter { left: 0; right: 0; top: -3px; height: 6px; cursor: row-resize; }
+#files .splitter { top: 0; right: -5px; width: 10px; bottom: 0; cursor: col-resize; }
+#outline .splitter { top: 0; left: -5px; width: 10px; bottom: 0; cursor: col-resize; }
+#console .splitter {
+  left: 0;
+  right: 0;
+  top: -6px;
+  height: 12px;
+  cursor: row-resize;
+}
+#console .splitter::after {
+  content: "";
+  position: absolute;
+  left: 50%;
+  top: 4px;
+  width: 36px;
+  height: 3px;
+  margin-left: -18px;
+  border-radius: 2px;
+  background: var(--line);
+}
 
 #status {
   padding: 0 12px;
@@ -649,8 +686,9 @@ button.linkish {
   background: var(--bg-sunken);
   color: var(--text);
   font-family: var(--mono);
-  font-size: 13.5px;
+  font-size: var(--editor-font-size);
   line-height: 1.55;
+  font-variant-ligatures: contextual;
 }
 .CodeMirror-gutters { background: var(--bg-sunken); border-right: 1px solid var(--line); }
 .CodeMirror-linenumber { color: var(--faint); }
@@ -667,7 +705,25 @@ button.linkish {
 .cm-s-lark .cm-type, .cm-s-lark .cm-variable-3, .cm-s-lark .cm-builtin { color: var(--syn-type); }
 .cm-s-lark .cm-meta { color: var(--syn-annotation); }
 .cm-s-lark .cm-operator { color: var(--syn-operator); }
-.cm-s-lark .cm-variable, .cm-s-lark .cm-variable-2 { color: var(--text); }
+.cm-s-lark .cm-variable, .cm-s-lark .cm-variable-2 { color: var(--syn-variable, var(--text)); }
+.cm-s-lark .cm-property { color: var(--syn-def); }
+.cm-s-lark .cm-qualifier { color: var(--syn-type); }
+.settings-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 8px 10px;
+  color: var(--muted);
+  font-size: 12px;
+}
+.settings-row input[type="range"] { width: 120px; }
+.settings-row output {
+  font-family: var(--mono);
+  color: var(--text);
+  min-width: 3.2em;
+  text-align: right;
+}
 .cm-problem-line { background: color-mix(in srgb, var(--red) 18%, transparent); }
 .cm-warn-line { background: color-mix(in srgb, var(--warn) 18%, transparent); }
 .CodeMirror-dialog {

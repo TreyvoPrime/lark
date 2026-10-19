@@ -8,6 +8,7 @@
   <link rel="stylesheet" href="vendor/codemirror/codemirror.min.css">
   <link rel="stylesheet" href="vendor/codemirror/addon/dialog/dialog.css">
   <link rel="stylesheet" href="vendor/codemirror/addon/hint/show-hint.css">
+  <link rel="stylesheet" href="css/fonts.css">
   <link rel="stylesheet" href="css/app.css">
   <script>
     try {
@@ -42,6 +43,7 @@
       <button id="run" type="button" class="primary" title="Ctrl+Enter">Run</button>
       <button id="github" type="button">GitHub</button>
       <button id="theme" type="button" data-pop="menu-theme">Desk</button>
+      <button id="settings" type="button" data-pop="menu-settings">Aa</button>
       <button id="help" type="button" data-pop="menu-help" aria-label="Keyboard shortcuts">?</button>
     </header>
 
@@ -115,11 +117,23 @@
     <p id="path-note" class="path-note"></p>
   </div>
   <div id="menu-theme" class="popover menu" hidden>
-    <button type="button" data-theme-choice="desk"><i class="swatch" style="background:#7f9a6c"></i>Desk</button>
-    <button type="button" data-theme-choice="daylight"><i class="swatch" style="background:#4a6b58"></i>Daylight</button>
-    <button type="button" data-theme-choice="moss"><i class="swatch" style="background:#6f9e8c"></i>Moss</button>
-    <button type="button" data-theme-choice="ember"><i class="swatch" style="background:#c4845a"></i>Ember</button>
-    <button type="button" data-theme-choice="fog"><i class="swatch" style="background:#5b7388"></i>Fog</button>
+    <button type="button" data-theme-choice="desk"><i class="swatch" style="background:#cc7832"></i>Desk</button>
+    <button type="button" data-theme-choice="daylight"><i class="swatch" style="background:#0033b3"></i>Daylight</button>
+    <button type="button" data-theme-choice="moss"><i class="swatch" style="background:#e0a070"></i>Moss</button>
+    <button type="button" data-theme-choice="ember"><i class="swatch" style="background:#e89a5c"></i>Ember</button>
+    <button type="button" data-theme-choice="fog"><i class="swatch" style="background:#1750eb"></i>Fog</button>
+  </div>
+  <div id="menu-settings" class="popover" hidden>
+    <label class="settings-row">Font size
+      <input id="setting-font" type="range" min="11" max="24" step="1" value="14">
+      <output id="setting-font-out">14</output>
+    </label>
+    <label class="settings-row">Zoom
+      <input id="setting-zoom" type="range" min="80" max="150" step="5" value="100">
+      <output id="setting-zoom-out">100%</output>
+    </label>
+    <button type="button" id="setting-zoom-reset">Reset zoom</button>
+    <p class="path-note">Ctrl + and Ctrl - also zoom. Ctrl 0 resets.</p>
   </div>
   <div id="menu-help" class="popover" hidden>
     <ul class="help-list">
@@ -130,6 +144,9 @@
       <li><span>Find</span><kbd>Ctrl+F</kbd></li>
       <li><span>Comment</span><kbd>Ctrl+/</kbd></li>
       <li><span>Files</span><kbd>Ctrl+B</kbd></li>
+      <li><span>Zoom in</span><kbd>Ctrl+=</kbd></li>
+      <li><span>Zoom out</span><kbd>Ctrl+-</kbd></li>
+      <li><span>Reset zoom</span><kbd>Ctrl+0</kbd></li>
     </ul>
     <p class="path-note">On a Mac, use Command instead of Ctrl.</p>
   </div>

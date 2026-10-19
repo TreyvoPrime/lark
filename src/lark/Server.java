@@ -135,6 +135,14 @@ public final class Server {
                     settings.theme = theme;
                 }
                 if (body.has("lastProject")) settings.lastProject = body.str("lastProject", "");
+                if (body.has("fontSize")) {
+                    int size = (int) body.longVal("fontSize");
+                    settings.fontSize = Settings.clamp(size, 11, 28, settings.fontSize);
+                }
+                if (body.has("zoom")) {
+                    int zoom = (int) body.longVal("zoom");
+                    settings.zoom = Settings.clamp(zoom, 80, 160, settings.zoom);
+                }
                 settings.save();
                 sendJson(exchange, 200, settingsJson());
                 return;
@@ -302,6 +310,8 @@ public final class Server {
         return new Json.Obj()
                 .put("ok", true)
                 .put("theme", settings.theme)
+                .put("fontSize", settings.fontSize)
+                .put("zoom", settings.zoom)
                 .put("tokenSet", settings.githubToken != null && !settings.githubToken.isBlank())
                 .put("githubLogin", settings.githubLogin == null ? "" : settings.githubLogin)
                 .put("lastProject", settings.lastProject == null ? "" : settings.lastProject)
@@ -403,7 +413,10 @@ public final class Server {
         if (rel.endsWith(".js")) return "text/javascript; charset=utf-8";
         if (rel.endsWith(".svg")) return "image/svg+xml";
         if (rel.endsWith(".png")) return "image/png";
+        if (rel.endsWith(".woff2")) return "font/woff2";
+        if (rel.endsWith(".woff")) return "font/woff";
         if (rel.endsWith(".map")) return "application/json";
+        if (rel.endsWith(".txt")) return "text/plain; charset=utf-8";
         return "application/octet-stream";
     }
 

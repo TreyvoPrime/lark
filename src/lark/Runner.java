@@ -47,9 +47,21 @@ public final class Runner {
         jobs.put(id, job);
         prune();
         String key = project.toAbsolutePath().toString();
+        // Stop an older run for this project so a stuck Scanner prompt cannot block the next Run.
+        for (Job existing : jobs.values()) {
+            if (existing != job && key.equals(existing.projectKey) && !existing.done) {
+                existing.cancel();
+            }
+        }
+        job.projectKey = key;
         pool.submit(() -> {
             try {
                 synchronized (locks.computeIfAbsent(key, k -> new Object())) {
+                    if (job.cancelled) {
+                        job.append("Stopped.\n");
+                        job.finish(-1);
+                        return;
+                    }
                     execute(project, mainClass == null ? "" : mainClass, args == null ? "" : args,
                             stdin == null ? "" : stdin, job);
                 }
@@ -138,6 +150,13 @@ public final class Runner {
 
         List<String> run = new ArrayList<>();
         run.add(tool("java").toString());
+        // Keep emoji and other Unicode readable on Windows and Linux.
+        run.add("-Dfile.encoding=UTF-8");
+        run.add("-Dstdout.encoding=UTF-8");
+        run.add("-Dstderr.encoding=UTF-8");
+        run.add("-Dstdin.encoding=UTF-8");
+        run.add("-Dsun.stdout.encoding=UTF-8");
+        run.add("-Dsun.stderr.encoding=UTF-8");
         run.add("-cp");
         run.add(".lark-out");
         run.add(mainClass);
@@ -156,6 +175,9 @@ public final class Runner {
                                StringBuilder stdout, StringBuilder stderr, boolean echo) throws InterruptedException {
         ProcessBuilder builder = new ProcessBuilder(cmd);
         builder.directory(dir.toFile());
+        builder.environment().put("LANG", "C.UTF-8");
+        builder.environment().put("LC_ALL", "C.UTF-8");
+        builder.environment().put("PYTHONIOENCODING", "utf-8");
         Process process;
         try {
             process = builder.start();
@@ -334,6 +356,7 @@ public final class Runner {
         volatile int exitCode;
         volatile long finishedAt;
         volatile Process process;
+        volatile String projectKey = "";
         private OutputStream stdin;
         List<Problem> problems = List.of();
 

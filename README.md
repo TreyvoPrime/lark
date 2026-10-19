@@ -38,7 +38,8 @@ The jar is the editor. Running it still needs a JDK, because that is what compil
 - Keep more than one project, each with packages, classes, interfaces, records, and enums.
 - Edit with Java highlighting, bracket matching, find, comment toggle, and completion for names in the project (`Ctrl+Space`).
 - Run the main class. Compiler errors show under Problems and open the line.
-- Themes: Desk, Daylight, Moss, Ember, and Fog.
+- Themes: Desk, Daylight, Moss, Ember, and Fog, with IntelliJ-style distinct syntax colors and bundled JetBrains Mono.
+- Change editor font size and UI zoom under **Aa**, or with `Ctrl+=` / `Ctrl+-` / `Ctrl+0`.
 - Connect GitHub with a classic personal access token (`repo` scope). Lark lists repositories you can clone, and can push the open project. Browser sign-in is available too; Lark refreshes those tokens when GitHub allows it. Credentials stay in `~/.lark/settings.json` and are only sent to GitHub.
 - Import a folder or a zip, and download the project as a zip.
 
