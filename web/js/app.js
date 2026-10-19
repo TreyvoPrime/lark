@@ -44,6 +44,11 @@
   let modalResolve = null;
 
   const $ = (id) => document.getElementById(id);
+  /** Bind a click/input handler if the element exists (safe for optional UI). */
+  function on(id, event, handler) {
+    const el = $(id);
+    if (el) el.addEventListener(event, handler);
+  }
 
   async function api(method, path, body) {
     const res = await fetch(path, {
