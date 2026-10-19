@@ -167,6 +167,10 @@ public final class Server {
             sendJson(exchange, 200, updates.skip(body(exchange).str("version", "")));
             return;
         }
+        if ("/api/update/restart".equals(path) && "POST".equals(method)) {
+            sendJson(exchange, 200, updates.restart());
+            return;
+        }
         if ("/api/projects".equals(path) && "GET".equals(method)) {
             Json.Arr list = new Json.Arr();
             for (Json.Obj project : projects.list()) list.add(project);

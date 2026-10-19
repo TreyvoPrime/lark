@@ -1853,9 +1853,10 @@
     }
     const checkBtn = $("setting-check-updates");
     if (checkBtn) checkBtn.addEventListener("click", () => checkUpdates(true));
-    if ($("update-later")) $("update-later").addEventListener("click", () => hideUpdateBanner());
-    if ($("update-skip")) $("update-skip").addEventListener("click", () => skipUpdate().catch((err) => toast(err.message)));
-    if ($("update-now")) $("update-now").addEventListener("click", () => installUpdate().catch((err) => toast(err.message)));
+    on("update-later", "click", () => hideUpdateBanner());
+    on("update-skip", "click", () => skipUpdate().catch((err) => toast(err.message)));
+    on("update-now", "click", () => installUpdate().catch((err) => toast(err.message)));
+    on("update-restart", "click", () => restartAfterUpdate().catch((err) => toast(err.message)));
     $("menu-project").addEventListener("click", (event) => {
       const act = event.target.dataset.act;
       if (!act) return;
@@ -2102,8 +2103,23 @@
     const info = state.updateInfo || {};
     toast("Downloading update…");
     const result = await api("POST", "/api/update/install", { download: info.download || "" });
-    hideUpdateBanner();
     toast(result.message || "Update ready. Restart Lark.");
+    const restartBtn = $("update-restart");
+    const nowBtn = $("update-now");
+    if (result.canRestart && restartBtn) {
+      if ($("update-banner")) $("update-banner").hidden = false;
+      restartBtn.hidden = false;
+      if (nowBtn) nowBtn.hidden = true;
+      $("update-title").textContent = "Update ready";
+      $("update-notes").textContent = result.message || "Restart Lark to finish.";
+    } else {
+      hideUpdateBanner();
+    }
+  }
+
+  async function restartAfterUpdate() {
+    toast("Restarting Lark…");
+    await api("POST", "/api/update/restart", {});
   }
 
   async function boot() {

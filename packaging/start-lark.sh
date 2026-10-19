@@ -7,19 +7,40 @@ cd "$ROOT"
 JAR="$ROOT/lark.jar"
 PENDING="$ROOT/lark.jar.pending"
 
-if [ -f "$PENDING" ]; then
+apply_update() {
   echo "Applying Lark update..."
-  if [ -f "$JAR" ]; then
-    mv -f "$JAR" "$ROOT/lark.jar.bak"
-  fi
-  if ! mv -f "$PENDING" "$JAR"; then
-    echo "Could not apply the update. Restoring the previous jar."
-    if [ -f "$ROOT/lark.jar.bak" ]; then
-      mv -f "$ROOT/lark.jar.bak" "$JAR"
+  tries=0
+  while [ -f "$PENDING" ]; do
+    tries=$((tries + 1))
+    if [ -f "$JAR" ]; then
+      mv -f "$JAR" "$ROOT/lark.jar.bak" 2>/dev/null || true
     fi
-    exit 1
-  fi
-  rm -f "$ROOT/lark.jar.bak"
+    if [ -f "$JAR" ]; then
+      if [ "$tries" -ge 20 ]; then
+        echo "Could not replace lark.jar. Close every Lark window and try again."
+        return 1
+      fi
+      sleep 1
+      continue
+    fi
+    if mv -f "$PENDING" "$JAR"; then
+      rm -f "$ROOT/lark.jar.bak"
+      echo "Update applied."
+      return 0
+    fi
+    if [ -f "$ROOT/lark.jar.bak" ]; then
+      mv -f "$ROOT/lark.jar.bak" "$JAR" 2>/dev/null || true
+    fi
+    if [ "$tries" -ge 20 ]; then
+      echo "Could not apply the update."
+      return 1
+    fi
+    sleep 1
+  done
+}
+
+if [ -f "$PENDING" ]; then
+  apply_update
 fi
 
 if [ ! -f "$JAR" ]; then
@@ -101,4 +122,8 @@ if [ "${LARK_SKIP_LAUNCH:-}" = "1" ]; then
   exit 0
 fi
 
-exec "$JAVA_BIN" -jar "$JAR" "$@"
+# Run from a home copy so the install folder jar can be replaced on update.
+RUNDIR="${XDG_CACHE_HOME:-$HOME/.cache}/lark/run"
+mkdir -p "$RUNDIR"
+cp -f "$JAR" "$RUNDIR/lark.jar"
+exec "$JAVA_BIN" -Dlark.install="$ROOT" -jar "$RUNDIR/lark.jar" "$@"

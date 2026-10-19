@@ -1,19 +1,22 @@
 @echo off
-setlocal EnableExtensions
+setlocal EnableExtensions EnableDelayedExpansion
 cd /d "%~dp0"
+
+rem Apply a staged update before Java starts. Lark itself runs from a copy under
+rem %%LOCALAPPDATA%%\Lark\run so this folder's lark.jar is not locked on Windows.
 if exist "%~dp0lark.jar.pending" (
   echo Applying Lark update...
-  if exist "%~dp0lark.jar.bak" del /f /q "%~dp0lark.jar.bak" >nul 2>&1
-  if exist "%~dp0lark.jar" move /y "%~dp0lark.jar" "%~dp0lark.jar.bak" >nul
-  move /y "%~dp0lark.jar.pending" "%~dp0lark.jar" >nul
+  call :apply_update
   if errorlevel 1 (
-    echo Could not apply the update. Restoring the previous jar.
-    if exist "%~dp0lark.jar.bak" move /y "%~dp0lark.jar.bak" "%~dp0lark.jar" >nul
+    echo.
+    echo Close every Lark window, wait a second, then open Start Lark again.
     pause
     exit /b 1
   )
-  del /f /q "%~dp0lark.jar.bak" >nul 2>&1
+  echo Update applied.
+  echo.
 )
+
 if not exist "%~dp0lark.jar" (
   echo lark.jar is missing next to this file.
   pause
@@ -60,9 +63,42 @@ if not defined JAVAEXE (
 )
 
 :launch
-"%JAVAEXE%" -jar "%~dp0lark.jar"
+set "RUNDIR=%LOCALAPPDATA%\Lark\run"
+if not exist "%RUNDIR%" mkdir "%RUNDIR%"
+copy /y "%~dp0lark.jar" "%RUNDIR%\lark.jar" >nul
+if errorlevel 1 (
+  echo Could not copy lark.jar into the run folder.
+  pause
+  exit /b 1
+)
+"%JAVAEXE%" -Dlark.install="%~dp0" -jar "%RUNDIR%\lark.jar"
 if errorlevel 1 pause
 exit /b %ERRORLEVEL%
+
+:apply_update
+set "TRIES=0"
+:apply_retry
+set /a TRIES+=1
+if exist "%~dp0lark.jar.bak" del /f /q "%~dp0lark.jar.bak" >nul 2>&1
+if exist "%~dp0lark.jar" (
+  ren "%~dp0lark.jar" "lark.jar.bak" >nul 2>&1
+  if exist "%~dp0lark.jar" (
+    if !TRIES! LSS 20 (
+      ping -n 2 127.0.0.1 >nul
+      goto apply_retry
+    )
+    echo The process cannot access lark.jar because it is still open.
+    exit /b 1
+  )
+)
+ren "%~dp0lark.jar.pending" "lark.jar" >nul 2>&1
+if not exist "%~dp0lark.jar" (
+  if exist "%~dp0lark.jar.bak" ren "%~dp0lark.jar.bak" "lark.jar" >nul 2>&1
+  echo Could not replace lark.jar with the downloaded update.
+  exit /b 1
+)
+if exist "%~dp0lark.jar.bak" del /f /q "%~dp0lark.jar.bak" >nul 2>&1
+exit /b 0
 
 :picksystem
 set "JVER="

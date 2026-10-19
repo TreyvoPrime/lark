@@ -1,7 +1,11 @@
-Lark 1.6.2
+Lark 1.6.3
 
 Unzip this folder into Downloads or Documents.
 Lark does not install for every user, and it never asks for an administrator password.
+
+Updates: when Lark downloads an update, click Restart Lark — or fully close Lark
+and open Start Lark again. On Windows, Lark runs from a copy so the jar can be
+replaced without "file is being used by another process".
 
 Windows: double-click "Start Lark.bat"
 Mac: double-click "Start Lark.command"
@@ -19,7 +23,7 @@ Do not close Lark while the program is waiting — that is what the reply box is
 
 Updates: if this zip included an update-feed.url file, Lark checks for newer builds when it opens
 and can download them. You can also paste an update feed under Aa → Updates.
-After "Update now", close Lark and start it again so the launcher can swap in the new jar.
+After "Update now", click Restart Lark (or fully close Lark and open Start Lark again).
 
 Connect GitHub from the GitHub button:
 1. Click "Create a GitHub token" (classic token with the repo scope).

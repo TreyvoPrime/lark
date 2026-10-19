@@ -10,8 +10,11 @@ import java.nio.file.AtomicMoveNotSupportedException;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.StandardCopyOption;
+import java.nio.file.attribute.PosixFilePermission;
 import java.time.Duration;
+import java.util.EnumSet;
 import java.util.Locale;
+import java.util.Set;
 import java.util.zip.ZipEntry;
 import java.util.zip.ZipInputStream;
 
@@ -134,10 +137,15 @@ public final class Updates {
         Path zip = null;
         Path extracted = installDir.resolve("lark.jar.extracted");
         Path pending = installDir.resolve("lark.jar.pending");
+        Path target = installDir.resolve("lark.jar");
+        Path bak = installDir.resolve("lark.jar.bak");
         try {
             zip = Files.createTempFile("lark-update-", ".zip");
             downloadTo(downloadUrl, zip);
-            extractJar(zip, extracted);
+            extractUpdate(zip, extracted, installDir);
+            // Always refresh launchers from this jar too, so Windows gets the
+            // run-from-copy Start Lark.bat even if the zip layout changes.
+            refreshLaunchers(installDir);
             try {
                 Files.move(extracted, pending, StandardCopyOption.REPLACE_EXISTING, StandardCopyOption.ATOMIC_MOVE);
             } catch (AtomicMoveNotSupportedException e) {
@@ -146,10 +154,35 @@ public final class Updates {
             if (!Files.isRegularFile(pending)) {
                 throw new RequestFail(500, "The update downloaded, but Lark couldn't stage the new jar.");
             }
+            // Prefer swapping the install jar now. Launchers run from a copy, so this
+            // file usually is not locked. If Windows still holds it, leave .pending.
+            boolean applied = tryApplyPending(pending, target, bak);
+            if (!applied) {
+                // Brief retries help when Explorer or AV still holds the handle.
+                for (int i = 0; i < 8 && !applied; i++) {
+                    try {
+                        Thread.sleep(250);
+                    } catch (InterruptedException ie) {
+                        Thread.currentThread().interrupt();
+                        break;
+                    }
+                    applied = tryApplyPending(pending, target, bak);
+                }
+            }
+            if (applied) {
+                return new Json.Obj()
+                        .put("ok", true)
+                        .put("pending", false)
+                        .put("applied", true)
+                        .put("canRestart", true)
+                        .put("message", "Update installed. Click Restart Lark to open the new version.");
+            }
             return new Json.Obj()
                     .put("ok", true)
                     .put("pending", true)
-                    .put("message", "Update ready. Close Lark, then open Start Lark again. The new version loads automatically.");
+                    .put("applied", false)
+                    .put("canRestart", true)
+                    .put("message", "Update ready. Click Restart Lark — or close Lark and open Start Lark again.");
         } catch (RequestFail e) {
             throw e;
         } catch (Exception e) {
@@ -168,6 +201,135 @@ public final class Updates {
                 // Best-effort.
             }
         }
+    }
+
+    /** Spawns the portable launcher, then exits so Windows can finish any jar swap. */
+    public Json.Obj restart() {
+        Path dir = installDir();
+        if (dir == null) throw new RequestFail(500, "Lark couldn't find its install folder.");
+        boolean windows = System.getProperty("os.name", "").toLowerCase(Locale.ROOT).contains("win");
+        try {
+            refreshLaunchers(dir);
+            if (windows) {
+                Path finish = dir.resolve("finish-update.bat");
+                Path start = dir.resolve("Start Lark.bat");
+                Path script = Files.isRegularFile(finish) ? finish : start;
+                if (!Files.isRegularFile(script)) {
+                    throw new RequestFail(500, "Start Lark.bat is missing next to Lark.");
+                }
+                new ProcessBuilder("cmd.exe", "/c", "start", "", script.toAbsolutePath().toString())
+                        .directory(dir.toFile())
+                        .start();
+            } else {
+                Path start = dir.resolve("start-lark.sh");
+                if (!Files.isRegularFile(start)) start = dir.resolve("Start Lark.command");
+                if (!Files.isRegularFile(start)) {
+                    throw new RequestFail(500, "start-lark.sh is missing next to Lark.");
+                }
+                new ProcessBuilder("/bin/sh", start.toAbsolutePath().toString())
+                        .directory(dir.toFile())
+                        .start();
+            }
+        } catch (RequestFail e) {
+            throw e;
+        } catch (Exception e) {
+            throw new RequestFail(500, e.getMessage() == null ? "Couldn't restart Lark." : e.getMessage());
+        }
+        Thread stopper = new Thread(() -> {
+            try {
+                Thread.sleep(600);
+            } catch (InterruptedException ignored) {
+                Thread.currentThread().interrupt();
+            }
+            System.exit(0);
+        }, "lark-restart");
+        stopper.setDaemon(true);
+        stopper.start();
+        return new Json.Obj()
+                .put("ok", true)
+                .put("message", "Restarting Lark…");
+    }
+
+    private static boolean tryApplyPending(Path pending, Path target, Path bak) {
+        if (!Files.isRegularFile(pending)) return Files.isRegularFile(target) && !Files.isRegularFile(pending);
+        try {
+            Files.deleteIfExists(bak);
+            if (Files.isRegularFile(target)) {
+                Files.move(target, bak, StandardCopyOption.REPLACE_EXISTING);
+            }
+            Files.move(pending, target, StandardCopyOption.REPLACE_EXISTING);
+            Files.deleteIfExists(bak);
+            return Files.isRegularFile(target) && !Files.isRegularFile(pending);
+        } catch (IOException locked) {
+            if (!Files.isRegularFile(target) && Files.isRegularFile(bak)) {
+                try {
+                    Files.move(bak, target, StandardCopyOption.REPLACE_EXISTING);
+                } catch (IOException ignored) {
+                    // Pending remains for the next Start Lark.
+                }
+            }
+            return false;
+        }
+    }
+
+    /** Writes Start Lark launchers from embedded jar resources into the install folder. */
+    static void refreshLaunchers(Path installDir) {
+        if (installDir == null || !Files.isDirectory(installDir)) return;
+        writeLaunchResource("lark/launch/StartLark.bat", installDir.resolve("Start Lark.bat"));
+        writeLaunchResource("lark/launch/finish-update.bat", installDir.resolve("finish-update.bat"));
+        writeLaunchResource("lark/launch/start-lark.sh", installDir.resolve("start-lark.sh"));
+        writeLaunchResource("lark/launch/start-lark.sh", installDir.resolve("Start Lark.command"));
+        try {
+            Path sh = installDir.resolve("start-lark.sh");
+            if (Files.isRegularFile(sh)) {
+                try {
+                    Set<PosixFilePermission> perms = EnumSet.of(
+                            PosixFilePermission.OWNER_READ, PosixFilePermission.OWNER_WRITE, PosixFilePermission.OWNER_EXECUTE,
+                            PosixFilePermission.GROUP_READ, PosixFilePermission.GROUP_EXECUTE,
+                            PosixFilePermission.OTHERS_READ, PosixFilePermission.OTHERS_EXECUTE);
+                    Files.setPosixFilePermissions(sh, perms);
+                    Files.setPosixFilePermissions(installDir.resolve("Start Lark.command"), perms);
+                } catch (UnsupportedOperationException ignored) {
+                    // Windows.
+                }
+            }
+        } catch (IOException ignored) {
+            // Best-effort chmod.
+        }
+    }
+
+    private static void writeLaunchResource(String resource, Path target) {
+        try (InputStream in = Updates.class.getClassLoader().getResourceAsStream(resource)) {
+            if (in == null) return;
+            Files.copy(in, target, StandardCopyOption.REPLACE_EXISTING);
+        } catch (IOException ignored) {
+            // Keep whatever launcher is already on disk.
+        }
+    }
+
+    static Path installDir() {
+        String prop = System.getProperty("lark.install");
+        if (prop != null && !prop.isBlank()) {
+            Path dir = Path.of(prop).toAbsolutePath().normalize();
+            if (Files.isDirectory(dir)) return dir;
+        }
+        String env = System.getenv("LARK_INSTALL");
+        if (env != null && !env.isBlank()) {
+            Path dir = Path.of(env).toAbsolutePath().normalize();
+            if (Files.isDirectory(dir)) return dir;
+        }
+        try {
+            var location = Lark.class.getProtectionDomain().getCodeSource().getLocation();
+            if (location != null) {
+                Path path = Path.of(location.toURI());
+                if (Files.isRegularFile(path) && path.getFileName().toString().endsWith(".jar")) {
+                    return path.getParent();
+                }
+            }
+        } catch (Exception ignored) {
+            // Fall through to the working directory.
+        }
+        return Path.of("").toAbsolutePath().normalize();
     }
 
     public Json.Obj skip(String version) {
@@ -267,35 +429,28 @@ public final class Updates {
         }
     }
 
-    private void extractJar(Path zip, Path out) throws IOException {
-        Files.deleteIfExists(out);
+    /** Pulls lark.jar and refreshes portable launchers from a release zip. */
+    private void extractUpdate(Path zip, Path jarOut, Path installDir) throws IOException {
+        Files.deleteIfExists(jarOut);
+        boolean foundJar = false;
         try (ZipInputStream zin = new ZipInputStream(Files.newInputStream(zip))) {
             ZipEntry entry;
             while ((entry = zin.getNextEntry()) != null) {
                 if (entry.isDirectory()) continue;
                 String name = entry.getName().replace('\\', '/');
                 String base = name.contains("/") ? name.substring(name.lastIndexOf('/') + 1) : name;
-                if (!"lark.jar".equals(base)) continue;
-                Files.copy(zin, out, StandardCopyOption.REPLACE_EXISTING);
-                return;
-            }
-        }
-        throw new RequestFail(400, "That update zip didn't contain lark.jar.");
-    }
-
-    static Path installDir() {
-        try {
-            var location = Lark.class.getProtectionDomain().getCodeSource().getLocation();
-            if (location != null) {
-                Path path = Path.of(location.toURI());
-                if (Files.isRegularFile(path) && path.getFileName().toString().endsWith(".jar")) {
-                    return path.getParent();
+                if ("lark.jar".equals(base)) {
+                    Files.copy(zin, jarOut, StandardCopyOption.REPLACE_EXISTING);
+                    foundJar = true;
+                } else if ("Start Lark.bat".equals(base) || "finish-update.bat".equals(base)
+                        || "start-lark.sh".equals(base) || "Start Lark.command".equals(base)) {
+                    Files.copy(zin, installDir.resolve(base), StandardCopyOption.REPLACE_EXISTING);
                 }
             }
-        } catch (Exception ignored) {
-            // Fall through to the working directory.
         }
-        return Path.of("").toAbsolutePath().normalize();
+        if (!foundJar) {
+            throw new RequestFail(400, "That update zip didn't contain lark.jar.");
+        }
     }
 
     private Api get(String url) {

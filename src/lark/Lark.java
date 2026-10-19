@@ -36,6 +36,8 @@ public final class Lark {
         }
 
         Settings settings = Settings.load();
+        // Keep Start Lark.bat / start-lark.sh current so Windows can replace lark.jar.
+        Updates.refreshLaunchers(Updates.installDir());
         Projects projects = new Projects(settings);
         projects.ensureSample();
         Server server = Server.start(port, projects, new Runner(), new GitHub(settings), settings);

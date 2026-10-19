@@ -10,6 +10,7 @@ feed_base=${LARK_UPDATE_BASE:-}
 stage=$(mktemp -d)
 cp dist/lark.jar "$stage/lark.jar"
 cp "packaging/Start Lark.bat" "$stage/Start Lark.bat"
+cp packaging/finish-update.bat "$stage/finish-update.bat"
 cp packaging/start-lark.sh "$stage/start-lark.sh"
 cp packaging/start-lark.sh "$stage/Start Lark.command"
 cp packaging/README.txt "$stage/README.txt"
