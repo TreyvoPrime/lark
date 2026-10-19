@@ -83,11 +83,12 @@
           <pre id="console-out">Run a class and the output shows up here.</pre>
           <div id="problems" hidden></div>
           <div id="console-reply" class="console-reply" hidden>
-            <input id="console-input" type="text" placeholder="Type a reply (Y/N) and press Enter" spellcheck="false" autocomplete="off">
-            <button type="button" id="console-send">Send</button>
+            <span class="console-reply-label">Program is waiting for input</span>
+            <input id="console-input" type="text" placeholder="Type Y or N, then Enter" spellcheck="false" autocomplete="off">
+            <button type="button" id="console-send" class="primary">Send</button>
           </div>
           <details id="stdin-wrap">
-            <summary>Starter input (optional)</summary>
+            <summary>Starter input (optional — for answers you already know)</summary>
             <textarea id="stdin" rows="2" spellcheck="false" placeholder="Lines sent when the program starts. While it runs, use the reply box above."></textarea>
           </details>
         </section>
@@ -134,6 +135,23 @@
     </label>
     <button type="button" id="setting-zoom-reset">Reset zoom</button>
     <p class="path-note">Ctrl + and Ctrl - also zoom. Ctrl 0 resets.</p>
+    <hr class="settings-rule">
+    <label class="settings-row settings-stack">Update feed URL
+      <input id="setting-update-feed" type="url" spellcheck="false" placeholder="https://…/update.json">
+    </label>
+    <button type="button" id="setting-check-updates">Check for updates</button>
+    <p id="setting-update-status" class="path-note"></p>
+  </div>
+  <div id="update-banner" class="update-banner" hidden>
+    <div>
+      <strong id="update-title">Update available</strong>
+      <p id="update-notes"></p>
+    </div>
+    <div class="update-actions">
+      <button type="button" id="update-later">Later</button>
+      <button type="button" id="update-skip">Skip</button>
+      <button type="button" id="update-now" class="primary">Update now</button>
+    </div>
   </div>
   <div id="menu-help" class="popover" hidden>
     <ul class="help-list">

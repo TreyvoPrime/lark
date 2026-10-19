@@ -5,6 +5,22 @@ set -eu
 ROOT=$(CDPATH= cd -- "$(dirname "$0")" && pwd)
 cd "$ROOT"
 JAR="$ROOT/lark.jar"
+PENDING="$ROOT/lark.jar.pending"
+
+if [ -f "$PENDING" ]; then
+  echo "Applying Lark update..."
+  if [ -f "$JAR" ]; then
+    mv -f "$JAR" "$ROOT/lark.jar.bak"
+  fi
+  if ! mv -f "$PENDING" "$JAR"; then
+    echo "Could not apply the update. Restoring the previous jar."
+    if [ -f "$ROOT/lark.jar.bak" ]; then
+      mv -f "$ROOT/lark.jar.bak" "$JAR"
+    fi
+    exit 1
+  fi
+  rm -f "$ROOT/lark.jar.bak"
+fi
 
 if [ ! -f "$JAR" ]; then
   echo "lark.jar is missing next to this script."

@@ -1,4 +1,4 @@
-Lark 1.4.0
+Lark 1.5.0
 
 Unzip this folder into Downloads or Documents.
 Lark does not install for every user, and it never asks for an administrator password.
@@ -13,6 +13,13 @@ The same folder works on Windows, Mac, and Linux. Use the launcher for this comp
 If Java 17 or newer is already installed, Lark uses it.
 If not, the launcher downloads a private copy into your user folder (.lark/jdk).
 That needs the internet the first time only. It still does not need an admin password.
+
+When a program asks a question (Y/N), type the answer in the reply box under Output and press Enter.
+Do not close Lark while the program is waiting — that is what the reply box is for.
+
+Updates: if this zip included an update-feed.url file, Lark checks for newer builds when it opens
+and can download them. You can also paste an update feed under Aa → Updates.
+After "Update now", close Lark and start it again so the launcher can swap in the new jar.
 
 Connect GitHub from the GitHub button:
 1. Click "Create a GitHub token" (classic token with the repo scope).

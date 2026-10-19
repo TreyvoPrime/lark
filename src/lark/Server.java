@@ -22,15 +22,18 @@ public final class Server {
     private final Projects projects;
     private final Runner runner;
     private final GitHub github;
+    private final Updates updates;
     private final Settings settings;
     private final Path webDir;
 
-    private Server(HttpServer http, int port, Projects projects, Runner runner, GitHub github, Settings settings, Path webDir) {
+    private Server(HttpServer http, int port, Projects projects, Runner runner, GitHub github, Updates updates,
+                   Settings settings, Path webDir) {
         this.http = http;
         this.port = port;
         this.projects = projects;
         this.runner = runner;
         this.github = github;
+        this.updates = updates;
         this.settings = settings;
         this.webDir = webDir;
     }
@@ -49,7 +52,7 @@ public final class Server {
             }
         }
         if (http == null) throw last == null ? new IOException("No free port") : last;
-        Server server = new Server(http, chosen, projects, runner, github, settings, findWeb());
+        Server server = new Server(http, chosen, projects, runner, github, new Updates(settings), settings, findWeb());
         http.createContext("/", server::handle);
         http.setExecutor(Executors.newFixedThreadPool(8, runnable -> {
             Thread thread = new Thread(runnable, "lark-http");
@@ -79,6 +82,8 @@ public final class Server {
             }
             if (downloadName(path) != null && ("GET".equals(method) || "HEAD".equals(method))) {
                 sendDownload(exchange, method, downloadName(path));
+            } else if ("/update.json".equals(path) && ("GET".equals(method) || "HEAD".equals(method))) {
+                sendUpdateFeed(exchange, method);
             } else if (path.startsWith("/api/")) {
                 if (!method.equals("GET") && !method.equals("HEAD")) {
                     String mark = exchange.getRequestHeaders().getFirst("X-Lark");
@@ -143,10 +148,24 @@ public final class Server {
                     int zoom = (int) body.longVal("zoom");
                     settings.zoom = Settings.clamp(zoom, 80, 160, settings.zoom);
                 }
+                if (body.has("updateFeed")) settings.updateFeed = body.str("updateFeed", "").trim();
                 settings.save();
                 sendJson(exchange, 200, settingsJson());
                 return;
             }
+        }
+        if ("/api/update/check".equals(path) && "GET".equals(method)) {
+            sendJson(exchange, 200, updates.check());
+            return;
+        }
+        if ("/api/update/install".equals(path) && "POST".equals(method)) {
+            Json.Obj body = body(exchange);
+            sendJson(exchange, 200, updates.install(body.str("download", "")));
+            return;
+        }
+        if ("/api/update/skip".equals(path) && "POST".equals(method)) {
+            sendJson(exchange, 200, updates.skip(body(exchange).str("version", "")));
+            return;
         }
         if ("/api/projects".equals(path) && "GET".equals(method)) {
             Json.Arr list = new Json.Arr();
@@ -315,6 +334,7 @@ public final class Server {
                 .put("tokenSet", settings.githubToken != null && !settings.githubToken.isBlank())
                 .put("githubLogin", settings.githubLogin == null ? "" : settings.githubLogin)
                 .put("lastProject", settings.lastProject == null ? "" : settings.lastProject)
+                .put("updateFeed", settings.updateFeed == null ? "" : settings.updateFeed)
                 .put("javaVersion", System.getProperty("java.version", ""))
                 .put("projectsDir", settings.projectsDir().toString())
                 .put("version", Settings.VERSION);
@@ -326,6 +346,33 @@ public final class Server {
         if ("/lark-mac.zip".equals(path)) return "lark-mac.zip";
         if ("/lark-linux.zip".equals(path)) return "lark-linux.zip";
         return null;
+    }
+
+    private void sendUpdateFeed(HttpExchange exchange, String method) throws IOException {
+        Path file = findRelease("update.json");
+        byte[] data;
+        if (file != null) {
+            data = Files.readAllBytes(file);
+        } else {
+            String json = new Json.Obj()
+                    .put("version", Settings.VERSION)
+                    .put("notes", "Current Lark build on this machine.")
+                    .put("downloads", new Json.Obj()
+                            .put("windows", "/lark-windows.zip")
+                            .put("mac", "/lark-mac.zip")
+                            .put("linux", "/lark-linux.zip")
+                            .put("any", "/lark.zip"))
+                    .write();
+            data = json.getBytes(StandardCharsets.UTF_8);
+        }
+        if ("HEAD".equals(method)) {
+            exchange.getResponseHeaders().set("Content-Type", "application/json; charset=utf-8");
+            exchange.getResponseHeaders().set("Cache-Control", "no-store");
+            exchange.sendResponseHeaders(200, -1);
+            exchange.close();
+            return;
+        }
+        send(exchange, 200, "application/json; charset=utf-8", data);
     }
 
     /** A portable copy: the jar plus launchers for Windows, Mac, and Linux. */
@@ -446,7 +493,8 @@ public final class Server {
     /** The zip and its save page can be opened from a normal browser. Everything else stays on this machine. */
     private static boolean publicDownload(String path, String method) {
         if (!"GET".equals(method) && !"HEAD".equals(method)) return false;
-        return downloadName(path) != null || "/download.html".equals(path) || "/favicon.svg".equals(path);
+        return downloadName(path) != null || "/update.json".equals(path)
+                || "/download.html".equals(path) || "/favicon.svg".equals(path);
     }
 
     static boolean localHost(String host) {

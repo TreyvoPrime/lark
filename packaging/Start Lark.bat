@@ -1,6 +1,19 @@
 @echo off
 setlocal EnableExtensions
 cd /d "%~dp0"
+if exist "%~dp0lark.jar.pending" (
+  echo Applying Lark update...
+  if exist "%~dp0lark.jar.bak" del /f /q "%~dp0lark.jar.bak" >nul 2>&1
+  if exist "%~dp0lark.jar" move /y "%~dp0lark.jar" "%~dp0lark.jar.bak" >nul
+  move /y "%~dp0lark.jar.pending" "%~dp0lark.jar" >nul
+  if errorlevel 1 (
+    echo Could not apply the update. Restoring the previous jar.
+    if exist "%~dp0lark.jar.bak" move /y "%~dp0lark.jar.bak" "%~dp0lark.jar" >nul
+    pause
+    exit /b 1
+  )
+  del /f /q "%~dp0lark.jar.bak" >nul 2>&1
+)
 if not exist "%~dp0lark.jar" (
   echo lark.jar is missing next to this file.
   pause

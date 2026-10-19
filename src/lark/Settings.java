@@ -10,7 +10,7 @@ import java.util.Set;
 
 /** Preferences stored in the home folder. The GitHub token never leaves this machine except for GitHub. */
 public final class Settings {
-    public static final String VERSION = "1.4.0";
+    public static final String VERSION = "1.5.0";
     public static final Set<String> THEMES = Set.of("desk", "daylight", "moss", "ember", "fog");
     private static final Map<String, String> THEME_ALIASES = Map.of(
             "ink", "desk",
@@ -31,6 +31,9 @@ public final class Settings {
     public String githubClientSecret = "";
     public String githubAppSlug = "";
     public String lastProject = "";
+    public String updateFeed = "";
+    public String skippedUpdate = "";
+    public long lastUpdateCheck;
     public boolean initialized;
 
     private final Path file;
@@ -66,6 +69,9 @@ public final class Settings {
             settings.githubClientSecret = obj.str("githubClientSecret", "");
             settings.githubAppSlug = obj.str("githubAppSlug", "");
             settings.lastProject = obj.str("lastProject", "");
+            settings.updateFeed = obj.str("updateFeed", "");
+            settings.skippedUpdate = obj.str("skippedUpdate", "");
+            settings.lastUpdateCheck = obj.longVal("lastUpdateCheck");
             settings.initialized = obj.bool("initialized");
         } catch (RuntimeException | IOException ignored) {
             // A broken settings file should not stop the editor from opening.
@@ -88,6 +94,9 @@ public final class Settings {
                     .put("githubClientSecret", githubClientSecret == null ? "" : githubClientSecret)
                     .put("githubAppSlug", githubAppSlug == null ? "" : githubAppSlug)
                     .put("lastProject", lastProject == null ? "" : lastProject)
+                    .put("updateFeed", updateFeed == null ? "" : updateFeed)
+                    .put("skippedUpdate", skippedUpdate == null ? "" : skippedUpdate)
+                    .put("lastUpdateCheck", lastUpdateCheck)
                     .put("initialized", initialized);
             Files.writeString(file, obj.write());
             try {

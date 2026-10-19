@@ -175,6 +175,9 @@ public final class Runner {
                                StringBuilder stdout, StringBuilder stderr, boolean echo) throws InterruptedException {
         ProcessBuilder builder = new ProcessBuilder(cmd);
         builder.directory(dir.toFile());
+        builder.redirectInput(ProcessBuilder.Redirect.PIPE);
+        builder.redirectOutput(ProcessBuilder.Redirect.PIPE);
+        builder.redirectError(ProcessBuilder.Redirect.PIPE);
         builder.environment().put("LANG", "C.UTF-8");
         builder.environment().put("LC_ALL", "C.UTF-8");
         builder.environment().put("PYTHONIOENCODING", "utf-8");
@@ -189,18 +192,28 @@ public final class Runner {
         Thread outThread = gobble(process.getInputStream(), echo ? job : null, stdout);
         Thread errThread = gobble(process.getErrorStream(), echo ? job : null, stderr);
         OutputStream os = process.getOutputStream();
-        job.attachStdin(os);
+        // Keep stdin open for the whole run so Scanner.nextLine() waits for the reply box.
+        // Closing it early is what causes "NoSuchElementException: No line found".
+        boolean keepOpen = "run".equals(job.phase);
+        if (keepOpen) job.attachStdin(os);
         try {
             if (stdin != null && !stdin.isEmpty()) {
                 os.write(stdin.getBytes(StandardCharsets.UTF_8));
                 if (!stdin.endsWith("\n")) os.write('\n');
                 os.flush();
             }
+            if (!keepOpen) {
+                try {
+                    os.close();
+                } catch (IOException ignored) {
+                    // Compile tools don't read stdin.
+                }
+            }
         } catch (IOException ignored) {
             // The program may have closed stdin already.
         }
         boolean finished = process.waitFor(seconds, TimeUnit.SECONDS);
-        job.closeStdin();
+        if (keepOpen) job.closeStdin();
         if (!finished) {
             process.destroyForcibly();
             if (job.cancelled) job.append("\nStopped.\n");
@@ -428,12 +441,14 @@ public final class Runner {
         synchronized Json.Obj snapshot() {
             Json.Arr problemsJson = new Json.Arr();
             for (Problem problem : problems) problemsJson.add(problem.toJson());
+            boolean acceptsInput = !done && !cancelled && stdin != null && "run".equals(phase);
             Json.Obj obj = new Json.Obj()
                     .put("ok", true)
                     .put("id", id)
                     .put("phase", phase)
                     .put("output", out.toString())
                     .put("done", done)
+                    .put("acceptsInput", acceptsInput)
                     .put("problems", problemsJson);
             if (done) obj.put("exit", exitCode);
             return obj;

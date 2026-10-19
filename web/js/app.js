@@ -805,7 +805,7 @@
     await flushSaves();
     renderMains();
     const mainClass = $("main-class").value;
-    setRunning(true);
+    setRunning(true, false);
     showConsoleTab("output");
     try {
       const data = await api("POST", "/api/run", {
@@ -821,15 +821,16 @@
     }
   }
 
-  function setRunning(running) {
+  function setRunning(running, acceptsInput) {
     $("run").textContent = running ? "Stop" : "Run";
     const reply = $("console-reply");
     if (!reply) return;
-    reply.hidden = !running;
-    if (running) {
+    const show = !!(running && (acceptsInput !== false));
+    reply.hidden = !show;
+    if (show) {
       const input = $("console-input");
       if (input && document.activeElement !== input) {
-        setTimeout(() => input.focus(), 0);
+        setTimeout(() => input.focus(), 180);
       }
     }
   }
@@ -857,7 +858,7 @@
       markErrors();
       renderTabs();
       if (job.done) {
-        setRunning(false);
+        setRunning(false, false);
         if (state.problems.some((problem) => problem.severity === "error")) {
           showConsoleTab("problems");
           const first = state.problems.find((problem) => problem.severity === "error");
@@ -865,7 +866,7 @@
         }
         return;
       }
-      setRunning(true);
+      setRunning(true, job.acceptsInput !== false && job.phase === "run");
       state.poll = setTimeout(() => poll(id), 200);
     } catch (err) {
       setRunning(false);
@@ -1455,6 +1456,22 @@
       applyDisplay({ zoom: Number($("setting-zoom").value) }, true);
     });
     $("setting-zoom-reset").addEventListener("click", () => applyDisplay({ zoom: 100 }, true));
+    const feedInput = $("setting-update-feed");
+    if (feedInput) {
+      feedInput.addEventListener("change", async () => {
+        try {
+          state.settings = await api("PUT", "/api/settings", { updateFeed: feedInput.value.trim() });
+          toast("Update feed saved.");
+        } catch (err) {
+          toast(err.message);
+        }
+      });
+    }
+    const checkBtn = $("setting-check-updates");
+    if (checkBtn) checkBtn.addEventListener("click", () => checkUpdates(true));
+    if ($("update-later")) $("update-later").addEventListener("click", () => hideUpdateBanner());
+    if ($("update-skip")) $("update-skip").addEventListener("click", () => skipUpdate().catch((err) => toast(err.message)));
+    if ($("update-now")) $("update-now").addEventListener("click", () => installUpdate().catch((err) => toast(err.message)));
     $("menu-project").addEventListener("click", (event) => {
       const act = event.target.dataset.act;
       if (!act) return;
@@ -1631,6 +1648,60 @@
     bindSplitters();
   }
 
+  function hideUpdateBanner() {
+    const banner = $("update-banner");
+    if (banner) banner.hidden = true;
+  }
+
+  function showUpdateBanner(info) {
+    const banner = $("update-banner");
+    if (!banner) return;
+    state.updateInfo = info;
+    $("update-title").textContent = "Lark " + (info.latest || "") + " is ready";
+    $("update-notes").textContent = info.notes || ("You have " + (info.current || "") + ".");
+    banner.hidden = false;
+  }
+
+  async function checkUpdates(manual) {
+    const status = $("setting-update-status");
+    try {
+      if (manual && $("setting-update-feed") && state.settings) {
+        const feed = $("setting-update-feed").value.trim();
+        if (feed !== (state.settings.updateFeed || "")) {
+          state.settings = await api("PUT", "/api/settings", { updateFeed: feed });
+        }
+      }
+      const info = await api("GET", "/api/update/check");
+      if (status) status.textContent = info.message || "";
+      if (info.available) showUpdateBanner(info);
+      else {
+        hideUpdateBanner();
+        if (manual) toast(info.message || "No updates.");
+      }
+      return info;
+    } catch (err) {
+      if (status) status.textContent = err.message;
+      if (manual) toast(err.message);
+      return null;
+    }
+  }
+
+  async function skipUpdate() {
+    const info = state.updateInfo;
+    if (!info || !info.latest) return hideUpdateBanner();
+    await api("POST", "/api/update/skip", { version: info.latest });
+    hideUpdateBanner();
+    toast("Skipped Lark " + info.latest + ".");
+  }
+
+  async function installUpdate() {
+    const info = state.updateInfo || {};
+    toast("Downloading update…");
+    const result = await api("POST", "/api/update/install", { download: info.download || "" });
+    hideUpdateBanner();
+    toast(result.message || "Update ready. Restart Lark.");
+  }
+
   async function boot() {
     try {
       ensureEditor();
@@ -1641,6 +1712,7 @@
         fontSize: state.settings.fontSize || 14,
         zoom: state.settings.zoom || 100
       }, false);
+      if ($("setting-update-feed")) $("setting-update-feed").value = state.settings.updateFeed || "";
       showGithub();
       const version = (state.settings.javaVersion || "").split(".")[0];
       $("status-java").textContent = version ? "Java " + version : "";
@@ -1657,6 +1729,7 @@
         cm.refresh();
         cm.focus();
       }
+      checkUpdates(false).catch(() => {});
     } catch (err) {
       $("boot").textContent = err.message || "Lark couldn't open.";
     }

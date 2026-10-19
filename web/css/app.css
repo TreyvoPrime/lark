@@ -430,16 +430,26 @@ button.linkish {
 }
 .console-reply {
   display: flex;
+  flex-wrap: wrap;
   gap: 8px;
   align-items: center;
-  border-top: 1px solid var(--line);
-  padding: 6px 10px;
-  background: var(--bg-elev);
+  border-top: 1px solid var(--accent);
+  padding: 8px 10px;
+  background: color-mix(in srgb, var(--accent) 12%, var(--bg-elev));
+  animation: reply-pulse 1.6s ease-in-out infinite;
 }
-.console-reply[hidden] { display: none; }
+.console-reply[hidden] { display: none; animation: none; }
+.console-reply-label {
+  flex: 0 0 100%;
+  font-size: 12px;
+  color: var(--accent);
+  font-weight: 600;
+}
 .console-reply input {
   flex: 1;
   min-width: 0;
+  border: 1px solid var(--accent);
+  background: var(--bg);
 }
 .console-reply button {
   border: 1px solid var(--line);
@@ -447,6 +457,45 @@ button.linkish {
   border-radius: 5px;
   padding: 5px 10px;
 }
+.console-reply button.primary {
+  background: var(--accent);
+  color: var(--bg);
+  border-color: var(--accent);
+}
+@keyframes reply-pulse {
+  0%, 100% { box-shadow: inset 0 0 0 0 transparent; }
+  50% { box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--accent) 45%, transparent); }
+}
+.settings-rule {
+  border: 0;
+  border-top: 1px solid var(--line);
+  margin: 10px 0;
+}
+.settings-stack {
+  flex-direction: column;
+  align-items: stretch;
+  gap: 6px;
+}
+.settings-stack input { width: 100%; }
+.update-banner {
+  position: fixed;
+  left: 16px;
+  right: 16px;
+  bottom: 28px;
+  z-index: 40;
+  display: flex;
+  gap: 16px;
+  align-items: center;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  padding: 12px 14px;
+  border: 1px solid var(--line);
+  background: var(--bg-elev);
+  box-shadow: 0 10px 30px color-mix(in srgb, #000 35%, transparent);
+}
+.update-banner[hidden] { display: none; }
+.update-banner p { margin: 4px 0 0; color: var(--muted); font-size: 13px; max-width: 52ch; }
+.update-actions { display: flex; gap: 8px; flex-wrap: wrap; }
 #stdin-wrap { border-top: 1px solid var(--line); padding: 4px 12px 8px; color: var(--muted); font-size: 12px; }
 #stdin-wrap textarea { width: 100%; margin-top: 6px; resize: vertical; }
 .splitter {
