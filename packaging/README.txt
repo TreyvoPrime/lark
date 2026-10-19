@@ -1,4 +1,4 @@
-Lark 1.9.5
+Lark 2.0.0
 
 Extract the WHOLE zip to a real folder like C:\Users\YOU\Lark.
 Do NOT open Start Lark from inside the zip window or from AppData\Local\Temp.

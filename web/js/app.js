@@ -20,6 +20,8 @@
     amber: "Amber Terminal",
     lagoon: "Lagoon",
     rosewood: "Rosewood",
+    nova: "Nova",
+    atelier: "Atelier",
     ink: "Desk",
     paper: "Daylight",
     tide: "Moss",
@@ -41,7 +43,7 @@
     "desk", "daylight", "moss", "ember", "fog",
     "blossom", "candy", "midnight", "citrus", "harbor",
     "graphite", "navy", "terminal", "parchment", "ultraviolet", "forest", "monochrome", "amber",
-    "lagoon", "rosewood"
+    "lagoon", "rosewood", "nova", "atelier"
   ];
   const state = {
     settings: null,
@@ -58,7 +60,12 @@
     job: null,
     poll: null,
     dirty: new Set(),
-    timers: new Map()
+    timers: new Map(),
+    terminal: null,
+    termPoll: null,
+    termHistory: [],
+    termHistIndex: -1,
+    consoleTab: "output"
   };
   const docs = new Map();
   const parsedCache = new Map();
@@ -184,6 +191,7 @@
       // Do not auto-pair /* */ — that fights IntelliJ-style /** Javadoc expansion.
       autoCloseBrackets: { pairs: "()[]{}''\"\"", explode: "[]{}" },
       styleActiveLine: true,
+      hintOptions: { completeSingle: false, closeOnUnfocus: true },
       extraKeys: {
         "Tab": function (editor) {
           if (editor.somethingSelected()) editor.indentSelection("add");
@@ -200,9 +208,26 @@
         "Cmd-F": "find",
         "Ctrl-H": "replace",
         "Cmd-Alt-F": "replace",
-        "Ctrl-Space": (editor) => CodeMirror.showHint(editor, completeHint, { completeSingle: false }),
-        "Cmd-Space": (editor) => CodeMirror.showHint(editor, completeHint, { completeSingle: false })
+        "Ctrl-Space": (editor) => CodeMirror.showHint(editor, completeHintFull, {
+          completeSingle: false,
+          closeOnUnfocus: true
+        }),
+        "Cmd-Space": (editor) => CodeMirror.showHint(editor, completeHintFull, {
+          completeSingle: false,
+          closeOnUnfocus: true
+        })
       }
+    });
+    cm.on("inputRead", (editor, change) => {
+      if (suppress || !state.active || !change || !change.text) return;
+      const typed = change.text.join("");
+      // Show options while typing — never auto-insert the first match.
+      if (!typed || !/[A-Za-z0-9_.$]/.test(typed)) return;
+      if (editor.state.completionActive) return;
+      CodeMirror.showHint(editor, completeHintSuggest, {
+        completeSingle: false,
+        closeOnUnfocus: true
+      });
     });
     cm.on("change", (editor, change) => {
       if (suppress || !state.active) return;
@@ -299,15 +324,7 @@
     }
   }
 
-  function completeHint(editor) {
-    const cursor = editor.getCursor();
-    const token = editor.getTokenAt(cursor);
-    let prefix = token.string || "";
-    let from = token.start;
-    if (!/^[\w$]+$/.test(prefix)) {
-      prefix = "";
-      from = cursor.ch;
-    }
+  function collectNameHints(prefix) {
     const names = new Map();
     state.files.forEach((file) => {
       if (!file.path.endsWith(".java")) return;
@@ -322,9 +339,47 @@
     (window.LarkJava.typeWords || []).forEach((word) => {
       if (!names.has(word)) names.set(word, "type");
     });
+    const lower = (prefix || "").toLowerCase();
+    const list = [];
+    names.forEach((kind, name) => {
+      if (prefix && !name.startsWith(prefix) && !name.toLowerCase().startsWith(lower)) return;
+      // Suggestion-only: insert the name, never a whole block while typing.
+      list.push({ text: name, displayText: name + "  " + kind });
+    });
+    list.sort((a, b) => a.displayText.localeCompare(b.displayText));
+    return list;
+  }
+
+  function completeHintSuggest(editor) {
+    const cursor = editor.getCursor();
+    const token = editor.getTokenAt(cursor);
+    let prefix = token.string || "";
+    let from = token.start;
+    if (!/^[\w$]+$/.test(prefix)) {
+      prefix = "";
+      from = cursor.ch;
+    }
+    if (!prefix) return null;
+    const list = collectNameHints(prefix).slice(0, 40);
+    if (!list.length) return null;
+    return {
+      list: list,
+      from: CodeMirror.Pos(cursor.line, from),
+      to: CodeMirror.Pos(cursor.line, cursor.ch)
+    };
+  }
+
+  function completeHintFull(editor) {
+    const cursor = editor.getCursor();
+    const token = editor.getTokenAt(cursor);
+    let prefix = token.string || "";
+    let from = token.start;
+    if (!/^[\w$]+$/.test(prefix)) {
+      prefix = "";
+      from = cursor.ch;
+    }
     const lower = prefix.toLowerCase();
     const list = [];
-    // Building blocks first when the prefix looks like a snippet trigger.
     (window.LarkJava.matchingSnippets(prefix) || []).forEach((snip) => {
       list.push({
         text: snip.text,
@@ -332,10 +387,7 @@
         className: "cm-hint-snip"
       });
     });
-    names.forEach((kind, name) => {
-      if (prefix && !name.startsWith(prefix) && !name.toLowerCase().startsWith(lower)) return;
-      list.push({ text: name, displayText: name + "  " + kind });
-    });
+    collectNameHints(prefix).forEach((item) => list.push(item));
     list.sort((a, b) => {
       const aSnip = (a.displayText || "").indexOf("→") >= 0 ? 0 : 1;
       const bSnip = (b.displayText || "").indexOf("→") >= 0 ? 0 : 1;
@@ -1482,11 +1534,89 @@
   }
 
   function showConsoleTab(which) {
-    const output = which === "output";
-    $("tab-output").classList.toggle("on", output);
-    $("tab-problems").classList.toggle("on", !output);
-    $("console-out").hidden = !output;
-    $("problems").hidden = output;
+    state.consoleTab = which || "output";
+    const output = state.consoleTab === "output";
+    const problems = state.consoleTab === "problems";
+    const term = state.consoleTab === "terminal";
+    if ($("tab-output")) $("tab-output").classList.toggle("on", output);
+    if ($("tab-problems")) $("tab-problems").classList.toggle("on", problems);
+    if ($("tab-terminal")) $("tab-terminal").classList.toggle("on", term);
+    if ($("console-out")) $("console-out").hidden = !output;
+    if ($("problems")) $("problems").hidden = !problems;
+    if ($("terminal-pane")) $("terminal-pane").hidden = !term;
+    if (term) ensureTerminal().catch((err) => toast(err.message));
+    else stopTerminalPoll();
+  }
+
+  function stopTerminalPoll() {
+    if (state.termPoll) {
+      clearTimeout(state.termPoll);
+      state.termPoll = null;
+    }
+  }
+
+  function renderTerminal(text) {
+    const pre = $("terminal-out");
+    if (!pre) return;
+    const stick = pre.scrollHeight - pre.scrollTop - pre.clientHeight < 48;
+    pre.textContent = text || "";
+    if (stick) pre.scrollTop = pre.scrollHeight;
+  }
+
+  async function ensureTerminal(forceRestart) {
+    if (!state.project) {
+      renderTerminal("Open a project first — the Terminal runs in that folder.\n");
+      return;
+    }
+    if (forceRestart && state.terminal) {
+      stopTerminalPoll();
+      try {
+        await api("POST", "/api/terminal/" + encodeURIComponent(state.terminal.id) + "/stop", {});
+      } catch (_) { /* ok */ }
+      state.terminal = null;
+    }
+    if (!state.terminal) {
+      const data = await api("POST", "/api/terminal", { project: state.project.id });
+      state.terminal = data;
+      renderTerminal(data.output || "");
+      if ($("terminal-prompt")) $("terminal-prompt").textContent = "›";
+    }
+    pollTerminal();
+    if ($("terminal-input")) $("terminal-input").focus();
+  }
+
+  async function pollTerminal() {
+    stopTerminalPoll();
+    if (state.consoleTab !== "terminal" || !state.terminal) return;
+    try {
+      const data = await api("GET", "/api/terminal/" + encodeURIComponent(state.terminal.id));
+      state.terminal = data;
+      renderTerminal(data.output || "");
+      if (!data.alive) {
+        renderTerminal((data.output || "") + "\n— shell stopped — click Restart —\n");
+        return;
+      }
+    } catch (err) {
+      renderTerminal((($("terminal-out") && $("terminal-out").textContent) || "") + "\n" + err.message + "\n");
+      state.terminal = null;
+      return;
+    }
+    state.termPoll = setTimeout(() => pollTerminal(), 250);
+  }
+
+  async function sendTerminalCommand() {
+    const input = $("terminal-input");
+    if (!input) return;
+    const text = input.value;
+    input.value = "";
+    if (!text.trim()) return;
+    state.termHistory.push(text);
+    if (state.termHistory.length > 80) state.termHistory.shift();
+    state.termHistIndex = state.termHistory.length;
+    await ensureTerminal(false);
+    if (!state.terminal) return;
+    await api("POST", "/api/terminal/" + encodeURIComponent(state.terminal.id) + "/input", { text: text });
+    pollTerminal();
   }
 
   function clearMarks() {
@@ -2125,7 +2255,12 @@
     $("gh-new-repo").addEventListener("click", () => pushProject(true));
     $("tab-output").addEventListener("click", () => showConsoleTab("output"));
     $("tab-problems").addEventListener("click", () => showConsoleTab("problems"));
+    if ($("tab-terminal")) $("tab-terminal").addEventListener("click", () => showConsoleTab("terminal"));
     $("clear-console").addEventListener("click", () => {
+      if (state.consoleTab === "terminal") {
+        ensureTerminal(true).catch((err) => toast(err.message));
+        return;
+      }
       state.problems = [];
       clearMarks();
       renderProblems();
@@ -2141,6 +2276,39 @@
         sendConsoleInput().catch((err) => toast(err.message));
       }
     });
+    if ($("terminal-send")) {
+      $("terminal-send").addEventListener("click", () => {
+        sendTerminalCommand().catch((err) => toast(err.message));
+      });
+    }
+    if ($("terminal-restart")) {
+      $("terminal-restart").addEventListener("click", () => {
+        ensureTerminal(true).catch((err) => toast(err.message));
+      });
+    }
+    if ($("terminal-input")) {
+      $("terminal-input").addEventListener("keydown", (event) => {
+        if (event.key === "Enter") {
+          event.preventDefault();
+          sendTerminalCommand().catch((err) => toast(err.message));
+          return;
+        }
+        if (event.key === "ArrowUp") {
+          event.preventDefault();
+          if (!state.termHistory.length) return;
+          state.termHistIndex = Math.max(0, state.termHistIndex - 1);
+          $("terminal-input").value = state.termHistory[state.termHistIndex] || "";
+          return;
+        }
+        if (event.key === "ArrowDown") {
+          event.preventDefault();
+          state.termHistIndex = Math.min(state.termHistory.length, state.termHistIndex + 1);
+          $("terminal-input").value = state.termHistIndex >= state.termHistory.length
+            ? ""
+            : (state.termHistory[state.termHistIndex] || "");
+        }
+      });
+    }
     $("modal-form").addEventListener("submit", (event) => {
       event.preventDefault();
       const values = {};

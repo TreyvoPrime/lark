@@ -26,7 +26,7 @@
           <path d="M3 16c4.2-.7 6-6 9-11 2.8 5 4.8 10.2 9 11" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/>
           <path d="M7 16.5h10" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/>
         </svg>
-        <span class="word">Lark</span>
+        <span class="word">Lark <em class="ver">2</em></span>
       </div>
       <button id="files-toggle" type="button">Files</button>
       <label class="project-pick">
@@ -82,7 +82,8 @@
                 </svg>
                 <h1>Lark</h1>
               </div>
-              <p class="welcome-lead">A lightweight Java IDE for school and practice — classes, run, GitHub, and helpful Java tools.</p>
+              <p class="welcome-kicker">Lark 2.0</p>
+              <p class="welcome-lead">A portable Java IDE with a real Terminal, suggestion-style autofill, and themes built for long coding sessions.</p>
               <div class="welcome-grid">
                 <section>
                   <h2>Start</h2>
@@ -96,12 +97,12 @@
                   <div id="welcome-recent" class="welcome-recent"></div>
                 </section>
                 <section>
-                  <h2>Practice tips</h2>
+                  <h2>What’s new</h2>
                   <ul class="welcome-tips">
-                    <li>Use <strong>Java → Insert building block</strong> or type <code>main</code> / <code>fori</code> / <code>sout</code> then <kbd>Ctrl+Space</kbd>.</li>
-                    <li>Problems show plain-English fixes — click one to jump to the line with a hint under it.</li>
-                    <li>Type <code>/**</code> above a method for a Javadoc stub.</li>
-                    <li>When a program asks Y/N, answer in the Output reply box — not while naming a class.</li>
+                    <li><strong>Terminal</strong> tab — run <code>dir</code>, <code>javac</code>, <code>git</code>, and more in your project folder.</li>
+                    <li>Suggestions appear as you type — pick one with Enter; nothing inserts by itself.</li>
+                    <li>New themes: <strong>Nova</strong> and <strong>Atelier</strong>.</li>
+                    <li>When a program waits for input, answer in the Output reply box.</li>
                   </ul>
                 </section>
               </div>
@@ -114,15 +115,25 @@
             <div class="tabs-inline">
               <button type="button" id="tab-output" class="on">Output</button>
               <button type="button" id="tab-problems">Problems</button>
+              <button type="button" id="tab-terminal">Terminal</button>
             </div>
             <label class="args">Arguments <input id="args" type="text" placeholder="optional" spellcheck="false"></label>
             <button type="button" id="clear-console">Clear</button>
           </div>
           <pre id="console-out">Run a class and the output shows up here.</pre>
           <div id="problems" hidden></div>
+          <div id="terminal-pane" hidden>
+            <pre id="terminal-out">Open the Terminal tab to start a shell in your project folder.</pre>
+            <div class="terminal-input-row">
+              <span class="terminal-prompt" id="terminal-prompt">›</span>
+              <input id="terminal-input" type="text" placeholder="Enter a command…" spellcheck="false" autocomplete="off">
+              <button type="button" id="terminal-send" class="primary">Run</button>
+              <button type="button" id="terminal-restart" title="Restart shell">Restart</button>
+            </div>
+          </div>
           <div id="console-reply" class="console-reply" hidden>
             <span class="console-reply-label">Program is waiting for input</span>
-            <input id="console-input" type="text" placeholder="Type Y or N, then Enter" spellcheck="false" autocomplete="off">
+            <input id="console-input" type="text" placeholder="Type a line, then Enter" spellcheck="false" autocomplete="off">
             <button type="button" id="console-send" class="primary">Send</button>
           </div>
           <details id="stdin-wrap">
@@ -189,6 +200,8 @@
     <button type="button" data-theme-choice="harbor"><i class="swatch" style="background:#3db8c5"></i>Harbor</button>
     <button type="button" data-theme-choice="lagoon"><i class="swatch" style="background:#2aa8a0"></i>Lagoon</button>
     <button type="button" data-theme-choice="rosewood"><i class="swatch" style="background:#c45c6a"></i>Rosewood</button>
+    <button type="button" data-theme-choice="nova"><i class="swatch" style="background:#3de0d0"></i>Nova</button>
+    <button type="button" data-theme-choice="atelier"><i class="swatch" style="background:#3d5a80"></i>Atelier</button>
   </div>
   <div id="menu-settings" class="popover" hidden>
     <label class="settings-row">Font size

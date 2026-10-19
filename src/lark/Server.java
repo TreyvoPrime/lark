@@ -23,17 +23,19 @@ public final class Server {
     private final Runner runner;
     private final GitHub github;
     private final Updates updates;
+    private final Terminal terminal;
     private final Settings settings;
     private final Path webDir;
 
     private Server(HttpServer http, int port, Projects projects, Runner runner, GitHub github, Updates updates,
-                   Settings settings, Path webDir) {
+                   Terminal terminal, Settings settings, Path webDir) {
         this.http = http;
         this.port = port;
         this.projects = projects;
         this.runner = runner;
         this.github = github;
         this.updates = updates;
+        this.terminal = terminal;
         this.settings = settings;
         this.webDir = webDir;
     }
@@ -52,7 +54,8 @@ public final class Server {
             }
         }
         if (http == null) throw last == null ? new IOException("No free port") : last;
-        Server server = new Server(http, chosen, projects, runner, github, new Updates(settings), settings, findWeb());
+        Server server = new Server(http, chosen, projects, runner, github, new Updates(settings), new Terminal(),
+                settings, findWeb());
         http.createContext("/", server::handle);
         http.setExecutor(Executors.newFixedThreadPool(8, runnable -> {
             Thread thread = new Thread(runnable, "lark-http");
@@ -68,6 +71,11 @@ public final class Server {
     }
 
     public void stop() {
+        try {
+            terminal.shutdown();
+        } catch (Exception ignored) {
+            // Best-effort.
+        }
         http.stop(0);
     }
 
@@ -233,6 +241,31 @@ public final class Server {
             Json.Obj body = body(exchange);
             runner.writeInput(decode(parts[3]), body.str("text", ""));
             sendJson(exchange, 200, new Json.Obj().put("ok", true));
+            return;
+        }
+        if ("/api/terminal".equals(path) && "POST".equals(method)) {
+            Json.Obj body = body(exchange);
+            String projectId = body.str("project", "");
+            Path cwd = projectId.isBlank()
+                    ? settings.projectsDir()
+                    : projects.projectDir(projectId);
+            sendJson(exchange, 200, terminal.start(cwd));
+            return;
+        }
+        if (parts.length == 4 && "api".equals(parts[1]) && "terminal".equals(parts[2]) && "GET".equals(method)) {
+            sendJson(exchange, 200, terminal.snapshot(decode(parts[3])));
+            return;
+        }
+        if (parts.length == 5 && "api".equals(parts[1]) && "terminal".equals(parts[2]) && "input".equals(parts[4])
+                && "POST".equals(method)) {
+            Json.Obj body = body(exchange);
+            terminal.write(decode(parts[3]), body.str("text", ""));
+            sendJson(exchange, 200, new Json.Obj().put("ok", true));
+            return;
+        }
+        if (parts.length == 5 && "api".equals(parts[1]) && "terminal".equals(parts[2]) && "stop".equals(parts[4])
+                && "POST".equals(method)) {
+            sendJson(exchange, 200, terminal.stop(decode(parts[3])));
             return;
         }
         if ("/api/github/token".equals(path) && "POST".equals(method)) {
