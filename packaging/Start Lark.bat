@@ -26,51 +26,68 @@ if not exist "%~dp0lark.jar" (
 set "JAVAEXE="
 set "LARK_HOME=%USERPROFILE%\.lark\jdk"
 set "JAVA_IS_SYSTEM="
+set "JAVA_LABEL="
 
 rem Remove incomplete private JDKs left by interrupted school-network downloads.
 call :purge_broken_private
 
-rem 1) Explicit override (teacher / IT can set this)
+rem 1) Bundled JDK shipped inside the Lark zip — works offline on school PCs.
+call :findbeside
+if defined JAVAEXE (
+  set "JAVA_LABEL=bundled"
+  echo Using the Java that came with Lark.
+  goto :launch
+)
+
+rem 2) Explicit override (teacher / IT can set this)
 if defined LARK_JDK (
   if exist "%LARK_JDK%\bin\java.exe" set "JAVAEXE=%LARK_JDK%\bin\java.exe"
   if not defined JAVAEXE if exist "%LARK_JDK%" set "JAVAEXE=%LARK_JDK%"
   if defined JAVAEXE (
     call :jdk_ok "!JAVAEXE!"
-    if not errorlevel 1 goto :launch
+    if not errorlevel 1 (
+      set "JAVA_LABEL=LARK_JDK"
+      goto :launch
+    )
     echo LARK_JDK points to a broken Java install. Ignoring it.
     set "JAVAEXE="
   )
 )
-
-rem 2) JDK dropped next to this launcher (USB / offline school install)
-call :findbeside
-if defined JAVAEXE goto :launch
 
 rem 3) System Java 17+
 where java >nul 2>&1
 if not errorlevel 1 call :picksystem
 if defined JAVAEXE (
   set "JAVA_IS_SYSTEM=1"
+  set "JAVA_LABEL=system"
   goto :launch
 )
 
-rem 4) IntelliJ / JetBrains JDKs already on this PC (share with IntelliJ)
+rem 4) IntelliJ / JetBrains JDKs already on this PC
 call :find_intellij
-if defined JAVAEXE goto :launch
+if defined JAVAEXE (
+  set "JAVA_LABEL=IntelliJ"
+  goto :launch
+)
 
 rem 5) Private copy already downloaded and complete
 if not exist "%LARK_HOME%" mkdir "%LARK_HOME%"
 call :findprivate
-if defined JAVAEXE goto :launch
+if defined JAVAEXE (
+  set "JAVA_LABEL=private"
+  goto :launch
+)
 
 rem 6) Unpack a JDK zip placed next to Start Lark.bat
 call :unpack_local_zip
-if defined JAVAEXE goto :launch
+if defined JAVAEXE (
+  set "JAVA_LABEL=local-zip"
+  goto :launch
+)
 
-rem 7) Download Temurin into the user folder (school-network hardened)
+rem 7) Last resort: download Temurin (often blocked on school networks)
 echo.
-echo Lark is downloading a private copy of Java into your user folder.
-echo It does not ask for an administrator password.
+echo No bundled Java found. Trying to download one into your user folder...
 echo.
 call :download_jdk
 if errorlevel 1 (
@@ -85,6 +102,7 @@ if not defined JAVAEXE (
   pause
   exit /b 1
 )
+set "JAVA_LABEL=downloaded"
 
 :launch
 if not defined JAVA_IS_SYSTEM (
@@ -130,12 +148,18 @@ rem %~dp0 ends with a backslash. Quoting -Dlark.install="C:\path\" breaks the
 rem closing quote on Windows, so Java never sees -jar and only prints Usage.
 set "INSTALL=%~dp0"
 if "%INSTALL:~-1%"=="\" set "INSTALL=%INSTALL:~0,-1%"
+
+echo.
 echo Starting Lark...
+echo Leave this window open while you use Lark. Your browser should open next.
+echo.
 "%JAVAEXE%" "-Dlark.install=%INSTALL%" -jar "%RUNDIR%\lark.jar"
 set "ERR=%ERRORLEVEL%"
 if not "%ERR%"=="0" (
   echo.
   echo Lark exited with code %ERR%.
+  echo Java: %JAVAEXE%
+  echo Jar:  %RUNDIR%\lark.jar
   pause
 )
 exit /b %ERR%
@@ -374,14 +398,12 @@ echo ==============================
 echo Lark needs a complete Java 17+ JDK. Partial downloads leave errors like
 echo "could not open ...\lib\jvm.cfg".
 echo.
-echo Fix it without an admin password — pick one:
-echo   1. Install IntelliJ IDEA ^(or download a JDK inside IntelliJ^). Lark will
-echo      reuse that same Java automatically.
-echo   2. Delete the folder  %USERPROFILE%\.lark\jdk  then open Start Lark again.
-echo   3. Or put a full JDK zip next to Start Lark.bat as jdk.zip
-echo      ^(from https://adoptium.net/ — Windows x64 JDK .zip^).
-echo   4. Or unzip a JDK into a folder named "jdk" next to Start Lark.bat
-echo      so that jdk\bin\java.exe and jdk\lib\jvm.cfg both exist.
+echo Re-download the full Lark Windows zip ^(it includes a jdk folder^):
+echo   https://github.com/TreyvoPrime/lark/releases/latest/download/lark-windows.zip
+echo Unzip so that Start Lark.bat and the jdk folder are in the same place,
+echo then double-click Start Lark.bat again.
+echo.
+echo Or install IntelliJ / drop a JDK zip named jdk.zip next to Start Lark.
 echo ==============================
 echo.
 exit /b 0

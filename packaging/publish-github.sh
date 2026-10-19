@@ -56,21 +56,18 @@ if ! git diff --cached --quiet; then
   git push github HEAD:main || true
 fi
 
+assets=(
+  release/lark-windows.zip
+  release/lark-mac.zip
+  release/lark-linux.zip
+  release/lark.zip
+  release/lark-update.zip
+  release/update.json
+)
 if gh release view "$TAG" --repo "$REPO" >/dev/null 2>&1; then
-  gh release upload "$TAG" \
-    release/lark-windows.zip \
-    release/lark-mac.zip \
-    release/lark-linux.zip \
-    release/lark.zip \
-    release/update.json \
-    --repo "$REPO" --clobber
+  gh release upload "$TAG" "${assets[@]}" --repo "$REPO" --clobber
 else
-  gh release create "$TAG" \
-    release/lark-windows.zip \
-    release/lark-mac.zip \
-    release/lark-linux.zip \
-    release/lark.zip \
-    release/update.json \
+  gh release create "$TAG" "${assets[@]}" \
     --repo "$REPO" \
     --title "Lark ${VERSION}" \
     --notes "$NOTES"

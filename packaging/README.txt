@@ -1,41 +1,25 @@
-Lark 1.6.7
+Lark 1.7.0
 
 Unzip this folder into Downloads or Documents.
-Lark does not install for every user, and it never asks for an administrator password.
-
-Updates: when Lark downloads an update, click Restart Lark — or fully close Lark
-and open Start Lark again. On Windows, Lark runs from a copy so the jar can be
-replaced without "file is being used by another process".
+This zip already includes a portable Java (the "jdk" folder), so Lark can start
+on school computers without downloading anything and without an admin password.
 
 Windows: double-click "Start Lark.bat"
 Mac: double-click "Start Lark.command"
   If macOS blocks it, right-click, choose Open, then Open again.
 Linux: open this folder in a terminal and run ./start-lark.sh
 
-The same folder works on Windows, Mac, and Linux. Use the launcher for this computer.
+Leave the Start Lark window open while you use Lark. Your browser opens to the IDE.
 
-If Java 17 or newer is already installed, Lark uses it.
-If not, the launcher downloads a private copy into your user folder (.lark/jdk).
-That needs the internet the first time only. It still does not need an admin password.
+Updates: when Lark downloads an update, click Restart Lark — or fully close Lark
+and open Start Lark again. On Windows, Lark runs from a copy so the jar can be
+replaced without "file is being used by another process".
 
-Java discovery order: LARK_JDK, a jdk folder beside Start Lark, system Java,
-IntelliJ (~/.jdks or the IDE's bundled JBR), then Lark's private copy.
-If IntelliJ IDEA is installed, Lark reuses that same JDK so school PCs do not
-need a second download.
-
-School networks: if the Java download fails or you see "could not open ...\lib\jvm.cfg",
-the JDK copy is incomplete. Start Lark deletes broken copies and retries. You can also:
-  - Use IntelliJ (or download a JDK inside IntelliJ) and open Start Lark again, or
-  - Delete %USERPROFILE%\.lark\jdk (or ~/.lark/jdk) and open Start Lark again, or
-  - Drop a full jdk.zip from https://adoptium.net/ beside Start Lark.
-On Windows the launcher uses school-friendly SSL settings and rejects truncated downloads.
+If the jdk folder is missing (for example you only copied lark.jar), Lark will
+try IntelliJ's Java, then a system Java, then a download. Prefer the full zip
+from: https://github.com/TreyvoPrime/lark/releases/latest
 
 When a program asks a question (Y/N), type the answer in the reply box under Output and press Enter.
-Do not close Lark while the program is waiting — that is what the reply box is for.
-
-Updates: if this zip included an update-feed.url file, Lark checks for newer builds when it opens
-and can download them. You can also paste an update feed under Aa → Updates.
-After "Update now", click Restart Lark (or fully close Lark and open Start Lark again).
 
 Connect GitHub from the GitHub button:
 1. Click "Create a GitHub token" (classic token with the repo scope).

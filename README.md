@@ -2,7 +2,7 @@
 
 Lark is a small Java IDE: several files and classes, an outline, compile and run, problems that jump to the line, and GitHub clone/push. It is meant to feel lighter than IntelliJ or Eclipse, and more useful than a single browser text box.
 
-The only install is a JDK 17 or newer. There is no Gradle, no Electron, and no plugin download. If Java is missing, Lark first reuses an IntelliJ IDEA JDK (project JDKs under `~/.jdks`, or the IDE’s bundled JetBrains Runtime when it includes `javac`). Otherwise the portable launcher downloads a private copy into your user folder — no administrator password. On locked school networks, drop a portable JDK zip next to Start Lark as `jdk.zip`, or unzip into a `jdk` folder beside the launcher.
+No admin install. The Windows / Mac / Linux download zips already include a portable JDK in a `jdk` folder, so Lark starts offline on school networks. There is no Gradle, no Electron, and no plugin download. If the bundled JDK is missing, Lark can reuse IntelliJ’s JDK (`~/.jdks` / JetBrains Runtime) or download one as a fallback.
 
 ## Download
 

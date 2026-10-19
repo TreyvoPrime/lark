@@ -303,9 +303,13 @@ fetch_java() {
 
 purge_broken_private
 
-JAVA_BIN=$(env_java || true)
+# Prefer the JDK shipped inside the Lark zip so school/offline PCs just work.
+JAVA_BIN=$(beside_java || true)
+if [ -n "$JAVA_BIN" ]; then
+  echo "Using the Java that came with Lark."
+fi
 if [ -z "$JAVA_BIN" ]; then
-  JAVA_BIN=$(beside_java || true)
+  JAVA_BIN=$(env_java || true)
 fi
 if [ -z "$JAVA_BIN" ]; then
   JAVA_BIN=$(system_java || true)
@@ -320,6 +324,7 @@ if [ -z "$JAVA_BIN" ]; then
   JAVA_BIN=$(unpack_local_zip || true)
 fi
 if [ -z "$JAVA_BIN" ]; then
+  echo "No bundled Java found. Trying to download one..."
   JAVA_BIN=$(fetch_java || true)
 fi
 if [ -z "$JAVA_BIN" ]; then
@@ -337,4 +342,6 @@ fi
 RUNDIR="${XDG_CACHE_HOME:-$HOME/.cache}/lark/run"
 mkdir -p "$RUNDIR"
 cp -f "$JAR" "$RUNDIR/lark.jar"
+echo "Starting Lark..."
+echo "Leave this terminal open while you use Lark. Your browser should open next."
 exec "$JAVA_BIN" -Dlark.install="$ROOT" -jar "$RUNDIR/lark.jar" "$@"
