@@ -39,21 +39,23 @@ public final class Updates {
                     "No update feed is set. Paste one under Aa → Updates, or keep update-feed.url next to Lark.");
         }
         try {
-            Api remote = get(feed);
+            Api remote = get(normalizeFeed(feed));
             if (remote.status < 200 || remote.status >= 300 || remote.obj == null) {
                 return result.put("message", "Couldn't read the update feed (" + remote.status + ").");
             }
-            String latest = remote.obj.str("version", "").trim();
-            String notes = remote.obj.str("notes", "");
+            FeedInfo info = parseFeed(feed, remote.obj);
+            String latest = info.version;
+            String notes = info.notes;
             String skipped = settings.skippedUpdate == null ? "" : settings.skippedUpdate;
             boolean newer = compareVersions(latest, Settings.VERSION) > 0;
             boolean skippedThis = newer && latest.equals(skipped);
-            String download = pickDownload(feed, remote.obj.obj("downloads"));
+            String download = info.download;
             result.put("available", newer && !skippedThis)
                     .put("latest", latest)
                     .put("notes", notes)
                     .put("download", download == null ? "" : download)
-                    .put("skipped", skippedThis);
+                    .put("skipped", skippedThis)
+                    .put("page", info.page == null ? "" : info.page);
             if (!newer) result.put("message", "You're on the latest Lark (" + Settings.VERSION + ").");
             else if (skippedThis) result.put("message", "Update " + latest + " is available, but you skipped it.");
             else result.put("message", "Lark " + latest + " is available.");
@@ -63,6 +65,59 @@ public final class Updates {
         } catch (RequestFail e) {
             return result.put("message", e.getMessage());
         }
+    }
+
+    private record FeedInfo(String version, String notes, String download, String page) {}
+
+    /** Accepts Lark update.json or a GitHub Releases /latest (or repo) URL. */
+    private FeedInfo parseFeed(String feed, Json.Obj obj) {
+        if (obj.has("tag_name") || obj.has("assets")) {
+            String tag = obj.str("tag_name", obj.str("name", "")).trim();
+            if (tag.startsWith("v") || tag.startsWith("V")) tag = tag.substring(1);
+            String notes = obj.str("body", obj.str("name", ""));
+            String page = obj.str("html_url", "");
+            Json.Obj downloads = assetsToDownloads(obj.arr("assets"));
+            String download = pickDownload(feed, downloads);
+            return new FeedInfo(tag, notes, download, page);
+        }
+        String latest = obj.str("version", "").trim();
+        String notes = obj.str("notes", "");
+        String download = pickDownload(feed, obj.obj("downloads"));
+        String page = obj.str("page", "");
+        return new FeedInfo(latest, notes, download, page);
+    }
+
+    private static Json.Obj assetsToDownloads(Json.Arr assets) {
+        Json.Obj downloads = new Json.Obj();
+        if (assets == null) return downloads;
+        for (int i = 0; i < assets.size(); i++) {
+            if (!(assets.get(i) instanceof Json.Obj asset)) continue;
+            String name = asset.str("name", "").toLowerCase(Locale.ROOT);
+            String url = asset.str("browser_download_url", "");
+            if (url.isBlank()) continue;
+            if (name.contains("windows")) downloads.put("windows", url);
+            else if (name.contains("mac") || name.contains("darwin")) downloads.put("mac", url);
+            else if (name.contains("linux")) downloads.put("linux", url);
+            else if (name.equals("lark.zip") || name.endsWith("/lark.zip")) downloads.put("any", url);
+            else if (name.contains("lark") && name.endsWith(".zip") && !downloads.has("any")) downloads.put("any", url);
+        }
+        return downloads;
+    }
+
+    static String normalizeFeed(String feed) {
+        if (feed == null) return "";
+        String value = feed.trim();
+        if (value.endsWith("/")) value = value.substring(0, value.length() - 1);
+        // https://github.com/owner/repo  -> releases/latest API
+        if (value.matches("(?i)https://github\\.com/[^/]+/[^/]+")) {
+            return "https://api.github.com/repos/" + value.substring("https://github.com/".length()) + "/releases/latest";
+        }
+        if (value.matches("(?i)https://github\\.com/[^/]+/[^/]+/releases(/latest)?")) {
+            String path = value.substring("https://github.com/".length());
+            String[] parts = path.split("/");
+            return "https://api.github.com/repos/" + parts[0] + "/" + parts[1] + "/releases/latest";
+        }
+        return value;
     }
 
     public Json.Obj install(String downloadUrl) {
@@ -245,13 +300,18 @@ public final class Updates {
 
     private Api get(String url) {
         try {
-            HttpRequest request = HttpRequest.newBuilder(URI.create(url))
+            boolean github = url.contains("api.github.com");
+            HttpRequest.Builder builder = HttpRequest.newBuilder(URI.create(url))
                     .timeout(Duration.ofSeconds(20))
-                    .header("Accept", "application/json")
                     .header("User-Agent", "Lark-IDE/" + Settings.VERSION)
-                    .GET()
-                    .build();
-            HttpResponse<String> response = http.send(request, HttpResponse.BodyHandlers.ofString());
+                    .GET();
+            if (github) {
+                builder.header("Accept", "application/vnd.github+json");
+                builder.header("X-GitHub-Api-Version", "2022-11-28");
+            } else {
+                builder.header("Accept", "application/json");
+            }
+            HttpResponse<String> response = http.send(builder.build(), HttpResponse.BodyHandlers.ofString());
             return Api.parse(response.statusCode(), response.body());
         } catch (InterruptedException e) {
             Thread.currentThread().interrupt();

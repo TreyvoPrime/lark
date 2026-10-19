@@ -4,15 +4,26 @@ Lark is a small Java IDE: several files and classes, an outline, compile and run
 
 The only install is a JDK 17 or newer. There is no Gradle, no Electron, and no plugin download. If Java is missing, the portable launcher downloads a private copy into your user folder. That step does not ask for an administrator password.
 
-## Take it to any computer
+## Download
 
-Unzip the portable folder into Downloads or Documents. The same folder works on Windows, Mac, and Linux.
+Grab a portable zip from **[GitHub Releases](../../releases/latest)** (Windows, Mac, or Linux). Unzip into Downloads or Documents, then:
 
 - Windows: double-click `Start Lark.bat`
 - Mac: double-click `Start Lark.command`
 - Linux: run `./start-lark.sh`
 
-Lark opens in its own window. It does not install into Program Files, and it does not need an administrator username or password. Build the zips with `./packaging/make-release.sh`.
+No administrator password. The same folder works on every OS — use the launcher for your computer.
+
+After the public repo is published, stable links look like:
+
+- `https://github.com/<you>/lark/releases/latest`
+- `https://github.com/<you>/lark/releases/latest/download/lark-windows.zip`
+
+Publish or refresh those assets with `./packaging/publish-github.sh` (requires `gh auth login`).
+
+## Take it to any computer
+
+Lark opens in its own window. It does not install into Program Files. Build local zips with `./packaging/make-release.sh`.
 
 ## Run from source
 
