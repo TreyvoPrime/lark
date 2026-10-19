@@ -1,4 +1,4 @@
-Lark 1.7.0
+Lark 1.7.1
 
 Unzip this folder into Downloads or Documents.
 This zip already includes a portable Java (the "jdk" folder), so Lark can start
