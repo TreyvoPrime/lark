@@ -1,0 +1,53 @@
+Paste these objects into a copy of the game's game/Governments.json,
+then save that full file as:
+
+mods/CrownsOfTheAtlantic/game/Governments.json
+
+The game loads Governments.json from the mod in place of the vanilla file.
+A partial file would remove the vanilla governments, so this folder does not
+ship Governments.json. Extra_Tag must stay unique. If the game already uses
+xa, xb, or xc, change them. AVAILABLE_SINCE_AGE_ID 0 makes them available
+from the first age. Raise it after you check game ages if you want them later.
+
+		{
+			Name: "ColonialAssembly",
+			Extra_Tag: "xa",
+			GOV_GROUP_ID: 0,
+			RulerTitle: Governor,
+			RulerRoman: false,
+			KingsImages: false,
+			Color: [20, 62, 120],
+			AVAILABLE_SINCE_AGE_ID: 0,
+			REVOLUTIONISTS: false,
+			AdvisorCost: -0.02,
+			MonthlyLegacy: 0.2,
+			MaxManpower: 800,
+		},
+		{
+			Name: "RevolutionaryRepublic",
+			Extra_Tag: "xb",
+			GOV_GROUP_ID: 1,
+			RulerTitle: President,
+			RulerRoman: false,
+			KingsImages: false,
+			Color: [176, 32, 40],
+			AVAILABLE_SINCE_AGE_ID: 0,
+			REVOLUTIONISTS: true,
+			AdvisorCost: 0.02,
+			MonthlyLegacy: 0.45,
+			MaxManpower: 1400,
+		},
+		{
+			Name: "LiberatedState",
+			Extra_Tag: "xc",
+			GOV_GROUP_ID: 1,
+			RulerTitle: President,
+			RulerRoman: false,
+			KingsImages: false,
+			Color: [214, 168, 0],
+			AVAILABLE_SINCE_AGE_ID: 0,
+			REVOLUTIONISTS: true,
+			AdvisorCost: 0,
+			MonthlyLegacy: 0.3,
+			MaxManpower: 1100,
+		},
