@@ -23,6 +23,7 @@ fi
 stage_update=$(mktemp -d)
 cp dist/lark.jar "$stage_update/lark.jar"
 cp "packaging/Start Lark.bat" "$stage_update/Start Lark.bat"
+cp "packaging/Start Lark.vbs" "$stage_update/Start Lark.vbs"
 cp packaging/finish-update.bat "$stage_update/finish-update.bat"
 cp packaging/start-lark.sh "$stage_update/start-lark.sh"
 cp packaging/start-lark.sh "$stage_update/Start Lark.command"
@@ -72,6 +73,7 @@ pack_platform() {
   stage=$(mktemp -d)
   cp dist/lark.jar "$stage/lark.jar"
   cp "packaging/Start Lark.bat" "$stage/Start Lark.bat"
+  cp "packaging/Start Lark.vbs" "$stage/Start Lark.vbs"
   cp packaging/finish-update.bat "$stage/finish-update.bat"
   cp packaging/start-lark.sh "$stage/start-lark.sh"
   cp packaging/start-lark.sh "$stage/Start Lark.command"

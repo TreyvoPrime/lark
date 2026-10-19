@@ -303,10 +303,17 @@ fetch_java() {
 
 purge_broken_private
 
+LOG="$ROOT/lark-boot.log"
+{
+  echo "Lark boot $(date)"
+  echo "ROOT=$ROOT"
+} >"$LOG"
+
 # Prefer the JDK shipped inside the Lark zip so school/offline PCs just work.
 JAVA_BIN=$(beside_java || true)
 if [ -n "$JAVA_BIN" ]; then
-  echo "Using the Java that came with Lark."
+  echo "Using the Java that came with Lark: $JAVA_BIN"
+  echo "JAVA=$JAVA_BIN (bundled)" >>"$LOG"
 fi
 if [ -z "$JAVA_BIN" ]; then
   JAVA_BIN=$(env_java || true)
@@ -328,7 +335,7 @@ if [ -z "$JAVA_BIN" ]; then
   JAVA_BIN=$(fetch_java || true)
 fi
 if [ -z "$JAVA_BIN" ]; then
-  echo "Lark could not find a complete Java 17 or newer."
+  echo "Lark could not find a complete Java 17 or newer." | tee -a "$LOG"
   school_help
   exit 1
 fi
@@ -338,10 +345,8 @@ if [ "${LARK_SKIP_LAUNCH:-}" = "1" ]; then
   exit 0
 fi
 
-# Run from a home copy so the install folder jar can be replaced on update.
-RUNDIR="${XDG_CACHE_HOME:-$HOME/.cache}/lark/run"
-mkdir -p "$RUNDIR"
-cp -f "$JAR" "$RUNDIR/lark.jar"
 echo "Starting Lark..."
 echo "Leave this terminal open while you use Lark. Your browser should open next."
-exec "$JAVA_BIN" -Dlark.install="$ROOT" -jar "$RUNDIR/lark.jar" "$@"
+echo "Launch $JAVA_BIN -jar $JAR" >>"$LOG"
+# Run the jar in place (same folder as this script).
+exec "$JAVA_BIN" -Dlark.install="$ROOT" -jar "$JAR" "$@"

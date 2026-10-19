@@ -7,10 +7,30 @@ import java.net.URI;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.Locale;
+import java.util.concurrent.CountDownLatch;
 
 /** Starts Lark and opens it. One requirement: a JDK. */
 public final class Lark {
-    public static void main(String[] args) throws Exception {
+    public static void main(String[] args) {
+        try {
+            boot(args);
+        } catch (Throwable t) {
+            System.err.println();
+            System.err.println("========== Lark failed to start ==========");
+            t.printStackTrace(System.err);
+            System.err.println("==========================================");
+            System.err.println("Press Enter to close this window...");
+            System.err.flush();
+            try {
+                System.in.read();
+            } catch (IOException ignored) {
+                // Ignore.
+            }
+            System.exit(1);
+        }
+    }
+
+    private static void boot(String[] args) throws Exception {
         int port = 43123;
         boolean browser = true;
         for (int i = 0; i < args.length; i++) {
@@ -35,18 +55,37 @@ public final class Lark {
             }
         }
 
+        System.out.println("Lark " + Settings.VERSION + " starting...");
+        System.out.flush();
+
         Settings settings = Settings.load();
-        // Keep Start Lark.bat / start-lark.sh current so Windows can replace lark.jar.
-        Updates.refreshLaunchers(Updates.installDir());
+        // Refresh launchers beside the install folder when possible.
+        try {
+            Updates.refreshLaunchers(Updates.installDir());
+        } catch (Throwable t) {
+            System.out.println("Note: could not refresh launchers (" + t.getMessage() + ")");
+        }
+
         Projects projects = new Projects(settings);
         projects.ensureSample();
         Server server = Server.start(port, projects, new Runner(), new GitHub(settings), settings);
         Runtime.getRuntime().addShutdownHook(new Thread(server::stop));
         String url = "http://127.0.0.1:" + server.port();
-        System.out.println("Lark is running at " + url);
-        System.out.println("Projects are stored in " + settings.projectsDir());
-        if (browser) open(url);
-        Thread.currentThread().join();
+        System.out.println();
+        System.out.println("====================================");
+        System.out.println("  Lark is running");
+        System.out.println("  " + url);
+        System.out.println("  Leave this window open.");
+        System.out.println("====================================");
+        System.out.println("Projects: " + settings.projectsDir());
+        System.out.flush();
+        if (browser) {
+            System.out.println("Opening your browser...");
+            System.out.flush();
+            open(url);
+        }
+        // Keep the JVM alive while the (daemon) HTTP threads serve the IDE.
+        new CountDownLatch(1).await();
     }
 
     private static void help() {
@@ -72,6 +111,13 @@ public final class Lark {
             if (launchApp(url, local, "Google", "Chrome", "Application", "chrome.exe")) return;
             if (launchApp(url, program, "Google", "Chrome", "Application", "chrome.exe")) return;
             if (launchApp(url, program86, "Google", "Chrome", "Application", "chrome.exe")) return;
+            // Last resort on Windows — always try the shell handler.
+            try {
+                new ProcessBuilder("cmd", "/c", "start", "", url).start();
+                return;
+            } catch (IOException ignored) {
+                // Fall through.
+            }
         } else if (os.contains("mac")) {
             if (macApp("Google Chrome", url)) return;
             if (macApp("Microsoft Edge", url)) return;
