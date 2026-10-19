@@ -37,25 +37,20 @@ if not exist "%JAR%" (
 rem ---------- find Java ----------
 
 rem 1) Bundled JDK from the Lark zip (preferred — works offline)
-if exist "%BUNDLED%" if exist "%BUNDLED_JAVAC%" if exist "%BUNDLED_CFG%" (
-  set "JAVAEXE=%BUNDLED%"
+rem Set OUTSIDE multi-line () blocks — those can leave JAVAEXE empty on Windows.
+if exist "%BUNDLED%" if exist "%BUNDLED_JAVAC%" if exist "%BUNDLED_CFG%" set "JAVAEXE=%BUNDLED%"
+if not "%JAVAEXE%"=="" (
   echo Using the Java that came with Lark:
-  echo   %BUNDLED%
+  echo   %JAVAEXE%
   goto :prepare
 )
 
 rem 2) LARK_JDK override
-if defined LARK_JDK (
-  if exist "%LARK_JDK%\bin\java.exe" if exist "%LARK_JDK%\bin\javac.exe" (
-    set "JAVAEXE=%LARK_JDK%\bin\java.exe"
-    echo Using LARK_JDK: %LARK_JDK%\bin\java.exe
-    goto :prepare
-  )
-  if exist "%LARK_JDK%" if /I "%LARK_JDK:~-8%"=="java.exe" (
-    set "JAVAEXE=%LARK_JDK%"
-    echo Using LARK_JDK: %LARK_JDK%
-    goto :prepare
-  )
+if "%JAVAEXE%"=="" if defined LARK_JDK if exist "%LARK_JDK%\bin\java.exe" if exist "%LARK_JDK%\bin\javac.exe" set "JAVAEXE=%LARK_JDK%\bin\java.exe"
+if "%JAVAEXE%"=="" if defined LARK_JDK if exist "%LARK_JDK%" if /I "%LARK_JDK:~-8%"=="java.exe" set "JAVAEXE=%LARK_JDK%"
+if not "%JAVAEXE%"=="" (
+  echo Using LARK_JDK: %JAVAEXE%
+  goto :prepare
 )
 
 rem 3) System Java on PATH (full path, never bare "java")
@@ -63,62 +58,70 @@ for /f "delims=" %%J in ('where java 2^>nul') do (
   call :check_java "%%J"
   if not errorlevel 1 (
     set "JAVAEXE=%%J"
-    echo Using system Java: %%J
-    goto :prepare
+    goto :got_system
   )
 )
+goto :after_system
+:got_system
+echo Using system Java: %JAVAEXE%
+goto :prepare
+:after_system
 
 rem 4) IntelliJ project JDKs
-if exist "%USERPROFILE%\.jdks" (
-  for /f "delims=" %%J in ('dir /s /b "%USERPROFILE%\.jdks\java.exe" 2^>nul') do (
-    call :check_java "%%J"
-    if not errorlevel 1 (
-      set "JAVAEXE=%%J"
-      echo Using IntelliJ JDK: %%J
-      goto :prepare
-    )
+if exist "%USERPROFILE%\.jdks" for /f "delims=" %%J in ('dir /s /b "%USERPROFILE%\.jdks\java.exe" 2^>nul') do (
+  call :check_java "%%J"
+  if not errorlevel 1 (
+    set "JAVAEXE=%%J"
+    goto :got_idea_jdk
   )
 )
+goto :after_idea_jdk
+:got_idea_jdk
+echo Using IntelliJ JDK: %JAVAEXE%
+goto :prepare
+:after_idea_jdk
 
-rem 5) IntelliJ / Android Studio / Toolbox JBR
+rem 5) IntelliJ / Toolbox JBR
 for /f "delims=" %%J in ('dir /s /b "%LOCALAPPDATA%\Programs\IntelliJ IDEA*\jbr\bin\java.exe" 2^>nul') do (
   call :check_java "%%J"
   if not errorlevel 1 (
     set "JAVAEXE=%%J"
-    echo Using IntelliJ JBR: %%J
-    goto :prepare
+    goto :got_jbr
   )
 )
 for /f "delims=" %%J in ('dir /s /b "%ProgramFiles%\JetBrains\IntelliJ IDEA*\jbr\bin\java.exe" 2^>nul') do (
   call :check_java "%%J"
   if not errorlevel 1 (
     set "JAVAEXE=%%J"
-    echo Using IntelliJ JBR: %%J
-    goto :prepare
+    goto :got_jbr
   )
 )
-if exist "%LOCALAPPDATA%\JetBrains\Toolbox\apps" (
-  for /f "delims=" %%J in ('dir /s /b "%LOCALAPPDATA%\JetBrains\Toolbox\apps\jbr\bin\java.exe" 2^>nul') do (
-    call :check_java "%%J"
-    if not errorlevel 1 (
-      set "JAVAEXE=%%J"
-      echo Using JetBrains Toolbox Java: %%J
-      goto :prepare
-    )
+if exist "%LOCALAPPDATA%\JetBrains\Toolbox\apps" for /f "delims=" %%J in ('dir /s /b "%LOCALAPPDATA%\JetBrains\Toolbox\apps\jbr\bin\java.exe" 2^>nul') do (
+  call :check_java "%%J"
+  if not errorlevel 1 (
+    set "JAVAEXE=%%J"
+    goto :got_jbr
   )
 )
+goto :after_jbr
+:got_jbr
+echo Using JetBrains Java: %JAVAEXE%
+goto :prepare
+:after_jbr
 
 rem 6) Previously downloaded private JDK
-if exist "%LARK_HOME%" (
-  for /f "delims=" %%J in ('dir /s /b "%LARK_HOME%\java.exe" 2^>nul') do (
-    call :check_java "%%J"
-    if not errorlevel 1 (
-      set "JAVAEXE=%%J"
-      echo Using private Java: %%J
-      goto :prepare
-    )
+if exist "%LARK_HOME%" for /f "delims=" %%J in ('dir /s /b "%LARK_HOME%\java.exe" 2^>nul') do (
+  call :check_java "%%J"
+  if not errorlevel 1 (
+    set "JAVAEXE=%%J"
+    goto :got_private
   )
 )
+goto :after_private
+:got_private
+echo Using private Java: %JAVAEXE%
+goto :prepare
+:after_private
 
 echo.
 echo Could not find a working Java 17+.
