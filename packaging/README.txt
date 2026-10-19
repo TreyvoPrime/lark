@@ -1,4 +1,4 @@
-Lark 1.6.6
+Lark 1.6.7
 
 Unzip this folder into Downloads or Documents.
 Lark does not install for every user, and it never asks for an administrator password.

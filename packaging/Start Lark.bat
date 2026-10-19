@@ -120,9 +120,25 @@ if errorlevel 1 (
   pause
   exit /b 1
 )
-"%JAVAEXE%" -Dlark.install="%~dp0" -jar "%RUNDIR%\lark.jar"
-if errorlevel 1 pause
-exit /b %ERRORLEVEL%
+if not exist "%RUNDIR%\lark.jar" (
+  echo lark.jar failed to copy into the run folder.
+  pause
+  exit /b 1
+)
+
+rem %~dp0 ends with a backslash. Quoting -Dlark.install="C:\path\" breaks the
+rem closing quote on Windows, so Java never sees -jar and only prints Usage.
+set "INSTALL=%~dp0"
+if "%INSTALL:~-1%"=="\" set "INSTALL=%INSTALL:~0,-1%"
+echo Starting Lark...
+"%JAVAEXE%" "-Dlark.install=%INSTALL%" -jar "%RUNDIR%\lark.jar"
+set "ERR=%ERRORLEVEL%"
+if not "%ERR%"=="0" (
+  echo.
+  echo Lark exited with code %ERR%.
+  pause
+)
+exit /b %ERR%
 
 :download_jdk
 set "ARCH=x64"
