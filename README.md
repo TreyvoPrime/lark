@@ -6,7 +6,9 @@ The only install is a JDK 17 or newer. There is no Gradle, no Electron, and no p
 
 ## Download
 
-Grab a portable zip from **[GitHub Releases](https://github.com/TreyvoPrime/lark/releases/latest)** (Windows, Mac, or Linux). Unzip into Downloads or Documents, then:
+Permanent download site (always online): **[treyvoprime.github.io/lark](https://treyvoprime.github.io/lark/)**
+
+Or grab a zip from **[GitHub Releases](https://github.com/TreyvoPrime/lark/releases/latest)** (Windows, Mac, or Linux). Unzip into Downloads or Documents, then:
 
 - Windows: double-click `Start Lark.bat`
 - Mac: double-click `Start Lark.command`

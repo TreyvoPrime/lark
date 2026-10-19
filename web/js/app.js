@@ -156,7 +156,8 @@
       indentWithTabs: false,
       lineWrapping: false,
       matchBrackets: true,
-      autoCloseBrackets: true,
+      // Do not auto-pair /* */ — that fights IntelliJ-style /** Javadoc expansion.
+      autoCloseBrackets: { pairs: "()[]{}''\"\"", explode: "[]{}" },
       styleActiveLine: true,
       extraKeys: {
         "Tab": function (editor) {
@@ -164,6 +165,10 @@
           else editor.replaceSelection("    ", "end");
         },
         "Shift-Tab": "indentLess",
+        "Enter": function (editor) {
+          if (tryExpandJavadoc(editor)) return;
+          return CodeMirror.Pass;
+        },
         "Ctrl-/": "toggleComment",
         "Cmd-/": "toggleComment",
         "Ctrl-F": "find",
@@ -197,25 +202,76 @@
     });
   }
 
-  function maybeExpandJavadoc(editor, change) {
-    if (!change || !change.text || change.origin === "setValue") return;
-    if (change.text.length !== 1) return;
-    const inserted = change.text[0];
-    if (inserted !== "*" && inserted !== "/") return;
-    const lineNo = change.from.line;
+  function javadocTriggerLine(line) {
+    const trimmed = (line || "").trim();
+    // Bare opener, or the broken form autoCloseBrackets sometimes leaves behind.
+    return trimmed === "/**" || trimmed === "/***" || trimmed === "/**/" || trimmed === "/***/";
+  }
+
+  function buildJavadocStub(editor, lineNo, indent) {
+    const lines = [indent + "/**", indent + " * "];
+    const following = [];
+    for (let i = lineNo + 1; i < Math.min(editor.lineCount(), lineNo + 8); i++) {
+      const text = (editor.getLine(i) || "").trim();
+      if (!text) continue;
+      if (text.startsWith("@") || text.startsWith("//") || text.startsWith("*")) continue;
+      following.push(text);
+      if (text.includes("{") || text.includes(";")) break;
+    }
+    const joined = following.join(" ");
+    const method = joined.match(/^(?:public|protected|private|static|final|synchronized|native|abstract|default|\s)+([A-Za-z_][\w.<>,\[\]?]*)\s+([A-Za-z_]\w*)\s*\(([^)]*)\)/);
+    const ctor = !method && joined.match(/^(?:public|protected|private|\s)+([A-Za-z_]\w*)\s*\(([^)]*)\)/);
+    const params = (method ? method[3] : (ctor ? ctor[2] : "") || "").trim();
+    if (params) {
+      params.split(",").forEach((part) => {
+        const bits = part.trim().replace(/^final\s+/, "").split(/\s+/).filter(Boolean);
+        const name = bits[bits.length - 1];
+        if (name) lines.push(indent + " * @param " + name + " ");
+      });
+    }
+    if (method && method[1] && method[1] !== "void") {
+      lines.push(indent + " * @return ");
+    }
+    lines.push(indent + " */");
+    return lines.join("\n");
+  }
+
+  function expandJavadocAt(editor, lineNo) {
     const line = editor.getLine(lineNo) || "";
-    const trimmed = line.trim();
-    if (trimmed !== "/**") return;
+    if (!javadocTriggerLine(line)) return false;
+    // Already a finished block on the next lines? Don't double-expand.
+    const next = editor.getLine(lineNo + 1) || "";
+    if (/^\s*\*\s/.test(next) || /^\s*\*\//.test(next)) return false;
     const indent = line.match(/^\s*/)[0];
-    const stub = [
-      "/**",
-      indent + " * ",
-      indent + " */"
-    ].join("\n");
+    const stub = buildJavadocStub(editor, lineNo, indent);
     suppress = true;
     editor.replaceRange(stub, { line: lineNo, ch: 0 }, { line: lineNo, ch: line.length });
     editor.setCursor({ line: lineNo + 1, ch: (indent + " * ").length });
     suppress = false;
+    return true;
+  }
+
+  function tryExpandJavadoc(editor) {
+    const cursor = editor.getCursor();
+    return expandJavadocAt(editor, cursor.line);
+  }
+
+  function maybeExpandJavadoc(editor, change) {
+    if (!change || !change.text || change.origin === "setValue") return;
+    // Expand as soon as the opener is typed, and also when Enter inserts a newline after /**.
+    const lineNo = change.from.line;
+    const line = editor.getLine(lineNo) || "";
+    if (javadocTriggerLine(line)) {
+      // Defer so the typed character is fully in the document.
+      setTimeout(() => {
+        if (suppress) return;
+        expandJavadocAt(editor, lineNo);
+      }, 0);
+      return;
+    }
+    if (change.text.length === 1 && change.text[0] === "" && change.from.line === change.to.line) {
+      // no-op
+    }
   }
 
   function completeHint(editor) {

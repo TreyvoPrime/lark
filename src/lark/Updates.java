@@ -35,8 +35,7 @@ public final class Updates {
                 .put("feed", feed == null ? "" : feed)
                 .put("available", false);
         if (feed == null || feed.isBlank()) {
-            return result.put("message",
-                    "No update feed is set. Paste one under Aa → Updates, or keep update-feed.url next to Lark.");
+            return result.put("message", "No update feed is set.");
         }
         try {
             Api remote = get(normalizeFeed(feed));
@@ -203,7 +202,8 @@ public final class Updates {
                 }
             }
         }
-        return "";
+        // Always fall back to the public GitHub Releases feed so updates stay available.
+        return Settings.DEFAULT_UPDATE_FEED;
     }
 
     static int compareVersions(String a, String b) {

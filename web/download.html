@@ -38,36 +38,31 @@
       background: #1f2421;
       font-size: 13px;
     }
+    .hero-cta { display: flex; flex-wrap: wrap; gap: 10px; margin-top: 22px; }
+    .hero-cta a {
+      display: inline-flex; align-items: center; justify-content: center;
+      text-decoration: none; border-radius: 6px; padding: 12px 16px; font-weight: 700;
+    }
+    .hero-cta .primary { background: #7f9a6c; color: #12170f; }
+    .hero-cta .ghost { border: 1px solid #2c342f; color: #e6ebe4; background: #1f2421; }
     .grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 12px; margin-top: 28px; }
     article {
-      background: #1f2421;
-      border: 1px solid #2c342f;
-      border-radius: 10px;
-      padding: 18px;
-      display: flex;
-      flex-direction: column;
-      gap: 8px;
-      min-height: 210px;
+      background: #1f2421; border: 1px solid #2c342f; border-radius: 10px;
+      padding: 18px; display: flex; flex-direction: column; gap: 8px; min-height: 210px;
     }
     article.pick { border-color: #7f9a6c; }
     h2 { margin: 0; font-size: 17px; font-weight: 650; }
     p { margin: 0; color: #9aa89a; line-height: 1.5; }
     code { font-family: "JetBrains Mono", ui-monospace, monospace; color: #dfe6d8; font-size: 0.92em; }
     a.dl {
-      margin-top: auto;
-      display: inline-flex;
-      justify-content: center;
-      text-decoration: none;
-      background: #7f9a6c;
-      color: #12170f;
-      font-weight: 700;
-      border-radius: 6px;
-      padding: 11px 14px;
+      margin-top: auto; display: inline-flex; justify-content: center; text-decoration: none;
+      background: #7f9a6c; color: #12170f; font-weight: 700; border-radius: 6px; padding: 11px 14px;
     }
-    a.dl:hover { filter: brightness(1.05); }
-    ol { margin: 28px 0 0; padding-left: 1.2em; line-height: 1.6; }
+    a.dl:hover, .hero-cta .primary:hover { filter: brightness(1.05); }
+    ol { margin: 28px 0 0; padding-left: 1.2em; line-height: 1.6; color: #c9d3c4; }
     a { color: #9bb58a; }
-    #status { min-height: 1.4em; color: #e6ebe4; }
+    #status { min-height: 1.4em; margin-top: 14px; color: #e6ebe4; }
+    .foot { margin-top: 28px; color: #9aa89a; font-size: 14px; }
     @media (max-width: 760px) { .grid { grid-template-columns: 1fr; } }
   </style>
 </head>
@@ -80,48 +75,57 @@
       </svg>
       <strong>Lark</strong>
     </header>
-    <h1>One folder. Any computer.</h1>
-    <p class="lead">Download Lark, unzip it, and open the launcher for this computer. It stays in your user folder. It does not ask for an administrator username or password.</p>
-    <span class="note">Windows, Mac, and Linux use the same folder</span>
+    <h1>Download Lark</h1>
+    <p class="lead">Unzip one folder and open the launcher. No administrator password. Prefer the permanent site when sharing with classmates.</p>
+    <span class="note">Permanent site: treyvoprime.github.io/lark</span>
+    <div class="hero-cta">
+      <a id="primary-dl" class="primary" href="https://github.com/TreyvoPrime/lark/releases/latest/download/lark-windows.zip">Download for your computer</a>
+      <a class="ghost" href="https://treyvoprime.github.io/lark/">Open permanent download site</a>
+      <a class="ghost" href="https://github.com/TreyvoPrime/lark/releases/latest">GitHub Releases</a>
+    </div>
+    <p id="status"></p>
     <div class="grid">
       <article id="card-windows">
         <h2>Windows</h2>
         <p>Unzip, then double-click <code>Start Lark.bat</code>.</p>
-        <a class="dl" href="/lark-windows.zip">Download for Windows</a>
+        <a class="dl" data-file="lark-windows.zip" href="https://github.com/TreyvoPrime/lark/releases/latest/download/lark-windows.zip">Download for Windows</a>
       </article>
       <article id="card-mac">
         <h2>Mac</h2>
-        <p>Unzip, then double-click <code>Start Lark.command</code>. If macOS warns you, right-click and choose Open.</p>
-        <a class="dl" href="/lark-mac.zip">Download for Mac</a>
+        <p>Unzip, then double-click <code>Start Lark.command</code>.</p>
+        <a class="dl" data-file="lark-mac.zip" href="https://github.com/TreyvoPrime/lark/releases/latest/download/lark-mac.zip">Download for Mac</a>
       </article>
       <article id="card-linux">
         <h2>Linux</h2>
-        <p>Unzip, open that folder in a terminal, and run <code>./start-lark.sh</code>.</p>
-        <a class="dl" href="/lark-linux.zip">Download for Linux</a>
+        <p>Unzip and run <code>./start-lark.sh</code>.</p>
+        <a class="dl" data-file="lark-linux.zip" href="https://github.com/TreyvoPrime/lark/releases/latest/download/lark-linux.zip">Download for Linux</a>
       </article>
     </div>
-    <p id="status"></p>
     <ol>
-      <li>Save the zip into Downloads or Documents.</li>
-      <li>Unzip it. You should see <code>lark.jar</code> next to the launcher.</li>
-      <li>Open the launcher. If Java is missing, Lark downloads a private copy into your user folder the first time.</li>
-      <li>In Lark, open GitHub, create a classic token with the <code>repo</code> scope, paste it, and connect.</li>
+      <li>Use the green button for your OS (always the latest release).</li>
+      <li>Unzip into Downloads or Documents.</li>
+      <li>Open the launcher. Lark can fetch a private JDK if needed.</li>
     </ol>
+    <p class="foot">Local mirror links also work while this Lark server is running: <a href="/lark-windows.zip">windows</a>, <a href="/lark-mac.zip">mac</a>, <a href="/lark-linux.zip">linux</a>.</p>
   </main>
   <script>
+    const REPO = "TreyvoPrime/lark";
+    const gh = (name) => "https://github.com/" + REPO + "/releases/latest/download/" + name;
+    const local = location.hostname === "127.0.0.1" || location.hostname === "localhost";
     const platform = (navigator.userAgentData && navigator.userAgentData.platform) || navigator.platform || "";
     const ua = navigator.userAgent || "";
-    let key = "linux";
-    if (/Win/i.test(platform) || /Windows/i.test(ua)) key = "windows";
-    else if (/Mac/i.test(platform) || /Mac OS/i.test(ua)) key = "mac";
+    let key = "linux", file = "lark-linux.zip", label = "Download for Linux";
+    if (/Win/i.test(platform) || /Windows/i.test(ua)) { key = "windows"; file = "lark-windows.zip"; label = "Download for Windows"; }
+    else if (/Mac/i.test(platform) || /Mac OS/i.test(ua)) { key = "mac"; file = "lark-mac.zip"; label = "Download for Mac"; }
     const card = document.getElementById("card-" + key);
     if (card) card.classList.add("pick");
-    const status = document.getElementById("status");
-    status.textContent = key === "windows"
-      ? "This looks like Windows. Use the Windows button."
-      : key === "mac"
-        ? "This looks like a Mac. Use the Mac button."
-        : "This looks like Linux. Use the Linux button.";
+    const primary = document.getElementById("primary-dl");
+    primary.href = local ? ("/" + file) : gh(file);
+    primary.textContent = label;
+    document.querySelectorAll("a.dl[data-file]").forEach((a) => {
+      a.href = local ? ("/" + a.dataset.file) : gh(a.dataset.file);
+    });
+    document.getElementById("status").textContent = "Ready — " + label.toLowerCase() + ".";
   </script>
 </body>
 </html>
