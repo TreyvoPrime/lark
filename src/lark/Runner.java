@@ -286,14 +286,34 @@ public final class Runner {
         List<Problem> list = new ArrayList<>();
         if (stderr == null || stderr.isBlank()) return list;
         String prefix = project.toAbsolutePath().toString().replace('\\', '/');
-        for (String line : stderr.split("\\R")) {
-            Matcher matcher = DIAG.matcher(line.trim());
+        String[] lines = stderr.split("\\R");
+        for (int i = 0; i < lines.length; i++) {
+            Matcher matcher = DIAG.matcher(lines[i].trim());
             if (!matcher.matches()) continue;
             String file = matcher.group(1).replace('\\', '/');
             if (file.startsWith(prefix + "/")) file = file.substring(prefix.length() + 1);
             int lineNo = Integer.parseInt(matcher.group(2));
             int column = matcher.group(3) == null ? 0 : Integer.parseInt(matcher.group(3));
-            list.add(new Problem(file, lineNo, column, matcher.group(4), matcher.group(5)));
+            String severity = matcher.group(4);
+            StringBuilder message = new StringBuilder(matcher.group(5));
+            // Pull in javac follow-up lines (symbol: / location:) so explanations can name what was missing.
+            for (int j = i + 1; j < lines.length && j <= i + 4; j++) {
+                String extra = lines[j].trim();
+                if (extra.isEmpty()) continue;
+                if (DIAG.matcher(extra).matches()) break;
+                if (extra.startsWith("^")) continue;
+                if (extra.startsWith("symbol:") || extra.startsWith("location:")
+                        || extra.startsWith("required:") || extra.startsWith("found:")
+                        || extra.startsWith("reason:")) {
+                    message.append(' ').append(extra);
+                    i = j;
+                } else {
+                    break;
+                }
+            }
+            String full = message.toString();
+            Errors.Explained explained = Errors.explainCompile(full);
+            list.add(new Problem(file, lineNo, column, severity, full, explained.plain(), explained.hint()));
         }
         return list;
     }
@@ -349,14 +369,24 @@ public final class Runner {
         return out.toString();
     }
 
-    public record Problem(String file, int line, int column, String severity, String message) {
+    public record Problem(
+            String file,
+            int line,
+            int column,
+            String severity,
+            String message,
+            String plain,
+            String hint
+    ) {
         Json.Obj toJson() {
             return new Json.Obj()
                     .put("file", file)
                     .put("line", line)
                     .put("column", column)
                     .put("severity", severity)
-                    .put("message", message);
+                    .put("message", message)
+                    .put("plain", plain == null ? "" : plain)
+                    .put("hint", hint == null ? "" : hint);
         }
     }
 

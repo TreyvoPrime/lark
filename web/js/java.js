@@ -26,8 +26,58 @@
     private: "private means only code inside this class can use the member. Other classes must go through public methods.",
     public: "public means any class can use this member. Use it for constructors and methods you want callers to reach.",
     static: "static belongs to the class itself, not one object. Call it with ClassName.method() without creating an instance.",
-    this: "this refers to the current object. Use it when a parameter name matches a field, like this.title = title."
+    this: "this refers to the current object. Use it when a parameter name matches a field, like this.title = title.",
+    override: "@Override tells the compiler you mean to replace a superclass method — it catches typos in the method name.",
+    final: "final means the variable can be assigned only once. On a class it means no subclasses; on a method it means no overrides.",
+    extends: "extends means this class inherits fields and methods from another class (one parent only).",
+    implements: "implements means this class promises to provide the methods listed in an interface.",
+    super: "super refers to the parent class — use super() in a constructor or super.method() to call the parent's version."
   };
+
+  /** Autofill snippets: trigger prefix → insert text + short label. */
+  const SNIPPETS = [
+    { id: "main", trigger: "main", label: "main method", text:
+      "public static void main(String[] args) {\n    \n}" },
+    { id: "sout", trigger: "sout", label: "println", text: "System.out.println();" },
+    { id: "souf", trigger: "souf", label: "printf", text: "System.out.printf(\"%s%n\", );" },
+    { id: "serr", trigger: "serr", label: "print error", text: "System.err.println();" },
+    { id: "fori", trigger: "fori", label: "for i loop", text:
+      "for (int i = 0; i < n; i++) {\n    \n}" },
+    { id: "foreach", trigger: "foreach", label: "for-each loop", text:
+      "for (Type item : collection) {\n    \n}" },
+    { id: "while", trigger: "while", label: "while loop", text:
+      "while (condition) {\n    \n}" },
+    { id: "dowhile", trigger: "dowhile", label: "do-while loop", text:
+      "do {\n    \n} while (condition);" },
+    { id: "if", trigger: "if", label: "if statement", text:
+      "if (condition) {\n    \n}" },
+    { id: "ife", trigger: "ife", label: "if / else", text:
+      "if (condition) {\n    \n} else {\n    \n}" },
+    { id: "switch", trigger: "switch", label: "switch", text:
+      "switch (value) {\n    case 1:\n        break;\n    default:\n        break;\n}" },
+    { id: "try", trigger: "try", label: "try / catch", text:
+      "try {\n    \n} catch (Exception e) {\n    System.out.println(e.getMessage());\n}" },
+    { id: "tryr", trigger: "tryr", label: "try-with-resources", text:
+      "try (Scanner in = new Scanner(System.in)) {\n    \n}" },
+    { id: "scanner", trigger: "scanner", label: "Scanner input", text:
+      "Scanner in = new Scanner(System.in);\nString line = in.nextLine();" },
+    { id: "list", trigger: "list", label: "ArrayList", text:
+      "List<String> list = new ArrayList<>();" },
+    { id: "map", trigger: "map", label: "HashMap", text:
+      "Map<String, Integer> map = new HashMap<>();" },
+    { id: "arr", trigger: "arr", label: "int array", text:
+      "int[] nums = new int[10];" },
+    { id: "class", trigger: "class", label: "simple class", text:
+      "public class Name {\n    \n}" },
+    { id: "record", trigger: "record", label: "record", text:
+      "public record Name(String field) {\n}" },
+    { id: "equalshash", trigger: "equalshash", label: "equals + hashCode stubs", text:
+      "@Override\npublic boolean equals(Object o) {\n    if (this == o) return true;\n    if (o == null || getClass() != o.getClass()) return false;\n    Name other = (Name) o;\n    return true;\n}\n\n@Override\npublic int hashCode() {\n    return Objects.hash();\n}" },
+    { id: "tostring", trigger: "tostring", label: "toString stub", text:
+      "@Override\npublic String toString() {\n    return \"Name{}\";\n}" },
+    { id: "javadoc", trigger: "javadoc", label: "Javadoc", text:
+      "/**\n * \n * @param \n * @return \n */" }
+  ];
 
   function blankNoise(source) {
     const out = source.split("");
@@ -210,6 +260,8 @@
           line: field.line,
           column: 1,
           message: "Private field '" + field.name + "' has no getter or setter. Other classes cannot read or change it.",
+          plain: "`" + field.name + "` is private, so other classes cannot reach it yet.",
+          hint: "Use Java → Generate getters / setters, or Java → Quick fix: missing accessors.",
           code: "missing-accessors",
           field: field.name
         });
@@ -219,6 +271,8 @@
           line: field.line,
           column: 1,
           message: "Private field '" + field.name + "' has no getter (" + info.getter + ").",
+          plain: "`" + field.name + "` is private and has no getter method.",
+          hint: "Add `" + info.getter + "()` via Java → Generate getters / setters.",
           code: "missing-getter",
           field: field.name
         });
@@ -245,6 +299,8 @@
           line: maxLine,
           column: 1,
           message: "Unbalanced braces or parentheses near this line.",
+          plain: "A `{`, `}`, `(`, or `)` does not match near this line.",
+          hint: "Count braces from the top of the class. Every opener needs a closer.",
           code: "unbalanced"
         }];
       }
@@ -256,6 +312,10 @@
         line: maxLine,
         column: 1,
         message: depth > 0 ? "Missing closing brace(s)." : "Extra closing brace(s).",
+        plain: depth > 0
+          ? "This file is missing " + depth + " closing brace(s) `}`."
+          : "This file has extra closing brace(s) `}`.",
+        hint: "Scroll to the end of the class and add or remove `}` until the structure matches.",
         code: "unbalanced-brace"
       });
     }
@@ -265,9 +325,45 @@
         line: maxLine,
         column: 1,
         message: paren > 0 ? "Missing closing parenthesis." : "Extra closing parenthesis.",
+        plain: paren > 0
+          ? "A `(` was never closed with `)`."
+          : "There is an extra `)` without a matching `(`.",
+        hint: "Check method calls and if/for conditions on recent lines.",
         code: "unbalanced-paren"
       });
     }
+    return out;
+  }
+
+  function styleWarnings(source) {
+    const out = [];
+    const lines = (source || "").split("\n");
+    lines.forEach((line, i) => {
+      const lineNo = i + 1;
+      // String compared with == "literal" or "literal" ==
+      if (/(["'][^"']*["'])\s*==\s*\w|\w\s*==\s*(["'][^"']*["'])/.test(line) && !/==\s*null|null\s*==/.test(line)) {
+        out.push({
+          severity: "warning",
+          line: lineNo,
+          column: 1,
+          message: "Comparing Strings with == checks the same object, not the same text.",
+          plain: "You are comparing text with `==`. That often fails even when the words look the same.",
+          hint: "Use `.equals(\"text\")` (or `Objects.equals(a, b)`) for String content.",
+          code: "string-eq"
+        });
+      }
+      if (/\b(if|for|while)\s*\([^;]*\)\s*;\s*$/.test(line)) {
+        out.push({
+          severity: "warning",
+          line: lineNo,
+          column: 1,
+          message: "Empty statement after if/for/while — the next line is not inside the loop.",
+          plain: "There is a `;` right after `if`/`for`/`while`, so the body never runs as part of it.",
+          hint: "Remove that semicolon and put `{ ... }` on the following lines.",
+          code: "empty-control"
+        });
+      }
+    });
     return out;
   }
 
@@ -331,7 +427,9 @@
       if (depth < 0) depth = 0;
       while (stack.length && depth <= stack[stack.length - 1].depth) stack.pop();
     }
-    const warnings = accessorWarnings(symbols).concat(braceWarnings(source));
+    const warnings = accessorWarnings(symbols)
+      .concat(braceWarnings(source))
+      .concat(styleWarnings(source));
     return {
       pkg: pkg,
       imports: imports,
@@ -381,6 +479,62 @@
     );
   }
 
+  function generateMain() {
+    return (
+      "    public static void main(String[] args) {\n" +
+      "        \n" +
+      "    }\n"
+    );
+  }
+
+  function generateToString(className, fields) {
+    const list = fields || [];
+    let expr;
+    if (!list.length) {
+      expr = "\"" + className + "{}\"";
+    } else {
+      const chunks = ["\"" + className + "{\""];
+      list.forEach((f, i) => {
+        if (i > 0) chunks.push("\", \"");
+        chunks.push("\"" + f.name + "=\" + " + f.name);
+      });
+      chunks.push("\"}\"");
+      expr = chunks.join(" + ");
+    }
+    return (
+      "    @Override\n" +
+      "    public String toString() {\n" +
+      "        return " + expr + ";\n" +
+      "    }\n"
+    );
+  }
+
+  function generateEqualsHashCode(className, fields) {
+    const list = fields || [];
+    const eqs = list.map((f) => {
+      const t = f.type || f.detail || "";
+      if (/^(int|long|short|byte|char|boolean|float|double)$/.test(t)) {
+        return "                " + f.name + " == other." + f.name;
+      }
+      return "                Objects.equals(" + f.name + ", other." + f.name + ")";
+    });
+    const eqBody = eqs.length ? eqs.join(" &&\n") : "                true";
+    const hashArgs = list.map((f) => f.name).join(", ");
+    return (
+      "    @Override\n" +
+      "    public boolean equals(Object o) {\n" +
+      "        if (this == o) return true;\n" +
+      "        if (o == null || getClass() != o.getClass()) return false;\n" +
+      "        " + className + " other = (" + className + ") o;\n" +
+      "        return\n" + eqBody + ";\n" +
+      "    }\n\n" +
+      "    @Override\n" +
+      "    public int hashCode() {\n" +
+      "        return Objects.hash(" + hashArgs + ");\n" +
+      "    }\n"
+    );
+  }
+
   function classSummary(parsed) {
     const types = parsed.symbols.filter((s) => s.kind === "class" || s.kind === "interface" || s.kind === "enum" || s.kind === "record");
     const fields = parsed.symbols.filter((s) => s.kind === "field");
@@ -410,7 +564,13 @@
       LocalDate: "java.time.LocalDate",
       LocalDateTime: "java.time.LocalDateTime",
       Path: "java.nio.file.Path",
-      Files: "java.nio.file.Files"
+      Files: "java.nio.file.Files",
+      Random: "java.util.Random",
+      Comparator: "java.util.Comparator",
+      StringBuilder: "java.lang.StringBuilder",
+      IOException: "java.io.IOException",
+      File: "java.io.File",
+      PrintWriter: "java.io.PrintWriter"
     };
     const out = [];
     if (known[token]) out.push(known[token]);
@@ -420,14 +580,24 @@
     return out;
   }
 
+  function matchingSnippets(prefix) {
+    const lower = (prefix || "").toLowerCase();
+    return SNIPPETS.filter((s) => !lower || s.trigger.startsWith(lower) || s.label.toLowerCase().includes(lower));
+  }
+
   return {
     parseJava: parseJava,
     blankNoise: blankNoise,
     keywords: Array.from(KEYWORDS).sort(),
     typeWords: Array.from(TYPE_WORDS).sort(),
+    snippets: SNIPPETS.slice(),
+    matchingSnippets: matchingSnippets,
     explain: explain,
     generateGetterSetter: generateGetterSetter,
     generateConstructor: generateConstructor,
+    generateMain: generateMain,
+    generateToString: generateToString,
+    generateEqualsHashCode: generateEqualsHashCode,
     classSummary: classSummary,
     suggestImports: suggestImports,
     getterName: getterName,

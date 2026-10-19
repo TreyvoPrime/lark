@@ -10,14 +10,15 @@ import java.util.Set;
 
 /** Preferences stored in the home folder. The GitHub token never leaves this machine except for GitHub. */
 public final class Settings {
-    public static final String VERSION = "1.8.5";
+    public static final String VERSION = "1.9.0";
     /** Default public update feed — always the latest GitHub release JSON companion. */
     public static final String DEFAULT_UPDATE_FEED =
             "https://github.com/TreyvoPrime/lark/releases/latest/download/update.json";
     public static final Set<String> THEMES = Set.of(
             "desk", "daylight", "moss", "ember", "fog",
             "blossom", "candy", "midnight", "citrus", "harbor",
-            "graphite", "navy", "terminal", "parchment", "ultraviolet", "forest", "monochrome", "amber"
+            "graphite", "navy", "terminal", "parchment", "ultraviolet", "forest", "monochrome", "amber",
+            "lagoon", "rosewood"
     );
     private static final Map<String, String> THEME_ALIASES = Map.of(
             "ink", "desk",

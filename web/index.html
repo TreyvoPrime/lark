@@ -98,9 +98,9 @@
                 <section>
                   <h2>Practice tips</h2>
                   <ul class="welcome-tips">
-                    <li>Use <strong>Java → Generate getters/setters</strong> while learning encapsulation.</li>
+                    <li>Use <strong>Java → Insert building block</strong> or type <code>main</code> / <code>fori</code> / <code>sout</code> then <kbd>Ctrl+Space</kbd>.</li>
+                    <li>Problems show plain-English fixes — click one to jump to the line with a hint under it.</li>
                     <li>Type <code>/**</code> above a method for a Javadoc stub.</li>
-                    <li>Press <kbd>Ctrl+Space</kbd> for keywords and project classes.</li>
                     <li>When a program asks Y/N, answer in the Output reply box — not while naming a class.</li>
                   </ul>
                 </section>
@@ -153,10 +153,18 @@
     <p id="path-note" class="path-note"></p>
   </div>
   <div id="menu-assist" class="popover menu" hidden>
+    <button type="button" data-assist="snippet">Insert building block…</button>
+    <button type="button" data-assist="main">Insert main method</button>
+    <button type="button" data-assist="fori">Insert for-i loop</button>
+    <button type="button" data-assist="foreach">Insert for-each loop</button>
+    <button type="button" data-assist="try">Insert try / catch</button>
+    <button type="button" data-assist="scanner">Insert Scanner input</button>
     <button type="button" data-assist="getters">Generate getters / setters…</button>
     <button type="button" data-assist="ctor">Generate constructor…</button>
+    <button type="button" data-assist="tostring">Generate toString…</button>
+    <button type="button" data-assist="equals">Generate equals / hashCode…</button>
     <button type="button" data-assist="summary">Show class members</button>
-    <button type="button" data-assist="explain">Explain private / public / static / this</button>
+    <button type="button" data-assist="explain">Explain Java keywords</button>
     <button type="button" data-assist="import">Suggest import for word at cursor</button>
     <button type="button" data-assist="fix">Quick fix: missing accessors</button>
   </div>
@@ -179,6 +187,8 @@
     <button type="button" data-theme-choice="midnight"><i class="swatch" style="background:#5b9fd4"></i>Midnight</button>
     <button type="button" data-theme-choice="citrus"><i class="swatch" style="background:#e8a317"></i>Citrus</button>
     <button type="button" data-theme-choice="harbor"><i class="swatch" style="background:#3db8c5"></i>Harbor</button>
+    <button type="button" data-theme-choice="lagoon"><i class="swatch" style="background:#2aa8a0"></i>Lagoon</button>
+    <button type="button" data-theme-choice="rosewood"><i class="swatch" style="background:#c45c6a"></i>Rosewood</button>
   </div>
   <div id="menu-settings" class="popover" hidden>
     <label class="settings-row">Font size

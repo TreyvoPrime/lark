@@ -526,6 +526,64 @@
   --syn-variable: #f0e6d8;
 }
 
+/* Cool aqua coastal — light workspace */
+[data-theme="lagoon"] {
+  color-scheme: light;
+  --bg: #e8f4f2;
+  --bg-elev: #f4fbfa;
+  --bg-sunken: #d5ebe7;
+  --line: #b5d4ce;
+  --text: #14353a;
+  --muted: #4a6f74;
+  --faint: #6f9195;
+  --accent: #1f9a90;
+  --accent-ink: #f4fffd;
+  --green: #2f8f5b;
+  --red: #c4474a;
+  --warn: #b87a12;
+  --hover: rgba(20, 53, 58, 0.06);
+  --select: #c5e6e1;
+  --syn-keyword: #0f6e78;
+  --syn-string: #1f7a4d;
+  --syn-comment: #6f9195;
+  --syn-number: #a85b10;
+  --syn-type: #156a9c;
+  --syn-annotation: #1f9a90;
+  --syn-def: #156a9c;
+  --syn-atom: #0f6e78;
+  --syn-operator: #14353a;
+  --syn-variable: #14353a;
+}
+
+/* Deep burgundy wood — dark, not pink */
+[data-theme="rosewood"] {
+  color-scheme: dark;
+  --bg: #1a1214;
+  --bg-elev: #25181c;
+  --bg-sunken: #120c0e;
+  --line: #3d2a30;
+  --text: #f2e4e7;
+  --muted: #b8969e;
+  --faint: #8a6a72;
+  --accent: #c45c6a;
+  --accent-ink: #1a0c10;
+  --green: #7eb889;
+  --red: #e07070;
+  --warn: #d4a05a;
+  --hover: rgba(242, 228, 231, 0.06);
+  --select: #3a2228;
+  --syn-keyword: #e08a96;
+  --syn-string: #c9a06a;
+  --syn-comment: #8a6a72;
+  --syn-number: #d4a05a;
+  --syn-type: #d4b0b8;
+  --syn-annotation: #c45c6a;
+  --syn-def: #e8c8ce;
+  --syn-atom: #e08a96;
+  --syn-operator: #f2e4e7;
+  --syn-variable: #f2e4e7;
+}
+
 * { box-sizing: border-box; }
 html, body { height: 100%; margin: 0; }
 html { zoom: var(--ui-zoom); }
@@ -654,6 +712,16 @@ button.primary:hover { filter: brightness(1.06); }
   background: #ffb454;
   border-color: #ffb454;
   color: #1a1208;
+}
+[data-theme="lagoon"] #run.run-btn {
+  background: #1f9a90;
+  border-color: #1f9a90;
+  color: #f4fffd;
+}
+[data-theme="rosewood"] #run.run-btn {
+  background: #c45c6a;
+  border-color: #c45c6a;
+  color: #fff5f7;
 }
 [data-theme="graphite"] #run.run-btn {
   background: #36cfc9;
@@ -856,13 +924,75 @@ select:focus, input:focus, textarea:focus, button:focus-visible {
 .problem {
   display: flex;
   gap: 10px;
-  padding: 6px 8px;
+  align-items: flex-start;
+  padding: 8px 10px;
   font-family: var(--mono);
   font-size: 12px;
+  text-align: left;
+  width: 100%;
+  border: 0;
+  background: transparent;
+  color: inherit;
 }
-.problem span:first-child { color: var(--faint); flex: none; }
-.problem.error span:last-child { color: var(--red); }
-.problem.warning span:last-child { color: var(--warn); }
+.problem-where { color: var(--faint); flex: none; min-width: 7em; padding-top: 1px; }
+.problem-body {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  min-width: 0;
+}
+.problem-plain { color: var(--text); font-weight: 600; line-height: 1.35; }
+.problem.error .problem-plain { color: var(--red); }
+.problem.warning .problem-plain { color: var(--warn); }
+.problem-hint {
+  color: var(--muted);
+  line-height: 1.4;
+  white-space: normal;
+}
+.problem-raw {
+  color: var(--faint);
+  font-size: 11px;
+  line-height: 1.35;
+  white-space: normal;
+}
+.cm-error-hint {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  margin: 2px 8px 6px 28px;
+  padding: 6px 10px;
+  border-radius: 4px;
+  border-left: 3px solid var(--red);
+  background: color-mix(in srgb, var(--red) 12%, var(--bg-elev));
+  color: var(--text);
+  font-family: var(--font);
+  font-size: 12px;
+  line-height: 1.4;
+  white-space: normal;
+}
+.cm-error-hint.warn {
+  border-left-color: var(--warn);
+  background: color-mix(in srgb, var(--warn) 12%, var(--bg-elev));
+}
+.cm-error-hint strong { font-weight: 650; }
+.cm-error-hint span { color: var(--muted); }
+.runtime-hint {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  margin-top: 10px;
+  padding: 8px 10px;
+  border-radius: 4px;
+  border-left: 3px solid var(--warn);
+  background: color-mix(in srgb, var(--warn) 10%, var(--bg-elev));
+  font-family: var(--font);
+  font-size: 12.5px;
+  line-height: 1.4;
+  white-space: normal;
+}
+.runtime-hint strong { color: var(--text); }
+.runtime-hint span { color: var(--muted); }
+.CodeMirror-hint.cm-hint-snip { color: var(--accent); }
 button.linkish {
   border: 0;
   background: transparent;

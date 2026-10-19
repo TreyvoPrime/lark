@@ -49,13 +49,13 @@ The jar is the editor. Running it still needs a JDK, because that is what compil
 ## What you can do
 
 - Keep more than one project, each with packages, classes, interfaces, records, and enums.
-- Edit with Java highlighting, bracket matching, find, comment toggle, and completion for names in the project (`Ctrl+Space`).
-- Run the main class. Compiler errors show under Problems and open the line.
-- Themes include Graphite & Teal, Midnight Blue, Terminal Green, Paper & Ink, Ultraviolet, Forest, Monochrome, Amber Terminal, plus Blossom (kawaii pink), Candy, and the original Desk/Daylight set — IntelliJ-style syntax with JetBrains Mono.
+- Edit with Java highlighting, bracket matching, find, comment toggle, and completion for names plus building-block snippets (`Ctrl+Space` — try `main`, `fori`, `sout`, `try`, `scanner`).
+- Run the main class. Compiler and runtime problems show in plain English with a fix hint, and the editor draws a tip under the bad line.
+- Themes include Lagoon and Rosewood (new in 1.9), Graphite & Teal, Midnight Blue, Terminal Green, Paper & Ink, Ultraviolet, Forest, Monochrome, Amber Terminal, Blossom, Candy, and the original Desk/Daylight set — IntelliJ-style syntax with JetBrains Mono.
 - Change editor font size and UI zoom under **Aa**, or with `Ctrl+=` / `Ctrl+-` / `Ctrl+0`.
 - Answer interactive programs in the reply box under Output (so `Scanner.nextLine()` works for Y/N prompts).
 - Welcome page on first open (new project, recent projects, practice tips).
-- Java assist menu: generate getters/setters and constructors, explain `private` / `public` / `static` / `this`, suggest imports, and warn about private fields without accessors.
+- Java assist menu: insert building blocks, main / loops / try-catch / Scanner, generate getters/setters, constructors, `toString`, `equals`/`hashCode`, explain keywords, suggest imports, and warn about private fields without accessors.
 - Structure panel under Files lists fields, constructors, and methods. Type `/**` for a Javadoc stub. Find/replace with `Ctrl+F` / `Ctrl+H`.
 - Check for updates on startup when an update feed is set (`update-feed.url` next to the jar, `LARK_UPDATE_FEED`, or Aa → Updates). “Update now” stages a new jar; click **Restart Lark** (or close and open Start Lark again). On Windows, Lark runs from a copy under `%LOCALAPPDATA%\Lark\run` so the install jar can be replaced without “file is being used by another process.”
 - Connect GitHub with a classic personal access token (`repo` scope). Lark lists repositories you can clone, and can push the open project. Browser sign-in is available too; Lark refreshes those tokens when GitHub allows it. Credentials stay in `~/.lark/settings.json` and are only sent to GitHub.

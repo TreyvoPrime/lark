@@ -18,6 +18,8 @@
     forest: "Forest",
     monochrome: "Monochrome",
     amber: "Amber Terminal",
+    lagoon: "Lagoon",
+    rosewood: "Rosewood",
     ink: "Desk",
     paper: "Daylight",
     tide: "Moss",
@@ -38,7 +40,8 @@
   const THEME_IDS = [
     "desk", "daylight", "moss", "ember", "fog",
     "blossom", "candy", "midnight", "citrus", "harbor",
-    "graphite", "navy", "terminal", "parchment", "ultraviolet", "forest", "monochrome", "amber"
+    "graphite", "navy", "terminal", "parchment", "ultraviolet", "forest", "monochrome", "amber",
+    "lagoon", "rosewood"
   ];
   const state = {
     settings: null,
@@ -60,6 +63,7 @@
   const docs = new Map();
   const parsedCache = new Map();
   const lineMarks = [];
+  const lineWidgets = [];
   let cm = null;
   let suppress = false;
   let paletteIndex = 0;
@@ -321,20 +325,27 @@
     });
     const lower = prefix.toLowerCase();
     const list = [];
+    // Building blocks first when the prefix looks like a snippet trigger.
+    (window.LarkJava.matchingSnippets(prefix) || []).forEach((snip) => {
+      list.push({
+        text: snip.text,
+        displayText: snip.trigger + "  → " + snip.label,
+        className: "cm-hint-snip"
+      });
+    });
     names.forEach((kind, name) => {
       if (prefix && !name.startsWith(prefix) && !name.toLowerCase().startsWith(lower)) return;
       list.push({ text: name, displayText: name + "  " + kind });
     });
-    if (!prefix || "println".startsWith(lower)) {
-      list.push({ text: "System.out.println(", displayText: "println  snippet" });
-    }
-    if (!prefix || "printf".startsWith(lower)) {
-      list.push({ text: "System.out.printf(", displayText: "printf  snippet" });
-    }
-    list.sort((a, b) => a.displayText.localeCompare(b.displayText));
+    list.sort((a, b) => {
+      const aSnip = (a.displayText || "").indexOf("→") >= 0 ? 0 : 1;
+      const bSnip = (b.displayText || "").indexOf("→") >= 0 ? 0 : 1;
+      if (aSnip !== bSnip) return aSnip - bSnip;
+      return a.displayText.localeCompare(b.displayText);
+    });
     if (!list.length) return null;
     return {
-      list: list.slice(0, 60),
+      list: list.slice(0, 80),
       from: CodeMirror.Pos(cursor.line, from),
       to: CodeMirror.Pos(cursor.line, cursor.ch)
     };
@@ -789,6 +800,30 @@
     return file ? parsedFile(file) : null;
   }
 
+  function afterEdit() {
+    const file = fileByPath(state.active);
+    if (file) file.content = cm.getValue();
+    state.dirty.add(state.active);
+    scheduleSave(state.active);
+    renderStructure();
+    refreshLocalProblems();
+    renderProblems();
+    markErrors();
+  }
+
+  function insertAtCursor(code) {
+    if (!cm || !code) return;
+    const cur = cm.getCursor();
+    const lineText = cm.getLine(cur.line) || "";
+    const indent = (lineText.match(/^\s*/) || [""])[0];
+    const indented = code.split("\n").map((line, i) => (i === 0 ? line : indent + line)).join("\n");
+    suppress = true;
+    cm.replaceRange(indented, cur);
+    suppress = false;
+    afterEdit();
+    cm.focus();
+  }
+
   function insertBeforeClassClose(code) {
     if (!cm || !code) return;
     const text = cm.getValue();
@@ -813,14 +848,7 @@
     cm.replaceRange(insert, cm.posFromIndex(insertPos), cm.posFromIndex(insertPos));
     suppress = false;
     cm.setCursor({ line: line + 2, ch: 0 });
-    const file = fileByPath(state.active);
-    if (file) file.content = cm.getValue();
-    state.dirty.add(state.active);
-    scheduleSave(state.active);
-    renderStructure();
-    refreshLocalProblems();
-    renderProblems();
-    markErrors();
+    afterEdit();
   }
 
   async function pickFields(title, fields) {
@@ -860,18 +888,60 @@
 
   async function runAssist(act) {
     const parsed = currentJavaParsed();
-    if (!parsed && act !== "explain") return toast("Open a Java class first.");
+    if (!parsed && act !== "explain" && act !== "snippet") return toast("Open a Java class first.");
     if (act === "explain") {
       await formDialog({
-        title: "Java modifiers",
+        title: "Java helpers",
         ok: "Got it",
         note:
           window.LarkJava.explain("private") + "\n\n" +
           window.LarkJava.explain("public") + "\n\n" +
           window.LarkJava.explain("static") + "\n\n" +
-          window.LarkJava.explain("this"),
+          window.LarkJava.explain("this") + "\n\n" +
+          window.LarkJava.explain("override") + "\n\n" +
+          window.LarkJava.explain("final") + "\n\n" +
+          window.LarkJava.explain("extends") + "\n\n" +
+          window.LarkJava.explain("implements") + "\n\n" +
+          window.LarkJava.explain("super") + "\n\n" +
+          "Tip: press Ctrl+Space and type main, fori, sout, try, scanner, list… to autofill building blocks.",
         fields: []
       });
+      return;
+    }
+    if (act === "snippet") {
+      if (!cm) return toast("Open a file first.");
+      const snips = window.LarkJava.snippets || [];
+      const values = await formDialog({
+        title: "Insert building block",
+        ok: "Insert",
+        note: "These also appear when you press Ctrl+Space and type the short name (main, fori, sout…).",
+        fields: [{
+          name: "which",
+          label: "Snippet",
+          type: "select",
+          value: "main",
+          options: snips.map((s) => s.id + " — " + s.label)
+        }]
+      });
+      if (!values) return;
+      const id = String(values.which || "").split(" — ")[0];
+      const snip = snips.find((s) => s.id === id);
+      if (!snip) return;
+      insertAtCursor(snip.text);
+      toast("Inserted " + snip.label + ".");
+      return;
+    }
+    if (act === "main") {
+      insertBeforeClassClose(window.LarkJava.generateMain());
+      toast("Inserted main method.");
+      return;
+    }
+    if (act === "fori" || act === "foreach" || act === "try" || act === "scanner") {
+      const map = { fori: "fori", foreach: "foreach", try: "try", scanner: "scanner" };
+      const snip = (window.LarkJava.snippets || []).find((s) => s.id === map[act]);
+      if (!snip) return;
+      insertAtCursor(snip.text);
+      toast("Inserted " + snip.label + ".");
       return;
     }
     const summary = window.LarkJava.classSummary(parsed);
@@ -969,6 +1039,25 @@
       const code = window.LarkJava.generateGetterSetter(fields, true, true);
       insertBeforeClassClose(code);
       toast("Added missing getters/setters.");
+      return;
+    }
+    if (act === "tostring") {
+      const chosen = await pickFields("Generate toString", summary.fields);
+      if (!chosen) return;
+      const type = summary.types.find((t) => t.kind === "class") || summary.types[0];
+      if (!type) return toast("No class found in this file.");
+      insertBeforeClassClose(window.LarkJava.generateToString(type.name, chosen));
+      toast("Inserted toString.");
+      return;
+    }
+    if (act === "equals") {
+      const chosen = await pickFields("Generate equals / hashCode", summary.fields);
+      if (!chosen) return;
+      const type = summary.types.find((t) => t.kind === "class") || summary.types[0];
+      if (!type) return toast("No class found in this file.");
+      insertBeforeClassClose(window.LarkJava.generateEqualsHashCode(type.name, chosen));
+      toast("Inserted equals and hashCode. Add import java.util.Objects if needed.");
+      return;
     }
   }
 
@@ -1274,6 +1363,38 @@
     }
   }
 
+  function runtimeHintFor(line) {
+    const lower = line.toLowerCase();
+    if (lower.includes("nullpointerexception")) {
+      return { plain: "Something was null when the program tried to use it.", hint: "Create or assign the object before calling a method on it." };
+    }
+    if (lower.includes("arrayindexoutofboundsexception")) {
+      return { plain: "An array index does not exist.", hint: "Valid indexes are 0 through length - 1." };
+    }
+    if (lower.includes("stringindexoutofboundsexception")) {
+      return { plain: "A String index was out of range.", hint: "Check length() before charAt / substring." };
+    }
+    if (lower.includes("inputmismatchexception")) {
+      return { plain: "Scanner expected a different kind of input.", hint: "Match nextInt/nextLine to what you type in the reply box." };
+    }
+    if (lower.includes("nosuchelementexception")) {
+      return { plain: "The program tried to read more input than was available.", hint: "Type the answer in the Output reply box, then Enter." };
+    }
+    if (lower.includes("arithmeticexception")) {
+      return { plain: "A math error happened (often ÷ by zero).", hint: "Check the divisor before dividing." };
+    }
+    if (lower.includes("numberformatexception")) {
+      return { plain: "Text could not be turned into a number.", hint: "Trim the string and confirm it only contains digits." };
+    }
+    if (lower.includes("classcastexception")) {
+      return { plain: "An object was cast to the wrong type.", hint: "Check instanceof before casting." };
+    }
+    if (lower.includes("stackoverflowerror")) {
+      return { plain: "Too many nested calls — often endless recursion.", hint: "Add a base case that stops calling itself." };
+    }
+    return null;
+  }
+
   function renderConsole(text) {
     const pre = $("console-out");
     const stick = pre.scrollHeight - pre.scrollTop - pre.clientHeight < 48;
@@ -1298,6 +1419,22 @@
       last = match.index + match[0].length;
     }
     pre.appendChild(document.createTextNode(text.slice(last)));
+    // Plain-English tips under common runtime crashes.
+    const tips = [];
+    text.split(/\r?\n/).forEach((line) => {
+      const tip = runtimeHintFor(line);
+      if (tip && !tips.some((t) => t.plain === tip.plain)) tips.push(tip);
+    });
+    tips.forEach((tip) => {
+      const box = document.createElement("div");
+      box.className = "runtime-hint";
+      const strong = document.createElement("strong");
+      strong.textContent = tip.plain;
+      const span = document.createElement("span");
+      span.textContent = tip.hint;
+      box.append(strong, span);
+      pre.appendChild(box);
+    });
     if (stick) pre.scrollTop = pre.scrollHeight;
   }
 
@@ -1316,10 +1453,27 @@
       btn.type = "button";
       btn.className = "problem " + problem.severity;
       const where = document.createElement("span");
+      where.className = "problem-where";
       where.textContent = problem.file + ":" + problem.line;
-      const msg = document.createElement("span");
-      msg.textContent = problem.message;
-      btn.append(where, msg);
+      const body = document.createElement("span");
+      body.className = "problem-body";
+      const plain = document.createElement("span");
+      plain.className = "problem-plain";
+      plain.textContent = problem.plain || problem.message;
+      body.appendChild(plain);
+      if (problem.hint) {
+        const hint = document.createElement("span");
+        hint.className = "problem-hint";
+        hint.textContent = "Fix: " + problem.hint;
+        body.appendChild(hint);
+      }
+      if (problem.plain && problem.message && problem.plain !== problem.message) {
+        const raw = document.createElement("span");
+        raw.className = "problem-raw";
+        raw.textContent = problem.message;
+        body.appendChild(raw);
+      }
+      btn.append(where, body);
       btn.addEventListener("click", () => {
         showConsoleTab("problems");
         jumpTo(problem.file, problem.line, problem.column || 1);
@@ -1339,18 +1493,40 @@
   function clearMarks() {
     lineMarks.forEach((mark) => mark.doc.removeLineClass(mark.line, "background", mark.cls));
     lineMarks.length = 0;
+    lineWidgets.forEach((w) => {
+      try { w.clear(); } catch (_) { /* already gone */ }
+    });
+    lineWidgets.length = 0;
   }
 
   function markErrors() {
     clearMarks();
+    if (!cm) return;
+    const activePath = state.active;
     allProblems().forEach((problem) => {
-      const doc = docs.get(problem.file) || docs.get(resolveProblemFile(problem.file));
+      const resolved = resolveProblemFile(problem.file);
+      const doc = docs.get(resolved);
       if (!doc) return;
       const line = problem.line - 1;
       if (line < 0 || line >= doc.lineCount()) return;
       const cls = problem.severity === "warning" ? "cm-warn-line" : "cm-problem-line";
       doc.addLineClass(line, "background", cls);
       lineMarks.push({ doc: doc, line: line, cls: cls });
+      // In-editor hint under the bad line (active file only, so the editor stays readable).
+      if (resolved === activePath && (problem.plain || problem.hint)) {
+        const el = document.createElement("div");
+        el.className = "cm-error-hint " + (problem.severity === "warning" ? "warn" : "error");
+        const title = document.createElement("strong");
+        title.textContent = problem.plain || problem.message;
+        el.appendChild(title);
+        if (problem.hint) {
+          const tip = document.createElement("span");
+          tip.textContent = problem.hint;
+          el.appendChild(tip);
+        }
+        const widget = cm.addLineWidget(line, el, { coverGutter: false, noHScroll: true });
+        lineWidgets.push(widget);
+      }
     });
   }
 
@@ -1413,6 +1589,8 @@
       column: item.column || 1,
       severity: item.severity || "warning",
       message: item.message,
+      plain: item.plain || item.message,
+      hint: item.hint || "",
       code: item.code || ""
     }));
   }

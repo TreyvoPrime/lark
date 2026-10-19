@@ -11,6 +11,7 @@ public final class Check {
         paths();
         args();
         diagnostics();
+        englishErrors();
         sampleCompiles();
         System.out.println("check ok");
     }
@@ -67,8 +68,28 @@ public final class Check {
         eq(problems.get(0).file(), "src/app/Main.java");
         eq(problems.get(0).line(), 4);
         eq(problems.get(0).severity(), "error");
+        assertTrue(problems.get(0).plain().toLowerCase().contains("semicolon"), problems.get(0).plain());
+        assertTrue(!problems.get(0).hint().isBlank(), "hint missing");
         eq(problems.get(1).column(), 12);
         eq(problems.get(1).severity(), "warning");
+    }
+
+    private static void englishErrors() {
+        Errors.Explained missing = Errors.explainCompile("cannot find symbol symbol: variable count");
+        assertTrue(missing.plain().contains("count"), missing.plain());
+        assertTrue(missing.hint().toLowerCase().contains("declare") || missing.hint().toLowerCase().contains("typo"), missing.hint());
+        Errors.Explained npe = Errors.explainRuntime("Exception in thread \"main\" java.lang.NullPointerException");
+        assertTrue(npe != null && npe.plain().toLowerCase().contains("null"), String.valueOf(npe));
+        String withSymbol = """
+                src/Demo.java:8: error: cannot find symbol
+                  symbol:   class Scanner
+                  location: class Demo
+                """;
+        List<Runner.Problem> problems = Runner.parseDiagnostics(Path.of("/tmp"), withSymbol);
+        eq(problems.size(), 1);
+        assertTrue(problems.get(0).message().contains("symbol:"), problems.get(0).message());
+        assertTrue(problems.get(0).plain().toLowerCase().contains("scanner")
+                || problems.get(0).plain().toLowerCase().contains("class"), problems.get(0).plain());
     }
 
     private static void sampleCompiles() throws Exception {
@@ -109,5 +130,9 @@ public final class Check {
         if (actual == null ? expected != null : !actual.equals(expected)) {
             throw new AssertionError("expected <" + expected + "> but was <" + actual + ">");
         }
+    }
+
+    private static void assertTrue(boolean ok, String detail) {
+        if (!ok) throw new AssertionError(detail == null ? "assertion failed" : detail);
     }
 }
