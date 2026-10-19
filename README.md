@@ -6,7 +6,7 @@ The only install is a JDK 17 or newer. There is no Gradle, no Electron, and no p
 
 ## Download
 
-Permanent download site (always online): **[treyvoprime.github.io/lark](https://treyvoprime.github.io/lark/)**
+Permanent download site (always online): **[treyvoprime.github.io/lark](https://treyvoprime.github.io/lark-download/)**
 
 Or grab a zip from **[GitHub Releases](https://github.com/TreyvoPrime/lark/releases/latest)** (Windows, Mac, or Linux). Unzip into Downloads or Documents, then:
 
