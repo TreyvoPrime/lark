@@ -1,0 +1,61 @@
+name: Release
+
+on:
+  push:
+    tags:
+      - "v*"
+  workflow_dispatch:
+    inputs:
+      version:
+        description: "Version without v prefix (example 1.5.0)"
+        required: true
+
+permissions:
+  contents: write
+
+jobs:
+  release:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: "17"
+
+      - name: Resolve version
+        id: ver
+        run: |
+          if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
+            VERSION="${{ inputs.version }}"
+          else
+            VERSION="${GITHUB_REF_NAME#v}"
+          fi
+          echo "version=$VERSION" >> "$GITHUB_OUTPUT"
+          echo "tag=v$VERSION" >> "$GITHUB_OUTPUT"
+
+      - name: Build portable zips
+        env:
+          LARK_UPDATE_BASE: https://github.com/${{ github.repository }}/releases/download/v${{ steps.ver.outputs.version }}
+          LARK_UPDATE_NOTES: Lark ${{ steps.ver.outputs.version }} portable builds for Windows, Mac, and Linux.
+        run: |
+          # Keep Settings.VERSION in sync with the tag when possible.
+          sed -i "s/VERSION = \"[^\"]*\"/VERSION = \"${{ steps.ver.outputs.version }}\"/" src/lark/Settings.java
+          chmod +x package.sh packaging/make-release.sh packaging/start-lark.sh
+          ./packaging/make-release.sh
+
+      - name: Publish GitHub Release
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: ${{ steps.ver.outputs.tag }}
+          name: Lark ${{ steps.ver.outputs.version }}
+          generate_release_notes: true
+          files: |
+            release/lark-windows.zip
+            release/lark-mac.zip
+            release/lark-linux.zip
+            release/lark.zip
+            release/update.json
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
