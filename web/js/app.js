@@ -98,7 +98,9 @@
     checkSeq: 0,
     braceMarks: [],
     searchHits: [],
-    searchIndex: 0
+    searchIndex: 0,
+    dragPath: null,
+    dragTab: null
   };
   const docs = new Map();
   const parsedCache = new Map();
@@ -798,6 +800,23 @@
     if ($("tray-project")) {
       $("tray-project").textContent = state.project ? state.project.name : "Project";
     }
+    box.ondragover = (event) => {
+      if (!state.dragPath) return;
+      if (event.target.closest && event.target.closest(".tree-row")) return;
+      event.preventDefault();
+      event.dataTransfer.dropEffect = "move";
+      box.classList.add("drop-root");
+    };
+    box.ondragleave = (event) => {
+      if (event.target === box) box.classList.remove("drop-root");
+    };
+    box.ondrop = (event) => {
+      box.classList.remove("drop-root");
+      if (event.target.closest && event.target.closest(".tree-row")) return;
+      event.preventDefault();
+      const from = event.dataTransfer.getData("text/lark-path") || state.dragPath;
+      if (from) dropMoveToDir(from, "").catch((err) => toast(err.message));
+    };
     const root = buildTree();
     if (!root.children.length) {
       const p = document.createElement("p");
@@ -834,20 +853,54 @@
     const wrap = document.createElement("div");
     const row = document.createElement("button");
     row.type = "button";
-    row.className = "tree-row" + (node.path === state.active ? " active" : "") + (node.path === state.selected ? " selected" : "") + (node.path.endsWith(".java") ? " java" : "");
+    row.className = "tree-row" + (node.path === state.active ? " active" : "") + (node.path === state.selected ? " selected" : "") + (node.path.endsWith(".java") ? " java" : "") + (node.dir ? " folder" : " file");
     row.style.paddingLeft = (10 + depth * 16) + "px";
+    row.dataset.path = node.path;
+    row.dataset.dir = node.dir ? "1" : "0";
     const name = document.createElement("span");
     name.className = "name";
     name.textContent = node.name;
     row.append(fileIcon(node), name);
-    row.title = node.path || node.name;
+    row.title = (node.path || node.name) + (node.dir ? " — drop files here" : " — drag to move");
+    row.draggable = true;
+    row.addEventListener("dragstart", (event) => {
+      event.dataTransfer.setData("text/lark-path", node.path);
+      event.dataTransfer.setData("text/plain", node.path);
+      event.dataTransfer.effectAllowed = "move";
+      row.classList.add("dragging");
+      state.dragPath = node.path;
+    });
+    row.addEventListener("dragend", () => {
+      row.classList.remove("dragging");
+      state.dragPath = null;
+      document.querySelectorAll(".tree-row.drop-target").forEach((el) => el.classList.remove("drop-target"));
+    });
+    row.addEventListener("dragover", (event) => {
+      const from = state.dragPath || event.dataTransfer.getData("text/lark-path");
+      if (!from || from === node.path) return;
+      // Drop onto folders, or onto a file's parent (highlight the file row as sibling target).
+      event.preventDefault();
+      event.dataTransfer.dropEffect = "move";
+      row.classList.add("drop-target");
+    });
+    row.addEventListener("dragleave", () => row.classList.remove("drop-target"));
+    row.addEventListener("drop", (event) => {
+      event.preventDefault();
+      row.classList.remove("drop-target");
+      const from = event.dataTransfer.getData("text/lark-path") || state.dragPath;
+      if (!from) return;
+      const destDir = node.dir ? node.path : parentDir(node.path);
+      dropMoveToDir(from, destDir).catch((err) => toast(err.message));
+    });
     row.addEventListener("click", () => {
-      state.selected = node.path;
       if (node.dir) {
+        const already = state.selected === node.path;
+        state.selected = node.path;
         if (state.collapsed.has(node.path)) state.collapsed.delete(node.path);
-        else state.collapsed.add(node.path);
+        else if (already) state.collapsed.add(node.path);
         renderTree();
       } else {
+        state.selected = node.path;
         openPath(node.path);
       }
     });
@@ -869,12 +922,27 @@
     return wrap;
   }
 
+  async function dropMoveToDir(from, destDir) {
+    if (!from || !state.project) return;
+    const base = from.slice(from.lastIndexOf("/") + 1);
+    const dest = destDir ? (destDir.replace(/\/+$/, "") + "/" + base) : base;
+    if (dest === from) return;
+    if (dest === from + "/" + base || dest.startsWith(from + "/")) {
+      return toast("Can't move a folder into itself.");
+    }
+    await movePath(from, dest);
+    toast("Moved to " + (destDir || "(project root)"));
+  }
+
   function renderTabs() {
     const box = $("tabs");
     box.replaceChildren();
-    state.open.forEach((path) => {
+    state.open.forEach((path, index) => {
       const tab = document.createElement("div");
       tab.className = "tab" + (path === state.active ? " on" : "");
+      tab.draggable = true;
+      tab.dataset.path = path;
+      tab.dataset.index = String(index);
       const label = document.createElement("button");
       label.type = "button";
       label.className = "tab-name";
@@ -890,16 +958,67 @@
       close.className = "close";
       close.textContent = "×";
       close.setAttribute("aria-label", "Close " + path);
+      close.draggable = false;
       close.addEventListener("click", (event) => {
         event.stopPropagation();
         closeTab(path);
       });
+      close.addEventListener("mousedown", (event) => event.stopPropagation());
       tab.addEventListener("auxclick", (event) => {
         if (event.button === 1) closeTab(path);
+      });
+      tab.addEventListener("dragstart", (event) => {
+        if (event.target && event.target.closest && event.target.closest(".close")) {
+          event.preventDefault();
+          return;
+        }
+        event.dataTransfer.setData("text/lark-tab", path);
+        event.dataTransfer.effectAllowed = "move";
+        tab.classList.add("dragging");
+        state.dragTab = path;
+      });
+      tab.addEventListener("dragend", () => {
+        tab.classList.remove("dragging");
+        state.dragTab = null;
+        box.querySelectorAll(".tab.drop-before, .tab.drop-after").forEach((el) => {
+          el.classList.remove("drop-before", "drop-after");
+        });
+      });
+      tab.addEventListener("dragover", (event) => {
+        const from = state.dragTab || event.dataTransfer.getData("text/lark-tab");
+        if (!from || from === path) return;
+        event.preventDefault();
+        const rect = tab.getBoundingClientRect();
+        const before = event.clientX < rect.left + rect.width / 2;
+        tab.classList.toggle("drop-before", before);
+        tab.classList.toggle("drop-after", !before);
+      });
+      tab.addEventListener("dragleave", () => tab.classList.remove("drop-before", "drop-after"));
+      tab.addEventListener("drop", (event) => {
+        event.preventDefault();
+        const from = event.dataTransfer.getData("text/lark-tab") || state.dragTab;
+        tab.classList.remove("drop-before", "drop-after");
+        if (!from || from === path) return;
+        const rect = tab.getBoundingClientRect();
+        const before = event.clientX < rect.left + rect.width / 2;
+        reorderTab(from, path, before);
       });
       tab.append(label, close);
       box.appendChild(tab);
     });
+  }
+
+  function reorderTab(fromPath, toPath, before) {
+    const from = state.open.indexOf(fromPath);
+    let to = state.open.indexOf(toPath);
+    if (from < 0 || to < 0 || from === to) return;
+    const next = state.open.slice();
+    next.splice(from, 1);
+    to = next.indexOf(toPath);
+    if (to < 0) return;
+    next.splice(before ? to : to + 1, 0, fromPath);
+    state.open = next;
+    renderTabs();
   }
 
   function closeTab(path) {
@@ -1576,10 +1695,11 @@
     // Pause console autofocus while the dialog is open.
     const reply = $("console-reply");
     if (reply) reply.dataset.armed = "1";
-    const dir = selectedDir();
+    const dir = (selectedDir() || "src").replace(/\/+$/, "") || "src";
     const values = await formDialog({
       title: "New class",
       ok: "Create",
+      note: "Creates in folder: " + dir + "/",
       fields: [
         { name: "className", label: "Class name", value: "" },
         { name: "packageName", label: "Package", value: packageFor(dir) },
@@ -1591,10 +1711,12 @@
     if (!/^[A-Za-z_][A-Za-z0-9_]*$/.test(name)) return toast("Use a Java name, like Book or Shelf.");
     const pkg = values.packageName.trim();
     if (pkg && !/^[a-z_][a-z0-9_]*(\.[a-z_][a-z0-9_]*)*$/.test(pkg)) return toast("Packages look like library or library.shelf.");
-    const path = "src/" + (pkg ? pkg.replaceAll(".", "/") + "/" : "") + name + ".java";
+    // Always place the new class inside the selected explorer folder.
+    const path = dir + "/" + name + ".java";
     if (fileByPath(path)) return toast("There's already a file at " + path + ".");
     const content = classTemplate(values.kind, name, pkg);
     await writeNewFile(path, content);
+    toast("Created " + path);
   }
 
   function currentJavaParsed() {
@@ -1981,37 +2103,62 @@
     if (!values) return;
     const to = values.path.trim().replace(/^\/+/, "");
     if (!to || to === path) return;
-    await api("POST", "/api/projects/" + encodeURIComponent(state.project.id) + "/move", { from: path, to: to });
-    const file = fileByPath(path);
+    await movePath(path, to);
+  }
+
+  async function movePath(from, to) {
+    if (!state.project || !from || !to || from === to) return;
+    await flushSaves();
+    await api("POST", "/api/projects/" + encodeURIComponent(state.project.id) + "/move", { from: from, to: to });
+    const file = fileByPath(from);
+    const wasDir = state.dirs.includes(from);
     if (file) {
       let content = file.content || "";
-      content = fixPackage(path, to, content);
+      content = fixPackage(from, to, content);
       file.path = to;
       file.content = content;
-      if (content !== (docs.get(path) ? docs.get(path).getValue() : content)) {
-        // content may have a new package line
-      }
-      const doc = docs.get(path);
+      const doc = docs.get(from);
       if (doc) {
-        docs.delete(path);
+        docs.delete(from);
         if (content !== doc.getValue()) {
+          suppress = true;
           const cursor = doc.getCursor();
           doc.setValue(content);
           doc.setCursor(cursor);
+          suppress = false;
         }
         docs.set(to, doc);
         await api("PUT", "/api/projects/" + encodeURIComponent(state.project.id) + "/file", { path: to, content: content });
       }
     }
-    state.dirs = state.dirs.map((dir) => dir === path ? to : dir.startsWith(path + "/") ? to + dir.slice(path.length) : dir);
+    state.dirs = state.dirs
+      .map((dir) => dir === from ? to : dir.startsWith(from + "/") ? to + dir.slice(from.length) : dir)
+      .filter((dir, i, arr) => arr.indexOf(dir) === i);
+    if (wasDir && !state.dirs.includes(to)) state.dirs.push(to);
+    const parent = parentDir(to);
+    if (parent) {
+      const parts = parent.split("/");
+      let acc = "";
+      parts.forEach((part) => {
+        acc = acc ? acc + "/" + part : part;
+        if (!state.dirs.includes(acc)) state.dirs.push(acc);
+      });
+    }
     state.files.forEach((item) => {
-      if (item.path.startsWith(path + "/")) item.path = to + item.path.slice(path.length);
+      if (item.path.startsWith(from + "/")) item.path = to + item.path.slice(from.length);
     });
-    state.open = state.open.map((item) => item === path ? to : item.startsWith(path + "/") ? to + item.slice(path.length) : item);
-    if (state.active === path) state.active = to;
+    state.open = state.open.map((item) => item === from ? to : item.startsWith(from + "/") ? to + item.slice(from.length) : item);
+    if (state.active === from) state.active = to;
+    if (state.activeB === from) state.activeB = to;
     state.selected = to;
-    if (state.active === to) openPath(to);
-    else renderTree();
+    state.collapsed.delete(from);
+    if (fileByPath(to) && (state.active === to || state.open.includes(to))) openPath(to);
+    else {
+      renderTree();
+      renderTabs();
+      renderTabsB();
+    }
+    renderMains();
   }
 
   function fixPackage(oldPath, newPath, content) {
