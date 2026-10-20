@@ -1,7 +1,7 @@
 :root,
 [data-theme="desk"] {
   color-scheme: dark;
-  --files-w: 268px;
+  --files-w: 260px;
   --console-h: 188px;
   --editor-font-size: 14px;
   --ui-zoom: 1;
@@ -1072,23 +1072,27 @@ select:focus, input:focus, textarea:focus, button:focus-visible {
   display: flex;
   flex-direction: column;
   position: relative;
+  overflow: hidden;
   background:
-    linear-gradient(180deg, color-mix(in srgb, var(--accent) 6%, var(--bg-elev)), var(--bg-elev) 48px);
+    linear-gradient(180deg, color-mix(in srgb, var(--accent) 5%, var(--bg-elev)), var(--bg-elev) 40px);
 }
 .tray-head {
+  flex: none;
   height: auto;
-  min-height: 52px;
-  padding: 8px 8px 8px 10px;
-  align-items: flex-start;
-  gap: 6px;
-  flex-wrap: wrap;
+  min-height: 40px;
+  padding: 8px 6px 8px 10px;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: nowrap;
+  border-bottom: 1px solid var(--line);
 }
 .tray-title {
   display: flex;
   flex-direction: column;
-  gap: 2px;
+  gap: 1px;
   min-width: 0;
-  flex: 1 1 100%;
+  flex: 1 1 auto;
+  overflow: hidden;
 }
 .tray-label {
   font-size: 10px;
@@ -1096,25 +1100,38 @@ select:focus, input:focus, textarea:focus, button:focus-visible {
   text-transform: uppercase;
   color: var(--faint);
   font-weight: 700;
+  line-height: 1.2;
 }
 .tray-title strong {
-  font-size: 13px;
+  font-size: 12px;
   font-weight: 700;
   color: var(--text);
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
-  max-width: 100%;
+  line-height: 1.25;
 }
-.tray-head .pane-actions {
-  margin-left: 0;
-  width: 100%;
-  justify-content: flex-start;
+.tray-actions {
+  margin-left: auto;
+  flex: none;
+  display: flex;
+  gap: 2px;
+  max-width: none;
 }
-.file-tray { padding: 4px 4px 10px; }
+.tray-actions button {
+  font-size: 11px !important;
+  padding: 3px 6px !important;
+  white-space: nowrap;
+}
+.file-tray {
+  padding: 6px 4px 8px;
+  min-height: 0;
+  flex: 1 1 auto;
+  overflow: auto;
+}
 .tree-icon {
-  width: 16px;
-  height: 16px;
+  width: 15px;
+  height: 15px;
   flex: none;
   border-radius: 3px;
   display: inline-grid;
@@ -1134,23 +1151,30 @@ select:focus, input:focus, textarea:focus, button:focus-visible {
   background: color-mix(in srgb, var(--muted) 28%, var(--bg-sunken));
   color: var(--muted);
 }
-.tree-row {
-  animation: tray-row-in 180ms ease both;
-}
 @keyframes tray-row-in {
-  from { opacity: 0; transform: translateX(-4px); }
+  from { opacity: 0; transform: translateX(-3px); }
   to { opacity: 1; transform: none; }
 }
 #structure {
   border-top: 1px solid var(--line);
-  max-height: 38%;
-  min-height: 96px;
+  flex: 0 0 auto;
+  max-height: 34%;
+  min-height: 88px;
   display: flex;
   flex-direction: column;
-  background: color-mix(in srgb, var(--bg-sunken) 40%, var(--bg-elev));
+  overflow: hidden;
+  background: color-mix(in srgb, var(--bg-sunken) 35%, var(--bg-elev));
 }
-.structure-head { height: 28px; }
-#structure-list { overflow: auto; flex: 1; padding: 4px 6px 8px; }
+.structure-head {
+  height: 28px;
+  flex: none;
+}
+#structure-list {
+  overflow: auto;
+  flex: 1;
+  min-height: 0;
+  padding: 4px 6px 8px;
+}
 #center {
   display: grid;
   grid-template-rows: minmax(96px, 1fr) var(--console-h);
@@ -1165,6 +1189,11 @@ select:focus, input:focus, textarea:focus, button:focus-visible {
   font-size: 12px;
   font-weight: 600;
   letter-spacing: 0.02em;
+  flex: none;
+}
+.pane-head.tray-head {
+  height: auto;
+  border-bottom: 0; /* tray-head draws its own */
 }
 .pane-actions { margin-left: auto; display: flex; gap: 4px; }
 .pane-actions button, .tabs-inline button {
@@ -1178,33 +1207,43 @@ select:focus, input:focus, textarea:focus, button:focus-visible {
   color: var(--muted);
 }
 .pane-actions button:hover, .tabs-inline button:hover { background: var(--hover); color: var(--text); }
-#tree, #problems { overflow: auto; flex: 1; padding: 6px; }
+#tree, #problems { overflow: auto; flex: 1; min-height: 0; padding: 6px; }
 .tree-row, .outline-row, .problem, .menu button, .palette-item {
   width: 100%;
   text-align: left;
   border: 0;
   background: transparent;
-  border-radius: 8px;
+  border-radius: 6px;
   color: var(--text);
   transition: background 120ms ease, color 120ms ease;
 }
 .tree-row {
   display: flex;
   align-items: center;
-  gap: 8px;
-  height: 30px;
-  padding-right: 8px;
-  animation: tray-row-in 180ms ease both;
+  gap: 7px;
+  height: 28px;
+  padding-right: 6px;
+  max-width: 100%;
+  overflow: hidden;
+  animation: tray-row-in 160ms ease both;
 }
 .tree-row .chev { display: none; }
-.tree-row .name { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.tree-row .kind, .outline-row .kind {
+.tree-row .name {
+  flex: 1 1 auto;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: 12.5px;
+}
+/* Kind tags crowded the narrow tray — icons already show type */
+.tree-row .kind { display: none; }
+.outline-row .kind {
   margin-left: auto;
   font-size: 11px;
   color: var(--faint);
   font-family: var(--font);
 }
-.tree-row.java .kind { color: var(--accent); }
 .tree-row:hover, .outline-row:hover, .problem:hover, .menu button:hover, .palette-item:hover,
 .palette-item.active { background: var(--hover); }
 .tree-row.active { box-shadow: inset 2px 0 0 var(--accent); background: var(--hover); }
@@ -2131,7 +2170,20 @@ body.no-ligatures .CodeMirror {
   font-feature-settings: "liga" 0, "calt" 0;
 }
 .CodeMirror-gutters { background: var(--bg-sunken); border-right: 1px solid var(--line); }
-.CodeMirror-linenumber { color: var(--faint); }
+.CodeMirror-linenumber {
+  color: var(--faint);
+  padding: 0 6px 0 8px;
+  min-width: 2.4em;
+  text-align: right;
+}
+.CodeMirror-gutter.breakpoints {
+  width: 14px;
+}
+.CodeMirror-gutter-wrapper { z-index: 1; }
+.CodeMirror pre.CodeMirror-line,
+.CodeMirror pre.CodeMirror-line-like {
+  padding-left: 8px;
+}
 .CodeMirror-cursor { border-left-color: var(--accent) !important; }
 .CodeMirror-selected { background: var(--select) !important; }
 .CodeMirror-activeline-background { background: color-mix(in srgb, var(--accent) 10%, transparent); }

@@ -835,14 +835,12 @@
     const row = document.createElement("button");
     row.type = "button";
     row.className = "tree-row" + (node.path === state.active ? " active" : "") + (node.path === state.selected ? " selected" : "") + (node.path.endsWith(".java") ? " java" : "");
-    row.style.paddingLeft = (8 + depth * 14) + "px";
+    row.style.paddingLeft = (10 + depth * 16) + "px";
     const name = document.createElement("span");
     name.className = "name";
     name.textContent = node.name;
-    const kind = document.createElement("span");
-    kind.className = "kind";
-    kind.textContent = node.dir ? "dir" : node.path.endsWith(".java") ? ".java" : "file";
-    row.append(fileIcon(node), name, kind);
+    row.append(fileIcon(node), name);
+    row.title = node.path || node.name;
     row.addEventListener("click", () => {
       state.selected = node.path;
       if (node.dir) {
