@@ -177,6 +177,8 @@
     if (save) {
       api("PUT", "/api/settings", { fontSize: fontSize, zoom: zoom }).catch((err) => toast(err.message));
     }
+    const settingsPop = $("menu-settings");
+    if (settingsPop && !settingsPop.hidden && $("settings")) placePopover(settingsPop, $("settings"));
   }
 
   function applyEditorPrefs(opts, save) {
@@ -258,6 +260,16 @@
   function bumpZoom(delta) {
     const current = state.settings && state.settings.zoom ? state.settings.zoom : 100;
     applyDisplay({ zoom: current + delta }, true);
+  }
+
+  function bumpFont(delta) {
+    const current = state.settings && state.settings.fontSize ? state.settings.fontSize : 14;
+    applyDisplay({ fontSize: current + delta }, true);
+  }
+
+  function resetDisplaySize() {
+    applyDisplay({ fontSize: 14, zoom: 100 }, true);
+    toast("Font and zoom reset.");
   }
 
   function fileByPath(path) {
@@ -2645,9 +2657,28 @@
     closePopovers();
     if (!willOpen) return;
     pop.hidden = false;
+    placePopover(pop, button);
+  }
+
+  function placePopover(pop, button) {
+    if (!pop || !button) return;
+    const pad = 8;
     const rect = button.getBoundingClientRect();
-    pop.style.top = (rect.bottom + 6) + "px";
-    pop.style.left = Math.min(rect.left, window.innerWidth - pop.offsetWidth - 8) + "px";
+    // Measure after show; clamp so font/zoom controls never leave the viewport.
+    const width = Math.min(pop.offsetWidth || 280, window.innerWidth - pad * 2);
+    const height = Math.min(pop.offsetHeight || 320, window.innerHeight - pad * 2);
+    pop.style.maxWidth = (window.innerWidth - pad * 2) + "px";
+    pop.style.maxHeight = (window.innerHeight - pad * 2) + "px";
+    let top = rect.bottom + 6;
+    let left = rect.left;
+    if (top + height > window.innerHeight - pad) {
+      top = Math.max(pad, rect.top - height - 6);
+    }
+    if (top < pad) top = pad;
+    if (left + width > window.innerWidth - pad) left = window.innerWidth - width - pad;
+    if (left < pad) left = pad;
+    pop.style.top = top + "px";
+    pop.style.left = left + "px";
   }
 
   function toggleFiles() {
@@ -3726,6 +3757,15 @@
       applyDisplay({ zoom: Number($("setting-zoom").value) }, true);
     });
     $("setting-zoom-reset").addEventListener("click", () => applyDisplay({ zoom: 100 }, true));
+    if ($("setting-display-reset")) $("setting-display-reset").addEventListener("click", () => resetDisplaySize());
+    if ($("setting-font-down")) $("setting-font-down").addEventListener("click", () => bumpFont(-1));
+    if ($("setting-font-up")) $("setting-font-up").addEventListener("click", () => bumpFont(1));
+    window.addEventListener("resize", () => {
+      const open = document.querySelector(".popover:not([hidden])");
+      if (!open) return;
+      const btn = document.querySelector('[data-pop="' + open.id + '"]');
+      if (btn) placePopover(open, btn);
+    });
     const bindPref = (id, read) => {
       const el = $(id);
       if (!el) return;
@@ -4029,7 +4069,8 @@
       }
       if ((event.ctrlKey || event.metaKey) && (key === "0" || event.code === "Digit0")) {
         event.preventDefault();
-        applyDisplay({ zoom: 100 }, true);
+        if (event.shiftKey) resetDisplaySize();
+        else applyDisplay({ zoom: 100 }, true);
         return;
       }
       if (isTyping(event.target)) return;

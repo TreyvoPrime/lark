@@ -839,7 +839,11 @@
 
 * { box-sizing: border-box; }
 html, body { height: 100%; margin: 0; }
-html { zoom: var(--ui-zoom); }
+/* Zoom the workspace only — keep top bar / settings usable so you can always scale back down. */
+html { zoom: 1; }
+#workspace {
+  zoom: var(--ui-zoom);
+}
 body {
   font-family: var(--font);
   font-size: 13px;
@@ -885,6 +889,21 @@ button:disabled { opacity: 0.5; cursor: default; }
 #top {
   padding: 0 12px;
   border-bottom: 1px solid var(--line);
+  background: var(--bg-elev);
+  overflow-x: auto;
+  overflow-y: hidden;
+  flex-wrap: nowrap;
+  min-height: 44px;
+}
+#top .grow { flex: 1 1 auto; min-width: 8px; }
+#top #theme,
+#top #beautify,
+#top #settings,
+#top #help {
+  flex: none;
+  position: sticky;
+  right: 0;
+  z-index: 2;
   background: var(--bg-elev);
 }
 .brand {
@@ -2219,8 +2238,31 @@ body.no-ligatures .CodeMirror {
 .cm-s-lark .cm-qualifier { color: var(--syn-type); }
 .settings-pop {
   width: min(320px, calc(100vw - 24px));
-  max-height: min(70vh, 520px);
+  max-height: min(78vh, 560px);
   overflow: auto;
+  overscroll-behavior: contain;
+}
+.settings-sticky {
+  position: sticky;
+  top: 0;
+  z-index: 2;
+  background: var(--bg-elev);
+  padding-bottom: 4px;
+  margin: -6px -6px 4px;
+  padding: 8px 6px 6px;
+  border-bottom: 1px solid var(--line);
+}
+.settings-sticky .settings-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  padding: 0 10px 6px;
+}
+.settings-sticky .settings-actions button {
+  border: 1px solid var(--line);
+  background: var(--bg);
+  border-radius: 5px;
+  padding: 5px 9px;
 }
 .settings-row {
   display: flex;

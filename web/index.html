@@ -280,16 +280,23 @@
     <button type="button" data-theme-choice="canopy"><i class="swatch" style="background:#5f8f6a"></i>Canopy</button>
   </div>
   <div id="menu-settings" class="popover settings-pop" hidden>
-    <label class="settings-row">Font size
-      <input id="setting-font" type="range" min="11" max="24" step="1" value="14">
-      <output id="setting-font-out">14</output>
-    </label>
-    <label class="settings-row">Zoom
-      <input id="setting-zoom" type="range" min="80" max="150" step="5" value="100">
-      <output id="setting-zoom-out">100%</output>
-    </label>
-    <button type="button" id="setting-zoom-reset">Reset zoom</button>
-    <p class="path-note">Ctrl + and Ctrl - also zoom. Ctrl 0 resets.</p>
+    <div class="settings-sticky">
+      <label class="settings-row">Font size
+        <input id="setting-font" type="range" min="11" max="24" step="1" value="14">
+        <output id="setting-font-out">14</output>
+      </label>
+      <label class="settings-row">Zoom
+        <input id="setting-zoom" type="range" min="80" max="150" step="5" value="100">
+        <output id="setting-zoom-out">100%</output>
+      </label>
+      <div class="settings-actions">
+        <button type="button" id="setting-font-down" title="Smaller font">A−</button>
+        <button type="button" id="setting-font-up" title="Larger font">A+</button>
+        <button type="button" id="setting-zoom-reset">Reset zoom</button>
+        <button type="button" id="setting-display-reset" class="primary">Reset size</button>
+      </div>
+      <p class="path-note">Ctrl + / Ctrl − zoom · Ctrl 0 resets zoom · this panel always stays on screen</p>
+    </div>
     <hr class="settings-rule">
     <label class="settings-row settings-stack">Editor font
       <select id="setting-font-family">
