@@ -30,7 +30,7 @@ public final class JdkHealth {
                        %LOCALAPPDATA%\\Lark
                        %LOCALAPPDATA%\\Programs\\Lark
                        the folder where you unzipped Lark (must contain lark.jar AND jdk\\)
-                  3. Download a fresh Lark 3.0.0 zip:
+                  3. Download a fresh Lark zip:
                        https://github.com/TreyvoPrime/lark/releases/latest/download/lark-windows.zip
                   4. Right-click → Extract All… to C:\\Users\\%USERNAME%\\Lark
                   5. Open THAT folder and run Start Lark.bat
