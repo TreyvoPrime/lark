@@ -8,7 +8,7 @@ REPO_NAME="${LARK_GITHUB_REPO:-lark}"
 VISIBILITY="${LARK_GITHUB_VISIBILITY:-public}"
 VERSION=$(sed -n 's/.*VERSION = "\([^"]*\)".*/\1/p' src/lark/Settings.java | head -n 1)
 TAG="v${VERSION}"
-NOTES="${LARK_UPDATE_NOTES:-Lark ${VERSION}: portable Java IDE for Windows, Mac, and Linux. Unzip and run Start Lark — no admin password.}"
+NOTES="${LARK_UPDATE_NOTES:-Lark ${VERSION}: Desktop install (Start Menu, update prompts) plus portable zips for Windows, Mac, and Linux — no admin password.}"
 
 if ! gh auth status >/dev/null 2>&1; then
   echo "Sign in first: gh auth login"
@@ -62,8 +62,20 @@ assets=(
   release/lark-linux.zip
   release/lark.zip
   release/lark-update.zip
+  release/lark-desktop-windows.zip
+  release/lark-desktop-mac.zip
+  release/lark-desktop-linux.zip
+  release/lark-desktop-update.zip
   release/update.json
 )
+# Optional Linux app-image zip from jpackage.
+if [ -f release/lark-desktop-linux-appimage.zip ]; then
+  assets+=(release/lark-desktop-linux-appimage.zip)
+fi
+# Optional .deb / .rpm from jpackage.
+for pkg in release/*.deb release/*.rpm; do
+  [ -f "$pkg" ] && assets+=("$pkg")
+done
 if gh release view "$TAG" --repo "$REPO" >/dev/null 2>&1; then
   gh release upload "$TAG" "${assets[@]}" --repo "$REPO" --clobber
 else

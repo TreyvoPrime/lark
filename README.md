@@ -2,64 +2,72 @@
 
 Lark is a small Java IDE: several files and classes, an outline, compile and run, problems that jump to the line, and GitHub clone/push. It is meant to feel lighter than IntelliJ or Eclipse, and more useful than a single browser text box.
 
-No admin install. Platform zips include a portable JDK (`jdk/`). On Windows, `Start Lark.bat` keeps a console open, runs the bundled Java in place, and writes `lark-boot.log`. Double-click `Start Lark.vbs` if a console flashes and disappears. There is no Gradle and no Electron.
+Two ways to get it:
+
+1. **Lark Desktop** (recommended) — per-user install, Start Menu / Applications shortcut, bundled JDK, **prompts you to update** when a release ships. No admin password.
+2. **Portable zip** — unzip a folder and run `Start Lark`. Same IDE, no install step.
+
+There is no Gradle and no Electron.
 
 ## Download
 
-Permanent download site (always online): **[treyvoprime.github.io/lark](https://treyvoprime.github.io/lark-download/)**
+Permanent download site: **[treyvoprime.github.io/lark-download](https://treyvoprime.github.io/lark-download/)**
 
-Or grab a zip from **[GitHub Releases](https://github.com/TreyvoPrime/lark/releases/latest)** (Windows, Mac, or Linux). Unzip into Downloads or Documents, then:
+Or grab assets from **[GitHub Releases](https://github.com/TreyvoPrime/lark/releases/latest)**:
+
+| Track | Windows | Mac | Linux |
+| --- | --- | --- | --- |
+| Desktop | `lark-desktop-windows.zip` | `lark-desktop-mac.zip` | `lark-desktop-linux.zip` |
+| Portable | `lark-windows.zip` | `lark-mac.zip` | `lark-linux.zip` |
+
+### Lark Desktop
+
+- **Windows:** unzip → right-click `Install Lark Desktop.ps1` → Run with PowerShell. Installs under `%LOCALAPPDATA%\Programs\Lark`, creates shortcuts, opens Lark.
+- **Mac / Linux:** unzip → run `Install Lark Desktop.command` (or `./Install\ Lark\ Desktop.command`). Lives in `~/Applications/Lark Desktop`.
+
+When an update is published, Desktop shows a prompt on launch. Choose **Update now**, then **Restart Lark**.
+
+### Portable
+
+Unzip into Downloads or Documents, then:
 
 - Windows: double-click `Start Lark.bat`
 - Mac: double-click `Start Lark.command`
 - Linux: run `./start-lark.sh`
 
-No administrator password. The same folder works on every OS — use the launcher for your computer.
-
-After the public repo is published, stable links look like:
-
-- `https://github.com/TreyvoPrime/lark/releases/latest`
-- `https://github.com/TreyvoPrime/lark/releases/latest/download/lark-windows.zip`
-
-Publish or refresh those assets with `./packaging/publish-github.sh` (requires `gh auth login`).
-
-## Take it to any computer
-
-Lark opens in its own window. It does not install into Program Files. Build local zips with `./packaging/make-release.sh`.
+Extract All to a real folder (not the zip preview / Temp). You must see `Start Lark`, `lark.jar`, and `jdk\` together.
 
 ## Run from source
 
 ```bash
 ./lark.sh
+# or desktop mode:
+./lark.sh --desktop
 ```
 
-Lark prints a local address, usually [http://127.0.0.1:43123](http://127.0.0.1:43123), and opens it. On Windows, use `lark.bat`.
+Lark prints a local address, usually [http://127.0.0.1:43123](http://127.0.0.1:43123), and opens an app window when possible.
 
-Your projects are real folders in `~/.lark/projects`. A library sample is created the first time, so you can press Run immediately.
-
-## One jar
+## Build packages
 
 ```bash
-./package.sh
-java -jar dist/lark.jar
+./package.sh                          # dist/lark.jar
+./packaging/make-release.sh           # portable zips + desktop zips + update.json
+./packaging/make-desktop.sh           # desktop packages only (also called by make-release)
 ```
 
-The jar is the editor. Running it still needs a JDK, because that is what compiles your code.
+In-app updates download `lark-update.zip` (portable) or `lark-desktop-update.zip` (Desktop).
+
+Publish with `./packaging/publish-github.sh` (requires `gh auth login`).
 
 ## What you can do
 
 - Keep more than one project, each with packages, classes, interfaces, records, and enums.
-- Edit with Java highlighting, bracket matching, find, comment toggle, and suggestion-style autofill (options as you type; `Ctrl+Space` for building blocks like `main`, `fori`, `sout`).
-- **Terminal** tab runs a real shell in the open project folder (`dir` / `ls`, `javac`, `git`, …).
-- Run the main class. Compiler and runtime problems show in plain English with a fix hint in the Problems list.
-- Themes include Nova and Atelier (new in 2.0), Lagoon, Rosewood, Graphite & Teal, Midnight Blue, Terminal Green, Paper & Ink, Ultraviolet, Forest, Monochrome, Amber Terminal, Blossom, Candy, and the original Desk/Daylight set — IntelliJ-style syntax with JetBrains Mono.
+- Edit with Java highlighting, bracket matching, find, comment toggle, and suggestion-style autofill (`Ctrl+Space` for building blocks like `main`, `fori`, `sout`).
+- **Terminal** tab runs a real shell in the open project folder.
+- Run the main class. Compiler and runtime problems show in plain English with a fix hint.
+- Themes include Nova, Atelier, Lagoon, Rosewood, and the full Desk/Daylight set — IntelliJ-style syntax with JetBrains Mono.
 - Change editor font size and UI zoom under **Aa**, or with `Ctrl+=` / `Ctrl+-` / `Ctrl+0`.
-- Answer interactive programs in the reply box under Output.
-- Welcome page on first open (new project, recent projects, 2.0 highlights).
-- Java assist menu: insert building blocks, main / loops / try-catch / Scanner, generate getters/setters, constructors, `toString`, `equals`/`hashCode`, explain keywords, suggest imports, and quick-fix missing accessors.
-- Structure panel under Files lists fields, constructors, and methods. Type `/**` for a Javadoc stub. Find/replace with `Ctrl+F` / `Ctrl+H`.
-- Check for updates on startup when an update feed is set (`update-feed.url` next to the jar, `LARK_UPDATE_FEED`, or Aa → Updates). “Update now” stages a new jar; click **Restart Lark** (or close and open Start Lark again). On Windows, Lark always runs a copy under `%LOCALAPPDATA%\Lark\run` so the install `lark.jar` stays unlocked and updates can replace it; Start Lark retries the swap if anything still holds the file.
-- Connect GitHub with a classic personal access token (`repo` scope). Lark lists repositories you can clone, and can push the open project. Browser sign-in is available too; Lark refreshes those tokens when GitHub allows it. Credentials stay in `~/.lark/settings.json` and are only sent to GitHub.
+- Connect GitHub with a classic personal access token (`repo` scope).
 - Import a folder or a zip, and download the project as a zip.
 
 `Ctrl+Enter` runs. `Ctrl+P` opens a file. `Ctrl+S` saves. On a Mac, use Command.

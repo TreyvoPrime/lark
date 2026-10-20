@@ -32,11 +32,14 @@ public final class Updates {
 
     public Json.Obj check() {
         String feed = resolveFeed();
+        boolean desktop = Desktop.isDesktop();
         Json.Obj result = new Json.Obj()
                 .put("ok", true)
                 .put("current", Settings.VERSION)
                 .put("feed", feed == null ? "" : feed)
-                .put("available", false);
+                .put("available", false)
+                .put("edition", desktop ? "desktop" : "portable")
+                .put("prompt", desktop);
         if (feed == null || feed.isBlank()) {
             return result.put("message", "No update feed is set.");
         }
@@ -50,16 +53,19 @@ public final class Updates {
             String notes = info.notes;
             String skipped = settings.skippedUpdate == null ? "" : settings.skippedUpdate;
             boolean newer = compareVersions(latest, Settings.VERSION) > 0;
-            boolean skippedThis = newer && latest.equals(skipped);
+            // Desktop prompts every launch until updated; skip only soft-dismisses once.
+            boolean skippedThis = newer && latest.equals(skipped) && !desktop;
             String download = info.download;
             result.put("available", newer && !skippedThis)
                     .put("latest", latest)
                     .put("notes", notes)
                     .put("download", download == null ? "" : download)
                     .put("skipped", skippedThis)
-                    .put("page", info.page == null ? "" : info.page);
+                    .put("page", info.page == null ? "" : info.page)
+                    .put("required", desktop && newer);
             if (!newer) result.put("message", "You're on the latest Lark (" + Settings.VERSION + ").");
             else if (skippedThis) result.put("message", "Update " + latest + " is available, but you skipped it.");
+            else if (desktop) result.put("message", "Lark Desktop " + latest + " is ready — update to keep your install current.");
             else result.put("message", "Lark " + latest + " is available.");
             settings.lastUpdateCheck = System.currentTimeMillis();
             settings.save();
@@ -97,7 +103,18 @@ public final class Updates {
             String name = asset.str("name", "").toLowerCase(Locale.ROOT);
             String url = asset.str("browser_download_url", "");
             if (url.isBlank()) continue;
-            if (name.contains("windows")) downloads.put("windows", url);
+            if (name.contains("desktop") && name.contains("update")) {
+                downloads.put("desktop", url);
+                if (name.contains("windows")) downloads.put("desktop-windows", url);
+                else if (name.contains("mac") || name.contains("darwin")) downloads.put("desktop-mac", url);
+                else if (name.contains("linux")) downloads.put("desktop-linux", url);
+            } else if (name.contains("desktop") && name.contains("windows")) {
+                downloads.put("desktop-windows", url);
+            } else if (name.contains("desktop") && (name.contains("mac") || name.contains("darwin"))) {
+                downloads.put("desktop-mac", url);
+            } else if (name.contains("desktop") && name.contains("linux")) {
+                downloads.put("desktop-linux", url);
+            } else if (name.contains("windows")) downloads.put("windows", url);
             else if (name.contains("mac") || name.contains("darwin")) downloads.put("mac", url);
             else if (name.contains("linux")) downloads.put("linux", url);
             else if (name.equals("lark.zip") || name.endsWith("/lark.zip")) downloads.put("any", url);
@@ -146,6 +163,7 @@ public final class Updates {
             // overwrite them. Never refresh AFTER extract — that would clobber the
             // new Start Lark.bat with the old one still loaded in memory.
             refreshLaunchers(installDir);
+            if (Desktop.isDesktop()) refreshDesktopLaunchers(installDir);
             extractUpdate(zip, extracted, installDir);
             try {
                 Files.move(extracted, pending, StandardCopyOption.REPLACE_EXISTING, StandardCopyOption.ATOMIC_MOVE);
@@ -204,28 +222,46 @@ public final class Updates {
         }
     }
 
-    /** Spawns the portable launcher, then exits so Windows can finish any jar swap. */
+    /** Spawns the portable or desktop launcher, then exits so Windows can finish any jar swap. */
     public Json.Obj restart() {
         Path dir = installDir();
         if (dir == null) throw new RequestFail(500, "Lark couldn't find its install folder.");
         boolean windows = System.getProperty("os.name", "").toLowerCase(Locale.ROOT).contains("win");
+        boolean desktop = Desktop.isDesktop();
         try {
             refreshLaunchers(dir);
+            refreshDesktopLaunchers(dir);
             if (windows) {
-                Path finish = dir.resolve("finish-update.bat");
-                Path start = dir.resolve("Start Lark.bat");
-                Path script = Files.isRegularFile(finish) ? finish : start;
+                Path script;
+                if (desktop) {
+                    Path vbs = dir.resolve("Launch Lark Desktop.vbs");
+                    Path bat = dir.resolve("Launch Lark Desktop.bat");
+                    Path finish = dir.resolve("finish-update.bat");
+                    if (Files.isRegularFile(vbs)) script = vbs;
+                    else if (Files.isRegularFile(bat)) script = bat;
+                    else script = Files.isRegularFile(finish) ? finish : dir.resolve("Start Lark.bat");
+                } else {
+                    Path finish = dir.resolve("finish-update.bat");
+                    Path start = dir.resolve("Start Lark.bat");
+                    script = Files.isRegularFile(finish) ? finish : start;
+                }
                 if (!Files.isRegularFile(script)) {
-                    throw new RequestFail(500, "Start Lark.bat is missing next to Lark.");
+                    throw new RequestFail(500, "A Lark launcher is missing next to the install.");
                 }
                 new ProcessBuilder("cmd.exe", "/c", "start", "", script.toAbsolutePath().toString())
                         .directory(dir.toFile())
                         .start();
             } else {
-                Path start = dir.resolve("start-lark.sh");
-                if (!Files.isRegularFile(start)) start = dir.resolve("Start Lark.command");
+                Path start;
+                if (desktop) {
+                    start = dir.resolve("start-lark-desktop.sh");
+                    if (!Files.isRegularFile(start)) start = dir.resolve("Launch Lark Desktop.command");
+                } else {
+                    start = dir.resolve("start-lark.sh");
+                    if (!Files.isRegularFile(start)) start = dir.resolve("Start Lark.command");
+                }
                 if (!Files.isRegularFile(start)) {
-                    throw new RequestFail(500, "start-lark.sh is missing next to Lark.");
+                    throw new RequestFail(500, "A Lark launcher is missing next to the install.");
                 }
                 new ProcessBuilder("/bin/sh", start.toAbsolutePath().toString())
                         .directory(dir.toFile())
@@ -249,7 +285,7 @@ public final class Updates {
         stopper.start();
         return new Json.Obj()
                 .put("ok", true)
-                .put("message", "Restarting Lark…");
+                .put("message", desktop ? "Restarting Lark Desktop…" : "Restarting Lark…");
     }
 
     private static boolean tryApplyPending(Path pending, Path target, Path bak) {
@@ -284,18 +320,42 @@ public final class Updates {
         writeLaunchResource("lark/launch/WipeLark.bat", installDir.resolve("Wipe Lark From This PC.bat"));
         writeLaunchResource("lark/launch/start-lark.sh", installDir.resolve("start-lark.sh"));
         writeLaunchResource("lark/launch/start-lark.sh", installDir.resolve("Start Lark.command"));
+        chmodLaunchers(installDir, "start-lark.sh", "Start Lark.command");
+    }
+
+    /** Writes Lark Desktop launchers (hidden console / app-window entry). */
+    static void refreshDesktopLaunchers(Path installDir) {
+        if (installDir == null || !Files.isDirectory(installDir)) return;
+        writeLaunchResource("lark/launch/LaunchDesktop.bat", installDir.resolve("Launch Lark Desktop.bat"));
+        writeLaunchResource("lark/launch/LaunchDesktop.vbs", installDir.resolve("Launch Lark Desktop.vbs"));
+        writeLaunchResource("lark/launch/start-lark-desktop.sh", installDir.resolve("start-lark-desktop.sh"));
+        writeLaunchResource("lark/launch/start-lark-desktop.sh", installDir.resolve("Launch Lark Desktop.command"));
+        writeLaunchResource("lark/launch/InstallDesktop.ps1", installDir.resolve("Install Lark Desktop.ps1"));
+        writeLaunchResource("lark/launch/UninstallDesktop.ps1", installDir.resolve("Uninstall Lark Desktop.ps1"));
         try {
-            Path sh = installDir.resolve("start-lark.sh");
-            if (Files.isRegularFile(sh)) {
-                try {
-                    Set<PosixFilePermission> perms = EnumSet.of(
-                            PosixFilePermission.OWNER_READ, PosixFilePermission.OWNER_WRITE, PosixFilePermission.OWNER_EXECUTE,
-                            PosixFilePermission.GROUP_READ, PosixFilePermission.GROUP_EXECUTE,
-                            PosixFilePermission.OTHERS_READ, PosixFilePermission.OTHERS_EXECUTE);
-                    Files.setPosixFilePermissions(sh, perms);
-                    Files.setPosixFilePermissions(installDir.resolve("Start Lark.command"), perms);
-                } catch (UnsupportedOperationException ignored) {
-                    // Windows.
+            if (!Files.isRegularFile(installDir.resolve("desktop.marker"))) {
+                Files.writeString(installDir.resolve("desktop.marker"), "desktop\n");
+            }
+        } catch (IOException ignored) {
+            // Best-effort channel marker.
+        }
+        chmodLaunchers(installDir, "start-lark-desktop.sh", "Launch Lark Desktop.command");
+    }
+
+    private static void chmodLaunchers(Path installDir, String... names) {
+        try {
+            Set<PosixFilePermission> perms = EnumSet.of(
+                    PosixFilePermission.OWNER_READ, PosixFilePermission.OWNER_WRITE, PosixFilePermission.OWNER_EXECUTE,
+                    PosixFilePermission.GROUP_READ, PosixFilePermission.GROUP_EXECUTE,
+                    PosixFilePermission.OTHERS_READ, PosixFilePermission.OTHERS_EXECUTE);
+            for (String name : names) {
+                Path path = installDir.resolve(name);
+                if (Files.isRegularFile(path)) {
+                    try {
+                        Files.setPosixFilePermissions(path, perms);
+                    } catch (UnsupportedOperationException ignored) {
+                        // Windows.
+                    }
                 }
             }
         } catch (IOException ignored) {
@@ -405,7 +465,12 @@ public final class Updates {
         String key = "linux";
         if (os.contains("win")) key = "windows";
         else if (os.contains("mac")) key = "mac";
-        String url = downloads.str(key, "");
+        String url = "";
+        if (Desktop.isDesktop()) {
+            url = downloads.str("desktop-" + key, "");
+            if (url.isBlank()) url = downloads.str("desktop", "");
+        }
+        if (url.isBlank()) url = downloads.str(key, "");
         if (url.isBlank()) url = downloads.str("any", "");
         if (url.isBlank()) return null;
         return absolutize(feed, url);
@@ -451,7 +516,11 @@ public final class Updates {
                         || "finish-update.bat".equals(base)
                         || "Stop Lark and Clean Cache.bat".equals(base)
                         || "Wipe Lark From This PC.bat".equals(base)
-                        || "start-lark.sh".equals(base) || "Start Lark.command".equals(base)) {
+                        || "start-lark.sh".equals(base) || "Start Lark.command".equals(base)
+                        || "Launch Lark Desktop.bat".equals(base) || "Launch Lark Desktop.vbs".equals(base)
+                        || "start-lark-desktop.sh".equals(base) || "Launch Lark Desktop.command".equals(base)
+                        || "Install Lark Desktop.ps1".equals(base) || "Uninstall Lark Desktop.ps1".equals(base)
+                        || "desktop.marker".equals(base)) {
                     Files.copy(zin, installDir.resolve(base), StandardCopyOption.REPLACE_EXISTING);
                 }
             }

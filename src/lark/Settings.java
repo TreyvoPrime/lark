@@ -10,10 +10,12 @@ import java.util.Set;
 
 /** Preferences stored in the home folder. The GitHub token never leaves this machine except for GitHub. */
 public final class Settings {
-    public static final String VERSION = "2.0.0";
+    public static final String VERSION = "2.1.0";
     /** Default public update feed — always the latest GitHub release JSON companion. */
     public static final String DEFAULT_UPDATE_FEED =
             "https://github.com/TreyvoPrime/lark/releases/latest/download/update.json";
+    /** Desktop-channel companion feed (same JSON; downloads.desktop-* keys preferred). */
+    public static final String DEFAULT_DESKTOP_UPDATE_FEED = DEFAULT_UPDATE_FEED;
     public static final Set<String> THEMES = Set.of(
             "desk", "daylight", "moss", "ember", "fog",
             "blossom", "candy", "midnight", "citrus", "harbor",

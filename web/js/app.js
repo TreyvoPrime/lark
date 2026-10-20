@@ -2167,6 +2167,12 @@
     if ($("update-skip")) $("update-skip").addEventListener("click", () => skipUpdate().catch((err) => toast(err.message)));
     if ($("update-now")) $("update-now").addEventListener("click", () => installUpdate().catch((err) => toast(err.message)));
     if ($("update-restart")) $("update-restart").addEventListener("click", () => restartAfterUpdate().catch((err) => toast(err.message)));
+    if ($("update-modal-later")) $("update-modal-later").addEventListener("click", () => {
+      hideUpdateBanner();
+      toast("You'll be prompted again next time you open Lark Desktop.");
+    });
+    if ($("update-modal-now")) $("update-modal-now").addEventListener("click", () => installUpdate().catch((err) => toast(err.message)));
+    if ($("update-modal-restart")) $("update-modal-restart").addEventListener("click", () => restartAfterUpdate().catch((err) => toast(err.message)));
     $("menu-project").addEventListener("click", (event) => {
       const act = event.target.dataset.act;
       if (!act) return;
@@ -2401,17 +2407,44 @@
     bindSplitters();
   }
 
+  function isDesktopEdition(info) {
+    const edition = (info && info.edition) || (state.settings && state.settings.edition) || "";
+    return edition === "desktop" || !!(info && (info.prompt || info.required));
+  }
+
   function hideUpdateBanner() {
     const banner = $("update-banner");
     if (banner) banner.hidden = true;
+    const modal = $("update-modal");
+    if (modal) modal.hidden = true;
   }
 
   function showUpdateBanner(info) {
+    state.updateInfo = info;
+    const desktop = isDesktopEdition(info);
+    const title = desktop
+      ? ("Lark Desktop " + (info.latest || "") + " is ready")
+      : ("Lark " + (info.latest || "") + " is ready");
+    const notes = info.notes || info.message || ("You have " + (info.current || "") + ".");
+
+    if (desktop && $("update-modal")) {
+      $("update-modal-title").textContent = title;
+      $("update-modal-notes").textContent = notes;
+      const nowBtn = $("update-modal-now");
+      const restartBtn = $("update-modal-restart");
+      if (nowBtn) nowBtn.hidden = false;
+      if (restartBtn) restartBtn.hidden = true;
+      $("update-modal").hidden = false;
+      if ($("update-banner")) $("update-banner").hidden = true;
+      return;
+    }
+
     const banner = $("update-banner");
     if (!banner) return;
-    state.updateInfo = info;
-    $("update-title").textContent = "Lark " + (info.latest || "") + " is ready";
-    $("update-notes").textContent = info.notes || ("You have " + (info.current || "") + ".");
+    $("update-title").textContent = title;
+    $("update-notes").textContent = notes;
+    const skip = $("update-skip");
+    if (skip) skip.hidden = !!desktop;
     banner.hidden = false;
   }
 
@@ -2442,6 +2475,12 @@
   async function skipUpdate() {
     const info = state.updateInfo;
     if (!info || !info.latest) return hideUpdateBanner();
+    if (isDesktopEdition(info)) {
+      // Desktop: Later only hides for this session; next launch prompts again.
+      hideUpdateBanner();
+      toast("You'll be prompted again next time you open Lark Desktop.");
+      return;
+    }
     await api("POST", "/api/update/skip", { version: info.latest });
     hideUpdateBanner();
     toast("Skipped Lark " + info.latest + ".");
@@ -2449,15 +2488,23 @@
 
   async function installUpdate() {
     const info = state.updateInfo || {};
+    const desktop = isDesktopEdition(info);
     toast("Downloading update…");
     const result = await api("POST", "/api/update/install", { download: info.download || "" });
     toast(result.message || "Update ready. Restart Lark.");
-    const restartBtn = $("update-restart");
-    const nowBtn = $("update-now");
-    if (result.canRestart && restartBtn) {
+    if (result.canRestart) {
+      if (desktop && $("update-modal")) {
+        $("update-modal").hidden = false;
+        $("update-modal-title").textContent = "Update installed";
+        $("update-modal-notes").textContent = result.message || "Restart Lark Desktop to finish.";
+        if ($("update-modal-now")) $("update-modal-now").hidden = true;
+        if ($("update-modal-later")) $("update-modal-later").hidden = true;
+        if ($("update-modal-restart")) $("update-modal-restart").hidden = false;
+        return;
+      }
       if ($("update-banner")) $("update-banner").hidden = false;
-      restartBtn.hidden = false;
-      if (nowBtn) nowBtn.hidden = true;
+      if ($("update-restart")) $("update-restart").hidden = false;
+      if ($("update-now")) $("update-now").hidden = true;
       $("update-title").textContent = "Update ready";
       $("update-notes").textContent = result.message || "Restart Lark to finish.";
     } else {
@@ -2480,6 +2527,8 @@
         larkVer = health.version || "";
       } catch (_) { /* optional */ }
       state.settings = await api("GET", "/api/settings");
+      const edition = state.settings.edition || "portable";
+      document.body.classList.toggle("edition-desktop", edition === "desktop");
       applyTheme(state.settings.theme, false);
       applyDisplay({
         fontSize: state.settings.fontSize || 14,
@@ -2489,10 +2538,12 @@
       showGithub();
       const version = (state.settings.javaVersion || "").split(".")[0];
       const bits = [];
-      if (larkVer) bits.push("Lark " + larkVer);
+      if (larkVer) bits.push((edition === "desktop" ? "Lark Desktop " : "Lark ") + larkVer);
       if (version) bits.push("Java " + version);
       $("status-java").textContent = bits.join(" · ");
-      if ($("status-path") && larkVer) $("status-path").textContent = "Lark " + larkVer;
+      if ($("status-path") && larkVer) {
+        $("status-path").textContent = (edition === "desktop" ? "Lark Desktop " : "Lark ") + larkVer;
+      }
       const data = await api("GET", "/api/projects");
       state.projects = data.projects;
       renderProjects();

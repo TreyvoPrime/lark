@@ -127,7 +127,11 @@ public final class Server {
     private void api(HttpExchange exchange, String method, String path) throws IOException {
         String[] parts = path.split("/");
         if ("GET".equals(method) && "/api/health".equals(path)) {
-            sendJson(exchange, 200, new Json.Obj().put("ok", true).put("version", Settings.VERSION));
+            sendJson(exchange, 200, new Json.Obj()
+                    .put("ok", true)
+                    .put("version", Settings.VERSION)
+                    .put("edition", Desktop.isDesktop() ? "desktop" : "portable")
+                    .put("channel", Desktop.isDesktop() ? Desktop.CHANNEL : "portable"));
             return;
         }
         if ("/api/settings".equals(path)) {
@@ -374,7 +378,9 @@ public final class Server {
                 .put("updateFeed", settings.updateFeed == null ? "" : settings.updateFeed)
                 .put("javaVersion", System.getProperty("java.version", ""))
                 .put("projectsDir", settings.projectsDir().toString())
-                .put("version", Settings.VERSION);
+                .put("version", Settings.VERSION)
+                .put("edition", Desktop.isDesktop() ? "desktop" : "portable")
+                .put("channel", Desktop.isDesktop() ? Desktop.CHANNEL : "portable");
     }
 
     private static String downloadName(String path) {

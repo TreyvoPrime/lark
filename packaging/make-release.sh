@@ -6,7 +6,7 @@ cd "$(dirname "$0")/.."
 ./package.sh
 root=$(pwd)
 version=$(sed -n 's/.*VERSION = "\([^"]*\)".*/\1/p' src/lark/Settings.java | head -n 1)
-notes=${LARK_UPDATE_NOTES:-"Portable Java IDE with a bundled JDK — unzip and run Start Lark."}
+notes=${LARK_UPDATE_NOTES:-"Lark ${version}: Desktop install (update prompts, Start Menu) plus portable zips with a bundled JDK."}
 feed_base=${LARK_UPDATE_BASE:-}
 cache=${LARK_JDK_CACHE:-"$root/release/.jdk-cache"}
 mkdir -p "$cache" release
@@ -46,7 +46,16 @@ cat > release/update.json <<EOF
     "windows": "$feed_base/lark-update.zip",
     "mac": "$feed_base/lark-update.zip",
     "linux": "$feed_base/lark-update.zip",
-    "any": "$feed_base/lark-update.zip"
+    "any": "$feed_base/lark-update.zip",
+    "desktop": "$feed_base/lark-desktop-update.zip",
+    "desktop-windows": "$feed_base/lark-desktop-update.zip",
+    "desktop-mac": "$feed_base/lark-desktop-update.zip",
+    "desktop-linux": "$feed_base/lark-desktop-update.zip"
+  },
+  "desktop": {
+    "windows": "$feed_base/lark-desktop-windows.zip",
+    "mac": "$feed_base/lark-desktop-mac.zip",
+    "linux": "$feed_base/lark-desktop-linux.zip"
   }
 }
 EOF
@@ -102,6 +111,10 @@ pack_platform lark-windows.zip windows x64
 pack_platform lark-linux.zip linux "$host_arch"
 pack_platform lark-mac.zip mac "$host_arch"
 
-ls -lh release/*.zip release/update.json
+# Enterprise desktop packages (installers + desktop update channel).
+chmod +x packaging/make-desktop.sh
+LARK_UPDATE_BASE="$feed_base" LARK_UPDATE_NOTES="$notes" ./packaging/make-desktop.sh
+
+ls -lh release/*.zip release/update.json 2>/dev/null | head -40
 echo "Version $version"
-echo "First-install zips include jdk/. In-app updates use lark-update.zip (slim)."
+echo "Portable: unzip + Start Lark. Desktop: Install Lark Desktop (prompts on update)."

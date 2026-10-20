@@ -5,7 +5,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>Lark — Download</title>
   <link rel="icon" href="./favicon.svg">
-  <meta name="description" content="Download Lark — a portable Java IDE. Unzip, open Start Lark, code. JDK included, no admin password.">
+  <meta name="description" content="Download Lark Desktop — enterprise Java IDE with update prompts — or the portable zip. No admin password.">
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,500;9..144,700&family=IBM+Plex+Sans:wght@400;500;600&family=IBM+Plex+Mono:wght@500&display=swap" rel="stylesheet">
@@ -18,6 +18,7 @@
       --mist: #b7c6b0;
       --panel: rgba(18, 32, 22, 0.72);
       --line: rgba(232, 239, 227, 0.14);
+      --amber: #d4a35c;
     }
     * { box-sizing: border-box; }
     html { scroll-behavior: smooth; }
@@ -55,8 +56,6 @@
       position: relative;
       z-index: 1;
     }
-
-    /* —— Hero: one composition —— */
     .hero {
       min-height: min(88vh, 760px);
       display: grid;
@@ -68,15 +67,10 @@
       position: absolute;
       inset: 8% 0 auto;
       height: 58%;
-      border-radius: 0;
       background:
         linear-gradient(120deg, rgba(111, 143, 92, 0.18), transparent 55%),
         linear-gradient(180deg, rgba(12, 21, 16, 0.1), rgba(12, 21, 16, 0.85)),
-        repeating-linear-gradient(
-          -12deg,
-          rgba(232, 239, 227, 0.04) 0 2px,
-          transparent 2px 14px
-        );
+        repeating-linear-gradient(-12deg, rgba(232, 239, 227, 0.04) 0 2px, transparent 2px 14px);
       border-bottom: 1px solid var(--line);
       overflow: hidden;
     }
@@ -107,23 +101,15 @@
       opacity: 0;
       animation: fadeUp 1s ease 0.6s forwards;
     }
-    .hero-visual .code-lines span {
-      display: block;
-      white-space: nowrap;
-      overflow: hidden;
-      border-right: 2px solid transparent;
-    }
+    .hero-visual .code-lines span { display: block; white-space: nowrap; overflow: hidden; }
     .hero-visual .code-lines span:nth-child(1) { animation: typeLine 0.8s steps(24) 0.9s forwards; width: 0; }
     .hero-visual .code-lines span:nth-child(2) { animation: typeLine 0.7s steps(20) 1.5s forwards; width: 0; }
     .hero-visual .code-lines span:nth-child(3) { animation: typeLine 0.9s steps(28) 2.1s forwards; width: 0; color: var(--moss); }
-    @keyframes typeLine {
-      to { width: 100%; border-right-color: var(--moss); }
-    }
+    @keyframes typeLine { to { width: 100%; } }
     @keyframes panelFloat {
       0%, 100% { transform: perspective(900px) rotateY(-8deg) rotateX(4deg) translateY(0); }
       50% { transform: perspective(900px) rotateY(-6deg) rotateX(2deg) translateY(-10px); }
     }
-
     .brand {
       display: flex;
       align-items: baseline;
@@ -132,20 +118,13 @@
       opacity: 0;
       animation: fadeUp 0.9s ease 0.15s forwards;
     }
-    .brand svg {
-      width: clamp(36px, 5vw, 52px);
-      height: auto;
-      color: var(--moss);
-      overflow: visible;
-    }
+    .brand svg { width: clamp(36px, 5vw, 52px); height: auto; color: var(--moss); overflow: visible; }
     .brand svg path {
       stroke-dasharray: 80;
       stroke-dashoffset: 80;
       animation: drawBird 1.4s ease 0.2s forwards;
     }
-    @keyframes drawBird {
-      to { stroke-dashoffset: 0; }
-    }
+    @keyframes drawBird { to { stroke-dashoffset: 0; } }
     .brand-name {
       font-family: Fraunces, Georgia, serif;
       font-weight: 700;
@@ -155,9 +134,18 @@
       color: var(--fog);
       margin: 0;
     }
+    .brand-name span {
+      display: block;
+      font-size: 0.28em;
+      letter-spacing: 0.18em;
+      text-transform: uppercase;
+      font-weight: 500;
+      color: var(--amber);
+      margin-top: 10px;
+    }
     .headline {
       margin: 18px 0 0;
-      max-width: 18ch;
+      max-width: 20ch;
       font-family: Fraunces, Georgia, serif;
       font-weight: 500;
       font-size: clamp(22px, 3.4vw, 34px);
@@ -168,7 +156,7 @@
     }
     .lead {
       margin: 12px 0 0;
-      max-width: 42ch;
+      max-width: 44ch;
       color: var(--mist);
       font-size: 17px;
       line-height: 1.55;
@@ -195,10 +183,7 @@
       transition: transform 0.2s ease, background 0.2s ease, border-color 0.2s ease;
     }
     .cta a:hover { transform: translateY(-2px); }
-    .cta .primary {
-      background: var(--moss);
-      color: var(--ink);
-    }
+    .cta .primary { background: var(--moss); color: var(--ink); }
     .cta .primary:hover { background: #82a56c; }
     .cta .ghost {
       border: 1px solid var(--line);
@@ -219,12 +204,7 @@
       from { opacity: 0; transform: translateY(18px); }
       to { opacity: 1; transform: translateY(0); }
     }
-
-    /* —— Platforms (interaction cards) —— */
-    .section {
-      margin-top: 72px;
-      padding-top: 8px;
-    }
+    .section { margin-top: 72px; padding-top: 8px; }
     .section h2 {
       margin: 0 0 8px;
       font-family: Fraunces, Georgia, serif;
@@ -232,11 +212,7 @@
       font-size: clamp(26px, 3vw, 34px);
       letter-spacing: -0.02em;
     }
-    .section .sub {
-      margin: 0 0 22px;
-      color: var(--mist);
-      max-width: 48ch;
-    }
+    .section .sub { margin: 0 0 22px; color: var(--mist); max-width: 52ch; }
     .grid {
       display: grid;
       grid-template-columns: repeat(3, 1fr);
@@ -266,17 +242,8 @@
       border-color: var(--moss);
       box-shadow: inset 0 0 0 1px rgba(111, 143, 92, 0.35);
     }
-    article h3 {
-      margin: 0;
-      font-size: 18px;
-      font-weight: 600;
-    }
-    article p {
-      margin: 0;
-      color: var(--mist);
-      line-height: 1.5;
-      font-size: 14px;
-    }
+    article h3 { margin: 0; font-size: 18px; font-weight: 600; }
+    article p { margin: 0; color: var(--mist); line-height: 1.5; font-size: 14px; }
     code {
       font-family: "IBM Plex Mono", ui-monospace, monospace;
       color: var(--fog);
@@ -295,7 +262,11 @@
       transition: filter 0.2s ease;
     }
     a.dl:hover { filter: brightness(1.08); }
-
+    a.dl.ghost {
+      background: transparent;
+      border: 1px solid var(--line);
+      color: var(--fog);
+    }
     .steps {
       margin: 56px 0 0;
       padding: 28px 0 0;
@@ -348,14 +319,9 @@
       .hero-visual { position: relative; inset: auto; height: 160px; margin-bottom: 20px; }
     }
     @media (prefers-reduced-motion: reduce) {
-      *, *::before, *::after {
-        animation: none !important;
-        transition: none !important;
-      }
+      *, *::before, *::after { animation: none !important; transition: none !important; }
       article, .steps li, .brand, .headline, .lead, .cta, #status, .hero-visual .code-lines {
-        opacity: 1 !important;
-        transform: none !important;
-        width: auto !important;
+        opacity: 1 !important; transform: none !important; width: auto !important;
       }
     }
   </style>
@@ -375,51 +341,73 @@
           <path d="M3 16c4.2-.7 6-6 9-11 2.8 5 4.8 10.2 9 11" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/>
           <path d="M7 16.5h10" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/>
         </svg>
-        <p class="brand-name">Lark</p>
+        <p class="brand-name">Lark<span>Desktop</span></p>
       </div>
-      <h1 class="headline">A Java IDE that fits in a zip.</h1>
-      <p class="lead">Unzip one folder, open Start Lark, and write code. Java is already inside — no admin password, no installer, school-laptop friendly.</p>
+      <h1 class="headline">The enterprise install. Same IDE, Start Menu, update prompts.</h1>
+      <p class="lead">Install for your user account — no admin password. When a release ships, Lark Desktop asks you to update. Portable zips still exist if you want a folder you can move.</p>
       <div class="cta">
-        <a id="primary-dl" class="primary" href="https://github.com/TreyvoPrime/lark/releases/latest/download/lark-windows.zip">Download for your computer</a>
-        <a class="ghost" href="https://github.com/TreyvoPrime/lark/releases/latest">All releases</a>
+        <a id="primary-dl" class="primary" href="https://github.com/TreyvoPrime/lark/releases/latest/download/lark-desktop-windows.zip">Install Lark Desktop</a>
+        <a class="ghost" href="#portable">Portable zip instead</a>
       </div>
       <p id="status"></p>
     </section>
 
-    <section class="section" aria-label="Platform downloads">
-      <h2>Pick your computer</h2>
-      <p class="sub">Each zip includes Lark and a portable JDK. Keep the whole folder together after unzipping.</p>
+    <section class="section" aria-label="Desktop installs">
+      <h2>Lark Desktop</h2>
+      <p class="sub">Full features, bundled JDK, Start Menu / Applications shortcut. Updates prompt on launch.</p>
+      <div class="grid">
+        <article id="card-desktop-windows">
+          <h3>Windows</h3>
+          <p>Unzip, run <code>Install Lark Desktop.ps1</code>. Lands in <code>%LOCALAPPDATA%\Programs\Lark</code> — no admin.</p>
+          <a class="dl" href="https://github.com/TreyvoPrime/lark/releases/latest/download/lark-desktop-windows.zip">Desktop for Windows</a>
+        </article>
+        <article id="card-desktop-mac">
+          <h3>Mac</h3>
+          <p>Unzip, open <code>Install Lark Desktop.command</code>. Lives in <code>~/Applications/Lark Desktop</code>.</p>
+          <a class="dl" href="https://github.com/TreyvoPrime/lark/releases/latest/download/lark-desktop-mac.zip">Desktop for Mac</a>
+        </article>
+        <article id="card-desktop-linux">
+          <h3>Linux</h3>
+          <p>Unzip and run the install script, or use the app-image zip from Releases when available.</p>
+          <a class="dl" href="https://github.com/TreyvoPrime/lark/releases/latest/download/lark-desktop-linux.zip">Desktop for Linux</a>
+        </article>
+      </div>
+    </section>
+
+    <section class="section" id="portable" aria-label="Portable downloads">
+      <h2>Portable zip</h2>
+      <p class="sub">Same editor in a folder you unzip and run. No install step — keep the whole folder together.</p>
       <div class="grid">
         <article id="card-windows">
           <h3>Windows</h3>
-          <p>Unzip, then double-click <code>Start Lark.bat</code>. Leave the window open — your browser opens to Lark.</p>
-          <a class="dl" href="https://github.com/TreyvoPrime/lark/releases/latest/download/lark-windows.zip">Download for Windows</a>
+          <p>Unzip, then double-click <code>Start Lark.bat</code>.</p>
+          <a class="dl ghost" href="https://github.com/TreyvoPrime/lark/releases/latest/download/lark-windows.zip">Portable for Windows</a>
         </article>
         <article id="card-mac">
           <h3>Mac</h3>
-          <p>Unzip, then double-click <code>Start Lark.command</code>. If macOS warns you, right-click → Open.</p>
-          <a class="dl" href="https://github.com/TreyvoPrime/lark/releases/latest/download/lark-mac.zip">Download for Mac</a>
+          <p>Unzip, then double-click <code>Start Lark.command</code>.</p>
+          <a class="dl ghost" href="https://github.com/TreyvoPrime/lark/releases/latest/download/lark-mac.zip">Portable for Mac</a>
         </article>
         <article id="card-linux">
           <h3>Linux</h3>
-          <p>Unzip, open that folder in a terminal, and run <code>./start-lark.sh</code>.</p>
-          <a class="dl" href="https://github.com/TreyvoPrime/lark/releases/latest/download/lark-linux.zip">Download for Linux</a>
+          <p>Unzip and run <code>./start-lark.sh</code>.</p>
+          <a class="dl ghost" href="https://github.com/TreyvoPrime/lark/releases/latest/download/lark-linux.zip">Portable for Linux</a>
         </article>
       </div>
     </section>
 
     <ol class="steps">
-      <li>Download the zip for your computer from GitHub Releases.</li>
-      <li>Unzip into a simple folder name (avoid parentheses), e.g. <code>Documents\Lark</code>.</li>
-      <li>Open the launcher. Keep that window open while you work.</li>
+      <li>Download Lark Desktop for your computer (recommended) or a portable zip.</li>
+      <li>Desktop: run the installer script. Portable: Extract All into a simple folder name.</li>
+      <li>Open Lark. When an update is published, Desktop prompts you — Update now, then Restart.</li>
       <li>Optional: connect GitHub with a classic token that has the <code>repo</code> scope.</li>
     </ol>
 
     <p class="foot">
       Always online at
       <a href="https://treyvoprime.github.io/lark-download/">treyvoprime.github.io/lark-download</a>.
-      Updates ship from
-      <a href="https://github.com/TreyvoPrime/lark/releases/latest">GitHub Releases</a>.
+      Releases:
+      <a href="https://github.com/TreyvoPrime/lark/releases/latest">GitHub</a>.
     </p>
   </div>
   <script>
@@ -428,21 +416,23 @@
     const platform = (navigator.userAgentData && navigator.userAgentData.platform) || navigator.platform || "";
     const ua = navigator.userAgent || "";
     let key = "linux";
-    let file = "lark-linux.zip";
-    let label = "Download for Linux";
+    let desktopFile = "lark-desktop-linux.zip";
+    let label = "Install Lark Desktop for Linux";
     if (/Win/i.test(platform) || /Windows/i.test(ua)) {
-      key = "windows"; file = "lark-windows.zip"; label = "Download for Windows";
+      key = "windows"; desktopFile = "lark-desktop-windows.zip"; label = "Install Lark Desktop for Windows";
     } else if (/Mac/i.test(platform) || /Mac OS/i.test(ua)) {
-      key = "mac"; file = "lark-mac.zip"; label = "Download for Mac";
+      key = "mac"; desktopFile = "lark-desktop-mac.zip"; label = "Install Lark Desktop for Mac";
     }
-    const card = document.getElementById("card-" + key);
-    if (card) card.classList.add("pick");
+    const deskCard = document.getElementById("card-desktop-" + key);
+    if (deskCard) deskCard.classList.add("pick");
+    const portableCard = document.getElementById("card-" + key);
+    if (portableCard) portableCard.classList.add("pick");
     const primary = document.getElementById("primary-dl");
-    primary.href = latest(file);
+    primary.href = latest(desktopFile);
     primary.textContent = label;
     document.getElementById("status").textContent =
       "Detected " + (key === "windows" ? "Windows" : key === "mac" ? "Mac" : "Linux") +
-      " — your download button is ready.";
+      " — Desktop install is ready (no admin password).";
 
     const io = new IntersectionObserver((entries) => {
       entries.forEach((e) => {

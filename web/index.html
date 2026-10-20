@@ -26,7 +26,7 @@
           <path d="M3 16c4.2-.7 6-6 9-11 2.8 5 4.8 10.2 9 11" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/>
           <path d="M7 16.5h10" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/>
         </svg>
-        <span class="word">Lark <em class="ver">2</em></span>
+        <span class="word">Lark <em class="ver">2.1</em></span>
       </div>
       <button id="files-toggle" type="button">Files</button>
       <label class="project-pick">
@@ -82,7 +82,7 @@
                 </svg>
                 <h1>Lark</h1>
               </div>
-              <p class="welcome-kicker">Lark 2.0</p>
+              <p class="welcome-kicker">Lark 2.1</p>
               <p class="welcome-lead">A portable Java IDE with a real Terminal, suggestion-style autofill, and themes built for long coding sessions.</p>
               <div class="welcome-grid">
                 <section>
@@ -231,6 +231,18 @@
       <button type="button" id="update-skip">Skip</button>
       <button type="button" id="update-now" class="primary">Update now</button>
       <button type="button" id="update-restart" class="primary" hidden>Restart Lark</button>
+    </div>
+  </div>
+  <div id="update-modal" class="update-modal" hidden>
+    <div class="update-modal-card" role="dialog" aria-modal="true" aria-labelledby="update-modal-title">
+      <p class="update-modal-eyebrow">Lark Desktop</p>
+      <h2 id="update-modal-title">Update ready</h2>
+      <p id="update-modal-notes"></p>
+      <div class="update-modal-actions">
+        <button type="button" id="update-modal-later">Remind me later</button>
+        <button type="button" id="update-modal-now" class="primary">Update now</button>
+        <button type="button" id="update-modal-restart" class="primary" hidden>Restart Lark</button>
+      </div>
     </div>
   </div>
   <div id="menu-help" class="popover" hidden>
