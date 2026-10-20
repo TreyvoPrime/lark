@@ -40,6 +40,7 @@
         <span>Main</span>
         <select id="main-class"></select>
       </label>
+      <button id="beautify" type="button" title="Fix indentation (Shift+Alt+F)">Beautify</button>
       <button id="run" type="button" class="primary run-btn" title="Ctrl+Enter">Run</button>
       <button id="github" type="button">GitHub</button>
       <button id="theme" type="button" data-pop="menu-theme">Desk</button>
@@ -82,7 +83,7 @@
                 </svg>
                 <h1>Lark</h1>
               </div>
-              <p class="welcome-kicker">Lark 2.2</p>
+              <p class="welcome-kicker">Lark 2.2.1</p>
               <p class="welcome-lead">A Java IDE with autosave, Terminal, suggestion autofill, and themes built for long coding sessions.</p>
               <div class="welcome-grid">
                 <section>
@@ -164,6 +165,7 @@
     <p id="path-note" class="path-note"></p>
   </div>
   <div id="menu-assist" class="popover menu" hidden>
+    <button type="button" data-assist="beautify">Beautify indentation</button>
     <button type="button" data-assist="snippet">Insert building block…</button>
     <button type="button" data-assist="main">Insert main method</button>
     <button type="button" data-assist="fori">Insert for-i loop</button>
@@ -281,6 +283,7 @@
     <ul class="help-list">
       <li><span>Run</span><kbd>Ctrl+Enter</kbd></li>
       <li><span>Save</span><kbd>Ctrl+S</kbd></li>
+      <li><span>Beautify</span><kbd>Shift+Alt+F</kbd></li>
       <li><span>Open file</span><kbd>Ctrl+P</kbd></li>
       <li><span>Complete</span><kbd>Ctrl+Space</kbd></li>
       <li><span>Find</span><kbd>Ctrl+F</kbd></li>

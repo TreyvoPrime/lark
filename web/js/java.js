@@ -584,6 +584,195 @@
     return SNIPPETS.filter((s) => !lower || s.trigger.startsWith(lower) || s.label.toLowerCase().includes(lower));
   }
 
+  /**
+   * Re-indent Java source and tidy common spacing so braces and blocks line up.
+   * Respects indent size / tabs. Leaves string and comment contents alone.
+   */
+  function beautifyJava(source, options) {
+    options = options || {};
+    const indentSize = options.indentSize === 2 || options.indentSize === 8 ? options.indentSize : 4;
+    const useTabs = !!options.indentWithTabs;
+    const unit = useTabs ? "\t" : " ".repeat(indentSize);
+    const raw = String(source == null ? "" : source).replace(/\r\n/g, "\n").replace(/\r/g, "\n");
+    if (!raw) return "";
+
+    const lines = raw.split("\n");
+    const out = [];
+    let depth = 0;
+    let inBlockComment = false;
+    let blankRun = 0;
+
+    for (let li = 0; li < lines.length; li++) {
+      const trimmed = lines[li].trim();
+
+      if (!trimmed) {
+        blankRun += 1;
+        if (blankRun <= 2) out.push("");
+        continue;
+      }
+      blankRun = 0;
+
+      if (inBlockComment) {
+        out.push(unit.repeat(Math.max(0, depth)) + trimmed);
+        if (trimmed.indexOf("*/") >= 0) inBlockComment = false;
+        continue;
+      }
+
+      const commentOnly = trimmed.startsWith("//")
+        || trimmed.startsWith("/*")
+        || trimmed.startsWith("*");
+      const braces = countBraces(trimmed);
+      let lineDepth = depth;
+      if (/^[}\])]/.test(trimmed) || /^(case\b|default\s*:)/.test(trimmed)) {
+        lineDepth = Math.max(0, depth - Math.max(1, braces.closes - braces.opens));
+      }
+
+      const tidied = commentOnly ? trimmed.replace(/[ \t]+$/g, "") : tidyCodeSpaces(trimmed);
+      out.push(unit.repeat(Math.max(0, lineDepth)) + tidied);
+
+      if (!commentOnly || trimmed.startsWith("/*")) {
+        depth = Math.max(0, depth + braces.opens - braces.closes);
+      }
+      if (/\/\*/.test(stripStrings(trimmed)) && !/\*\//.test(stripStrings(trimmed))) {
+        inBlockComment = true;
+      }
+    }
+
+    while (out.length && out[out.length - 1] === "") out.pop();
+    return out.join("\n") + "\n";
+  }
+
+  function stripStrings(text) {
+    let out = "";
+    let i = 0;
+    let mode = "code"; // code | sq | dq | tq
+    while (i < text.length) {
+      const c = text[i];
+      const n = text[i + 1];
+      if (mode === "code") {
+        if (c === "/" && n === "/") break;
+        if (c === "/" && n === "*") {
+          out += "  ";
+          i += 2;
+          while (i < text.length && !(text[i] === "*" && text[i + 1] === "/")) {
+            out += " ";
+            i++;
+          }
+          if (i < text.length) {
+            out += "  ";
+            i += 2;
+          }
+          continue;
+        }
+        if (c === "'") { mode = "sq"; out += " "; i++; continue; }
+        if (c === '"') {
+          if (n === '"' && text[i + 2] === '"') { mode = "tq"; out += "   "; i += 3; continue; }
+          mode = "dq"; out += " "; i++; continue;
+        }
+        out += c;
+        i++;
+      } else if (mode === "sq") {
+        if (c === "\\") { out += "  "; i += 2; continue; }
+        if (c === "'") { mode = "code"; out += " "; i++; continue; }
+        out += " "; i++;
+      } else if (mode === "dq") {
+        if (c === "\\") { out += "  "; i += 2; continue; }
+        if (c === '"') { mode = "code"; out += " "; i++; continue; }
+        out += " "; i++;
+      } else if (mode === "tq") {
+        if (c === '"' && n === '"' && text[i + 2] === '"') { mode = "code"; out += "   "; i += 3; continue; }
+        out += " "; i++;
+      }
+    }
+    return out;
+  }
+
+  function countBraces(line) {
+    const clean = stripStrings(line);
+    let opens = 0;
+    let closes = 0;
+    for (let i = 0; i < clean.length; i++) {
+      if (clean[i] === "{") opens++;
+      else if (clean[i] === "}") closes++;
+    }
+    return { opens: opens, closes: closes };
+  }
+
+  function tidyCodeSpaces(line) {
+    let s = line.replace(/[ \t]+$/g, "");
+    s = replaceOutsideStrings(s, /\b(if|for|while|switch|catch|synchronized)\(/g, "$1 (");
+    s = replaceOutsideStrings(s, /\)\{/g, ") {");
+    s = replaceOutsideStrings(s, /([A-Za-z0-9_])\{/g, "$1 {");
+    s = replaceOutsideStrings(s, /\}else\b/g, "} else");
+    s = replaceOutsideStrings(s, /else\{/g, "else {");
+    s = replaceOutsideStrings(s, /try\{/g, "try {");
+    s = replaceOutsideStrings(s, /finally\{/g, "finally {");
+    s = replaceOutsideStrings(s, /do\{/g, "do {");
+    s = replaceOutsideStrings(s, /,([^\s])/g, ", $1");
+    // Spaces around assignment / comparisons (skip == != <= >= += etc. already spaced).
+    s = replaceOutsideStrings(s, /([^\s!<>=+\-*/%&|^])=([^=])/g, "$1 = $2");
+    s = replaceOutsideStrings(s, /([^\s!<>=])(==|!=|<=|>=|<|>)([^\s=])/g, "$1 $2 $3");
+    s = replaceOutsideStrings(s, / {2,}/g, " ");
+    return s;
+  }
+
+  function replaceOutsideStrings(text, regex, replacement) {
+    const parts = [];
+    let i = 0;
+    let mode = "code";
+    let buf = "";
+    const flush = (chunk, transform) => {
+      parts.push(transform ? chunk.replace(regex, replacement) : chunk);
+    };
+    while (i < text.length) {
+      const c = text[i];
+      const n = text[i + 1];
+      if (mode === "code") {
+        if (c === "/" && n === "/") {
+          flush(buf, true); buf = "";
+          parts.push(text.slice(i));
+          return parts.join("");
+        }
+        if (c === "/" && n === "*") {
+          flush(buf, true); buf = "";
+          let j = i + 2;
+          while (j < text.length && !(text[j] === "*" && text[j + 1] === "/")) j++;
+          j = Math.min(text.length, j + 2);
+          parts.push(text.slice(i, j));
+          i = j;
+          continue;
+        }
+        if (c === "'") { flush(buf, true); buf = "'"; mode = "sq"; i++; continue; }
+        if (c === '"') {
+          flush(buf, true); buf = "";
+          if (n === '"' && text[i + 2] === '"') { buf = '"""'; mode = "tq"; i += 3; continue; }
+          buf = '"'; mode = "dq"; i++; continue;
+        }
+        buf += c; i++;
+      } else if (mode === "sq") {
+        buf += c;
+        if (c === "\\" && i + 1 < text.length) { buf += text[i + 1]; i += 2; continue; }
+        if (c === "'") { parts.push(buf); buf = ""; mode = "code"; }
+        i++;
+      } else if (mode === "dq") {
+        buf += c;
+        if (c === "\\" && i + 1 < text.length) { buf += text[i + 1]; i += 2; continue; }
+        if (c === '"') { parts.push(buf); buf = ""; mode = "code"; }
+        i++;
+      } else if (mode === "tq") {
+        buf += c;
+        if (c === '"' && n === '"' && text[i + 2] === '"') {
+          buf += '""';
+          parts.push(buf); buf = ""; mode = "code";
+          i += 3; continue;
+        }
+        i++;
+      }
+    }
+    if (buf) flush(buf, mode === "code");
+    return parts.join("");
+  }
+
   return {
     parseJava: parseJava,
     blankNoise: blankNoise,
@@ -591,6 +780,7 @@
     typeWords: Array.from(TYPE_WORDS).sort(),
     snippets: SNIPPETS.slice(),
     matchingSnippets: matchingSnippets,
+    beautifyJava: beautifyJava,
     explain: explain,
     generateGetterSetter: generateGetterSetter,
     generateConstructor: generateConstructor,

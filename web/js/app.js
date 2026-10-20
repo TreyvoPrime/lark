@@ -281,6 +281,9 @@
         "Cmd-F": "find",
         "Ctrl-H": "replace",
         "Cmd-Alt-F": "replace",
+        "Shift-Alt-F": () => beautifyActiveFile(),
+        "Ctrl-Alt-L": () => beautifyActiveFile(),
+        "Cmd-Alt-L": () => beautifyActiveFile(),
         "Ctrl-Space": (editor) => CodeMirror.showHint(editor, completeHintFull, {
           completeSingle: false,
           closeOnUnfocus: true
@@ -534,6 +537,49 @@
     if (state.active) pending.push(state.active);
     const unique = [...new Set(pending)];
     for (const path of unique) await saveFile(path);
+  }
+
+  function beautifyActiveFile() {
+    if (!cm || !state.active) {
+      toast("Open a file first.");
+      return false;
+    }
+    if (!state.active.endsWith(".java")) {
+      toast("Beautify works on Java files.");
+      return false;
+    }
+    const before = cm.getValue();
+    const cursor = cm.getCursor();
+    const pretty = window.LarkJava.beautifyJava(before, {
+      indentSize: (state.settings && state.settings.indentSize) || 4,
+      indentWithTabs: !!(state.settings && state.settings.indentWithTabs)
+    });
+    const normalize = (s) => String(s).replace(/\s+$/g, "");
+    if (normalize(pretty) === normalize(before)) {
+      toast("Already tidy.");
+      return false;
+    }
+    suppress = true;
+    cm.setValue(pretty);
+    suppress = false;
+    const maxLine = Math.max(0, cm.lineCount() - 1);
+    cm.setCursor({
+      line: Math.min(cursor.line, maxLine),
+      ch: cursor.ch
+    });
+    cm.focus();
+    const file = fileByPath(state.active);
+    if (file) file.content = pretty;
+    state.dirty.add(state.active);
+    renderTabs();
+    renderStructure();
+    refreshLocalProblems();
+    renderProblems();
+    markErrors();
+    scheduleSave(state.active);
+    setSaveStatus(state.settings && state.settings.autoSave === false ? "Unsaved" : "Saving…");
+    toast("Beautified indentation.");
+    return true;
   }
 
   function setSaveStatus(text) {
@@ -1018,6 +1064,10 @@
   }
 
   async function runAssist(act) {
+    if (act === "beautify") {
+      beautifyActiveFile();
+      return;
+    }
     const parsed = currentJavaParsed();
     if (!parsed && act !== "explain" && act !== "snippet") return toast("Open a Java class first.");
     if (act === "explain") {
@@ -2195,6 +2245,7 @@
 
   function bind() {
     $("run").addEventListener("click", () => run().catch((err) => toast(err.message)));
+    if ($("beautify")) $("beautify").addEventListener("click", () => beautifyActiveFile());
     $("new-class").addEventListener("click", () => createClass().catch((err) => toast(err.message)));
     $("empty-new").addEventListener("click", () => createClass().catch((err) => toast(err.message)));
     $("new-file").addEventListener("click", () => createFile().catch((err) => toast(err.message)));
@@ -2466,6 +2517,14 @@
       if ((event.ctrlKey || event.metaKey) && key === "s") {
         event.preventDefault();
         flushSaves().catch((err) => toast(err.message));
+        return;
+      }
+      // Shift+Alt+F (VS Code) or Ctrl+Alt+L (IntelliJ) — beautify
+      if ((event.altKey && event.shiftKey && key === "f")
+          || ((event.ctrlKey || event.metaKey) && event.altKey && key === "l")) {
+        if (!$("modal").hidden || isDialogTyping()) return;
+        event.preventDefault();
+        beautifyActiveFile();
         return;
       }
       if ((event.ctrlKey || event.metaKey) && (event.key === "=" || event.key === "+" || event.code === "Equal")) {
