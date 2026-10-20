@@ -449,30 +449,35 @@
     return trimmed === "/**" || trimmed === "/***" || trimmed === "/**/" || trimmed === "/***/";
   }
 
-  function buildJavadocStub(editor, lineNo, indent) {
-    const lines = [indent + "/**", indent + " * "];
+  function signatureUnderJavadoc(editor, lineNo) {
     const following = [];
-    for (let i = lineNo + 1; i < Math.min(editor.lineCount(), lineNo + 8); i++) {
+    for (let i = lineNo + 1; i < Math.min(editor.lineCount(), lineNo + 12); i++) {
       const text = (editor.getLine(i) || "").trim();
       if (!text) continue;
-      if (text.startsWith("@") || text.startsWith("//") || text.startsWith("*")) continue;
+      if (text.startsWith("@") || text.startsWith("//") || text.startsWith("*") || text.startsWith("/**")) continue;
       following.push(text);
       if (text.includes("{") || text.includes(";")) break;
     }
-    const joined = following.join(" ");
-    const method = joined.match(/^(?:public|protected|private|static|final|synchronized|native|abstract|default|\s)+([A-Za-z_][\w.<>,\[\]?]*)\s+([A-Za-z_]\w*)\s*\(([^)]*)\)/);
-    const ctor = !method && joined.match(/^(?:public|protected|private|\s)+([A-Za-z_]\w*)\s*\(([^)]*)\)/);
-    const params = (method ? method[3] : (ctor ? ctor[2] : "") || "").trim();
-    if (params) {
-      params.split(",").forEach((part) => {
-        const bits = part.trim().replace(/^final\s+/, "").split(/\s+/).filter(Boolean);
-        const name = bits[bits.length - 1];
-        if (name) lines.push(indent + " * @param " + name + " ");
-      });
+    return following.join(" ");
+  }
+
+  function enclosingTypeName(editor, lineNo) {
+    for (let i = lineNo; i >= 0 && i > lineNo - 80; i--) {
+      const text = editor.getLine(i) || "";
+      const m = text.match(/\b(?:class|interface|enum|record)\s+([A-Za-z_]\w*)/);
+      if (m) return m[1];
     }
-    if (method && method[1] && method[1] !== "void") {
-      lines.push(indent + " * @return ");
+    return "";
+  }
+
+  function buildJavadocStub(editor, lineNo, indent) {
+    const signature = signatureUnderJavadoc(editor, lineNo);
+    const typeName = enclosingTypeName(editor, lineNo);
+    if (window.LarkJava && typeof window.LarkJava.generateJavadoc === "function") {
+      return window.LarkJava.generateJavadoc(signature, indent, typeName).text;
     }
+    // Fallback if java.js is old
+    const lines = [indent + "/**", indent + " * "];
     lines.push(indent + " */");
     return lines.join("\n");
   }
@@ -487,7 +492,10 @@
     const stub = buildJavadocStub(editor, lineNo, indent);
     suppress = true;
     editor.replaceRange(stub, { line: lineNo, ch: 0 }, { line: lineNo, ch: line.length });
-    editor.setCursor({ line: lineNo + 1, ch: (indent + " * ").length });
+    // Place cursor at end of the summary line so the student can tweak wording.
+    const summaryLine = lineNo + 1;
+    const summaryText = editor.getLine(summaryLine) || (indent + " * ");
+    editor.setCursor({ line: summaryLine, ch: summaryText.length });
     suppress = false;
     return true;
   }

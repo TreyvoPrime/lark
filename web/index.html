@@ -26,7 +26,7 @@
           <path d="M3 16c4.2-.7 6-6 9-11 2.8 5 4.8 10.2 9 11" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/>
           <path d="M7 16.5h10" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/>
         </svg>
-        <span class="word">Lark <em class="ver">2.3</em></span>
+        <span class="word">Lark <em class="ver">2.3.1</em></span>
       </button>
       <button id="files-toggle" type="button">Files</button>
       <label class="project-pick">
@@ -95,8 +95,8 @@
                 </svg>
                 <h1>Lark</h1>
               </div>
-              <p class="welcome-kicker">Lark 2.3.0</p>
-              <p class="welcome-lead">A Java IDE with go-to-definition, debugger, JUnit, split editors, and themes built for school coding sessions.</p>
+              <p class="welcome-kicker">Lark 2.3.1</p>
+              <p class="welcome-lead">A Java IDE with go-to-definition, debugger, JUnit, filled Javadoc stubs, and themes built for school coding sessions.</p>
               <div class="welcome-grid">
                 <section>
                   <h2>Start</h2>
@@ -112,9 +112,9 @@
                 <section>
                   <h2>What’s new</h2>
                   <ul class="welcome-tips">
+                    <li>Type <strong>/**</strong> above a method — Lark fills summary, <code>@param</code>, and <code>@return</code>.</li>
                     <li><strong>F12</strong> go to definition · <strong>Shift+F12</strong> find usages · <strong>F2</strong> rename.</li>
-                    <li><strong>Debug</strong> with breakpoints (click the gutter) · <strong>Tests</strong> tab for JUnit.</li>
-                    <li><strong>Split</strong> two files side by side · stronger <strong>Ctrl+P</strong> (files + classes).</li>
+                    <li><strong>Debug</strong> / <strong>Tests</strong> · <strong>Split</strong> editor · stronger <strong>Ctrl+P</strong>.</li>
                     <li>Format on save, run configs, and quick fixes in Problems.</li>
                   </ul>
                 </section>
@@ -333,6 +333,7 @@
       <li><span>Find usages</span><kbd>Shift+F12</kbd></li>
       <li><span>Rename</span><kbd>F2</kbd></li>
       <li><span>Save</span><kbd>Ctrl+S</kbd></li>
+      <li><span>Javadoc stub</span><kbd>/**</kbd></li>
       <li><span>Beautify</span><kbd>Shift+Alt+F</kbd></li>
       <li><span>Open file / class</span><kbd>Ctrl+P</kbd></li>
       <li><span>Complete</span><kbd>Ctrl+Space</kbd></li>

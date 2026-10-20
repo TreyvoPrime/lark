@@ -43,6 +43,10 @@ https://github.com/TreyvoPrime/lark/releases/latest/download/lark-linux.zip
 
 Do not open Start Lark from inside the zip preview / Temp folder.
 
+## What’s new in 2.3.1
+
+- Typing `/**` above a method fills a summary plus `@param` / `@return` from the signature
+
 ## What’s new in 2.3
 
 - **Go to definition** (`F12`), **find usages** (`Shift+F12`), **rename** (`F2`)

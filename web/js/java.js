@@ -1044,6 +1044,291 @@
     return parts.join("");
   }
 
+  /** Split camelCase / snake_name into words for readable docs. */
+  function splitIdent(name) {
+    if (!name) return [];
+    return String(name)
+      .replace(/([a-z0-9])([A-Z])/g, "$1 $2")
+      .replace(/([A-Z]+)([A-Z][a-z])/g, "$1 $2")
+      .replace(/[_$]+/g, " ")
+      .trim()
+      .toLowerCase()
+      .split(/\s+/)
+      .filter(Boolean);
+  }
+
+  function articleFor(word) {
+    if (!word) return "a";
+    return /^[aeiou]/i.test(word) ? "an" : "a";
+  }
+
+  function humanType(type) {
+    if (!type) return "value";
+    let t = String(type).trim();
+    t = t.replace(/\s+/g, " ");
+    if (t.endsWith("[]")) return "array of " + humanType(t.slice(0, -2));
+    if (/^List\s*</i.test(t) || /^ArrayList\s*</i.test(t)) {
+      const inner = t.replace(/^[^<]*<\s*/, "").replace(/\s*>$/, "");
+      return "list of " + humanType(inner || "items");
+    }
+    if (/^Set\s*</i.test(t) || /^HashSet\s*</i.test(t)) {
+      const inner = t.replace(/^[^<]*<\s*/, "").replace(/\s*>$/, "");
+      return "set of " + humanType(inner || "items");
+    }
+    if (/^Map\s*</i.test(t) || /^HashMap\s*</i.test(t)) return "map";
+    if (/^Optional\s*</i.test(t)) {
+      const inner = t.replace(/^[^<]*<\s*/, "").replace(/\s*>$/, "");
+      return "optional " + humanType(inner || "value");
+    }
+    const simple = t.includes(".") ? t.slice(t.lastIndexOf(".") + 1) : t;
+    const base = simple.replace(/<.*>/, "");
+    const known = {
+      String: "text",
+      int: "integer",
+      Integer: "integer",
+      long: "long integer",
+      Long: "long integer",
+      double: "number",
+      Double: "number",
+      float: "number",
+      Float: "number",
+      boolean: "true/false value",
+      Boolean: "true/false value",
+      char: "character",
+      Character: "character",
+      byte: "byte",
+      short: "short integer",
+      void: "nothing",
+      Object: "object",
+      Scanner: "Scanner for reading input"
+    };
+    if (known[base]) return known[base];
+    const words = splitIdent(base);
+    if (!words.length) return "value";
+    return words.join(" ");
+  }
+
+  function humanName(name) {
+    const words = splitIdent(name);
+    if (!words.length) return "value";
+    // Drop noisy leading verbs when describing a parameter itself.
+    return words.join(" ");
+  }
+
+  function paramDescription(type, name) {
+    const n = humanName(name);
+    const t = humanType(type);
+    const words = splitIdent(name);
+    const first = words[0] || "";
+    if (/^(is|has|can|should|was|were)$/.test(first) || type === "boolean" || type === "Boolean") {
+      if (/^(is|has|can|should|was|were)$/.test(first)) {
+        return "true if " + words.slice(1).join(" ") + (words.length > 1 ? "" : " the condition holds");
+      }
+      return "true if " + n;
+    }
+    if (name === "args" && /String\s*(\[\s*\]|\.\.\.)/.test(type || "")) {
+      return "command-line arguments passed to the program";
+    }
+    if (name === "o" || name === "obj" || name === "other") {
+      return "the object to compare with this one";
+    }
+    if (/^(in|input|sc|scanner)$/i.test(name) && /Scanner/i.test(type || "")) {
+      return "the Scanner used to read input";
+    }
+    // "the shelf to borrow from" style when name already includes a noun
+    return "the " + n + (t && t !== n && t !== "value" && t !== "object" ? " (" + t + ")" : "");
+  }
+
+  function thirdPerson(verb) {
+    if (!verb) return "";
+    if (/ies$/i.test(verb)) return verb;
+    if (/[sxz]$/i.test(verb) || /[cs]h$/i.test(verb)) return verb + "es";
+    if (/[^aeiou]y$/i.test(verb)) return verb.slice(0, -1) + "ies";
+    return verb + "s";
+  }
+
+  function returnDescription(retType, methodName, params) {
+    if (!retType || retType === "void") return "";
+    const words = splitIdent(methodName);
+    const first = words[0] || "";
+    const rest = words.slice(1).join(" ");
+    if (first === "get" && rest) return "the " + rest;
+    if (first === "is" && rest) return "true if this is " + rest + ", otherwise false";
+    if (first === "has" && rest) return "true if this has " + rest + ", otherwise false";
+    if (first === "can" && rest) return "true if this can " + rest + ", otherwise false";
+    if (first === "to" && rest === "string") return "a text description of this object";
+    if (methodName === "hashCode") return "a hash code for this object";
+    if (methodName === "equals") return "true if the other object equals this one";
+    if (methodName === "compareTo") return "a negative number, zero, or a positive number when comparing this object to another";
+    if (methodName === "indexOf" || (first === "index" && words[1] === "of")) {
+      return "the index of " + (params[0] ? "the given " + humanName(params[0].name) : "the item")
+        + ", or -1 if not found";
+    }
+    if (first === "find" || first === "search" || first === "lookup") {
+      return "the matching " + (rest || humanType(retType)) + ", or null if none is found";
+    }
+    if (first === "create" || first === "make" || first === "build" || first === "new") {
+      return "the new " + (rest || humanType(retType));
+    }
+    if (first === "parse" || first === "read" || first === "load") {
+      return "the " + (rest || humanType(retType)) + " that was " + first;
+    }
+    if (retType === "boolean" || retType === "Boolean") {
+      if (rest) return "true if " + (first ? first + " " : "") + rest + ", otherwise false";
+      return "true or false depending on the result";
+    }
+    if (retType === "int" || retType === "Integer" || retType === "long" || retType === "Long") {
+      if (first === "size" || first === "length" || first === "count") return "the " + (rest ? rest + " " : "") + "count";
+    }
+    const ht = humanType(retType);
+    if (rest) return "the " + rest + " (" + ht + ")";
+    return "the " + ht;
+  }
+
+  function methodSummary(kind, typeName, methodName, retType, params) {
+    const words = splitIdent(methodName);
+    const first = words[0] || "";
+    const rest = words.slice(1).join(" ");
+    if (kind === "ctor") {
+      const typeWords = splitIdent(typeName || methodName).join(" ");
+      if (params.length) {
+        const bits = params.map((p) => humanName(p.name)).filter(Boolean);
+        return "Creates " + articleFor(typeWords) + " " + typeWords
+          + (bits.length ? " using the given " + bits.join(", ") : "") + ".";
+      }
+      return "Creates " + articleFor(typeWords) + " " + typeWords + ".";
+    }
+    if (methodName === "main") {
+      return "Starts the program.";
+    }
+    if (methodName === "toString") return "Returns a text description of this object.";
+    if (methodName === "equals") return "Checks whether another object equals this one.";
+    if (methodName === "hashCode") return "Returns a hash code for this object.";
+    if (methodName === "indexOf" || (first === "index" && words[1] === "of")) {
+      return "Finds the index of " + (params[0] ? "the given " + humanName(params[0].name) : "an item") + ".";
+    }
+    if (first === "get" && rest) return "Returns the " + rest + ".";
+    if (first === "set" && rest) {
+      const p0 = params[0] ? humanName(params[0].name) : rest;
+      return "Sets the " + rest + (params[0] ? " to the given " + p0 : "") + ".";
+    }
+    if (first === "is" && rest) return "Checks whether this is " + rest + ".";
+    if (first === "has" && rest) return "Checks whether this has " + rest + ".";
+    if (first === "can" && rest) return "Checks whether this can " + rest + ".";
+    if (first === "add") return "Adds " + (rest || (params[0] ? "the given " + humanName(params[0].name) : "an item")) + ".";
+    if (first === "remove") return "Removes " + (rest || (params[0] ? "the given " + humanName(params[0].name) : "an item")) + ".";
+    if (first === "clear") return "Clears " + (rest ? "the " + rest : "the contents") + ".";
+    if (first === "print" || first === "println" || first === "show" || first === "display") {
+      return "Prints " + (rest || "information") + ".";
+    }
+    if (first === "find" || first === "search") return "Finds " + (rest || "a matching item") + ".";
+    if (first === "update") return "Updates " + (rest || "this object") + ".";
+    if (first === "load" || first === "save" || first === "write" || first === "read") {
+      return capitalize(thirdPerson(first)) + " " + (rest || "data") + ".";
+    }
+    // Generic: "Borrows a book." from borrow / borrowBook
+    if (words.length) {
+      const verb = capitalize(thirdPerson(words[0]));
+      let obj = words.slice(1).join(" ");
+      if (!obj && params[0]) {
+        const n = humanName(params[0].name);
+        obj = articleFor(n) + " " + n;
+      }
+      return verb + (obj ? " " + obj : "") + ".";
+    }
+    return "Performs this operation.";
+  }
+
+  function parseParams(raw) {
+    const out = [];
+    if (!raw || !raw.trim()) return out;
+    // Split on commas not inside generics
+    let depth = 0;
+    let buf = "";
+    for (let i = 0; i < raw.length; i++) {
+      const c = raw[i];
+      if (c === "<") depth++;
+      else if (c === ">") depth = Math.max(0, depth - 1);
+      if (c === "," && depth === 0) {
+        out.push(buf.trim());
+        buf = "";
+      } else buf += c;
+    }
+    if (buf.trim()) out.push(buf.trim());
+    return out.map((part) => {
+      let p = part.replace(/^final\s+/, "").trim();
+      p = p.replace(/\s*\.\.\.\s*/g, "... ");
+      const bits = p.split(/\s+/).filter(Boolean);
+      if (!bits.length) return null;
+      const name = bits[bits.length - 1].replace(/^\.\.\./, "");
+      const type = bits.slice(0, -1).join(" ").replace(/\s*\.\.\.\s*$/, "...");
+      return { name: name, type: type };
+    }).filter(Boolean);
+  }
+
+  /**
+   * Build a filled Javadoc block from the signature under a /** opener.
+   * Returns { text, cursorLineOffset, cursorCh } relative to the opener line.
+   */
+  function generateJavadoc(signatureLine, indent, typeHint) {
+    indent = indent || "";
+    let joined = String(signatureLine || "").replace(/\s+/g, " ").trim();
+    // Strip modifiers so "public Book(...)" is a constructor, not a method named Book.
+    while (/^(public|protected|private|static|final|synchronized|native|abstract|default)\s+/.test(joined)) {
+      joined = joined.replace(/^(public|protected|private|static|final|synchronized|native|abstract|default)\s+/, "");
+    }
+    const method = joined.match(
+      /^([A-Za-z_][\w.<>,\[\]?]*(?:\[\s*\])?)\s+([A-Za-z_]\w*)\s*\(([^)]*)\)/
+    );
+    const ctor = joined.match(/^([A-Za-z_]\w*)\s*\(([^)]*)\)/);
+    let kind = "unknown";
+    let retType = "";
+    let name = "";
+    let params = [];
+    let typeName = typeHint || "";
+    // Prefer constructor when the only identifier before "(" matches the enclosing type.
+    if (ctor && (!method || (typeHint && ctor[1] === typeHint) || (method && method[1] === method[2]))) {
+      kind = "ctor";
+      name = ctor[1];
+      typeName = typeName || ctor[1];
+      params = parseParams(ctor[2]);
+    } else if (method) {
+      kind = "method";
+      retType = method[1].replace(/\s+/g, "");
+      name = method[2];
+      params = parseParams(method[3]);
+    } else if (ctor) {
+      kind = "ctor";
+      name = ctor[1];
+      typeName = typeName || ctor[1];
+      params = parseParams(ctor[2]);
+    }
+
+    const lines = [indent + "/**"];
+    if (kind === "unknown") {
+      lines.push(indent + " * ");
+      lines.push(indent + " */");
+      return { text: lines.join("\n"), summary: "", params: [], ret: "" };
+    }
+
+    const summary = methodSummary(kind, typeName, name, retType, params);
+    lines.push(indent + " * " + summary);
+    if (params.length) lines.push(indent + " *");
+    params.forEach((p) => {
+      lines.push(indent + " * @param " + p.name + " " + paramDescription(p.type, p.name));
+    });
+    if (kind === "method" && retType && retType !== "void") {
+      lines.push(indent + " * @return " + returnDescription(retType, name, params));
+    }
+    lines.push(indent + " */");
+    return {
+      text: lines.join("\n"),
+      summary: summary,
+      params: params,
+      ret: retType
+    };
+  }
+
   return {
     parseJava: parseJava,
     blankNoise: blankNoise,
@@ -1071,6 +1356,9 @@
     renameAcross: renameAcross,
     fuzzyScore: fuzzyScore,
     applyQuickFix: applyQuickFix,
-    accessorWarnings: accessorWarnings
+    accessorWarnings: accessorWarnings,
+    generateJavadoc: generateJavadoc,
+    humanType: humanType,
+    paramDescription: paramDescription
   };
 });
