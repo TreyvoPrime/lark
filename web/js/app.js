@@ -867,6 +867,7 @@
   function showEmpty() {
     hideWelcome();
     $("empty").hidden = false;
+    if ($("editors-row")) $("editors-row").hidden = true;
     $("editor").hidden = true;
     renderStructure();
     $("status-path").textContent = state.project ? state.project.name : "Lark";
@@ -876,6 +877,7 @@
     const welcome = $("welcome");
     if (!welcome) return;
     $("empty").hidden = true;
+    if ($("editors-row")) $("editors-row").hidden = true;
     $("editor").hidden = true;
     welcome.hidden = false;
     state.active = null;
@@ -888,6 +890,7 @@
   function hideWelcome() {
     const welcome = $("welcome");
     if (welcome) welcome.hidden = true;
+    if ($("editors-row")) $("editors-row").hidden = false;
   }
 
   function renderWelcomeRecent() {
@@ -934,6 +937,7 @@
     target.swapDoc(doc);
     suppress = false;
     $("empty").hidden = true;
+    if ($("editors-row")) $("editors-row").hidden = false;
     $("editor").hidden = false;
     target.setOption("mode", modeFor(path));
     target.refresh();
