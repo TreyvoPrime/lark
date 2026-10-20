@@ -17,7 +17,11 @@ public final class Lark {
         } catch (Throwable t) {
             System.err.println();
             System.err.println("========== Lark failed to start ==========");
-            t.printStackTrace(System.err);
+            if (JdkHealth.looksLikeCorruptJdk(t)) {
+                System.err.println(JdkHealth.message(t));
+            } else {
+                t.printStackTrace(System.err);
+            }
             System.err.println("==========================================");
             System.err.println("Press Enter to close this window...");
             System.err.flush();
@@ -57,6 +61,7 @@ public final class Lark {
 
         System.out.println("Lark " + Settings.VERSION + " starting...");
         System.out.flush();
+        JdkHealth.verifyOrThrow();
 
         Settings settings = Settings.load();
         // Refresh launchers beside the install folder when possible.

@@ -21,13 +21,24 @@ import java.util.zip.ZipInputStream;
 /** Checks a remote update feed and stages a new lark.jar beside the running copy. */
 public final class Updates {
     private final Settings settings;
-    private final HttpClient http = HttpClient.newBuilder()
-            .connectTimeout(Duration.ofSeconds(10))
-            .followRedirects(HttpClient.Redirect.NORMAL)
-            .build();
+    private volatile HttpClient http;
 
     public Updates(Settings settings) {
         this.settings = settings;
+    }
+
+    private HttpClient http() {
+        HttpClient client = http;
+        if (client != null) return client;
+        synchronized (this) {
+            if (http == null) {
+                http = HttpClient.newBuilder()
+                        .connectTimeout(Duration.ofSeconds(10))
+                        .followRedirects(HttpClient.Redirect.NORMAL)
+                        .build();
+            }
+            return http;
+        }
     }
 
     public Json.Obj check() {
@@ -490,7 +501,7 @@ public final class Updates {
                 .header("User-Agent", "Lark-IDE/" + Settings.VERSION)
                 .GET()
                 .build();
-        HttpResponse<InputStream> response = http.send(request, HttpResponse.BodyHandlers.ofInputStream());
+        HttpResponse<InputStream> response = http().send(request, HttpResponse.BodyHandlers.ofInputStream());
         if (response.statusCode() < 200 || response.statusCode() >= 300) {
             throw new RequestFail(502, "Download failed (" + response.statusCode() + ").");
         }
@@ -543,7 +554,7 @@ public final class Updates {
             } else {
                 builder.header("Accept", "application/json");
             }
-            HttpResponse<String> response = http.send(builder.build(), HttpResponse.BodyHandlers.ofString());
+            HttpResponse<String> response = http().send(builder.build(), HttpResponse.BodyHandlers.ofString());
             return Api.parse(response.statusCode(), response.body());
         } catch (InterruptedException e) {
             Thread.currentThread().interrupt();

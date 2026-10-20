@@ -17,10 +17,7 @@ import java.util.Locale;
 /** Pushes and pulls a project through the GitHub API. Git itself is not required. */
 public final class GitHub {
     private final Settings settings;
-    private final HttpClient http = HttpClient.newBuilder()
-            .connectTimeout(Duration.ofSeconds(15))
-            .followRedirects(HttpClient.Redirect.NORMAL)
-            .build();
+    private volatile HttpClient http;
 
     private final SecureRandom random = new SecureRandom();
     private volatile int generation;
@@ -31,6 +28,20 @@ public final class GitHub {
 
     public GitHub(Settings settings) {
         this.settings = settings;
+    }
+
+    private HttpClient http() {
+        HttpClient client = http;
+        if (client != null) return client;
+        synchronized (this) {
+            if (http == null) {
+                http = HttpClient.newBuilder()
+                        .connectTimeout(Duration.ofSeconds(15))
+                        .followRedirects(HttpClient.Redirect.NORMAL)
+                        .build();
+            }
+            return http;
+        }
     }
 
     public Json.Obj saveToken(String token) {
@@ -456,7 +467,7 @@ public final class GitHub {
                 builder.header("Content-Type", "application/json");
                 builder.POST(HttpRequest.BodyPublishers.ofString(json));
             }
-            HttpResponse<String> response = http.send(builder.build(), HttpResponse.BodyHandlers.ofString());
+            HttpResponse<String> response = http().send(builder.build(), HttpResponse.BodyHandlers.ofString());
             return Api.parse(response.statusCode(), response.body());
         } catch (InterruptedException e) {
             Thread.currentThread().interrupt();
@@ -522,7 +533,7 @@ public final class GitHub {
                 builder.header("Content-Type", "application/json");
                 builder.method(method, HttpRequest.BodyPublishers.ofString(body));
             }
-            HttpResponse<String> response = http.send(builder.build(), HttpResponse.BodyHandlers.ofString());
+            HttpResponse<String> response = http().send(builder.build(), HttpResponse.BodyHandlers.ofString());
             return Api.parse(response.statusCode(), response.body());
         } catch (InterruptedException e) {
             Thread.currentThread().interrupt();

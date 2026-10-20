@@ -37,7 +37,11 @@ public final class Desktop {
         } catch (Throwable t) {
             System.err.println();
             System.err.println("========== Lark Desktop failed to start ==========");
-            t.printStackTrace(System.err);
+            if (JdkHealth.looksLikeCorruptJdk(t)) {
+                System.err.println(JdkHealth.message(t));
+            } else {
+                t.printStackTrace(System.err);
+            }
             System.err.println("==================================================");
             System.err.flush();
             try {
@@ -95,6 +99,7 @@ public final class Desktop {
 
         System.out.println("Lark Desktop " + Settings.VERSION + " starting...");
         System.out.flush();
+        JdkHealth.verifyOrThrow();
 
         Settings settings = Settings.load();
         try {

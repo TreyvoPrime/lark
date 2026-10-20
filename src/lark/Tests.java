@@ -37,10 +37,21 @@ public final class Tests {
         return t;
     });
     private final ConcurrentHashMap<String, Job> jobs = new ConcurrentHashMap<>();
-    private final HttpClient http = HttpClient.newBuilder()
-            .connectTimeout(Duration.ofSeconds(20))
-            .followRedirects(HttpClient.Redirect.NORMAL)
-            .build();
+    private volatile HttpClient http;
+
+    private HttpClient http() {
+        HttpClient client = http;
+        if (client != null) return client;
+        synchronized (this) {
+            if (http == null) {
+                http = HttpClient.newBuilder()
+                        .connectTimeout(Duration.ofSeconds(20))
+                        .followRedirects(HttpClient.Redirect.NORMAL)
+                        .build();
+            }
+            return http;
+        }
+    }
 
     public Json.Obj start(Path project, String className, String methodName) {
         if (project == null || !Files.isDirectory(project)) {
@@ -164,7 +175,7 @@ public final class Tests {
                 .header("User-Agent", "Lark-IDE/" + Settings.VERSION)
                 .GET()
                 .build();
-        HttpResponse<InputStream> response = http.send(request, HttpResponse.BodyHandlers.ofInputStream());
+        HttpResponse<InputStream> response = http().send(request, HttpResponse.BodyHandlers.ofInputStream());
         if (response.statusCode() < 200 || response.statusCode() >= 300) {
             throw new IOException("Couldn't download JUnit (" + response.statusCode() + ").");
         }

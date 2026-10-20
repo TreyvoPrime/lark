@@ -202,6 +202,12 @@ goto :fail
 :java_exit_fail
 echo Lark stopped with error code %ERR%.
 echo See log: %LOG%
+echo.
+echo If you saw "Incompatible magic value" / ClassFormatError:
+echo   your bundled jdk\ folder is damaged ^(half-deleted or bad unzip^).
+echo   Delete this whole Lark folder AND %%LOCALAPPDATA%%\Lark, then
+echo   re-download lark-windows.zip and Extract All again.
+echo.
 goto :fail
 
 :fail
