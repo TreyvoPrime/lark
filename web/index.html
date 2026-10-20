@@ -26,7 +26,7 @@
           <path d="M3 16c4.2-.7 6-6 9-11 2.8 5 4.8 10.2 9 11" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/>
           <path d="M7 16.5h10" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/>
         </svg>
-        <span class="word">Lark <em class="ver">2.3.1</em></span>
+        <span class="word">Lark <em class="ver">2.3.2</em></span>
       </button>
       <button id="files-toggle" type="button">Files</button>
       <label class="project-pick">
@@ -43,7 +43,7 @@
       <button id="run-config" type="button" data-pop="menu-run-config" title="Run configurations">Config</button>
       <button id="run" type="button" class="primary run-btn" title="Ctrl+Enter">Run</button>
       <button id="debug" type="button" title="Start debugger (F5)">Debug</button>
-      <button id="split-editor" type="button" title="Split editor">Split</button>
+      <button id="split-editor" type="button" title="Split editor (Ctrl+\)">Split</button>
       <button id="github" type="button">GitHub</button>
       <button id="theme" type="button" data-pop="menu-theme">Desk</button>
       <button id="beautify" type="button" title="Fix indentation (Shift+Alt+F)">Beautify</button>
@@ -77,7 +77,10 @@
             </div>
             <div class="editor-split-bar" id="editor-split-bar" hidden title="Drag to resize"></div>
             <div class="editor-col" id="editor-col-b" hidden>
-              <div id="tabs-b" class="tabs-secondary"></div>
+              <div class="tabs-secondary-head">
+                <div id="tabs-b" class="tabs-secondary"></div>
+                <button type="button" id="close-split" class="close-split" title="Close split" aria-label="Close split">×</button>
+              </div>
               <div id="editor-b"></div>
             </div>
           </div>
@@ -95,7 +98,7 @@
                 </svg>
                 <h1>Lark</h1>
               </div>
-              <p class="welcome-kicker">Lark 2.3.1</p>
+              <p class="welcome-kicker">Lark 2.3.2</p>
               <p class="welcome-lead">A Java IDE with go-to-definition, debugger, JUnit, filled Javadoc stubs, and themes built for school coding sessions.</p>
               <div class="welcome-grid">
                 <section>
@@ -333,6 +336,7 @@
       <li><span>Find usages</span><kbd>Shift+F12</kbd></li>
       <li><span>Rename</span><kbd>F2</kbd></li>
       <li><span>Save</span><kbd>Ctrl+S</kbd></li>
+      <li><span>Split / unsplit</span><kbd>Ctrl+\</kbd></li>
       <li><span>Javadoc stub</span><kbd>/**</kbd></li>
       <li><span>Beautify</span><kbd>Shift+Alt+F</kbd></li>
       <li><span>Open file / class</span><kbd>Ctrl+P</kbd></li>

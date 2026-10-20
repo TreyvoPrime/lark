@@ -1008,26 +1008,79 @@
     return cmB;
   }
 
-  function setSplit(on) {
-    state.split = !!on;
+  function updateSplitButton() {
+    const btn = $("split-editor");
+    if (!btn) return;
+    btn.textContent = state.split ? "Unsplit" : "Split";
+    btn.title = state.split
+      ? "Close split editor (Ctrl+\\)"
+      : "Split editor (Ctrl+\\)";
+    btn.setAttribute("aria-pressed", state.split ? "true" : "false");
+  }
+
+  function resetSplitWidths() {
+    const colA = $("editor-col-a");
+    const colB = $("editor-col-b");
+    if (colA) {
+      colA.style.flex = "1 1 50%";
+      colA.style.width = "";
+      colA.style.maxWidth = "";
+    }
+    if (colB) {
+      colB.style.flex = "1 1 50%";
+      colB.style.width = "";
+      colB.style.maxWidth = "";
+    }
+  }
+
+  /** keepSide: "a" keeps the left file as primary; "b" promotes the right file. */
+  function setSplit(on, keepSide) {
+    const want = !!on;
+    if (!want && state.split) {
+      const promote = keepSide === "b" ? state.activeB : null;
+      state.split = false;
+      state.activeB = null;
+      focusedEditor = "a";
+      document.body.classList.remove("split-on", "dragging-split");
+      const colB = $("editor-col-b");
+      const bar = $("editor-split-bar");
+      if (colB) colB.hidden = true;
+      if (bar) bar.hidden = true;
+      resetSplitWidths();
+      updateSplitButton();
+      renderTabsB();
+      if (promote && fileByPath(promote)) openPath(promote);
+      else if (cm) cm.refresh();
+      return;
+    }
+    state.split = want;
     document.body.classList.toggle("split-on", state.split);
     const colB = $("editor-col-b");
     const bar = $("editor-split-bar");
     if (colB) colB.hidden = !state.split;
     if (bar) bar.hidden = !state.split;
     if (state.split) {
+      resetSplitWidths();
       ensureSplitEditor();
       if (!state.activeB && state.active) openPath(state.active, { side: "b" });
       if (cmB) cmB.refresh();
     } else {
       state.activeB = null;
       focusedEditor = "a";
+      resetSplitWidths();
     }
+    updateSplitButton();
+    renderTabsB();
     if (cm) cm.refresh();
   }
 
   function toggleSplit() {
-    setSplit(!state.split);
+    if (state.split) setSplit(false, "a");
+    else setSplit(true);
+  }
+
+  function closeSplit() {
+    setSplit(false, "a");
   }
 
   function renderTabsB() {
@@ -1037,16 +1090,95 @@
     if (!state.split) return;
     const path = state.activeB;
     if (!path) {
-      box.appendChild(note("Open a file in the split"));
+      const hint = document.createElement("span");
+      hint.className = "muted pad";
+      hint.textContent = "Open a file here";
+      box.appendChild(hint);
       return;
     }
+    const tab = document.createElement("div");
+    tab.className = "tab on";
     const btn = document.createElement("button");
     btn.type = "button";
-    btn.className = "tab on";
+    btn.className = "tab-name";
     btn.textContent = path.split("/").pop();
     btn.title = path;
     btn.addEventListener("click", () => openPath(path, { side: "b" }));
-    box.appendChild(btn);
+    tab.appendChild(btn);
+    box.appendChild(tab);
+  }
+
+  function bindEditorSplitBar() {
+    const bar = $("editor-split-bar");
+    const row = $("editors-row");
+    const colA = $("editor-col-a");
+    const colB = $("editor-col-b");
+    if (!bar || !row || !colA || !colB || bar._larkBound) return;
+    bar._larkBound = true;
+    const CLOSE_PX = 72;
+    bar.addEventListener("pointerdown", (event) => {
+      if (!state.split) return;
+      event.preventDefault();
+      bar.setPointerCapture(event.pointerId);
+      document.body.classList.add("dragging", "dragging-split");
+      const rowRect = () => row.getBoundingClientRect();
+      const move = (ev) => {
+        if (!bar.hasPointerCapture(ev.pointerId)) return;
+        const rect = rowRect();
+        const x = Math.min(rect.right - 4, Math.max(rect.left + 4, ev.clientX));
+        let left = x - rect.left;
+        const total = rect.width;
+        // Leave room for the bar itself.
+        left = Math.min(total - 6, Math.max(0, left));
+        const right = Math.max(0, total - left - 6);
+        colA.style.flex = "0 0 auto";
+        colB.style.flex = "0 0 auto";
+        colA.style.width = left + "px";
+        colB.style.width = right + "px";
+        if (cm) cm.refresh();
+        if (cmB) cmB.refresh();
+      };
+      const up = (ev) => {
+        try { bar.releasePointerCapture(ev.pointerId); } catch (e) {}
+        bar.removeEventListener("pointermove", move);
+        bar.removeEventListener("pointerup", up);
+        bar.removeEventListener("pointercancel", up);
+        document.body.classList.remove("dragging", "dragging-split");
+        const rect = rowRect();
+        const aW = colA.getBoundingClientRect().width;
+        const bW = colB.getBoundingClientRect().width;
+        // Drag divider all the way left → close left, keep right as the editor.
+        if (aW < CLOSE_PX) {
+          setSplit(false, "b");
+          toast("Closed left pane.");
+          return;
+        }
+        // Drag divider all the way right → close right split.
+        if (bW < CLOSE_PX) {
+          setSplit(false, "a");
+          toast("Closed split.");
+          return;
+        }
+        // Keep a stable 50/50-ish flex from the dragged sizes.
+        const total = Math.max(1, aW + bW);
+        colA.style.flex = "1 1 " + Math.round((aW / total) * 100) + "%";
+        colB.style.flex = "1 1 " + Math.round((bW / total) * 100) + "%";
+        colA.style.width = "";
+        colB.style.width = "";
+        if (cm) cm.refresh();
+        if (cmB) cmB.refresh();
+      };
+      bar.addEventListener("pointermove", move);
+      bar.addEventListener("pointerup", up);
+      bar.addEventListener("pointercancel", up);
+      move(event);
+    });
+    bar.addEventListener("dblclick", () => {
+      if (!state.split) return;
+      resetSplitWidths();
+      if (cm) cm.refresh();
+      if (cmB) cmB.refresh();
+    });
   }
 
   function renderStructure() {
@@ -1145,8 +1277,8 @@
     state.problems = [];
     state.runConfigs = data.project.runConfigs || [];
     state.discoveredTests = [];
-    state.activeB = null;
     state.dirty.clear();
+    setSplit(false, "a");
     renderRunConfigMenu();
     state.timers.forEach((timer) => clearTimeout(timer));
     state.timers.clear();
@@ -2968,6 +3100,11 @@
     });
     if ($("debug")) $("debug").addEventListener("click", () => startDebug().catch((err) => toast(err.message)));
     if ($("split-editor")) $("split-editor").addEventListener("click", () => toggleSplit());
+    if ($("close-split")) $("close-split").addEventListener("click", () => closeSplit());
+    bindEditorSplitBar();
+    updateSplitButton();
+    // Never boot into a leftover split layout.
+    setSplit(false, "a");
     if ($("run-config")) $("run-config").addEventListener("click", (event) => {
       renderRunConfigMenu();
       togglePopover(event.currentTarget);
@@ -3307,6 +3444,10 @@
       if ((event.ctrlKey || event.metaKey) && key === "p") {
         event.preventDefault();
         openPalette("open");
+      } else if ((event.ctrlKey || event.metaKey) && (key === "\\" || event.code === "Backslash")) {
+        event.preventDefault();
+        toggleSplit();
+        return;
       } else if ((event.ctrlKey || event.metaKey) && key === "b") {
         event.preventDefault();
         toggleFiles();

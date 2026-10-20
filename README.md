@@ -43,6 +43,10 @@ https://github.com/TreyvoPrime/lark/releases/latest/download/lark-linux.zip
 
 Do not open Start Lark from inside the zip preview / Temp folder.
 
+## What’s new in 2.3.2
+
+- Split editor: starts single-pane; **Unsplit** / × / `Ctrl+\` / drag the divider off-screen to close
+
 ## What’s new in 2.3.1
 
 - Typing `/**` above a method fills a summary plus `@param` / `@return` from the signature
