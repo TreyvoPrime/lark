@@ -10,7 +10,7 @@ import java.util.Set;
 
 /** Preferences stored in the home folder. The GitHub token never leaves this machine except for GitHub. */
 public final class Settings {
-    public static final String VERSION = "2.1.0";
+    public static final String VERSION = "2.2.0";
     /** Default public update feed — always the latest GitHub release JSON companion. */
     public static final String DEFAULT_UPDATE_FEED =
             "https://github.com/TreyvoPrime/lark/releases/latest/download/update.json";
@@ -20,7 +20,11 @@ public final class Settings {
             "desk", "daylight", "moss", "ember", "fog",
             "blossom", "candy", "midnight", "citrus", "harbor",
             "graphite", "navy", "terminal", "parchment", "ultraviolet", "forest", "monochrome", "amber",
-            "lagoon", "rosewood", "nova", "atelier"
+            "lagoon", "rosewood", "nova", "atelier",
+            "obsidian", "glacier"
+    );
+    public static final Set<String> FONT_FAMILIES = Set.of(
+            "jetbrains", "cascadia", "fira", "consolas", "system"
     );
     private static final Map<String, String> THEME_ALIASES = Map.of(
             "ink", "desk",
@@ -35,6 +39,13 @@ public final class Settings {
     public String theme = "desk";
     public int fontSize = 14;
     public int zoom = 100;
+    public String fontFamily = "jetbrains";
+    public boolean ligatures = true;
+    public int indentSize = 4;
+    public boolean indentWithTabs = false;
+    public boolean lineWrapping = false;
+    public boolean autoSave = true;
+    public int autoSaveDelayMs = 800;
     public String githubToken = "";
     public String githubRefreshToken = "";
     public long githubTokenExpiresAt;
@@ -73,6 +84,16 @@ public final class Settings {
             settings.fontSize = loadedFont > 0 ? clamp(loadedFont, 11, 28, 14) : 14;
             int loadedZoom = (int) obj.longVal("zoom");
             settings.zoom = loadedZoom > 0 ? clamp(loadedZoom, 80, 160, 100) : 100;
+            String family = obj.str("fontFamily", "jetbrains");
+            settings.fontFamily = FONT_FAMILIES.contains(family) ? family : "jetbrains";
+            if (obj.has("ligatures")) settings.ligatures = obj.bool("ligatures");
+            int indent = (int) obj.longVal("indentSize");
+            settings.indentSize = indent == 2 || indent == 4 || indent == 8 ? indent : 4;
+            if (obj.has("indentWithTabs")) settings.indentWithTabs = obj.bool("indentWithTabs");
+            if (obj.has("lineWrapping")) settings.lineWrapping = obj.bool("lineWrapping");
+            if (obj.has("autoSave")) settings.autoSave = obj.bool("autoSave");
+            int delay = (int) obj.longVal("autoSaveDelayMs");
+            settings.autoSaveDelayMs = delay == 300 || delay == 800 || delay == 1500 ? delay : 800;
             settings.githubToken = obj.str("githubToken", "");
             settings.githubRefreshToken = obj.str("githubRefreshToken", "");
             settings.githubTokenExpiresAt = obj.longVal("githubTokenExpiresAt");
@@ -98,6 +119,13 @@ public final class Settings {
                     .put("theme", theme)
                     .put("fontSize", fontSize)
                     .put("zoom", zoom)
+                    .put("fontFamily", fontFamily == null ? "jetbrains" : fontFamily)
+                    .put("ligatures", ligatures)
+                    .put("indentSize", indentSize)
+                    .put("indentWithTabs", indentWithTabs)
+                    .put("lineWrapping", lineWrapping)
+                    .put("autoSave", autoSave)
+                    .put("autoSaveDelayMs", autoSaveDelayMs)
                     .put("githubToken", githubToken == null ? "" : githubToken)
                     .put("githubRefreshToken", githubRefreshToken == null ? "" : githubRefreshToken)
                     .put("githubTokenExpiresAt", githubTokenExpiresAt)

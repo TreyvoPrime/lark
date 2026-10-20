@@ -1,7 +1,10 @@
-Lark Desktop 2.1.0 — enterprise install
+Lark Desktop 2.2.0 — enterprise install
 
-This is the installed app track (Start Menu / Applications shortcut), not the
-portable zip. Portable zips are still available from the same release page.
+This is Lark DESKTOP (file name has "desktop" in it), not the portable zip.
+  Desktop:  lark-desktop-windows.zip  ← you have this
+  Portable: lark-windows.zip          ← different download; uses Start Lark.bat
+
+Same IDE either way. Desktop adds Start Menu / Applications + update prompts.
 
 Windows (no admin password)
   1. Unzip lark-desktop-windows.zip to a temporary folder

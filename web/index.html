@@ -26,7 +26,7 @@
           <path d="M3 16c4.2-.7 6-6 9-11 2.8 5 4.8 10.2 9 11" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/>
           <path d="M7 16.5h10" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/>
         </svg>
-        <span class="word">Lark <em class="ver">2.1</em></span>
+        <span class="word">Lark <em class="ver">2.2</em></span>
       </div>
       <button id="files-toggle" type="button">Files</button>
       <label class="project-pick">
@@ -82,8 +82,8 @@
                 </svg>
                 <h1>Lark</h1>
               </div>
-              <p class="welcome-kicker">Lark 2.1</p>
-              <p class="welcome-lead">A portable Java IDE with a real Terminal, suggestion-style autofill, and themes built for long coding sessions.</p>
+              <p class="welcome-kicker">Lark 2.2</p>
+              <p class="welcome-lead">A Java IDE with autosave, Terminal, suggestion autofill, and themes built for long coding sessions.</p>
               <div class="welcome-grid">
                 <section>
                   <h2>Start</h2>
@@ -99,10 +99,10 @@
                 <section>
                   <h2>What’s new</h2>
                   <ul class="welcome-tips">
-                    <li><strong>Terminal</strong> tab — run <code>dir</code>, <code>javac</code>, <code>git</code>, and more in your project folder.</li>
-                    <li>Suggestions appear as you type — pick one with Enter; nothing inserts by itself.</li>
-                    <li>New themes: <strong>Nova</strong> and <strong>Atelier</strong>.</li>
-                    <li>When a program waits for input, answer in the Output reply box.</li>
+                    <li><strong>Autosave</strong> — edits save as you type (toggle under Aa).</li>
+                    <li>Editor settings: font, ligatures, indent size, tabs vs spaces, wrap.</li>
+                    <li>New themes: <strong>Obsidian</strong> and <strong>Glacier</strong>.</li>
+                    <li><strong>Terminal</strong> tab — run <code>dir</code>, <code>javac</code>, <code>git</code> in your project folder.</li>
                   </ul>
                 </section>
               </div>
@@ -202,8 +202,10 @@
     <button type="button" data-theme-choice="rosewood"><i class="swatch" style="background:#c45c6a"></i>Rosewood</button>
     <button type="button" data-theme-choice="nova"><i class="swatch" style="background:#3de0d0"></i>Nova</button>
     <button type="button" data-theme-choice="atelier"><i class="swatch" style="background:#3d5a80"></i>Atelier</button>
+    <button type="button" data-theme-choice="obsidian"><i class="swatch" style="background:#d4a45a"></i>Obsidian</button>
+    <button type="button" data-theme-choice="glacier"><i class="swatch" style="background:#4a7a9b"></i>Glacier</button>
   </div>
-  <div id="menu-settings" class="popover" hidden>
+  <div id="menu-settings" class="popover settings-pop" hidden>
     <label class="settings-row">Font size
       <input id="setting-font" type="range" min="11" max="24" step="1" value="14">
       <output id="setting-font-out">14</output>
@@ -214,6 +216,36 @@
     </label>
     <button type="button" id="setting-zoom-reset">Reset zoom</button>
     <p class="path-note">Ctrl + and Ctrl - also zoom. Ctrl 0 resets.</p>
+    <hr class="settings-rule">
+    <label class="settings-row settings-stack">Editor font
+      <select id="setting-font-family">
+        <option value="jetbrains">JetBrains Mono</option>
+        <option value="cascadia">Cascadia Code</option>
+        <option value="fira">Fira Code</option>
+        <option value="consolas">Consolas / Menlo</option>
+        <option value="system">System mono</option>
+      </select>
+    </label>
+    <label class="settings-check"><input id="setting-ligatures" type="checkbox" checked> Font ligatures</label>
+    <label class="settings-row settings-stack">Indentation
+      <select id="setting-indent-size">
+        <option value="2">2 spaces</option>
+        <option value="4" selected>4 spaces</option>
+        <option value="8">8 spaces</option>
+      </select>
+    </label>
+    <label class="settings-check"><input id="setting-indent-tabs" type="checkbox"> Indent with tabs</label>
+    <label class="settings-check"><input id="setting-line-wrap" type="checkbox"> Line wrap</label>
+    <hr class="settings-rule">
+    <label class="settings-check"><input id="setting-autosave" type="checkbox" checked> Autosave as you type</label>
+    <label class="settings-row settings-stack">Autosave delay
+      <select id="setting-autosave-delay">
+        <option value="300">Fast (0.3s)</option>
+        <option value="800" selected>Normal (0.8s)</option>
+        <option value="1500">Relaxed (1.5s)</option>
+      </select>
+    </label>
+    <p class="path-note">With autosave off, use Ctrl+S. Ctrl+S always saves immediately.</p>
     <hr class="settings-rule">
     <label class="settings-row settings-stack">Update feed URL
       <input id="setting-update-feed" type="url" spellcheck="false" placeholder="https://…/update.json">

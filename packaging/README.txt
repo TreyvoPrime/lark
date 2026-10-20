@@ -1,7 +1,12 @@
-Lark 2.1.0 (portable zip)
+Lark 2.2.0 — PORTABLE zip (this package)
 
-Prefer the Desktop app? Download lark-desktop-windows.zip (or mac/linux) and run
-"Install Lark Desktop" — Start Menu shortcut, no admin, update prompts on launch.
+This is NOT Lark Desktop.
+  Desktop file names look like:  lark-desktop-windows.zip
+  Portable file names look like: lark-windows.zip  ← you have this one
+
+Prefer Desktop (Start Menu + update prompts)?
+  https://github.com/TreyvoPrime/lark/releases/latest/download/lark-desktop-windows.zip
+  Then run: Install Lark Desktop.ps1
 
 Extract the WHOLE portable zip to a real folder like C:\Users\YOU\Lark.
 Do NOT open Start Lark from inside the zip window or from AppData\Local\Temp.

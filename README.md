@@ -1,79 +1,81 @@
 # Lark
 
-Lark is a small Java IDE: several files and classes, an outline, compile and run, problems that jump to the line, and GitHub clone/push. It is meant to feel lighter than IntelliJ or Eclipse, and more useful than a single browser text box.
+Lark is a small Java IDE: several files and classes, an outline, compile and run, problems that jump to the line, and GitHub clone/push. Lighter than IntelliJ, more useful than a browser text box.
 
-Two ways to get it:
+## Two downloads (pick one)
 
-1. **Lark Desktop** (recommended) — per-user install, Start Menu / Applications shortcut, bundled JDK, **prompts you to update** when a release ships. No admin password.
-2. **Portable zip** — unzip a folder and run `Start Lark`. Same IDE, no install step.
+| | **Lark Desktop** | **Portable zip** |
+| --- | --- | --- |
+| **What it is** | Installed app for your user account | A folder you unzip and run |
+| **GitHub file** | `lark-desktop-windows.zip` (or mac / linux) | `lark-windows.zip` (or mac / linux) |
+| **How to start** | Run **Install Lark Desktop** script | Run **Start Lark** |
+| **Shortcut** | Start Menu / Desktop / Applications | Only the launcher in the folder |
+| **Updates** | Prompts you on launch | Check under Aa → Updates |
+| **Admin password** | Not required | Not required |
+| **Best for** | Everyday use on your PC | USB / shared machines / no install |
 
-There is no Gradle and no Electron.
+Download site: **[treyvoprime.github.io/lark-download](https://treyvoprime.github.io/lark-download/)**  
+Releases: **[github.com/TreyvoPrime/lark/releases/latest](https://github.com/TreyvoPrime/lark/releases/latest)**
 
-## Download
+### Lark Desktop (recommended)
 
-Permanent download site: **[treyvoprime.github.io/lark-download](https://treyvoprime.github.io/lark-download/)**
+```text
+https://github.com/TreyvoPrime/lark/releases/latest/download/lark-desktop-windows.zip
+https://github.com/TreyvoPrime/lark/releases/latest/download/lark-desktop-mac.zip
+https://github.com/TreyvoPrime/lark/releases/latest/download/lark-desktop-linux.zip
+```
 
-Or grab assets from **[GitHub Releases](https://github.com/TreyvoPrime/lark/releases/latest)**:
+- **Windows:** Extract All → in PowerShell:  
+  `powershell -ExecutionPolicy Bypass -File ".\Install Lark Desktop.ps1"`
+- **Mac / Linux:** Extract → run `Install Lark Desktop.command`
 
-| Track | Windows | Mac | Linux |
-| --- | --- | --- | --- |
-| Desktop | `lark-desktop-windows.zip` | `lark-desktop-mac.zip` | `lark-desktop-linux.zip` |
-| Portable | `lark-windows.zip` | `lark-mac.zip` | `lark-linux.zip` |
+### Portable zip
 
-### Lark Desktop
+```text
+https://github.com/TreyvoPrime/lark/releases/latest/download/lark-windows.zip
+https://github.com/TreyvoPrime/lark/releases/latest/download/lark-mac.zip
+https://github.com/TreyvoPrime/lark/releases/latest/download/lark-linux.zip
+```
 
-- **Windows:** unzip → right-click `Install Lark Desktop.ps1` → Run with PowerShell. Installs under `%LOCALAPPDATA%\Programs\Lark`, creates shortcuts, opens Lark.
-- **Mac / Linux:** unzip → run `Install Lark Desktop.command` (or `./Install\ Lark\ Desktop.command`). Lives in `~/Applications/Lark Desktop`.
+- **Windows:** Extract All → `Start Lark.bat`
+- **Mac:** `Start Lark.command`
+- **Linux:** `./start-lark.sh`
 
-When an update is published, Desktop shows a prompt on launch. Choose **Update now**, then **Restart Lark**.
+Do not open Start Lark from inside the zip preview / Temp folder.
 
-### Portable
+## What’s new in 2.2
 
-Unzip into Downloads or Documents, then:
-
-- Windows: double-click `Start Lark.bat`
-- Mac: double-click `Start Lark.command`
-- Linux: run `./start-lark.sh`
-
-Extract All to a real folder (not the zip preview / Temp). You must see `Start Lark`, `lark.jar`, and `jdk\` together.
+- Autosave as you type (toggle + delay under **Aa**)
+- Editor settings: font family, ligatures, indent size, tabs vs spaces, line wrap
+- Themes: **Obsidian** and **Glacier**
+- Clearer Desktop vs portable download pages
 
 ## Run from source
 
 ```bash
 ./lark.sh
-# or desktop mode:
 ./lark.sh --desktop
 ```
-
-Lark prints a local address, usually [http://127.0.0.1:43123](http://127.0.0.1:43123), and opens an app window when possible.
 
 ## Build packages
 
 ```bash
-./package.sh                          # dist/lark.jar
-./packaging/make-release.sh           # portable zips + desktop zips + update.json
-./packaging/make-desktop.sh           # desktop packages only (also called by make-release)
+./package.sh
+./packaging/make-release.sh    # portable + desktop zips + update.json
 ```
 
-In-app updates download `lark-update.zip` (portable) or `lark-desktop-update.zip` (Desktop).
+## Features
 
-Publish with `./packaging/publish-github.sh` (requires `gh auth login`).
+- Multi-file Java projects, outline, compile & run, plain-English problems
+- Terminal tab in the project folder
+- Suggestion autofill; `Ctrl+Space` for snippets
+- Themes including Nova, Atelier, Obsidian, Glacier, and more
+- GitHub clone / push with a classic `repo` token
 
-## What you can do
-
-- Keep more than one project, each with packages, classes, interfaces, records, and enums.
-- Edit with Java highlighting, bracket matching, find, comment toggle, and suggestion-style autofill (`Ctrl+Space` for building blocks like `main`, `fori`, `sout`).
-- **Terminal** tab runs a real shell in the open project folder.
-- Run the main class. Compiler and runtime problems show in plain English with a fix hint.
-- Themes include Nova, Atelier, Lagoon, Rosewood, and the full Desk/Daylight set — IntelliJ-style syntax with JetBrains Mono.
-- Change editor font size and UI zoom under **Aa**, or with `Ctrl+=` / `Ctrl+-` / `Ctrl+0`.
-- Connect GitHub with a classic personal access token (`repo` scope).
-- Import a folder or a zip, and download the project as a zip.
-
-`Ctrl+Enter` runs. `Ctrl+P` opens a file. `Ctrl+S` saves. On a Mac, use Command.
+`Ctrl+Enter` runs. `Ctrl+S` saves. `Ctrl+P` opens a file.
 
 ## Other files in this repository
 
-`CrownsOfTheAtlantic` and `DefinitiveNavy` are Age of History II mods. Their guide is in [MODS.md](MODS.md).
+`CrownsOfTheAtlantic` and `DefinitiveNavy` are Age of History II mods — see [MODS.md](MODS.md).
 
-The editor inside Lark is [CodeMirror 5](web/vendor/codemirror/LICENSE), MIT licensed.
+Editor: [CodeMirror 5](web/vendor/codemirror/LICENSE), MIT.

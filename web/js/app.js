@@ -22,6 +22,8 @@
     rosewood: "Rosewood",
     nova: "Nova",
     atelier: "Atelier",
+    obsidian: "Obsidian",
+    glacier: "Glacier",
     ink: "Desk",
     paper: "Daylight",
     tide: "Moss",
@@ -43,8 +45,15 @@
     "desk", "daylight", "moss", "ember", "fog",
     "blossom", "candy", "midnight", "citrus", "harbor",
     "graphite", "navy", "terminal", "parchment", "ultraviolet", "forest", "monochrome", "amber",
-    "lagoon", "rosewood", "nova", "atelier"
+    "lagoon", "rosewood", "nova", "atelier", "obsidian", "glacier"
   ];
+  const FONT_STACKS = {
+    jetbrains: '"JetBrains Mono", "Cascadia Mono", "Liberation Mono", ui-monospace, monospace',
+    cascadia: '"Cascadia Code", "Cascadia Mono", "JetBrains Mono", ui-monospace, monospace',
+    fira: '"Fira Code", "JetBrains Mono", ui-monospace, monospace',
+    consolas: 'Consolas, Menlo, Monaco, "Courier New", monospace',
+    system: 'ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace'
+  };
   const state = {
     settings: null,
     projects: [],
@@ -135,6 +144,70 @@
     }
     if (save) {
       api("PUT", "/api/settings", { fontSize: fontSize, zoom: zoom }).catch((err) => toast(err.message));
+    }
+  }
+
+  function applyEditorPrefs(opts, save) {
+    if (!state.settings) state.settings = {};
+    const next = Object.assign({}, state.settings, opts || {});
+    let family = next.fontFamily || "jetbrains";
+    if (!FONT_STACKS[family]) family = "jetbrains";
+    let indentSize = Number(next.indentSize);
+    if (indentSize !== 2 && indentSize !== 4 && indentSize !== 8) indentSize = 4;
+    let delay = Number(next.autoSaveDelayMs);
+    if (delay !== 300 && delay !== 800 && delay !== 1500) delay = 800;
+    const ligatures = next.ligatures !== false;
+    const indentWithTabs = !!next.indentWithTabs;
+    const lineWrapping = !!next.lineWrapping;
+    const autoSave = next.autoSave !== false;
+
+    state.settings.fontFamily = family;
+    state.settings.ligatures = ligatures;
+    state.settings.indentSize = indentSize;
+    state.settings.indentWithTabs = indentWithTabs;
+    state.settings.lineWrapping = lineWrapping;
+    state.settings.autoSave = autoSave;
+    state.settings.autoSaveDelayMs = delay;
+
+    document.documentElement.dataset.font = family;
+    document.documentElement.style.setProperty("--mono", FONT_STACKS[family]);
+    document.documentElement.style.setProperty("--font", FONT_STACKS[family]);
+    document.body.classList.toggle("no-ligatures", !ligatures);
+
+    if ($("setting-font-family")) $("setting-font-family").value = family;
+    if ($("setting-ligatures")) $("setting-ligatures").checked = ligatures;
+    if ($("setting-indent-size")) $("setting-indent-size").value = String(indentSize);
+    if ($("setting-indent-tabs")) $("setting-indent-tabs").checked = indentWithTabs;
+    if ($("setting-line-wrap")) $("setting-line-wrap").checked = lineWrapping;
+    if ($("setting-autosave")) $("setting-autosave").checked = autoSave;
+    if ($("setting-autosave-delay")) $("setting-autosave-delay").value = String(delay);
+    if ($("setting-autosave-delay")) $("setting-autosave-delay").disabled = !autoSave;
+
+    if (cm) {
+      const spaces = indentWithTabs ? "\t" : " ".repeat(indentSize);
+      cm.setOption("indentUnit", indentSize);
+      cm.setOption("tabSize", indentSize);
+      cm.setOption("indentWithTabs", indentWithTabs);
+      cm.setOption("lineWrapping", lineWrapping);
+      cm.setOption("extraKeys", Object.assign({}, cm.getOption("extraKeys"), {
+        Tab: function (editor) {
+          if (editor.somethingSelected()) editor.indentSelection("add");
+          else editor.replaceSelection(spaces, "end");
+        }
+      }));
+      cm.refresh();
+    }
+
+    if (save) {
+      api("PUT", "/api/settings", {
+        fontFamily: family,
+        ligatures: ligatures,
+        indentSize: indentSize,
+        indentWithTabs: indentWithTabs,
+        lineWrapping: lineWrapping,
+        autoSave: autoSave,
+        autoSaveDelayMs: delay
+      }).catch((err) => toast(err.message));
     }
   }
 
@@ -243,7 +316,8 @@
       refreshLocalProblems();
       renderProblems();
       markErrors();
-      setSaveStatus("Saving…");
+      if (state.settings && state.settings.autoSave === false) setSaveStatus("Unsaved");
+      else setSaveStatus("Saving…");
     });
     cm.on("cursorActivity", () => {
       const cursor = cm.getCursor();
@@ -421,13 +495,18 @@
 
   function scheduleSave(path) {
     clearTimeout(state.timers.get(path));
+    if (!state.settings || state.settings.autoSave === false) {
+      setSaveStatus("Unsaved");
+      return;
+    }
+    const delay = Number(state.settings.autoSaveDelayMs) || 800;
     state.timers.set(path, setTimeout(() => {
       state.timers.delete(path);
-      saveFile(path);
-    }, 400));
+      saveFile(path, true);
+    }, delay));
   }
 
-  async function saveFile(path) {
+  async function saveFile(path, fromAutosave) {
     const doc = docs.get(path);
     const content = doc ? doc.getValue() : (fileByPath(path) || {}).content;
     if (content == null || !state.project) return;
@@ -440,7 +519,8 @@
       if (file) file.content = content;
       state.dirty.delete(path);
       renderTabs();
-      setSaveStatus(state.dirty.size ? "Saving…" : "Saved");
+      if (state.dirty.size) setSaveStatus("Saving…");
+      else setSaveStatus(fromAutosave ? "Autosaved" : "Saved");
     } catch (err) {
       setSaveStatus("Not saved");
       toast(err.message);
@@ -2150,6 +2230,24 @@
       applyDisplay({ zoom: Number($("setting-zoom").value) }, true);
     });
     $("setting-zoom-reset").addEventListener("click", () => applyDisplay({ zoom: 100 }, true));
+    const bindPref = (id, read) => {
+      const el = $(id);
+      if (!el) return;
+      el.addEventListener("change", () => {
+        try {
+          applyEditorPrefs(read(el), true);
+        } catch (err) {
+          toast(err.message);
+        }
+      });
+    };
+    bindPref("setting-font-family", (el) => ({ fontFamily: el.value }));
+    bindPref("setting-ligatures", (el) => ({ ligatures: el.checked }));
+    bindPref("setting-indent-size", (el) => ({ indentSize: Number(el.value) }));
+    bindPref("setting-indent-tabs", (el) => ({ indentWithTabs: el.checked }));
+    bindPref("setting-line-wrap", (el) => ({ lineWrapping: el.checked }));
+    bindPref("setting-autosave", (el) => ({ autoSave: el.checked }));
+    bindPref("setting-autosave-delay", (el) => ({ autoSaveDelayMs: Number(el.value) }));
     const feedInput = $("setting-update-feed");
     if (feedInput) {
       feedInput.addEventListener("change", async () => {
@@ -2533,6 +2631,15 @@
       applyDisplay({
         fontSize: state.settings.fontSize || 14,
         zoom: state.settings.zoom || 100
+      }, false);
+      applyEditorPrefs({
+        fontFamily: state.settings.fontFamily || "jetbrains",
+        ligatures: state.settings.ligatures !== false,
+        indentSize: state.settings.indentSize || 4,
+        indentWithTabs: !!state.settings.indentWithTabs,
+        lineWrapping: !!state.settings.lineWrapping,
+        autoSave: state.settings.autoSave !== false,
+        autoSaveDelayMs: state.settings.autoSaveDelayMs || 800
       }, false);
       if ($("setting-update-feed")) $("setting-update-feed").value = state.settings.updateFeed || "";
       showGithub();

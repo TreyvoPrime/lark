@@ -160,6 +160,27 @@ public final class Server {
                     int zoom = (int) body.longVal("zoom");
                     settings.zoom = Settings.clamp(zoom, 80, 160, settings.zoom);
                 }
+                if (body.has("fontFamily")) {
+                    String family = body.str("fontFamily", "jetbrains");
+                    if (!Settings.FONT_FAMILIES.contains(family)) throw new RequestFail(400, "Unknown font.");
+                    settings.fontFamily = family;
+                }
+                if (body.has("ligatures")) settings.ligatures = body.bool("ligatures");
+                if (body.has("indentSize")) {
+                    int indent = (int) body.longVal("indentSize");
+                    if (indent != 2 && indent != 4 && indent != 8) throw new RequestFail(400, "Indent must be 2, 4, or 8.");
+                    settings.indentSize = indent;
+                }
+                if (body.has("indentWithTabs")) settings.indentWithTabs = body.bool("indentWithTabs");
+                if (body.has("lineWrapping")) settings.lineWrapping = body.bool("lineWrapping");
+                if (body.has("autoSave")) settings.autoSave = body.bool("autoSave");
+                if (body.has("autoSaveDelayMs")) {
+                    int delay = (int) body.longVal("autoSaveDelayMs");
+                    if (delay != 300 && delay != 800 && delay != 1500) {
+                        throw new RequestFail(400, "Autosave delay must be 300, 800, or 1500 ms.");
+                    }
+                    settings.autoSaveDelayMs = delay;
+                }
                 if (body.has("updateFeed")) settings.updateFeed = body.str("updateFeed", "").trim();
                 settings.save();
                 sendJson(exchange, 200, settingsJson());
@@ -372,6 +393,13 @@ public final class Server {
                 .put("theme", settings.theme)
                 .put("fontSize", settings.fontSize)
                 .put("zoom", settings.zoom)
+                .put("fontFamily", settings.fontFamily == null ? "jetbrains" : settings.fontFamily)
+                .put("ligatures", settings.ligatures)
+                .put("indentSize", settings.indentSize)
+                .put("indentWithTabs", settings.indentWithTabs)
+                .put("lineWrapping", settings.lineWrapping)
+                .put("autoSave", settings.autoSave)
+                .put("autoSaveDelayMs", settings.autoSaveDelayMs)
                 .put("tokenSet", settings.githubToken != null && !settings.githubToken.isBlank())
                 .put("githubLogin", settings.githubLogin == null ? "" : settings.githubLogin)
                 .put("lastProject", settings.lastProject == null ? "" : settings.lastProject)
