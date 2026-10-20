@@ -755,6 +755,15 @@ button:disabled { opacity: 0.5; cursor: default; }
   align-items: center;
   gap: 8px;
   margin-right: 4px;
+  border: none !important;
+  background: transparent !important;
+  padding: 4px 6px !important;
+  border-radius: 5px;
+  cursor: pointer;
+  color: inherit;
+}
+.brand:hover {
+  background: var(--hover) !important;
 }
 .brand svg { width: 18px; height: 18px; color: var(--accent); }
 .brand .word {

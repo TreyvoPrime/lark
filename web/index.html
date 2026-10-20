@@ -21,13 +21,13 @@
 <body>
   <div id="shell">
     <header id="top">
-      <div class="brand">
+      <button type="button" class="brand" id="brand-home" title="Home" aria-label="Lark home">
         <svg viewBox="0 0 24 24" aria-hidden="true">
           <path d="M3 16c4.2-.7 6-6 9-11 2.8 5 4.8 10.2 9 11" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/>
           <path d="M7 16.5h10" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/>
         </svg>
         <span class="word">Lark <em class="ver">2.2</em></span>
-      </div>
+      </button>
       <button id="files-toggle" type="button">Files</button>
       <label class="project-pick">
         <span class="sr">Project</span>
@@ -40,10 +40,10 @@
         <span>Main</span>
         <select id="main-class"></select>
       </label>
-      <button id="beautify" type="button" title="Fix indentation (Shift+Alt+F)">Beautify</button>
       <button id="run" type="button" class="primary run-btn" title="Ctrl+Enter">Run</button>
       <button id="github" type="button">GitHub</button>
       <button id="theme" type="button" data-pop="menu-theme">Desk</button>
+      <button id="beautify" type="button" title="Fix indentation (Shift+Alt+F)">Beautify</button>
       <button id="settings" type="button" data-pop="menu-settings">Aa</button>
       <button id="help" type="button" data-pop="menu-help" aria-label="Keyboard shortcuts">?</button>
     </header>
@@ -83,7 +83,7 @@
                 </svg>
                 <h1>Lark</h1>
               </div>
-              <p class="welcome-kicker">Lark 2.2.1</p>
+              <p class="welcome-kicker">Lark 2.2.2</p>
               <p class="welcome-lead">A Java IDE with autosave, Terminal, suggestion autofill, and themes built for long coding sessions.</p>
               <div class="welcome-grid">
                 <section>

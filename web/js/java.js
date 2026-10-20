@@ -585,8 +585,9 @@
   }
 
   /**
-   * Re-indent Java source and tidy common spacing so braces and blocks line up.
-   * Respects indent size / tabs. Leaves string and comment contents alone.
+   * Re-indent Java source using brace depth. Tracks strings / text blocks /
+   * comments across lines so braces inside them never bump indent.
+   * Only light spacing fixes (if(, ){, } else) — no aggressive rewrites.
    */
   function beautifyJava(source, options) {
     options = options || {};
@@ -599,12 +600,15 @@
     const lines = raw.split("\n");
     const out = [];
     let depth = 0;
-    let inBlockComment = false;
+    let mode = "code"; // code | line | block | sq | dq | tq
     let blankRun = 0;
 
     for (let li = 0; li < lines.length; li++) {
-      const trimmed = lines[li].trim();
+      const original = lines[li];
+      const scan = scanLine(original, mode);
+      mode = scan.modeEnd;
 
+      const trimmed = original.trim();
       if (!trimmed) {
         blankRun += 1;
         if (blankRun <= 2) out.push("");
@@ -612,106 +616,127 @@
       }
       blankRun = 0;
 
-      if (inBlockComment) {
-        out.push(unit.repeat(Math.max(0, depth)) + trimmed);
-        if (trimmed.indexOf("*/") >= 0) inBlockComment = false;
+      // Inside a string / text-block / comment continuation — do not re-indent
+      // (re-indenting would change string contents and javadoc layout).
+      if (scan.wasNonCodeLine) {
+        out.push(original.replace(/[ \t]+$/g, ""));
         continue;
       }
 
-      const commentOnly = trimmed.startsWith("//")
-        || trimmed.startsWith("/*")
-        || trimmed.startsWith("*");
-      const braces = countBraces(trimmed);
+      const opens = scan.opens;
+      const closes = scan.closes;
       let lineDepth = depth;
-      if (/^[}\])]/.test(trimmed) || /^(case\b|default\s*:)/.test(trimmed)) {
-        lineDepth = Math.max(0, depth - Math.max(1, braces.closes - braces.opens));
+      // Closing brace / bracket at the start of the line sits one level out.
+      if (/^[}\])]/.test(trimmed)) {
+        const leadCloses = countLeadingClosers(scan.codeMask);
+        lineDepth = Math.max(0, depth - Math.max(1, leadCloses));
+      } else if (/^(case\b|default\s*:)/.test(trimmed)) {
+        // case / default align with switch body start (one less than statements).
+        lineDepth = Math.max(0, depth - 1);
       }
 
-      const tidied = commentOnly ? trimmed.replace(/[ \t]+$/g, "") : tidyCodeSpaces(trimmed);
+      const tidied = tidyCodeSpaces(trimmed);
       out.push(unit.repeat(Math.max(0, lineDepth)) + tidied);
-
-      if (!commentOnly || trimmed.startsWith("/*")) {
-        depth = Math.max(0, depth + braces.opens - braces.closes);
-      }
-      if (/\/\*/.test(stripStrings(trimmed)) && !/\*\//.test(stripStrings(trimmed))) {
-        inBlockComment = true;
-      }
+      depth = Math.max(0, depth + opens - closes);
     }
 
     while (out.length && out[out.length - 1] === "") out.pop();
     return out.join("\n") + "\n";
   }
 
-  function stripStrings(text) {
-    let out = "";
-    let i = 0;
-    let mode = "code"; // code | sq | dq | tq
-    while (i < text.length) {
-      const c = text[i];
-      const n = text[i + 1];
-      if (mode === "code") {
-        if (c === "/" && n === "/") break;
-        if (c === "/" && n === "*") {
-          out += "  ";
-          i += 2;
-          while (i < text.length && !(text[i] === "*" && text[i + 1] === "/")) {
-            out += " ";
-            i++;
-          }
-          if (i < text.length) {
-            out += "  ";
-            i += 2;
-          }
-          continue;
-        }
-        if (c === "'") { mode = "sq"; out += " "; i++; continue; }
-        if (c === '"') {
-          if (n === '"' && text[i + 2] === '"') { mode = "tq"; out += "   "; i += 3; continue; }
-          mode = "dq"; out += " "; i++; continue;
-        }
-        out += c;
-        i++;
-      } else if (mode === "sq") {
-        if (c === "\\") { out += "  "; i += 2; continue; }
-        if (c === "'") { mode = "code"; out += " "; i++; continue; }
-        out += " "; i++;
-      } else if (mode === "dq") {
-        if (c === "\\") { out += "  "; i += 2; continue; }
-        if (c === '"') { mode = "code"; out += " "; i++; continue; }
-        out += " "; i++;
-      } else if (mode === "tq") {
-        if (c === '"' && n === '"' && text[i + 2] === '"') { mode = "code"; out += "   "; i += 3; continue; }
-        out += " "; i++;
-      }
-    }
-    return out;
-  }
-
-  function countBraces(line) {
-    const clean = stripStrings(line);
+  /** Scan one physical line given starting lexer mode; return brace counts in code only. */
+  function scanLine(line, modeStart) {
+    let mode = modeStart;
     let opens = 0;
     let closes = 0;
-    for (let i = 0; i < clean.length; i++) {
-      if (clean[i] === "{") opens++;
-      else if (clean[i] === "}") closes++;
+    let i = 0;
+    let codeMask = "";
+    let sawCode = mode === "code";
+    let wasNonCodeLine = mode !== "code";
+
+    while (i < line.length) {
+      const c = line[i];
+      const n = line[i + 1];
+      const n2 = line[i + 2];
+
+      if (mode === "line") {
+        // rest of line is comment
+        break;
+      }
+      if (mode === "block") {
+        if (c === "*" && n === "/") { mode = "code"; i += 2; continue; }
+        i++;
+        continue;
+      }
+      if (mode === "sq") {
+        if (c === "\\") { i += 2; continue; }
+        if (c === "'") { mode = "code"; i++; continue; }
+        i++;
+        continue;
+      }
+      if (mode === "dq") {
+        if (c === "\\") { i += 2; continue; }
+        if (c === '"') { mode = "code"; i++; continue; }
+        i++;
+        continue;
+      }
+      if (mode === "tq") {
+        if (c === '"' && n === '"' && n2 === '"') { mode = "code"; i += 3; continue; }
+        i++;
+        continue;
+      }
+
+      // code
+      sawCode = true;
+      wasNonCodeLine = false;
+      if (c === "/" && n === "/") { mode = "line"; break; }
+      if (c === "/" && n === "*") { mode = "block"; i += 2; continue; }
+      if (c === "'") { mode = "sq"; i++; continue; }
+      if (c === '"') {
+        if (n === '"' && n2 === '"') { mode = "tq"; i += 3; continue; }
+        mode = "dq";
+        i++;
+        continue;
+      }
+      if (c === "{") { opens++; codeMask += "{"; }
+      else if (c === "}") { closes++; codeMask += "}"; }
+      else if (c === "(" || c === ")") codeMask += c;
+      else if (c === "[" || c === "]") codeMask += c;
+      else codeMask += " ";
+      i++;
     }
-    return { opens: opens, closes: closes };
+
+    // If we never left a non-code mode and never hit code, treat as continuation.
+    if (!sawCode && modeStart !== "code") wasNonCodeLine = true;
+    // Line comment mode ends at newline.
+    const modeEnd = mode === "line" ? "code" : mode;
+    return { opens: opens, closes: closes, modeEnd: modeEnd, wasNonCodeLine: wasNonCodeLine && !sawCode, codeMask: codeMask };
+  }
+
+  function countLeadingClosers(codeMask) {
+    let n = 0;
+    for (let i = 0; i < codeMask.length; i++) {
+      const c = codeMask[i];
+      if (c === " " || c === "\t") continue;
+      if (c === "}" || c === ")" || c === "]") { n++; continue; }
+      break;
+    }
+    return n;
   }
 
   function tidyCodeSpaces(line) {
     let s = line.replace(/[ \t]+$/g, "");
+    // Conservative: only keyword/brace spacing people expect. Never touch = or <>
+    // (those broke generics / annotations / made lines look worse).
     s = replaceOutsideStrings(s, /\b(if|for|while|switch|catch|synchronized)\(/g, "$1 (");
-    s = replaceOutsideStrings(s, /\)\{/g, ") {");
+    s = replaceOutsideStrings(s, /\)\s*\{/g, ") {");
     s = replaceOutsideStrings(s, /([A-Za-z0-9_])\{/g, "$1 {");
-    s = replaceOutsideStrings(s, /\}else\b/g, "} else");
-    s = replaceOutsideStrings(s, /else\{/g, "else {");
-    s = replaceOutsideStrings(s, /try\{/g, "try {");
-    s = replaceOutsideStrings(s, /finally\{/g, "finally {");
-    s = replaceOutsideStrings(s, /do\{/g, "do {");
-    s = replaceOutsideStrings(s, /,([^\s])/g, ", $1");
-    // Spaces around assignment / comparisons (skip == != <= >= += etc. already spaced).
-    s = replaceOutsideStrings(s, /([^\s!<>=+\-*/%&|^])=([^=])/g, "$1 = $2");
-    s = replaceOutsideStrings(s, /([^\s!<>=])(==|!=|<=|>=|<|>)([^\s=])/g, "$1 $2 $3");
+    s = replaceOutsideStrings(s, /\}\s*else\b/g, "} else");
+    s = replaceOutsideStrings(s, /\belse\s*\{/g, "else {");
+    s = replaceOutsideStrings(s, /\btry\s*\{/g, "try {");
+    s = replaceOutsideStrings(s, /\bfinally\s*\{/g, "finally {");
+    s = replaceOutsideStrings(s, /\bdo\s*\{/g, "do {");
+    s = replaceOutsideStrings(s, /,\s*/g, ", ");
     s = replaceOutsideStrings(s, / {2,}/g, " ");
     return s;
   }
@@ -721,20 +746,19 @@
     let i = 0;
     let mode = "code";
     let buf = "";
-    const flush = (chunk, transform) => {
-      parts.push(transform ? chunk.replace(regex, replacement) : chunk);
-    };
     while (i < text.length) {
       const c = text[i];
       const n = text[i + 1];
+      const n2 = text[i + 2];
       if (mode === "code") {
         if (c === "/" && n === "/") {
-          flush(buf, true); buf = "";
+          parts.push(buf.replace(regex, replacement));
           parts.push(text.slice(i));
           return parts.join("");
         }
         if (c === "/" && n === "*") {
-          flush(buf, true); buf = "";
+          parts.push(buf.replace(regex, replacement));
+          buf = "";
           let j = i + 2;
           while (j < text.length && !(text[j] === "*" && text[j + 1] === "/")) j++;
           j = Math.min(text.length, j + 2);
@@ -742,10 +766,14 @@
           i = j;
           continue;
         }
-        if (c === "'") { flush(buf, true); buf = "'"; mode = "sq"; i++; continue; }
+        if (c === "'") {
+          parts.push(buf.replace(regex, replacement));
+          buf = "'"; mode = "sq"; i++; continue;
+        }
         if (c === '"') {
-          flush(buf, true); buf = "";
-          if (n === '"' && text[i + 2] === '"') { buf = '"""'; mode = "tq"; i += 3; continue; }
+          parts.push(buf.replace(regex, replacement));
+          buf = "";
+          if (n === '"' && n2 === '"') { buf = '"""'; mode = "tq"; i += 3; continue; }
           buf = '"'; mode = "dq"; i++; continue;
         }
         buf += c; i++;
@@ -761,7 +789,7 @@
         i++;
       } else if (mode === "tq") {
         buf += c;
-        if (c === '"' && n === '"' && text[i + 2] === '"') {
+        if (c === '"' && n === '"' && n2 === '"') {
           buf += '""';
           parts.push(buf); buf = ""; mode = "code";
           i += 3; continue;
@@ -769,7 +797,10 @@
         i++;
       }
     }
-    if (buf) flush(buf, mode === "code");
+    if (buf) {
+      if (mode === "code") parts.push(buf.replace(regex, replacement));
+      else parts.push(buf);
+    }
     return parts.join("");
   }
 

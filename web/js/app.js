@@ -746,6 +746,8 @@
     $("empty").hidden = true;
     $("editor").hidden = true;
     welcome.hidden = false;
+    state.active = null;
+    renderTabs();
     renderWelcomeRecent();
     $("status-path").textContent = "Welcome";
     document.title = "Lark";
@@ -2246,6 +2248,13 @@
   function bind() {
     $("run").addEventListener("click", () => run().catch((err) => toast(err.message)));
     if ($("beautify")) $("beautify").addEventListener("click", () => beautifyActiveFile());
+    if ($("brand-home")) {
+      $("brand-home").addEventListener("click", () => {
+        closePopovers();
+        try { localStorage.removeItem("lark-skip-welcome"); } catch (e) {}
+        showWelcome();
+      });
+    }
     $("new-class").addEventListener("click", () => createClass().catch((err) => toast(err.message)));
     $("empty-new").addEventListener("click", () => createClass().catch((err) => toast(err.message)));
     $("new-file").addEventListener("click", () => createFile().catch((err) => toast(err.message)));
