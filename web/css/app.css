@@ -1077,17 +1077,18 @@ select:focus, input:focus, textarea:focus, button:focus-visible {
 }
 .tray-head {
   height: auto;
-  min-height: 44px;
-  padding: 8px 8px 8px 12px;
+  min-height: 52px;
+  padding: 8px 8px 8px 10px;
   align-items: flex-start;
-  gap: 8px;
+  gap: 6px;
+  flex-wrap: wrap;
 }
 .tray-title {
   display: flex;
   flex-direction: column;
   gap: 2px;
   min-width: 0;
-  flex: 1;
+  flex: 1 1 100%;
 }
 .tray-label {
   font-size: 10px;
@@ -1103,6 +1104,12 @@ select:focus, input:focus, textarea:focus, button:focus-visible {
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
+  max-width: 100%;
+}
+.tray-head .pane-actions {
+  margin-left: 0;
+  width: 100%;
+  justify-content: flex-start;
 }
 .file-tray { padding: 4px 4px 10px; }
 .tree-icon {
