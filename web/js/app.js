@@ -933,8 +933,14 @@
       docs.set(path, doc);
     }
     const target = intoB ? ensureSplitEditor() : cm;
+    const other = intoB ? cm : cmB;
+    // A CodeMirror Doc can only be shown in one editor — link a sibling for the split.
+    let viewDoc = doc;
+    if (other && other.getDoc && other.getDoc() === doc) {
+      viewDoc = doc.linkedDoc({ sharedHist: true });
+    }
     suppress = true;
-    target.swapDoc(doc);
+    target.swapDoc(viewDoc);
     suppress = false;
     $("empty").hidden = true;
     if ($("editors-row")) $("editors-row").hidden = false;
