@@ -62,6 +62,7 @@
     dirs: [],
     open: [],
     active: null,
+    activeB: null,
     selected: null,
     collapsed: new Set(),
     problems: [],
@@ -74,12 +75,25 @@
     termPoll: null,
     termHistory: [],
     termHistIndex: -1,
-    consoleTab: "output"
+    consoleTab: "output",
+    recent: [],
+    breakpoints: new Map(),
+    debug: null,
+    debugPoll: null,
+    debugLineMark: null,
+    split: false,
+    runConfigs: [],
+    testJob: null,
+    testPoll: null,
+    discoveredTests: [],
+    paletteItems: []
   };
   const docs = new Map();
   const parsedCache = new Map();
   const lineMarks = [];
   let cm = null;
+  let cmB = null;
+  let focusedEditor = "a";
   let suppress = false;
   let paletteIndex = 0;
   let modalResolve = null;
@@ -142,6 +156,10 @@
       cm.getWrapperElement().style.fontSize = fontSize + "px";
       cm.refresh();
     }
+    if (cmB) {
+      cmB.getWrapperElement().style.fontSize = fontSize + "px";
+      cmB.refresh();
+    }
     if (save) {
       api("PUT", "/api/settings", { fontSize: fontSize, zoom: zoom }).catch((err) => toast(err.message));
     }
@@ -160,6 +178,7 @@
     const indentWithTabs = !!next.indentWithTabs;
     const lineWrapping = !!next.lineWrapping;
     const autoSave = next.autoSave !== false;
+    const formatOnSave = !!next.formatOnSave;
 
     state.settings.fontFamily = family;
     state.settings.ligatures = ligatures;
@@ -168,6 +187,7 @@
     state.settings.lineWrapping = lineWrapping;
     state.settings.autoSave = autoSave;
     state.settings.autoSaveDelayMs = delay;
+    state.settings.formatOnSave = formatOnSave;
 
     document.documentElement.dataset.font = family;
     document.documentElement.style.setProperty("--mono", FONT_STACKS[family]);
@@ -182,6 +202,7 @@
     if ($("setting-autosave")) $("setting-autosave").checked = autoSave;
     if ($("setting-autosave-delay")) $("setting-autosave-delay").value = String(delay);
     if ($("setting-autosave-delay")) $("setting-autosave-delay").disabled = !autoSave;
+    if ($("setting-format-save")) $("setting-format-save").checked = formatOnSave;
 
     if (cm) {
       const spaces = indentWithTabs ? "\t" : " ".repeat(indentSize);
@@ -197,6 +218,14 @@
       }));
       cm.refresh();
     }
+    if (cmB) {
+      cmB.setOption("indentUnit", indentSize);
+      cmB.setOption("tabSize", indentSize);
+      cmB.setOption("indentWithTabs", indentWithTabs);
+      cmB.setOption("lineWrapping", lineWrapping);
+      cmB.setOption("extraKeys", editorExtraKeys());
+      cmB.refresh();
+    }
 
     if (save) {
       api("PUT", "/api/settings", {
@@ -206,7 +235,8 @@
         indentWithTabs: indentWithTabs,
         lineWrapping: lineWrapping,
         autoSave: autoSave,
-        autoSaveDelayMs: delay
+        autoSaveDelayMs: delay,
+        formatOnSave: formatOnSave
       }).catch((err) => toast(err.message));
     }
   }
@@ -256,6 +286,7 @@
       mode: "text/x-java",
       theme: "lark",
       lineNumbers: true,
+      gutters: ["CodeMirror-linenumbers", "breakpoints"],
       indentUnit: 4,
       tabSize: 4,
       indentWithTabs: false,
@@ -265,35 +296,9 @@
       autoCloseBrackets: { pairs: "()[]{}''\"\"", explode: "[]{}" },
       styleActiveLine: true,
       hintOptions: { completeSingle: false, closeOnUnfocus: true },
-      extraKeys: {
-        "Tab": function (editor) {
-          if (editor.somethingSelected()) editor.indentSelection("add");
-          else editor.replaceSelection("    ", "end");
-        },
-        "Shift-Tab": "indentLess",
-        "Enter": function (editor) {
-          if (tryExpandJavadoc(editor)) return;
-          return CodeMirror.Pass;
-        },
-        "Ctrl-/": "toggleComment",
-        "Cmd-/": "toggleComment",
-        "Ctrl-F": "find",
-        "Cmd-F": "find",
-        "Ctrl-H": "replace",
-        "Cmd-Alt-F": "replace",
-        "Shift-Alt-F": () => beautifyActiveFile(),
-        "Ctrl-Alt-L": () => beautifyActiveFile(),
-        "Cmd-Alt-L": () => beautifyActiveFile(),
-        "Ctrl-Space": (editor) => CodeMirror.showHint(editor, completeHintFull, {
-          completeSingle: false,
-          closeOnUnfocus: true
-        }),
-        "Cmd-Space": (editor) => CodeMirror.showHint(editor, completeHintFull, {
-          completeSingle: false,
-          closeOnUnfocus: true
-        })
-      }
+      extraKeys: editorExtraKeys()
     });
+    wireEditor(cm, "a");
     cm.on("inputRead", (editor, change) => {
       if (suppress || !state.active || !change || !change.text) return;
       const typed = change.text.join("");
@@ -327,6 +332,115 @@
       $("status-cursor").textContent = "Ln " + (cursor.line + 1) + ", Col " + (cursor.ch + 1);
       updateSignatureHelp();
     });
+  }
+
+  function editorExtraKeys() {
+    return {
+      "Tab": function (editor) {
+        if (editor.somethingSelected()) editor.indentSelection("add");
+        else {
+          const n = (state.settings && state.settings.indentSize) || 4;
+          const spaces = (state.settings && state.settings.indentWithTabs) ? "\t" : " ".repeat(n);
+          editor.replaceSelection(spaces, "end");
+        }
+      },
+      "Shift-Tab": "indentLess",
+      "Enter": function (editor) {
+        if (tryExpandJavadoc(editor)) return;
+        return CodeMirror.Pass;
+      },
+      "Ctrl-/": "toggleComment",
+      "Cmd-/": "toggleComment",
+      "Ctrl-F": "find",
+      "Cmd-F": "find",
+      "Ctrl-H": "replace",
+      "Cmd-Alt-F": "replace",
+      "Shift-Alt-F": () => beautifyActiveFile(),
+      "Ctrl-Alt-L": () => beautifyActiveFile(),
+      "Cmd-Alt-L": () => beautifyActiveFile(),
+      "Ctrl-Space": (editor) => CodeMirror.showHint(editor, completeHintFull, {
+        completeSingle: false,
+        closeOnUnfocus: true
+      }),
+      "Cmd-Space": (editor) => CodeMirror.showHint(editor, completeHintFull, {
+        completeSingle: false,
+        closeOnUnfocus: true
+      }),
+      "F12": () => goToDefinition().catch((e) => toast(e.message)),
+      "Shift-F12": () => findUsagesAtCursor().catch((e) => toast(e.message)),
+      "F2": () => renameSymbol().catch((e) => toast(e.message)),
+      "F5": () => startDebug().catch((e) => toast(e.message)),
+      "Ctrl-D": () => renameInFileMulti(),
+      "Cmd-D": () => renameInFileMulti()
+    };
+  }
+
+  function wireEditor(editor, which) {
+    if (!editor || editor._larkWired) return;
+    editor._larkWired = true;
+    editor.on("gutterClick", (ed, line, gutter) => {
+      if (gutter !== "breakpoints" && gutter !== "CodeMirror-linenumbers") return;
+      const path = which === "b" ? state.activeB : state.active;
+      toggleBreakpoint(path, line + 1, ed);
+    });
+    editor.on("focus", () => { focusedEditor = which; });
+  }
+
+  function activeCm() {
+    return focusedEditor === "b" && cmB ? cmB : cm;
+  }
+
+  function activePath() {
+    return focusedEditor === "b" && state.activeB ? state.activeB : state.active;
+  }
+
+  function pushRecent(path) {
+    if (!path) return;
+    state.recent = [path].concat(state.recent.filter((p) => p !== path)).slice(0, 24);
+    try { localStorage.setItem("lark-recent-files", JSON.stringify(state.recent)); } catch (e) {}
+  }
+
+  function loadRecent() {
+    try {
+      const raw = JSON.parse(localStorage.getItem("lark-recent-files") || "[]");
+      state.recent = Array.isArray(raw) ? raw.filter((p) => typeof p === "string") : [];
+    } catch (e) { state.recent = []; }
+  }
+
+  function bpSet(path) {
+    if (!path) return new Set();
+    if (!state.breakpoints.has(path)) state.breakpoints.set(path, new Set());
+    return state.breakpoints.get(path);
+  }
+
+  function toggleBreakpoint(path, line, editor) {
+    if (!path || !line) return;
+    const set = bpSet(path);
+    if (set.has(line)) set.delete(line);
+    else set.add(line);
+    paintBreakpoints(path, editor || cm);
+  }
+
+  function paintBreakpoints(path, editor) {
+    if (!editor || !path) return;
+    const info = editor.lineCount();
+    for (let i = 0; i < info; i++) editor.setGutterMarker(i, "breakpoints", null);
+    const set = state.breakpoints.get(path);
+    if (!set) return;
+    set.forEach((line) => {
+      const el = document.createElement("div");
+      el.className = "cm-breakpoint";
+      el.textContent = "●";
+      editor.setGutterMarker(line - 1, "breakpoints", el);
+    });
+  }
+
+  function collectBreakpoints() {
+    const out = [];
+    state.breakpoints.forEach((set, file) => {
+      set.forEach((line) => out.push({ file: file, line: line }));
+    });
+    return out;
   }
 
   function javadocTriggerLine(line) {
@@ -511,8 +625,25 @@
 
   async function saveFile(path, fromAutosave) {
     const doc = docs.get(path);
-    const content = doc ? doc.getValue() : (fileByPath(path) || {}).content;
+    let content = doc ? doc.getValue() : (fileByPath(path) || {}).content;
     if (content == null || !state.project) return;
+    if (state.settings && state.settings.formatOnSave && String(path).endsWith(".java")) {
+      const pretty = window.LarkJava.beautifyJava(content, {
+        indentSize: (state.settings && state.settings.indentSize) || 4,
+        indentWithTabs: !!(state.settings && state.settings.indentWithTabs)
+      });
+      if (pretty !== content) {
+        content = pretty;
+        if (doc) {
+          const cur = (cm && state.active === path) ? cm.getCursor() : (cmB && state.activeB === path ? cmB.getCursor() : null);
+          suppress = true;
+          doc.setValue(pretty);
+          suppress = false;
+          if (cur && cm && state.active === path) cm.setCursor(cur);
+          if (cur && cmB && state.activeB === path) cmB.setCursor(cur);
+        }
+      }
+    }
     try {
       await api("PUT", "/api/projects/" + encodeURIComponent(state.project.id) + "/file", {
         path: path,
@@ -522,6 +653,7 @@
       if (file) file.content = content;
       state.dirty.delete(path);
       renderTabs();
+      renderTabsB();
       if (state.dirty.size) setSaveStatus("Saving…");
       else setSaveStatus(fromAutosave ? "Autosaved" : "Saved");
     } catch (err) {
@@ -778,30 +910,39 @@
     });
   }
 
-  function openPath(path) {
+  function openPath(path, opts) {
     const file = fileByPath(path);
     if (!file) return;
     hideWelcome();
     ensureEditor();
+    const intoB = opts && opts.side === "b" && state.split;
     if (!state.open.includes(path)) state.open.push(path);
-    state.active = path;
-    state.selected = path;
+    if (intoB) state.activeB = path;
+    else {
+      state.active = path;
+      state.selected = path;
+      focusedEditor = "a";
+    }
+    pushRecent(path);
     let doc = docs.get(path);
     if (!doc) {
       doc = CodeMirror.Doc(file.content || "", modeFor(path));
       docs.set(path, doc);
     }
+    const target = intoB ? ensureSplitEditor() : cm;
     suppress = true;
-    cm.swapDoc(doc);
+    target.swapDoc(doc);
     suppress = false;
     $("empty").hidden = true;
     $("editor").hidden = false;
-    cm.setOption("mode", modeFor(path));
-    cm.refresh();
+    target.setOption("mode", modeFor(path));
+    target.refresh();
+    paintBreakpoints(path, target);
     renderTabs();
+    renderTabsB();
     renderTree();
     renderStructure();
-    const cursor = cm.getCursor();
+    const cursor = target.getCursor();
     $("status-cursor").textContent = "Ln " + (cursor.line + 1) + ", Col " + (cursor.ch + 1);
     const crumbs = path.split("/").join(" / ");
     const pkg = path.endsWith(".java") ? parsedFile(file).pkg : "";
@@ -810,6 +951,84 @@
     refreshLocalProblems();
     markErrors();
     updateSignatureHelp();
+  }
+
+  function ensureSplitEditor() {
+    if (cmB) return cmB;
+    const host = $("editor-b");
+    if (!host) return cm;
+    cmB = CodeMirror(host, {
+      value: "",
+      mode: "text/x-java",
+      theme: "lark",
+      lineNumbers: true,
+      gutters: ["CodeMirror-linenumbers", "breakpoints"],
+      indentUnit: (state.settings && state.settings.indentSize) || 4,
+      tabSize: (state.settings && state.settings.indentSize) || 4,
+      indentWithTabs: !!(state.settings && state.settings.indentWithTabs),
+      lineWrapping: !!(state.settings && state.settings.lineWrapping),
+      matchBrackets: true,
+      autoCloseBrackets: { pairs: "()[]{}''\"\"", explode: "[]{}" },
+      styleActiveLine: true,
+      extraKeys: editorExtraKeys()
+    });
+    wireEditor(cmB, "b");
+    cmB.on("change", (editor) => {
+      if (suppress || !state.activeB) return;
+      const path = state.activeB;
+      const file = fileByPath(path);
+      if (file) file.content = editor.getValue();
+      state.dirty.add(path);
+      renderTabs();
+      renderTabsB();
+      scheduleSave(path);
+    });
+    cmB.on("cursorActivity", () => {
+      const cursor = cmB.getCursor();
+      $("status-cursor").textContent = "Ln " + (cursor.line + 1) + ", Col " + (cursor.ch + 1);
+    });
+    return cmB;
+  }
+
+  function setSplit(on) {
+    state.split = !!on;
+    document.body.classList.toggle("split-on", state.split);
+    const colB = $("editor-col-b");
+    const bar = $("editor-split-bar");
+    if (colB) colB.hidden = !state.split;
+    if (bar) bar.hidden = !state.split;
+    if (state.split) {
+      ensureSplitEditor();
+      if (!state.activeB && state.active) openPath(state.active, { side: "b" });
+      if (cmB) cmB.refresh();
+    } else {
+      state.activeB = null;
+      focusedEditor = "a";
+    }
+    if (cm) cm.refresh();
+  }
+
+  function toggleSplit() {
+    setSplit(!state.split);
+  }
+
+  function renderTabsB() {
+    const box = $("tabs-b");
+    if (!box) return;
+    box.replaceChildren();
+    if (!state.split) return;
+    const path = state.activeB;
+    if (!path) {
+      box.appendChild(note("Open a file in the split"));
+      return;
+    }
+    const btn = document.createElement("button");
+    btn.type = "button";
+    btn.className = "tab on";
+    btn.textContent = path.split("/").pop();
+    btn.title = path;
+    btn.addEventListener("click", () => openPath(path, { side: "b" }));
+    box.appendChild(btn);
   }
 
   function renderStructure() {
@@ -906,7 +1125,11 @@
     state.active = null;
     state.selected = null;
     state.problems = [];
+    state.runConfigs = data.project.runConfigs || [];
+    state.discoveredTests = [];
+    state.activeB = null;
     state.dirty.clear();
+    renderRunConfigMenu();
     state.timers.forEach((timer) => clearTimeout(timer));
     state.timers.clear();
     docs.clear();
@@ -1070,6 +1293,10 @@
       beautifyActiveFile();
       return;
     }
+    if (act === "goto") { await goToDefinition(); return; }
+    if (act === "usages") { await findUsagesAtCursor(); return; }
+    if (act === "rename") { await renameSymbol(); return; }
+    if (act === "rename-file") { renameInFileMulti(); return; }
     const parsed = currentJavaParsed();
     if (!parsed && act !== "explain" && act !== "snippet") return toast("Open a Java class first.");
     if (act === "explain") {
@@ -1656,6 +1883,18 @@
         raw.textContent = problem.message;
         body.appendChild(raw);
       }
+      const fixable = problem.code && ["unused-import", "missing-override", "string-eq", "empty-control", "missing-accessors", "missing-getter"].includes(problem.code);
+      if (fixable) {
+        const fix = document.createElement("button");
+        fix.type = "button";
+        fix.className = "problem-fix primary";
+        fix.textContent = "Quick fix";
+        fix.addEventListener("click", (ev) => {
+          ev.stopPropagation();
+          applyProblemFix(problem).catch((err) => toast(err.message));
+        });
+        body.appendChild(fix);
+      }
       btn.append(where, body);
       btn.addEventListener("click", () => {
         showConsoleTab("problems");
@@ -1665,19 +1904,55 @@
     });
   }
 
+  async function applyProblemFix(problem) {
+    const path = resolveProblemFile(problem.file);
+    const file = fileByPath(path);
+    if (!file) return toast("File not found.");
+    if (problem.code === "missing-accessors" || problem.code === "missing-getter") {
+      openPath(path);
+      await runAssist("fix");
+      return;
+    }
+    const next = window.LarkJava.applyQuickFix(file.content || "", problem);
+    if (next == null) return toast("No automatic fix for that.");
+    file.content = next;
+    parsedCache.delete(path);
+    const doc = docs.get(path);
+    if (doc) {
+      suppress = true;
+      doc.setValue(next);
+      suppress = false;
+    }
+    state.dirty.add(path);
+    await saveFile(path);
+    refreshLocalProblems();
+    renderProblems();
+    markErrors();
+    renderStructure();
+    toast("Quick fix applied.");
+  }
+
   function showConsoleTab(which) {
     state.consoleTab = which || "output";
     const output = state.consoleTab === "output";
     const problems = state.consoleTab === "problems";
+    const debug = state.consoleTab === "debug";
+    const tests = state.consoleTab === "tests";
     const term = state.consoleTab === "terminal";
     if ($("tab-output")) $("tab-output").classList.toggle("on", output);
     if ($("tab-problems")) $("tab-problems").classList.toggle("on", problems);
+    if ($("tab-debug")) $("tab-debug").classList.toggle("on", debug);
+    if ($("tab-tests")) $("tab-tests").classList.toggle("on", tests);
     if ($("tab-terminal")) $("tab-terminal").classList.toggle("on", term);
     if ($("console-out")) $("console-out").hidden = !output;
     if ($("problems")) $("problems").hidden = !problems;
+    if ($("debug-pane")) $("debug-pane").hidden = !debug;
+    if ($("tests-pane")) $("tests-pane").hidden = !tests;
     if ($("terminal-pane")) $("terminal-pane").hidden = !term;
+    if ($("debug-bar")) $("debug-bar").hidden = !(debug || (state.debug && !state.debug.done));
     if (term) ensureTerminal().catch((err) => toast(err.message));
     else stopTerminalPoll();
+    if (tests) refreshTests().catch((err) => toast(err.message));
   }
 
   function stopTerminalPoll() {
@@ -1758,17 +2033,16 @@
 
   function markErrors() {
     clearMarks();
-    if (!cm) return;
+    if (!cm && !cmB) return;
     allProblems().forEach((problem) => {
-      // Only highlight real compile/runtime errors in the editor — no under-line tip boxes.
-      if (problem.severity === "warning") return;
       const resolved = resolveProblemFile(problem.file);
       const doc = docs.get(resolved);
       if (!doc) return;
       const line = problem.line - 1;
       if (line < 0 || line >= doc.lineCount()) return;
-      doc.addLineClass(line, "background", "cm-problem-line");
-      lineMarks.push({ doc: doc, line: line, cls: "cm-problem-line" });
+      const cls = problem.severity === "warning" ? "cm-warning-line" : "cm-problem-line";
+      doc.addLineClass(line, "background", cls);
+      lineMarks.push({ doc: doc, line: line, cls: cls });
     });
   }
 
@@ -1843,41 +2117,110 @@
     return compile.concat(local);
   }
 
-  function openPalette() {
+  function openPalette(mode) {
     if (!$("modal").hidden) return;
     closePopovers();
     paletteIndex = 0;
+    state.paletteMode = mode || "open";
     $("palette").hidden = false;
     $("palette-input").value = "";
+    const ph = $("palette-input");
+    if (ph) {
+      ph.placeholder = state.paletteMode === "usages"
+        ? "Usages…"
+        : "Open a file or class…";
+    }
     renderPalette("");
     $("palette-input").focus();
   }
 
+  function paletteEntries(query) {
+    if (state.paletteMode === "usages" && state.paletteItems && state.paletteItems.length) {
+      const q = (query || "").trim().toLowerCase();
+      return state.paletteItems.filter((item) => {
+        const hay = ((item.label || "") + " " + (item.meta || "")).toLowerCase();
+        return !q || hay.includes(q);
+      }).slice(0, 60);
+    }
+    const q = (query || "").trim();
+    const items = [];
+    const recentSet = new Set(state.recent);
+    state.recent.forEach((path) => {
+      if (!fileByPath(path)) return;
+      const score = window.LarkJava.fuzzyScore(q, path) + 50;
+      if (!q || score > 0) items.push({ kind: "recent", label: path, path: path, score: score, meta: "Recent" });
+    });
+    state.files.forEach((file) => {
+      if (recentSet.has(file.path) && q) return;
+      const score = window.LarkJava.fuzzyScore(q, file.path);
+      if (!q || score > 0) items.push({ kind: "file", label: file.path, path: file.path, score: score || 1, meta: "File" });
+    });
+    const index = window.LarkJava.buildIndex(state.files);
+    const seen = new Set();
+    index.forEach((def) => {
+      if (!(def.kind === "class" || def.kind === "interface" || def.kind === "enum" || def.kind === "record" || def.kind === "type" || def.kind === "method")) return;
+      const key = def.kind + ":" + def.file + ":" + def.name + ":" + def.line;
+      if (seen.has(key)) return;
+      seen.add(key);
+      const label = (def.qualified || def.name) + (def.kind === "method" ? (def.detail || "()") : "");
+      const score = Math.max(window.LarkJava.fuzzyScore(q, def.name), window.LarkJava.fuzzyScore(q, label));
+      if (!q || score > 0) {
+        items.push({
+          kind: def.kind,
+          label: label,
+          path: def.file,
+          line: def.line,
+          score: score + (def.kind === "method" ? 0 : 20),
+          meta: def.file
+        });
+      }
+    });
+    items.sort((a, b) => b.score - a.score || a.label.localeCompare(b.label));
+    return items.slice(0, 50);
+  }
+
   function renderPalette(query) {
-    const q = query.trim().toLowerCase();
-    const files = state.files.map((file) => file.path).filter((path) => !q || path.toLowerCase().includes(q));
+    const items = paletteEntries(query);
+    state.paletteItemsView = items;
     const list = $("palette-list");
     list.replaceChildren();
-    if (!files.length) {
-      list.appendChild(note("No matching file."));
+    if (!items.length) {
+      list.appendChild(note(state.paletteMode === "usages" ? "No usages." : "No matching file or class."));
       return;
     }
-    files.slice(0, 40).forEach((path, index) => {
+    items.forEach((item, index) => {
       const btn = document.createElement("button");
       btn.type = "button";
       btn.className = "palette-item" + (index === paletteIndex ? " active" : "");
-      btn.textContent = path;
-      btn.addEventListener("click", () => {
-        $("palette").hidden = true;
-        openPath(path);
-      });
+      const kind = document.createElement("span");
+      kind.className = "palette-kind";
+      kind.textContent = item.kind || "file";
+      const label = document.createElement("span");
+      label.textContent = item.label;
+      const meta = document.createElement("span");
+      meta.className = "palette-meta";
+      meta.textContent = item.meta || "";
+      btn.append(kind, label, meta);
+      btn.addEventListener("click", () => pickPaletteItem(item));
       list.appendChild(btn);
     });
   }
 
+  function pickPaletteItem(item) {
+    $("palette").hidden = true;
+    if (!item) return;
+    if (item.path) {
+      openPath(item.path);
+      if (item.line) jumpTo(item.path, item.line, item.column || 1);
+    }
+  }
+
   function paletteFiles() {
-    const q = $("palette-input").value.trim().toLowerCase();
-    return state.files.map((file) => file.path).filter((path) => !q || path.toLowerCase().includes(q)).slice(0, 40);
+    return (state.paletteItemsView || paletteEntries($("palette-input").value)).map((item) => item.path);
+  }
+
+  function currentPaletteItems() {
+    return state.paletteItemsView || paletteEntries($("palette-input").value);
   }
 
   async function newProject() {
@@ -2245,8 +2588,372 @@
     return tag === "INPUT" || tag === "TEXTAREA" || target.isContentEditable;
   }
 
+
+  function wordUnderCursor() {
+    const editor = activeCm();
+    const path = activePath();
+    if (!editor || !path) return null;
+    const file = fileByPath(path);
+    if (!file) return null;
+    const cur = editor.getCursor();
+    return Object.assign({ path: path }, window.LarkJava.wordAt(file.content || "", cur.line + 1, cur.ch + 1));
+  }
+
+  async function goToDefinition() {
+    const at = wordUnderCursor();
+    if (!at || !at.word) return toast("Place the cursor on a name.");
+    if (window.LarkJava.keywords.includes(at.word)) return toast("That is a Java keyword.");
+    const defs = window.LarkJava.findDefinitions(state.files, at.word, at.path);
+    if (!defs.length) return toast("No definition for `" + at.word + "`.");
+    const def = defs[0];
+    jumpTo(def.file, def.line, 1);
+    toast(def.kind + " " + def.name);
+  }
+
+  async function findUsagesAtCursor() {
+    const at = wordUnderCursor();
+    if (!at || !at.word) return toast("Place the cursor on a name.");
+    const hits = window.LarkJava.findUsages(state.files, at.word);
+    if (!hits.length) return toast("No usages of `" + at.word + "`.");
+    state.paletteMode = "usages";
+    state.paletteItems = hits.map((h) => ({
+      kind: "usage",
+      label: h.file + ":" + h.line,
+      path: h.file,
+      line: h.line,
+      column: h.column,
+      meta: h.text,
+      score: 1
+    }));
+    openPalette("usages");
+    toast(hits.length + " usage" + (hits.length === 1 ? "" : "s") + " of `" + at.word + "`");
+  }
+
+  async function renameSymbol() {
+    const at = wordUnderCursor();
+    if (!at || !at.word) return toast("Place the cursor on a name.");
+    if (window.LarkJava.keywords.includes(at.word)) return toast("Can't rename a keyword.");
+    const values = await formDialog({
+      title: "Rename `" + at.word + "`",
+      ok: "Rename in project",
+      note: "Replaces whole-word matches in .java files (skips string/comment text when possible).",
+      fields: [{ name: "name", label: "New name", value: at.word }]
+    });
+    if (!values) return;
+    const next = (values.name || "").trim();
+    if (!next || next === at.word) return;
+    if (!/^[A-Za-z_][\w$]*$/.test(next)) return toast("That isn't a valid Java identifier.");
+    await flushSaves();
+    const changes = window.LarkJava.renameAcross(state.files, at.word, next);
+    if (!changes.length) return toast("Nothing to rename.");
+    for (const change of changes) {
+      const file = fileByPath(change.path);
+      if (file) file.content = change.content;
+      parsedCache.delete(change.path);
+      const doc = docs.get(change.path);
+      if (doc) {
+        suppress = true;
+        doc.setValue(change.content);
+        suppress = false;
+      }
+      await api("PUT", "/api/projects/" + encodeURIComponent(state.project.id) + "/file", {
+        path: change.path,
+        content: change.content
+      });
+      state.dirty.delete(change.path);
+    }
+    renderTabs();
+    renderStructure();
+    refreshLocalProblems();
+    renderProblems();
+    markErrors();
+    toast("Renamed `" + at.word + "` → `" + next + "` in " + changes.length + " file" + (changes.length === 1 ? "" : "s") + ".");
+  }
+
+  function renameInFileMulti() {
+    const editor = activeCm();
+    const path = activePath();
+    if (!editor || !path) return toast("Open a file first.");
+    const at = wordUnderCursor();
+    if (!at || !at.word) return toast("Place the cursor on a name.");
+    const content = editor.getValue();
+    const hits = window.LarkJava.findUsages([{ path: path, content: content }], at.word);
+    if (!hits.length) return toast("No matches in this file.");
+    const sels = hits.map((h) => ({
+      anchor: { line: h.line - 1, ch: h.column - 1 },
+      head: { line: h.line - 1, ch: h.column - 1 + at.word.length }
+    }));
+    editor.setSelections(sels, 0);
+    editor.focus();
+    toast(sels.length + " selections — type to rename in file.");
+  }
+
+  async function startDebug() {
+    if (!state.project) return toast("Open a project first.");
+    await flushSaves();
+    const mainClass = $("main-class").value;
+    if (!mainClass) return toast("Pick a main class.");
+    showConsoleTab("debug");
+    if ($("debug-bar")) $("debug-bar").hidden = false;
+    if ($("dbg-status")) $("dbg-status").textContent = "Starting…";
+    try {
+      const data = await api("POST", "/api/debug", {
+        project: state.project.id,
+        mainClass: mainClass,
+        args: $("args").value,
+        breakpoints: collectBreakpoints()
+      });
+      state.debug = data;
+      renderDebug(data);
+      pollDebug(data.id);
+    } catch (err) {
+      toast(err.message);
+      if ($("dbg-status")) $("dbg-status").textContent = "Failed";
+    }
+  }
+
+  function renderDebug(session) {
+    const pre = $("debug-out");
+    if (pre) {
+      const stick = pre.scrollHeight - pre.scrollTop - pre.clientHeight < 48;
+      pre.textContent = (session && session.output) || "";
+      if (stick) pre.scrollTop = pre.scrollHeight;
+    }
+    const locals = $("debug-locals");
+    if (locals) {
+      const list = (session && session.locals) || [];
+      locals.textContent = list.length ? list.join("\n") : "Locals appear when paused (click Locals).";
+    }
+    if ($("dbg-status")) {
+      const phase = (session && session.phase) || "idle";
+      const where = session && session.currentLine
+        ? (" · " + (session.currentClass || "") + ":" + session.currentLine)
+        : "";
+      $("dbg-status").textContent = phase + where;
+    }
+    if (state.debugLineMark && state.debugLineMark.doc) {
+      state.debugLineMark.doc.removeLineClass(state.debugLineMark.line, "background", "cm-debug-line");
+      state.debugLineMark = null;
+    }
+    if (session && session.currentLine && session.phase === "paused") {
+      const cls = session.currentClass || "";
+      const simple = cls.includes(".") ? cls.slice(cls.lastIndexOf(".") + 1) : cls;
+      let file = null;
+      if (simple) {
+        file = state.files.find((f) => f.path.endsWith("/" + simple + ".java") || f.path === simple + ".java");
+      }
+      if (file) {
+        jumpTo(file.path, session.currentLine, 1);
+        const doc = docs.get(file.path);
+        if (doc) {
+          const line = session.currentLine - 1;
+          doc.addLineClass(line, "background", "cm-debug-line");
+          state.debugLineMark = { doc: doc, line: line };
+        }
+      }
+    }
+  }
+
+  async function pollDebug(id) {
+    if (state.debugPoll) clearTimeout(state.debugPoll);
+    try {
+      const data = await api("GET", "/api/debug/" + encodeURIComponent(id));
+      state.debug = data;
+      renderDebug(data);
+      if (data.done) {
+        if ($("dbg-status")) $("dbg-status").textContent = "Done";
+        return;
+      }
+      state.debugPoll = setTimeout(() => pollDebug(id), 250);
+    } catch (err) {
+      toast(err.message);
+    }
+  }
+
+  async function debugCommand(cmd) {
+    if (!state.debug || !state.debug.id) return toast("Start the debugger first.");
+    try {
+      const data = await api("POST", "/api/debug/" + encodeURIComponent(state.debug.id) + "/command", { command: cmd });
+      state.debug = data;
+      renderDebug(data);
+    } catch (err) {
+      toast(err.message);
+    }
+  }
+
+  async function stopDebug() {
+    if (!state.debug || !state.debug.id) return;
+    try {
+      await api("POST", "/api/debug/" + encodeURIComponent(state.debug.id) + "/stop", {});
+    } catch (_) {}
+    if (state.debugPoll) clearTimeout(state.debugPoll);
+    state.debug.done = true;
+    state.debug.phase = "done";
+    renderDebug(state.debug);
+    if ($("dbg-status")) $("dbg-status").textContent = "Stopped";
+  }
+
+  async function refreshTests() {
+    if (!state.project) {
+      if ($("tests-list")) $("tests-list").replaceChildren(note("Open a project first."));
+      return;
+    }
+    const data = await api("GET", "/api/tests/discover?project=" + encodeURIComponent(state.project.id));
+    state.discoveredTests = data.tests || [];
+    renderTestsList();
+  }
+
+  function renderTestsList() {
+    const box = $("tests-list");
+    if (!box) return;
+    box.replaceChildren();
+    if (!state.discoveredTests.length) {
+      box.appendChild(note("No @Test methods found. Add JUnit 5 tests (downloaded automatically on first run)."));
+      return;
+    }
+    state.discoveredTests.forEach((t) => {
+      const row = document.createElement("button");
+      row.type = "button";
+      row.className = "test-row";
+      row.innerHTML = "";
+      const label = document.createElement("span");
+      label.textContent = t.className + "#" + t.method;
+      const meta = document.createElement("span");
+      meta.className = "test-meta";
+      meta.textContent = t.file || "";
+      row.append(label, meta);
+      row.addEventListener("click", () => runTests(t.className, t.method).catch((e) => toast(e.message)));
+      box.appendChild(row);
+    });
+  }
+
+  async function runTests(className, method) {
+    if (!state.project) return toast("Open a project first.");
+    await flushSaves();
+    showConsoleTab("tests");
+    if ($("tests-out")) $("tests-out").textContent = "Starting tests…\n";
+    const data = await api("POST", "/api/tests", {
+      project: state.project.id,
+      className: className || "",
+      method: method || ""
+    });
+    state.testJob = data;
+    pollTests(data.id);
+  }
+
+  async function pollTests(id) {
+    if (state.testPoll) clearTimeout(state.testPoll);
+    try {
+      const data = await api("GET", "/api/tests/" + encodeURIComponent(id));
+      state.testJob = data;
+      if ($("tests-out")) $("tests-out").textContent = data.output || "";
+      if (!data.done) state.testPoll = setTimeout(() => pollTests(id), 300);
+    } catch (err) {
+      toast(err.message);
+    }
+  }
+
+  function renderRunConfigMenu() {
+    const box = $("run-config-list");
+    if (!box) return;
+    box.replaceChildren();
+    const configs = state.runConfigs || [];
+    if (!configs.length) {
+      box.appendChild(note("No saved configs yet."));
+      return;
+    }
+    configs.forEach((cfg, index) => {
+      const btn = document.createElement("button");
+      btn.type = "button";
+      btn.textContent = cfg.name + " — " + (cfg.mainClass || "(main)") + (cfg.args ? " · " + cfg.args : "");
+      btn.addEventListener("click", () => {
+        closePopovers();
+        applyRunConfig(cfg);
+      });
+      box.appendChild(btn);
+    });
+  }
+
+  function applyRunConfig(cfg) {
+    if (!cfg) return;
+    if (cfg.mainClass && $("main-class")) {
+      const select = $("main-class");
+      if (![...select.options].some((o) => o.value === cfg.mainClass)) {
+        const opt = document.createElement("option");
+        opt.value = cfg.mainClass;
+        opt.textContent = cfg.mainClass;
+        select.appendChild(opt);
+      }
+      select.value = cfg.mainClass;
+      if (state.project) {
+        state.project.mainClass = cfg.mainClass;
+        api("PUT", "/api/projects/" + encodeURIComponent(state.project.id), { mainClass: cfg.mainClass }).catch(() => {});
+      }
+    }
+    if ($("args")) $("args").value = cfg.args || "";
+    toast("Config: " + (cfg.name || "Run"));
+  }
+
+  async function saveRunConfig() {
+    if (!state.project) return;
+    const values = await formDialog({
+      title: "Save run configuration",
+      ok: "Save",
+      fields: [
+        { name: "name", label: "Name", value: ($("main-class").value || "Run").split(".").pop() },
+        { name: "mainClass", label: "Main class", value: $("main-class").value || "" },
+        { name: "args", label: "Arguments", value: $("args").value || "" }
+      ]
+    });
+    if (!values) return;
+    const cfg = {
+      name: (values.name || "Run").trim(),
+      mainClass: (values.mainClass || "").trim(),
+      args: values.args || ""
+    };
+    state.runConfigs = (state.runConfigs || []).filter((c) => c.name !== cfg.name).concat([cfg]).slice(0, 20);
+    await api("PUT", "/api/projects/" + encodeURIComponent(state.project.id), { runConfigs: state.runConfigs });
+    renderRunConfigMenu();
+    toast("Saved config `" + cfg.name + "`.");
+  }
+
+  async function manageRunConfigs() {
+    if (!state.project) return;
+    const configs = state.runConfigs || [];
+    if (!configs.length) return toast("No configs to manage.");
+    const values = await formDialog({
+      title: "Delete a run configuration",
+      ok: "Delete",
+      fields: [{
+        name: "which",
+        label: "Config",
+        type: "select",
+        value: configs[0].name,
+        options: configs.map((c) => c.name)
+      }]
+    });
+    if (!values) return;
+    state.runConfigs = configs.filter((c) => c.name !== values.which);
+    await api("PUT", "/api/projects/" + encodeURIComponent(state.project.id), { runConfigs: state.runConfigs });
+    renderRunConfigMenu();
+    toast("Deleted `" + values.which + "`.");
+  }
+
+
   function bind() {
-    $("run").addEventListener("click", () => run().catch((err) => toast(err.message)));
+    $("run").addEventListener("click", () => {
+      if ($("run").textContent === "Stop" && state.job && !state.job.done) {
+        api("POST", "/api/run/" + state.job.id + "/stop", {}).catch((err) => toast(err.message));
+        return;
+      }
+      run().catch((err) => toast(err.message));
+    });
+    if ($("debug")) $("debug").addEventListener("click", () => startDebug().catch((err) => toast(err.message)));
+    if ($("split-editor")) $("split-editor").addEventListener("click", () => toggleSplit());
+    if ($("run-config")) $("run-config").addEventListener("click", (event) => {
+      renderRunConfigMenu();
+      togglePopover(event.currentTarget);
+    });
     if ($("beautify")) $("beautify").addEventListener("click", () => beautifyActiveFile());
     if ($("brand-home")) {
       $("brand-home").addEventListener("click", () => {
@@ -2308,6 +3015,7 @@
     bindPref("setting-line-wrap", (el) => ({ lineWrapping: el.checked }));
     bindPref("setting-autosave", (el) => ({ autoSave: el.checked }));
     bindPref("setting-autosave-delay", (el) => ({ autoSaveDelayMs: Number(el.value) }));
+    bindPref("setting-format-save", (el) => ({ formatOnSave: el.checked }));
     const feedInput = $("setting-update-feed");
     if (feedInput) {
       feedInput.addEventListener("change", async () => {
@@ -2356,6 +3064,15 @@
         if (!act) return;
         closePopovers();
         runAssist(act).catch((err) => toast(err.message));
+      });
+    }
+    if ($("menu-run-config")) {
+      $("menu-run-config").addEventListener("click", (event) => {
+        const act = event.target.dataset.runCfg;
+        if (!act) return;
+        closePopovers();
+        if (act === "save") saveRunConfig().catch((e) => toast(e.message));
+        else if (act === "manage") manageRunConfigs().catch((e) => toast(e.message));
       });
     }
     document.querySelectorAll("[data-welcome]").forEach((button) => {
@@ -2419,10 +3136,29 @@
     $("gh-new-repo").addEventListener("click", () => pushProject(true));
     $("tab-output").addEventListener("click", () => showConsoleTab("output"));
     $("tab-problems").addEventListener("click", () => showConsoleTab("problems"));
+    if ($("tab-debug")) $("tab-debug").addEventListener("click", () => showConsoleTab("debug"));
+    if ($("tab-tests")) $("tab-tests").addEventListener("click", () => showConsoleTab("tests"));
     if ($("tab-terminal")) $("tab-terminal").addEventListener("click", () => showConsoleTab("terminal"));
+    if ($("dbg-continue")) $("dbg-continue").addEventListener("click", () => debugCommand("cont").catch((e) => toast(e.message)));
+    if ($("dbg-step")) $("dbg-step").addEventListener("click", () => debugCommand("step").catch((e) => toast(e.message)));
+    if ($("dbg-next")) $("dbg-next").addEventListener("click", () => debugCommand("next").catch((e) => toast(e.message)));
+    if ($("dbg-step-out")) $("dbg-step-out").addEventListener("click", () => debugCommand("step up").catch((e) => toast(e.message)));
+    if ($("dbg-locals")) $("dbg-locals").addEventListener("click", () => debugCommand("locals").catch((e) => toast(e.message)));
+    if ($("dbg-stop")) $("dbg-stop").addEventListener("click", () => stopDebug().catch((e) => toast(e.message)));
+    if ($("tests-refresh")) $("tests-refresh").addEventListener("click", () => refreshTests().catch((e) => toast(e.message)));
+    if ($("tests-run-all")) $("tests-run-all").addEventListener("click", () => runTests("", "").catch((e) => toast(e.message)));
     $("clear-console").addEventListener("click", () => {
       if (state.consoleTab === "terminal") {
         ensureTerminal(true).catch((err) => toast(err.message));
+        return;
+      }
+      if (state.consoleTab === "debug") {
+        if ($("debug-out")) $("debug-out").textContent = "";
+        if ($("debug-locals")) $("debug-locals").textContent = "";
+        return;
+      }
+      if (state.consoleTab === "tests") {
+        if ($("tests-out")) $("tests-out").textContent = "";
         return;
       }
       state.problems = [];
@@ -2487,10 +3223,10 @@
       renderPalette($("palette-input").value);
     });
     $("palette-input").addEventListener("keydown", (event) => {
-      const files = paletteFiles();
+      const items = currentPaletteItems();
       if (event.key === "ArrowDown") {
         event.preventDefault();
-        paletteIndex = Math.min(files.length - 1, paletteIndex + 1);
+        paletteIndex = Math.min(items.length - 1, paletteIndex + 1);
         renderPalette($("palette-input").value);
       } else if (event.key === "ArrowUp") {
         event.preventDefault();
@@ -2498,9 +3234,7 @@
         renderPalette($("palette-input").value);
       } else if (event.key === "Enter") {
         event.preventDefault();
-        const path = files[paletteIndex];
-        $("palette").hidden = true;
-        if (path) openPath(path);
+        pickPaletteItem(items[paletteIndex]);
       } else if (event.key === "Escape") {
         $("palette").hidden = true;
       }
@@ -2554,10 +3288,28 @@
       if (isTyping(event.target)) return;
       if ((event.ctrlKey || event.metaKey) && key === "p") {
         event.preventDefault();
-        openPalette();
+        openPalette("open");
       } else if ((event.ctrlKey || event.metaKey) && key === "b") {
         event.preventDefault();
         toggleFiles();
+      } else if (event.key === "F12" && !event.shiftKey) {
+        event.preventDefault();
+        goToDefinition().catch((err) => toast(err.message));
+      } else if (event.key === "F12" && event.shiftKey) {
+        event.preventDefault();
+        findUsagesAtCursor().catch((err) => toast(err.message));
+      } else if (event.key === "F2") {
+        event.preventDefault();
+        renameSymbol().catch((err) => toast(err.message));
+      } else if (event.key === "F5") {
+        event.preventDefault();
+        startDebug().catch((err) => toast(err.message));
+      } else if (event.key === "F8" && state.debug && !state.debug.done) {
+        event.preventDefault();
+        debugCommand("cont").catch((err) => toast(err.message));
+      } else if (event.key === "F7" && state.debug && !state.debug.done) {
+        event.preventDefault();
+        debugCommand("step").catch((err) => toast(err.message));
       }
     });
     window.addEventListener("resize", () => {
@@ -2700,6 +3452,7 @@
         fontSize: state.settings.fontSize || 14,
         zoom: state.settings.zoom || 100
       }, false);
+      loadRecent();
       applyEditorPrefs({
         fontFamily: state.settings.fontFamily || "jetbrains",
         ligatures: state.settings.ligatures !== false,
@@ -2707,7 +3460,8 @@
         indentWithTabs: !!state.settings.indentWithTabs,
         lineWrapping: !!state.settings.lineWrapping,
         autoSave: state.settings.autoSave !== false,
-        autoSaveDelayMs: state.settings.autoSaveDelayMs || 800
+        autoSaveDelayMs: state.settings.autoSaveDelayMs || 800,
+        formatOnSave: !!state.settings.formatOnSave
       }, false);
       if ($("setting-update-feed")) $("setting-update-feed").value = state.settings.updateFeed || "";
       showGithub();

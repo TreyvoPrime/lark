@@ -118,12 +118,36 @@ public final class Runner {
         if (Files.exists(outDir)) Projects.deleteTree(outDir);
         Files.createDirectories(outDir);
 
+        Path junit = Settings.home().resolve("lib").resolve("junit-platform-console-standalone-1.10.2.jar");
+        boolean haveJunit = Files.isRegularFile(junit);
+        try {
+            haveJunit = haveJunit && Files.size(junit) > 1_000_000;
+        } catch (IOException ignored) {
+            haveJunit = false;
+        }
+        if (!haveJunit) {
+            sources = new ArrayList<>(sources);
+            sources.removeIf(p -> {
+                String name = p.getFileName().toString();
+                if (name.endsWith("Test.java") || name.endsWith("Tests.java")) return true;
+                try {
+                    return Files.readString(p).contains("org.junit");
+                } catch (IOException e) {
+                    return false;
+                }
+            });
+        }
+
         List<String> compile = new ArrayList<>();
         compile.add(tool("javac").toString());
         compile.add("--release");
         compile.add("17");
         compile.add("-encoding");
         compile.add("UTF-8");
+        if (haveJunit) {
+            compile.add("-cp");
+            compile.add(junit.toString());
+        }
         compile.add("-d");
         compile.add(".lark-out");
         compile.add("-Xmaxerrs");

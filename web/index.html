@@ -26,7 +26,7 @@
           <path d="M3 16c4.2-.7 6-6 9-11 2.8 5 4.8 10.2 9 11" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/>
           <path d="M7 16.5h10" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/>
         </svg>
-        <span class="word">Lark <em class="ver">2.2</em></span>
+        <span class="word">Lark <em class="ver">2.3</em></span>
       </button>
       <button id="files-toggle" type="button">Files</button>
       <label class="project-pick">
@@ -40,7 +40,10 @@
         <span>Main</span>
         <select id="main-class"></select>
       </label>
+      <button id="run-config" type="button" data-pop="menu-run-config" title="Run configurations">Config</button>
       <button id="run" type="button" class="primary run-btn" title="Ctrl+Enter">Run</button>
+      <button id="debug" type="button" title="Start debugger (F5)">Debug</button>
+      <button id="split-editor" type="button" title="Split editor">Split</button>
       <button id="github" type="button">GitHub</button>
       <button id="theme" type="button" data-pop="menu-theme">Desk</button>
       <button id="beautify" type="button" title="Fix indentation (Shift+Alt+F)">Beautify</button>
@@ -67,8 +70,17 @@
       </aside>
       <div id="center">
         <div id="editor-pane">
-          <div id="tabs"></div>
-          <div id="editor"></div>
+          <div id="editors-row">
+            <div class="editor-col" id="editor-col-a">
+              <div id="tabs"></div>
+              <div id="editor"></div>
+            </div>
+            <div class="editor-split-bar" id="editor-split-bar" hidden title="Drag to resize"></div>
+            <div class="editor-col" id="editor-col-b" hidden>
+              <div id="tabs-b" class="tabs-secondary"></div>
+              <div id="editor-b"></div>
+            </div>
+          </div>
           <div id="empty" hidden>
             <h2>Pick a file</h2>
             <p>Open something from the tree, or start a new class.</p>
@@ -83,8 +95,8 @@
                 </svg>
                 <h1>Lark</h1>
               </div>
-              <p class="welcome-kicker">Lark 2.2.2</p>
-              <p class="welcome-lead">A Java IDE with autosave, Terminal, suggestion autofill, and themes built for long coding sessions.</p>
+              <p class="welcome-kicker">Lark 2.3.0</p>
+              <p class="welcome-lead">A Java IDE with go-to-definition, debugger, JUnit, split editors, and themes built for school coding sessions.</p>
               <div class="welcome-grid">
                 <section>
                   <h2>Start</h2>
@@ -100,10 +112,10 @@
                 <section>
                   <h2>What’s new</h2>
                   <ul class="welcome-tips">
-                    <li><strong>Autosave</strong> — edits save as you type (toggle under Aa).</li>
-                    <li>Editor settings: font, ligatures, indent size, tabs vs spaces, wrap.</li>
-                    <li>New themes: <strong>Obsidian</strong> and <strong>Glacier</strong>.</li>
-                    <li><strong>Terminal</strong> tab — run <code>dir</code>, <code>javac</code>, <code>git</code> in your project folder.</li>
+                    <li><strong>F12</strong> go to definition · <strong>Shift+F12</strong> find usages · <strong>F2</strong> rename.</li>
+                    <li><strong>Debug</strong> with breakpoints (click the gutter) · <strong>Tests</strong> tab for JUnit.</li>
+                    <li><strong>Split</strong> two files side by side · stronger <strong>Ctrl+P</strong> (files + classes).</li>
+                    <li>Format on save, run configs, and quick fixes in Problems.</li>
                   </ul>
                 </section>
               </div>
@@ -116,13 +128,36 @@
             <div class="tabs-inline">
               <button type="button" id="tab-output" class="on">Output</button>
               <button type="button" id="tab-problems">Problems</button>
+              <button type="button" id="tab-debug">Debug</button>
+              <button type="button" id="tab-tests">Tests</button>
               <button type="button" id="tab-terminal">Terminal</button>
             </div>
             <label class="args">Arguments <input id="args" type="text" placeholder="optional" spellcheck="false"></label>
             <button type="button" id="clear-console">Clear</button>
           </div>
+          <div id="debug-bar" class="debug-bar" hidden>
+            <button type="button" id="dbg-continue" title="Continue (F8)">Continue</button>
+            <button type="button" id="dbg-step" title="Step into (F7)">Step</button>
+            <button type="button" id="dbg-next" title="Step over (F8)">Next</button>
+            <button type="button" id="dbg-step-out" title="Step out">Out</button>
+            <button type="button" id="dbg-locals">Locals</button>
+            <button type="button" id="dbg-stop" class="danger">Stop</button>
+            <span id="dbg-status" class="debug-status">Not debugging</span>
+          </div>
           <pre id="console-out">Run a class and the output shows up here.</pre>
           <div id="problems" hidden></div>
+          <div id="debug-pane" hidden>
+            <pre id="debug-out">Click Debug (or F5). Click a line number gutter to set breakpoints.</pre>
+            <div id="debug-locals" class="debug-locals"></div>
+          </div>
+          <div id="tests-pane" hidden>
+            <div class="tests-toolbar">
+              <button type="button" id="tests-refresh">Refresh</button>
+              <button type="button" id="tests-run-all" class="primary">Run all tests</button>
+            </div>
+            <div id="tests-list"></div>
+            <pre id="tests-out">Open the Tests tab to discover JUnit methods in this project.</pre>
+          </div>
           <div id="terminal-pane" hidden>
             <pre id="terminal-out">Open the Terminal tab to start a shell in your project folder.</pre>
             <div class="terminal-input-row">
@@ -180,6 +215,16 @@
     <button type="button" data-assist="explain">Explain Java keywords</button>
     <button type="button" data-assist="import">Suggest import for word at cursor</button>
     <button type="button" data-assist="fix">Quick fix: missing accessors</button>
+    <button type="button" data-assist="goto">Go to definition</button>
+    <button type="button" data-assist="usages">Find usages</button>
+    <button type="button" data-assist="rename">Rename symbol…</button>
+    <button type="button" data-assist="rename-file">Rename in file (multi-cursor)</button>
+  </div>
+  <div id="menu-run-config" class="popover menu" hidden>
+    <button type="button" data-run-cfg="save">Save current as config…</button>
+    <button type="button" data-run-cfg="manage">Manage configs…</button>
+    <hr class="settings-rule">
+    <div id="run-config-list"></div>
   </div>
   <div id="menu-theme" class="popover menu" hidden>
     <button type="button" data-theme-choice="graphite"><i class="swatch" style="background:#36cfc9"></i>Graphite &amp; Teal</button>
@@ -247,6 +292,7 @@
         <option value="1500">Relaxed (1.5s)</option>
       </select>
     </label>
+    <label class="settings-check"><input id="setting-format-save" type="checkbox"> Format on save (Beautify)</label>
     <p class="path-note">With autosave off, use Ctrl+S. Ctrl+S always saves immediately.</p>
     <hr class="settings-rule">
     <label class="settings-row settings-stack">Update feed URL
@@ -282,9 +328,13 @@
   <div id="menu-help" class="popover" hidden>
     <ul class="help-list">
       <li><span>Run</span><kbd>Ctrl+Enter</kbd></li>
+      <li><span>Debug</span><kbd>F5</kbd></li>
+      <li><span>Go to definition</span><kbd>F12</kbd></li>
+      <li><span>Find usages</span><kbd>Shift+F12</kbd></li>
+      <li><span>Rename</span><kbd>F2</kbd></li>
       <li><span>Save</span><kbd>Ctrl+S</kbd></li>
       <li><span>Beautify</span><kbd>Shift+Alt+F</kbd></li>
-      <li><span>Open file</span><kbd>Ctrl+P</kbd></li>
+      <li><span>Open file / class</span><kbd>Ctrl+P</kbd></li>
       <li><span>Complete</span><kbd>Ctrl+Space</kbd></li>
       <li><span>Find</span><kbd>Ctrl+F</kbd></li>
       <li><span>Replace</span><kbd>Ctrl+H</kbd></li>
@@ -293,7 +343,7 @@
       <li><span>Files</span><kbd>Ctrl+B</kbd></li>
       <li><span>Zoom</span><kbd>Ctrl+= / Ctrl+-</kbd></li>
     </ul>
-    <p class="path-note">On a Mac, use Command instead of Ctrl. Type /** above a method for Javadoc.</p>
+    <p class="path-note">On a Mac, use Command instead of Ctrl. Click the line-number gutter to set breakpoints. Type /** above a method for Javadoc.</p>
   </div>
   <div id="context" hidden></div>
 
@@ -362,7 +412,7 @@
 
   <div id="palette" hidden>
     <div class="palette-card">
-      <input id="palette-input" type="text" placeholder="Open a file" spellcheck="false" autocomplete="off">
+      <input id="palette-input" type="text" placeholder="Open a file or class…" spellcheck="false" autocomplete="off">
       <div id="palette-list"></div>
     </div>
   </div>

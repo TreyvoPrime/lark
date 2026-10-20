@@ -428,7 +428,10 @@
       while (stack.length && depth <= stack[stack.length - 1].depth) stack.pop();
     }
     // Do not nag about missing getters/setters in the editor — use Java → Quick fix instead.
-    const warnings = braceWarnings(source).concat(styleWarnings(source));
+    const warnings = braceWarnings(source)
+      .concat(styleWarnings(source))
+      .concat(unusedImportWarnings(source, imports, clean))
+      .concat(overrideWarnings(source, symbols, lines));
     return {
       pkg: pkg,
       imports: imports,
@@ -437,6 +440,243 @@
       warnings: warnings,
       accessors: analyzeAccessors(symbols)
     };
+  }
+
+  function unusedImportWarnings(source, imports, clean) {
+    const out = [];
+    const lines = (source || "").split("\n");
+    imports.forEach((imp) => {
+      if (!imp || imp.endsWith(".*")) return;
+      const simple = imp.includes(".") ? imp.slice(imp.lastIndexOf(".") + 1) : imp;
+      if (!simple || KEYWORDS.has(simple)) return;
+      const re = new RegExp("\\b" + simple.replace(/\$/g, "\\$") + "\\b");
+      let uses = 0;
+      const importLineRe = new RegExp("import\\s+(?:static\\s+)?" + imp.replace(/\./g, "\\.") + "\\s*;");
+      lines.forEach((line) => {
+        if (importLineRe.test(line)) return;
+        if (re.test(blankNoise(line))) uses++;
+      });
+      if (uses > 0) return;
+      let lineNo = 1;
+      for (let i = 0; i < lines.length; i++) {
+        if (importLineRe.test(lines[i])) {
+          lineNo = i + 1;
+          break;
+        }
+      }
+      out.push({
+        severity: "warning",
+        line: lineNo,
+        column: 1,
+        message: "Unused import: " + imp,
+        plain: "`" + simple + "` is imported but never used in this file.",
+        hint: "Remove the unused import, or use the type somewhere.",
+        code: "unused-import",
+        importName: imp
+      });
+    });
+    return out;
+  }
+
+  function overrideWarnings(source, symbols, lines) {
+    const out = [];
+    const methods = (symbols || []).filter((s) => s.kind === "method");
+    const common = new Set(["toString", "equals", "hashCode", "compareTo", "clone", "finalize"]);
+    methods.forEach((m) => {
+      if (!common.has(m.name)) return;
+      const line = lines[m.line - 1] || "";
+      const prev = lines[m.line - 2] || "";
+      if (/@Override\b/.test(line) || /@Override\b/.test(prev)) return;
+      out.push({
+        severity: "warning",
+        line: m.line,
+        column: 1,
+        message: "Method " + m.name + " looks like an override without @Override.",
+        plain: "`" + m.name + "` usually overrides a parent method — add `@Override`.",
+        hint: "Put `@Override` on the line above this method.",
+        code: "missing-override",
+        methodName: m.name
+      });
+    });
+    return out;
+  }
+
+  function wordAt(source, line, column) {
+    const lines = (source || "").split("\n");
+    const text = lines[Math.max(0, line - 1)] || "";
+    const ch = Math.max(0, Math.min(column - 1, text.length));
+    let start = ch;
+    let end = ch;
+    while (start > 0 && /[A-Za-z0-9_$]/.test(text[start - 1])) start--;
+    while (end < text.length && /[A-Za-z0-9_$]/.test(text[end])) end++;
+    const word = text.slice(start, end);
+    return { word: word, start: start + 1, end: end + 1, line: line };
+  }
+
+  function buildIndex(files) {
+    const defs = [];
+    (files || []).forEach((file) => {
+      if (!file || !file.path || !String(file.path).endsWith(".java")) return;
+      const parsed = parseJava(file.content || "");
+      const typeName = (() => {
+        const t = parsed.symbols.find((s) => s.indent === 0 && (s.kind === "class" || s.kind === "interface" || s.kind === "enum" || s.kind === "record"));
+        return t ? t.name : "";
+      })();
+      const qualified = parsed.pkg && typeName ? parsed.pkg + "." + typeName : typeName;
+      parsed.symbols.forEach((sym) => {
+        defs.push({
+          name: sym.name,
+          kind: sym.kind,
+          file: file.path,
+          line: sym.line,
+          detail: sym.detail || "",
+          signature: sym.signature || "",
+          typeName: typeName,
+          qualified: qualified,
+          pkg: parsed.pkg || ""
+        });
+      });
+      if (typeName) {
+        defs.push({
+          name: typeName,
+          kind: "type",
+          file: file.path,
+          line: (parsed.symbols.find((s) => s.name === typeName) || { line: 1 }).line,
+          detail: qualified,
+          signature: "",
+          typeName: typeName,
+          qualified: qualified,
+          pkg: parsed.pkg || ""
+        });
+      }
+    });
+    return defs;
+  }
+
+  function findDefinitions(files, name, preferFile) {
+    if (!name) return [];
+    const index = buildIndex(files);
+    const exact = index.filter((d) => d.name === name);
+    if (!exact.length) return [];
+    const prefer = preferFile
+      ? exact.filter((d) => d.file === preferFile).concat(exact.filter((d) => d.file !== preferFile))
+      : exact;
+    // Prefer type/method/field over duplicate type entries
+    const rank = { class: 0, interface: 0, enum: 0, record: 0, type: 1, ctor: 2, method: 3, field: 4 };
+    prefer.sort((a, b) => (rank[a.kind] ?? 9) - (rank[b.kind] ?? 9));
+    const seen = new Set();
+    return prefer.filter((d) => {
+      const key = d.file + ":" + d.line + ":" + d.kind + ":" + d.name;
+      if (seen.has(key)) return false;
+      seen.add(key);
+      return true;
+    });
+  }
+
+  function findUsages(files, name) {
+    if (!name || KEYWORDS.has(name)) return [];
+    const re = new RegExp("\\b" + name.replace(/\$/g, "\\$") + "\\b", "g");
+    const hits = [];
+    (files || []).forEach((file) => {
+      if (!file || !file.path || !String(file.path).endsWith(".java")) return;
+      const lines = (file.content || "").split("\n");
+      const cleanLines = blankNoise(file.content || "").split("\n");
+      for (let i = 0; i < lines.length; i++) {
+        const clean = cleanLines[i] || "";
+        let m;
+        re.lastIndex = 0;
+        while ((m = re.exec(clean))) {
+          hits.push({
+            file: file.path,
+            line: i + 1,
+            column: m.index + 1,
+            text: lines[i].trim()
+          });
+        }
+      }
+    });
+    return hits;
+  }
+
+  function renameInSource(source, oldName, newName) {
+    if (!oldName || !newName || oldName === newName) return source;
+    if (!/^[A-Za-z_][\w$]*$/.test(newName)) return source;
+    const re = new RegExp("\\b" + oldName.replace(/\$/g, "\\$") + "\\b", "g");
+    return replaceOutsideStrings(source || "", re, newName);
+  }
+
+  function renameAcross(files, oldName, newName) {
+    const changes = [];
+    (files || []).forEach((file) => {
+      if (!file || !file.path || !String(file.path).endsWith(".java")) return;
+      const next = renameInSource(file.content || "", oldName, newName);
+      if (next !== (file.content || "")) {
+        changes.push({ path: file.path, content: next, before: file.content || "" });
+      }
+    });
+    return changes;
+  }
+
+  function fuzzyScore(query, text) {
+    const q = (query || "").toLowerCase();
+    const t = (text || "").toLowerCase();
+    if (!q) return 1;
+    if (t === q) return 1000;
+    if (t.startsWith(q)) return 800 - (t.length - q.length);
+    if (t.includes(q)) return 500 - t.indexOf(q);
+    let ti = 0;
+    let score = 0;
+    for (let qi = 0; qi < q.length; qi++) {
+      const ch = q[qi];
+      const found = t.indexOf(ch, ti);
+      if (found < 0) return 0;
+      score += 10 - Math.min(9, found - ti);
+      ti = found + 1;
+    }
+    const base = text.includes("/") ? text.slice(text.lastIndexOf("/") + 1) : text;
+    if (base.toLowerCase().startsWith(q)) score += 40;
+    return score;
+  }
+
+  function applyQuickFix(source, problem) {
+    if (!problem || !problem.code) return null;
+    const lines = (source || "").split("\n");
+    if (problem.code === "unused-import" && problem.importName) {
+      const re = new RegExp("^\\s*import\\s+(?:static\\s+)?" + problem.importName.replace(/\./g, "\\.") + "\\s*;\\s*$");
+      const next = lines.filter((line, i) => !(i + 1 === problem.line || re.test(line)));
+      // Prefer removing the exact line
+      if (problem.line >= 1 && problem.line <= lines.length && re.test(lines[problem.line - 1])) {
+        const copy = lines.slice();
+        copy.splice(problem.line - 1, 1);
+        if (copy[problem.line - 1] === "" && copy[problem.line - 2] === "") copy.splice(problem.line - 1, 1);
+        return copy.join("\n");
+      }
+      return next.join("\n");
+    }
+    if (problem.code === "missing-override" && problem.line >= 1) {
+      const idx = problem.line - 1;
+      const indent = (lines[idx].match(/^\s*/) || [""])[0];
+      if (/@Override\b/.test(lines[idx]) || (idx > 0 && /@Override\b/.test(lines[idx - 1]))) return null;
+      lines.splice(idx, 0, indent + "@Override");
+      return lines.join("\n");
+    }
+    if (problem.code === "string-eq" && problem.line >= 1) {
+      const idx = problem.line - 1;
+      let line = lines[idx];
+      line = line.replace(/(["'][^"']*["'])\s*==\s*(\w+)/, "$2.equals($1)");
+      line = line.replace(/(\w+)\s*==\s*(["'][^"']*["'])/, "$1.equals($2)");
+      if (line === lines[idx]) return null;
+      lines[idx] = line;
+      return lines.join("\n");
+    }
+    if (problem.code === "empty-control" && problem.line >= 1) {
+      const idx = problem.line - 1;
+      lines[idx] = lines[idx].replace(/\)\s*;\s*$/, ") {");
+      const indent = (lines[idx].match(/^\s*/) || [""])[0];
+      lines.splice(idx + 1, 0, indent + "    ", indent + "}");
+      return lines.join("\n");
+    }
+    return null;
   }
 
   function explain(word) {
@@ -822,6 +1062,15 @@
     suggestImports: suggestImports,
     getterName: getterName,
     setterName: setterName,
-    capitalize: capitalize
+    capitalize: capitalize,
+    wordAt: wordAt,
+    buildIndex: buildIndex,
+    findDefinitions: findDefinitions,
+    findUsages: findUsages,
+    renameInSource: renameInSource,
+    renameAcross: renameAcross,
+    fuzzyScore: fuzzyScore,
+    applyQuickFix: applyQuickFix,
+    accessorWarnings: accessorWarnings
   };
 });

@@ -26,7 +26,11 @@ import java.util.zip.ZipOutputStream;
 public final class Projects {
     public record TextFile(String path, String content) {}
 
-    private record Meta(String name, String mainClass) {}
+    private record Meta(String name, String mainClass, Json.Arr runConfigs) {
+        Meta(String name, String mainClass) {
+            this(name, mainClass, new Json.Arr());
+        }
+    }
 
     private final Settings settings;
     private final ConcurrentHashMap<String, Object> locks = new ConcurrentHashMap<>();
@@ -187,6 +191,7 @@ public final class Projects {
                     .put("id", id)
                     .put("name", meta.name)
                     .put("mainClass", meta.mainClass)
+                    .put("runConfigs", meta.runConfigs == null ? new Json.Arr() : meta.runConfigs)
                     .put("path", dir.toAbsolutePath().toString())
                     .put("dirs", dirs)
                     .put("files", files);
@@ -275,16 +280,24 @@ public final class Projects {
     }
 
     public void updateMeta(String id, String name, String mainClass, boolean hasName, boolean hasMain) {
+        updateMeta(id, name, mainClass, null, hasName, hasMain, false);
+    }
+
+    public void updateMeta(String id, String name, String mainClass, Json.Arr runConfigs,
+                           boolean hasName, boolean hasMain, boolean hasConfigs) {
         Path dir = projectDir(id);
         synchronized (lock(id)) {
             Meta meta = readMeta(dir);
-            if (hasName) meta = new Meta(cleanName(name), meta.mainClass);
+            if (hasName) meta = new Meta(cleanName(name), meta.mainClass, meta.runConfigs);
             if (hasMain) {
                 if (mainClass == null) mainClass = "";
                 if (!mainClass.isBlank() && !mainClass.matches("[A-Za-z_][\\w$]*(\\.[A-Za-z_][\\w$]*)*")) {
                     throw new RequestFail(400, "That doesn't look like a Java class name.");
                 }
-                meta = new Meta(meta.name, mainClass);
+                meta = new Meta(meta.name, mainClass, meta.runConfigs);
+            }
+            if (hasConfigs) {
+                meta = new Meta(meta.name, meta.mainClass, sanitizeConfigs(runConfigs));
             }
             try {
                 writeMeta(dir, meta);
@@ -292,6 +305,27 @@ public final class Projects {
                 throw new RequestFail(500, "Couldn't update the project.");
             }
         }
+    }
+
+    private static Json.Arr sanitizeConfigs(Json.Arr raw) {
+        Json.Arr out = new Json.Arr();
+        if (raw == null) return out;
+        int n = Math.min(raw.size(), 20);
+        for (int i = 0; i < n; i++) {
+            if (!(raw.get(i) instanceof Json.Obj obj)) continue;
+            String cfgName = obj.str("name", "").trim();
+            String main = obj.str("mainClass", "").trim();
+            String args = obj.str("args", "");
+            if (cfgName.isBlank()) cfgName = "Run " + (i + 1);
+            if (cfgName.length() > 80) cfgName = cfgName.substring(0, 80);
+            if (args.length() > 2_000) args = args.substring(0, 2_000);
+            if (!main.isBlank() && !main.matches("[A-Za-z_][\\w$]*(\\.[A-Za-z_][\\w$]*)*")) continue;
+            out.add(new Json.Obj()
+                    .put("name", cfgName)
+                    .put("mainClass", main)
+                    .put("args", args == null ? "" : args));
+        }
+        return out;
     }
 
     public void delete(String id) {
@@ -615,7 +649,9 @@ public final class Projects {
             Json.Obj obj = Json.parseObj(Files.readString(file));
             String name = obj.str("name", fallback);
             if (name == null || name.isBlank()) name = fallback;
-            return new Meta(name, obj.str("mainClass", ""));
+            Json.Arr configs = obj.arr("runConfigs");
+            return new Meta(name, obj.str("mainClass", ""),
+                    configs == null ? new Json.Arr() : sanitizeConfigs(configs));
         } catch (RuntimeException | IOException e) {
             return new Meta(fallback, "");
         }
@@ -624,7 +660,8 @@ public final class Projects {
     private void writeMeta(Path dir, Meta meta) throws IOException {
         Json.Obj obj = new Json.Obj()
                 .put("name", meta.name)
-                .put("mainClass", meta.mainClass == null ? "" : meta.mainClass);
+                .put("mainClass", meta.mainClass == null ? "" : meta.mainClass)
+                .put("runConfigs", meta.runConfigs == null ? new Json.Arr() : meta.runConfigs);
         Files.writeString(dir.resolve(".lark.json"), obj.write());
     }
 

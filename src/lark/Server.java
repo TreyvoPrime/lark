@@ -21,18 +21,22 @@ public final class Server {
     private final int port;
     private final Projects projects;
     private final Runner runner;
+    private final Debugger debugger;
+    private final Tests tests;
     private final GitHub github;
     private final Updates updates;
     private final Terminal terminal;
     private final Settings settings;
     private final Path webDir;
 
-    private Server(HttpServer http, int port, Projects projects, Runner runner, GitHub github, Updates updates,
-                   Terminal terminal, Settings settings, Path webDir) {
+    private Server(HttpServer http, int port, Projects projects, Runner runner, Debugger debugger, Tests tests,
+                   GitHub github, Updates updates, Terminal terminal, Settings settings, Path webDir) {
         this.http = http;
         this.port = port;
         this.projects = projects;
         this.runner = runner;
+        this.debugger = debugger;
+        this.tests = tests;
         this.github = github;
         this.updates = updates;
         this.terminal = terminal;
@@ -54,8 +58,8 @@ public final class Server {
             }
         }
         if (http == null) throw last == null ? new IOException("No free port") : last;
-        Server server = new Server(http, chosen, projects, runner, github, new Updates(settings), new Terminal(),
-                settings, findWeb());
+        Server server = new Server(http, chosen, projects, runner, new Debugger(), new Tests(), github,
+                new Updates(settings), new Terminal(), settings, findWeb());
         http.createContext("/", server::handle);
         http.setExecutor(Executors.newFixedThreadPool(8, runnable -> {
             Thread thread = new Thread(runnable, "lark-http");
@@ -181,6 +185,7 @@ public final class Server {
                     }
                     settings.autoSaveDelayMs = delay;
                 }
+                if (body.has("formatOnSave")) settings.formatOnSave = body.bool("formatOnSave");
                 if (body.has("updateFeed")) settings.updateFeed = body.str("updateFeed", "").trim();
                 settings.save();
                 sendJson(exchange, 200, settingsJson());
@@ -268,6 +273,62 @@ public final class Server {
             sendJson(exchange, 200, new Json.Obj().put("ok", true));
             return;
         }
+        if ("/api/debug".equals(path) && "POST".equals(method)) {
+            Json.Obj body = body(exchange);
+            java.util.ArrayList<String> bps = new java.util.ArrayList<>();
+            Json.Arr arr = body.arr("breakpoints");
+            if (arr != null) {
+                for (int i = 0; i < arr.size(); i++) {
+                    Json.Value v = arr.get(i);
+                    if (v instanceof Json.Str s) bps.add(s.value);
+                    else if (v instanceof Json.Obj o) {
+                        String file = o.str("file", "");
+                        long line = o.longVal("line");
+                        if (!file.isBlank() && line > 0) bps.add(file + ":" + line);
+                    }
+                }
+            }
+            sendJson(exchange, 200, debugger.start(
+                    projects.projectDir(body.str("project", "")),
+                    body.str("mainClass", ""),
+                    body.str("args", ""),
+                    bps));
+            return;
+        }
+        if (parts.length == 4 && "api".equals(parts[1]) && "debug".equals(parts[2]) && "GET".equals(method)) {
+            sendJson(exchange, 200, debugger.snapshot(decode(parts[3])));
+            return;
+        }
+        if (parts.length == 5 && "api".equals(parts[1]) && "debug".equals(parts[2]) && "command".equals(parts[4])
+                && "POST".equals(method)) {
+            Json.Obj body = body(exchange);
+            sendJson(exchange, 200, debugger.command(decode(parts[3]), body.str("command", "")));
+            return;
+        }
+        if (parts.length == 5 && "api".equals(parts[1]) && "debug".equals(parts[2]) && "stop".equals(parts[4])
+                && "POST".equals(method)) {
+            debugger.stop(decode(parts[3]));
+            sendJson(exchange, 200, new Json.Obj().put("ok", true));
+            return;
+        }
+        if ("/api/tests/discover".equals(path) && "GET".equals(method)) {
+            String projectId = query(exchange, "project");
+            if (projectId == null || projectId.isBlank()) throw new RequestFail(400, "Missing project.");
+            sendJson(exchange, 200, tests.discover(projects.projectDir(projectId)));
+            return;
+        }
+        if ("/api/tests".equals(path) && "POST".equals(method)) {
+            Json.Obj body = body(exchange);
+            sendJson(exchange, 200, tests.start(
+                    projects.projectDir(body.str("project", "")),
+                    body.str("className", ""),
+                    body.str("method", "")));
+            return;
+        }
+        if (parts.length == 4 && "api".equals(parts[1]) && "tests".equals(parts[2]) && "GET".equals(method)) {
+            sendJson(exchange, 200, tests.snapshot(decode(parts[3])));
+            return;
+        }
         if ("/api/terminal".equals(path) && "POST".equals(method)) {
             Json.Obj body = body(exchange);
             String projectId = body.str("project", "");
@@ -343,7 +404,8 @@ public final class Server {
             }
             if (parts.length == 4 && "PUT".equals(method)) {
                 Json.Obj body = body(exchange);
-                projects.updateMeta(id, body.str("name"), body.str("mainClass"), body.has("name"), body.has("mainClass"));
+                projects.updateMeta(id, body.str("name"), body.str("mainClass"), body.arr("runConfigs"),
+                        body.has("name"), body.has("mainClass"), body.has("runConfigs"));
                 sendJson(exchange, 200, new Json.Obj().put("ok", true));
                 return;
             }
@@ -400,6 +462,7 @@ public final class Server {
                 .put("lineWrapping", settings.lineWrapping)
                 .put("autoSave", settings.autoSave)
                 .put("autoSaveDelayMs", settings.autoSaveDelayMs)
+                .put("formatOnSave", settings.formatOnSave)
                 .put("tokenSet", settings.githubToken != null && !settings.githubToken.isBlank())
                 .put("githubLogin", settings.githubLogin == null ? "" : settings.githubLogin)
                 .put("lastProject", settings.lastProject == null ? "" : settings.lastProject)

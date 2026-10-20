@@ -10,7 +10,7 @@ import java.util.Set;
 
 /** Preferences stored in the home folder. The GitHub token never leaves this machine except for GitHub. */
 public final class Settings {
-    public static final String VERSION = "2.2.2";
+    public static final String VERSION = "2.3.0";
     /** Default public update feed — always the latest GitHub release JSON companion. */
     public static final String DEFAULT_UPDATE_FEED =
             "https://github.com/TreyvoPrime/lark/releases/latest/download/update.json";
@@ -46,6 +46,7 @@ public final class Settings {
     public boolean lineWrapping = false;
     public boolean autoSave = true;
     public int autoSaveDelayMs = 800;
+    public boolean formatOnSave = false;
     public String githubToken = "";
     public String githubRefreshToken = "";
     public long githubTokenExpiresAt;
@@ -94,6 +95,7 @@ public final class Settings {
             if (obj.has("autoSave")) settings.autoSave = obj.bool("autoSave");
             int delay = (int) obj.longVal("autoSaveDelayMs");
             settings.autoSaveDelayMs = delay == 300 || delay == 800 || delay == 1500 ? delay : 800;
+            if (obj.has("formatOnSave")) settings.formatOnSave = obj.bool("formatOnSave");
             settings.githubToken = obj.str("githubToken", "");
             settings.githubRefreshToken = obj.str("githubRefreshToken", "");
             settings.githubTokenExpiresAt = obj.longVal("githubTokenExpiresAt");
@@ -126,6 +128,7 @@ public final class Settings {
                     .put("lineWrapping", lineWrapping)
                     .put("autoSave", autoSave)
                     .put("autoSaveDelayMs", autoSaveDelayMs)
+                    .put("formatOnSave", formatOnSave)
                     .put("githubToken", githubToken == null ? "" : githubToken)
                     .put("githubRefreshToken", githubRefreshToken == null ? "" : githubRefreshToken)
                     .put("githubTokenExpiresAt", githubTokenExpiresAt)

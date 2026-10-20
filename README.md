@@ -43,6 +43,15 @@ https://github.com/TreyvoPrime/lark/releases/latest/download/lark-linux.zip
 
 Do not open Start Lark from inside the zip preview / Temp folder.
 
+## What’s new in 2.3
+
+- **Go to definition** (`F12`), **find usages** (`Shift+F12`), **rename** (`F2`)
+- **Debugger** — gutter breakpoints, step/next/continue, locals (`F5`)
+- **JUnit** Tests tab (downloads console-standalone jar once)
+- **Split editor**, stronger **Ctrl+P** (recent + files + classes)
+- **Run configs** saved in `.lark.json`, **format on save**, problem **quick fixes**
+- Warnings for unused imports and missing `@Override`
+
 ## What’s new in 2.2
 
 - Autosave as you type (toggle + delay under **Aa**)
@@ -67,12 +76,14 @@ Do not open Start Lark from inside the zip preview / Temp folder.
 ## Features
 
 - Multi-file Java projects, outline, compile & run, plain-English problems
+- Navigation: go to definition, find usages, rename; split editor
+- Debugger (jdb) and JUnit test runner
 - Terminal tab in the project folder
 - Suggestion autofill; `Ctrl+Space` for snippets
 - Themes including Nova, Atelier, Obsidian, Glacier, and more
 - GitHub clone / push with a classic `repo` token
 
-`Ctrl+Enter` runs. `Ctrl+S` saves. `Ctrl+P` opens a file.
+`Ctrl+Enter` runs. `F5` debugs. `Ctrl+S` saves. `Ctrl+P` opens a file or class.
 
 ## Other files in this repository
 
