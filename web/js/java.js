@@ -792,31 +792,191 @@
       Scanner: "java.util.Scanner",
       List: "java.util.List",
       ArrayList: "java.util.ArrayList",
+      LinkedList: "java.util.LinkedList",
       Map: "java.util.Map",
       HashMap: "java.util.HashMap",
+      TreeMap: "java.util.TreeMap",
       Set: "java.util.Set",
       HashSet: "java.util.HashSet",
+      TreeSet: "java.util.TreeSet",
       Optional: "java.util.Optional",
       Arrays: "java.util.Arrays",
       Collections: "java.util.Collections",
       Objects: "java.util.Objects",
       LocalDate: "java.time.LocalDate",
       LocalDateTime: "java.time.LocalDateTime",
+      LocalTime: "java.time.LocalTime",
       Path: "java.nio.file.Path",
+      Paths: "java.nio.file.Paths",
       Files: "java.nio.file.Files",
       Random: "java.util.Random",
       Comparator: "java.util.Comparator",
       StringBuilder: "java.lang.StringBuilder",
+      StringBuffer: "java.lang.StringBuffer",
       IOException: "java.io.IOException",
       File: "java.io.File",
-      PrintWriter: "java.io.PrintWriter"
+      FileReader: "java.io.FileReader",
+      FileWriter: "java.io.FileWriter",
+      BufferedReader: "java.io.BufferedReader",
+      PrintWriter: "java.io.PrintWriter",
+      BigInteger: "java.math.BigInteger",
+      BigDecimal: "java.math.BigDecimal",
+      Matcher: "java.util.regex.Matcher",
+      Pattern: "java.util.regex.Pattern",
+      Queue: "java.util.Queue",
+      Deque: "java.util.Deque",
+      ArrayDeque: "java.util.ArrayDeque",
+      PriorityQueue: "java.util.PriorityQueue",
+      Iterator: "java.util.Iterator",
+      Stream: "java.util.stream.Stream",
+      Collectors: "java.util.stream.Collectors",
+      Function: "java.util.function.Function",
+      Predicate: "java.util.function.Predicate",
+      Consumer: "java.util.function.Consumer",
+      Supplier: "java.util.function.Supplier",
+      Instant: "java.time.Instant",
+      Duration: "java.time.Duration",
+      ChronoUnit: "java.time.temporal.ChronoUnit",
+      InputMismatchException: "java.util.InputMismatchException",
+      NoSuchElementException: "java.util.NoSuchElementException",
+      IllegalArgumentException: "java.lang.IllegalArgumentException",
+      IllegalStateException: "java.lang.IllegalStateException",
+      NullPointerException: "java.lang.NullPointerException",
+      IndexOutOfBoundsException: "java.lang.IndexOutOfBoundsException",
+      URI: "java.net.URI",
+      URL: "java.net.URL",
+      HttpClient: "java.net.http.HttpClient",
+      HttpRequest: "java.net.http.HttpRequest",
+      HttpResponse: "java.net.http.HttpResponse"
     };
     const out = [];
-    if (known[token]) out.push(known[token]);
+    if (known[token]) {
+      // java.lang types do not need an import — skip those.
+      if (!known[token].startsWith("java.lang.")) out.push(known[token]);
+    }
     (projectTypes || []).forEach((t) => {
       if (t.name === token && t.pkg) out.push(t.pkg + "." + t.name);
     });
-    return out;
+    return [...new Set(out)];
+  }
+
+  /** Ensure import lines exist; returns updated source or null if unchanged. */
+  function ensureImports(source, importNames) {
+    const text = source || "";
+    const needed = (importNames || []).filter(Boolean);
+    if (!needed.length) return null;
+    const missing = needed.filter((imp) => {
+      const re = new RegExp("(?:^|\\n)\\s*import\\s+" + imp.replace(/\./g, "\\.") + "\\s*;");
+      return !re.test(text);
+    });
+    if (!missing.length) return null;
+    const lines = text.split("\n");
+    let insertAt = 0;
+    let lastImport = -1;
+    let pkgLine = -1;
+    for (let i = 0; i < lines.length; i++) {
+      if (/^\s*package\s+/.test(lines[i])) pkgLine = i;
+      if (/^\s*import\s+/.test(lines[i])) lastImport = i;
+      if (/^\s*(public\s+|protected\s+|private\s+)?(class|interface|enum|record)\b/.test(lines[i])) {
+        insertAt = lastImport >= 0 ? lastImport + 1 : (pkgLine >= 0 ? pkgLine + 1 : 0);
+        break;
+      }
+    }
+    if (insertAt === 0 && lastImport >= 0) insertAt = lastImport + 1;
+    if (insertAt === 0 && pkgLine >= 0) insertAt = pkgLine + 1;
+    const block = missing.map((imp) => "import " + imp + ";");
+    if (insertAt < lines.length && lines[insertAt].trim() !== "") block.push("");
+    lines.splice(insertAt, 0, ...block);
+    return lines.join("\n");
+  }
+
+  function introduceVariable(source, selected, varName, typeHint) {
+    const sel = (selected || "").trim();
+    if (!sel || sel.includes(";") || sel.includes("\n")) return null;
+    const name = varName || "value";
+    if (!/^[A-Za-z_][\w$]*$/.test(name)) return null;
+    let type = typeHint || "var";
+    if (!typeHint) {
+      if (/^".*"$/.test(sel) || /^'.*'$/.test(sel)) type = "String";
+      else if (/^\d+L$/i.test(sel)) type = "long";
+      else if (/^\d+$/.test(sel)) type = "int";
+      else if (/^\d+\.\d+[fF]?$/.test(sel)) type = "double";
+      else if (/^(true|false)$/.test(sel)) type = "boolean";
+      else {
+        const neu = sel.match(/^new\s+([A-Za-z_][\w.]*)\s*[(\[]/);
+        if (neu) type = neu[1].replace(/<.*>/, "").split(".").pop();
+      }
+    }
+    const hints = [];
+    const simple = String(type).replace(/<.*>/, "").split(".").pop();
+    const auto = {
+      BigInteger: "java.math.BigInteger",
+      BigDecimal: "java.math.BigDecimal",
+      Scanner: "java.util.Scanner",
+      ArrayList: "java.util.ArrayList",
+      LinkedList: "java.util.LinkedList",
+      HashMap: "java.util.HashMap",
+      HashSet: "java.util.HashSet",
+      Optional: "java.util.Optional",
+      List: "java.util.List",
+      Map: "java.util.Map",
+      Set: "java.util.Set"
+    };
+    if (auto[simple]) hints.push(auto[simple]);
+    return {
+      declaration: type + " " + name + " = " + sel + ";",
+      replacement: name,
+      importHints: hints
+    };
+  }
+
+  function extractMethod(source, selected, methodName, indentUnit) {
+    const body = (selected || "").replace(/\s+$/g, "");
+    if (!body.trim()) return null;
+    const name = methodName || "extracted";
+    if (!/^[A-Za-z_][\w$]*$/.test(name)) return null;
+    const unit = indentUnit || "    ";
+    const lines = body.split("\n");
+    const indented = lines.map((line) => (line.trim() ? unit + unit + line.replace(/^\s*/, "") : "")).join("\n");
+    const returnsValue = /^\s*return\b/m.test(body);
+    const stub =
+      "\n" + unit + "private static void " + name + "() {\n" +
+      (indented || unit + unit + "// …\n") +
+      (returnsValue ? "" : "") +
+      unit + "}\n";
+    return {
+      call: name + "();",
+      method: stub,
+      note: returnsValue
+        ? "Selection contains return — review the new method’s return type."
+        : ""
+    };
+  }
+
+  function enclosingBraceRange(source, offset) {
+    const text = source || "";
+    if (offset < 0 || offset > text.length) return null;
+    let depth = 0;
+    let open = -1;
+    for (let i = offset; i >= 0; i--) {
+      const c = text[i];
+      if (c === "}") depth++;
+      else if (c === "{") {
+        if (depth === 0) { open = i; break; }
+        depth--;
+      }
+    }
+    if (open < 0) return null;
+    depth = 0;
+    for (let i = open; i < text.length; i++) {
+      const c = text[i];
+      if (c === "{") depth++;
+      else if (c === "}") {
+        depth--;
+        if (depth === 0) return { from: open, to: i };
+      }
+    }
+    return null;
   }
 
   function matchingSnippets(prefix) {
@@ -1345,6 +1505,10 @@
     generateEqualsHashCode: generateEqualsHashCode,
     classSummary: classSummary,
     suggestImports: suggestImports,
+    ensureImports: ensureImports,
+    introduceVariable: introduceVariable,
+    extractMethod: extractMethod,
+    enclosingBraceRange: enclosingBraceRange,
     getterName: getterName,
     setterName: setterName,
     capitalize: capitalize,

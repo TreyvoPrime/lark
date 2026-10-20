@@ -10,7 +10,7 @@ import java.util.Set;
 
 /** Preferences stored in the home folder. The GitHub token never leaves this machine except for GitHub. */
 public final class Settings {
-    public static final String VERSION = "2.3.2";
+    public static final String VERSION = "3.0.0";
     /** Default public update feed — always the latest GitHub release JSON companion. */
     public static final String DEFAULT_UPDATE_FEED =
             "https://github.com/TreyvoPrime/lark/releases/latest/download/update.json";
@@ -21,7 +21,8 @@ public final class Settings {
             "blossom", "candy", "midnight", "citrus", "harbor",
             "graphite", "navy", "terminal", "parchment", "ultraviolet", "forest", "monochrome", "amber",
             "lagoon", "rosewood", "nova", "atelier",
-            "obsidian", "glacier"
+            "obsidian", "glacier",
+            "cedar", "inkwell", "porcelain", "hearth", "canopy"
     );
     public static final Set<String> FONT_FAMILIES = Set.of(
             "jetbrains", "cascadia", "fira", "consolas", "system"

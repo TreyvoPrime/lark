@@ -1,6 +1,6 @@
-# Lark
+# Lark 3
 
-Lark is a small Java IDE: several files and classes, an outline, compile and run, problems that jump to the line, and GitHub clone/push. Lighter than IntelliJ, more useful than a browser text box.
+Lark is a focused Java IDE: multi-file projects, live compile feedback, brace guide, small refactors, debugger, JUnit, and GitHub clone/push. Lighter than IntelliJ, more useful than a browser text box — deliberately not bloated.
 
 ## Two downloads (pick one)
 
@@ -43,29 +43,16 @@ https://github.com/TreyvoPrime/lark/releases/latest/download/lark-linux.zip
 
 Do not open Start Lark from inside the zip preview / Temp folder.
 
-## What’s new in 2.3.2
+## What’s new in 3.0
 
-- Split editor: starts single-pane; **Unsplit** / × / `Ctrl+\` / drag the divider off-screen to close
-
-## What’s new in 2.3.1
-
-- Typing `/**` above a method fills a summary plus `@param` / `@return` from the signature
-
-## What’s new in 2.3
-
-- **Go to definition** (`F12`), **find usages** (`Shift+F12`), **rename** (`F2`)
-- **Debugger** — gutter breakpoints, step/next/continue, locals (`F5`)
-- **JUnit** Tests tab (downloads console-standalone jar once)
-- **Split editor**, stronger **Ctrl+P** (recent + files + classes)
-- **Run configs** saved in `.lark.json`, **format on save**, problem **quick fixes**
-- Warnings for unused imports and missing `@Override`
-
-## What’s new in 2.2
-
-- Autosave as you type (toggle + delay under **Aa**)
-- Editor settings: font family, ligatures, indent size, tabs vs spaces, line wrap
-- Themes: **Obsidian** and **Glacier**
-- Clearer Desktop vs portable download pages
+- **Brace matching / guide** — `Ctrl+M` jumps; enclosing block highlight while nesting
+- **Live compile check** — footer “Compiles” / errors while typing (no full Run)
+- **Extract method** (`Ctrl+Alt+M`) and **Introduce variable** (`Ctrl+Alt+V`)
+- **Project search** — `Ctrl+Shift+F` across files
+- **Debug polish** — click stack / locals to jump; clearer “Paused here” line
+- **Presets** — empty, library, BigInteger factorial, quiz, sorting, recursion, calculator, grade book
+- **Themes** — Cedar, Inkwell, Porcelain, Hearth, Canopy (plus the existing set)
+- Explorer tray overhaul, import assist via `ensureImports`, landing-site refresh
 
 ## Run from source
 
@@ -88,10 +75,10 @@ Do not open Start Lark from inside the zip preview / Temp folder.
 - Debugger (jdb) and JUnit test runner
 - Terminal tab in the project folder
 - Suggestion autofill; `Ctrl+Space` for snippets
-- Themes including Nova, Atelier, Obsidian, Glacier, and more
+- Themes including Cedar, Inkwell, Porcelain, Hearth, Canopy, Nova, Atelier, and more
 - GitHub clone / push with a classic `repo` token
 
-`Ctrl+Enter` runs. `F5` debugs. `Ctrl+S` saves. `Ctrl+P` opens a file or class.
+`Ctrl+Enter` runs. `F5` debugs. `Ctrl+Shift+F` searches the project. `Ctrl+M` jumps braces. `Ctrl+P` opens a file or class.
 
 ## Other files in this repository
 

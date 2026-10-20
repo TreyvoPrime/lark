@@ -81,18 +81,24 @@ public final class Projects {
         return out;
     }
 
+    public static final List<String> TEMPLATES = List.of(
+            "empty", "library", "factorial", "quiz", "sorting", "recursion", "calculator", "grades"
+    );
+
     public String create(String name, String template) {
         String clean = cleanName(name);
         String id = uniqueId(slug(clean));
         Path dir = root().resolve(id);
+        String kind = template == null ? "empty" : template.trim().toLowerCase(Locale.ROOT);
+        if (!TEMPLATES.contains(kind)) kind = "empty";
         synchronized (lock(id)) {
             try {
                 Files.createDirectories(dir);
-                boolean library = "library".equals(template);
-                for (TextFile file : library ? librarySample() : emptySample()) {
+                List<TextFile> files = templateFiles(kind);
+                for (TextFile file : files) {
                     writeUnlocked(dir, file.path, file.content);
                 }
-                writeMeta(dir, new Meta(clean, library ? "app.Main" : "Main"));
+                writeMeta(dir, new Meta(clean, templateMain(kind)));
             } catch (IOException e) {
                 throw new RequestFail(500, "Couldn't create the project.");
             }
@@ -100,6 +106,45 @@ public final class Projects {
         settings.lastProject = id;
         settings.save();
         return id;
+    }
+
+    public static Json.Arr templateCatalog() {
+        Json.Arr arr = new Json.Arr();
+        arr.add(new Json.Obj().put("id", "empty").put("name", "Empty").put("blurb", "A single Main class — blank canvas."));
+        arr.add(new Json.Obj().put("id", "library").put("name", "Library checkout").put("blurb", "Classes, an interface, and a short story to run."));
+        arr.add(new Json.Obj().put("id", "factorial").put("name", "BigInteger factorial").put("blurb", "Exact factorials with java.math.BigInteger."));
+        arr.add(new Json.Obj().put("id", "quiz").put("name", "Quiz").put("blurb", "Scanner questions and a running score."));
+        arr.add(new Json.Obj().put("id", "sorting").put("name", "Sorting lab").put("blurb", "Bubble sort with printed passes."));
+        arr.add(new Json.Obj().put("id", "recursion").put("name", "Recursion").put("blurb", "Countdown and Fibonacci side by side."));
+        arr.add(new Json.Obj().put("id", "calculator").put("name", "Calculator").put("blurb", "A tiny four-function console calculator."));
+        arr.add(new Json.Obj().put("id", "grades").put("name", "Grade book").put("blurb", "ArrayList of scores with average and letter grade."));
+        return arr;
+    }
+
+    private static String templateMain(String kind) {
+        return switch (kind) {
+            case "library" -> "app.Main";
+            case "factorial" -> "mathlab.Factorial";
+            case "quiz" -> "quiz.QuizApp";
+            case "sorting" -> "lab.SortDemo";
+            case "recursion" -> "lab.RecursionLab";
+            case "calculator" -> "tools.Calculator";
+            case "grades" -> "school.GradeBook";
+            default -> "Main";
+        };
+    }
+
+    private static List<TextFile> templateFiles(String kind) {
+        return switch (kind) {
+            case "library" -> librarySample();
+            case "factorial" -> factorialSample();
+            case "quiz" -> quizSample();
+            case "sorting" -> sortingSample();
+            case "recursion" -> recursionSample();
+            case "calculator" -> calculatorSample();
+            case "grades" -> gradesSample();
+            default -> emptySample();
+        };
     }
 
     public String importFiles(String name, List<TextFile> files) {
@@ -397,7 +442,7 @@ public final class Projects {
 
     public static boolean skip(String rel) {
         for (String part : rel.split("/")) {
-            if (part.equals(".lark-out") || part.equals("out") || part.equals("bin")
+            if (part.equals(".lark-out") || part.equals(".lark-check") || part.equals("out") || part.equals("bin")
                     || part.equals(".git") || part.equals(".idea") || part.equals(".vscode")) {
                 return true;
             }
@@ -577,6 +622,237 @@ public final class Projects {
                     }
                 }
                 """));
+    }
+
+    public static List<TextFile> factorialSample() {
+        return List.of(
+                new TextFile("README.txt", """
+                        BigInteger factorial
+
+                        Computes n! exactly — no long overflow.
+                        Try 20, then 100.
+                        """),
+                new TextFile("src/mathlab/Factorial.java", """
+                        package mathlab;
+
+                        import java.math.BigInteger;
+                        import java.util.Scanner;
+
+                        public class Factorial {
+                            public static BigInteger factorial(int n) {
+                                if (n < 0) {
+                                    throw new IllegalArgumentException("n must be >= 0");
+                                }
+                                BigInteger result = BigInteger.ONE;
+                                for (int i = 2; i <= n; i++) {
+                                    result = result.multiply(BigInteger.valueOf(i));
+                                }
+                                return result;
+                            }
+
+                            public static void main(String[] args) {
+                                Scanner in = new Scanner(System.in);
+                                System.out.print("n = ");
+                                int n = in.nextInt();
+                                System.out.println(n + "! = " + factorial(n));
+                            }
+                        }
+                        """)
+        );
+    }
+
+    public static List<TextFile> quizSample() {
+        return List.of(
+                new TextFile("README.txt", """
+                        Quiz
+
+                        Answer a few questions. Type under Output when asked.
+                        """),
+                new TextFile("src/quiz/QuizApp.java", """
+                        package quiz;
+
+                        import java.util.Scanner;
+
+                        public class QuizApp {
+                            public static void main(String[] args) {
+                                Scanner in = new Scanner(System.in);
+                                int score = 0;
+
+                                System.out.print("What keyword starts a class? ");
+                                if (in.nextLine().trim().equalsIgnoreCase("class")) score++;
+
+                                System.out.print("True or false: int is a reference type. ");
+                                String ans = in.nextLine().trim().toLowerCase();
+                                if (ans.equals("false") || ans.equals("f")) score++;
+
+                                System.out.print("How many bits in a Java byte? ");
+                                if (in.nextLine().trim().equals("8")) score++;
+
+                                System.out.println("Score: " + score + " / 3");
+                            }
+                        }
+                        """)
+        );
+    }
+
+    public static List<TextFile> sortingSample() {
+        return List.of(
+                new TextFile("README.txt", """
+                        Sorting lab
+
+                        Watch bubble sort swap its way through an array.
+                        """),
+                new TextFile("src/lab/SortDemo.java", """
+                        package lab;
+
+                        import java.util.Arrays;
+
+                        public class SortDemo {
+                            public static void bubbleSort(int[] nums) {
+                                for (int pass = 0; pass < nums.length - 1; pass++) {
+                                    for (int i = 0; i < nums.length - 1 - pass; i++) {
+                                        if (nums[i] > nums[i + 1]) {
+                                            int tmp = nums[i];
+                                            nums[i] = nums[i + 1];
+                                            nums[i + 1] = tmp;
+                                        }
+                                    }
+                                    System.out.println("pass " + (pass + 1) + ": " + Arrays.toString(nums));
+                                }
+                            }
+
+                            public static void main(String[] args) {
+                                int[] data = { 5, 1, 4, 2, 8 };
+                                System.out.println("start: " + Arrays.toString(data));
+                                bubbleSort(data);
+                                System.out.println("done:  " + Arrays.toString(data));
+                            }
+                        }
+                        """)
+        );
+    }
+
+    public static List<TextFile> recursionSample() {
+        return List.of(
+                new TextFile("README.txt", """
+                        Recursion lab
+
+                        Countdown and Fibonacci — same idea, different shapes.
+                        """),
+                new TextFile("src/lab/RecursionLab.java", """
+                        package lab;
+
+                        public class RecursionLab {
+                            public static void countdown(int n) {
+                                if (n <= 0) {
+                                    System.out.println("liftoff");
+                                    return;
+                                }
+                                System.out.println(n);
+                                countdown(n - 1);
+                            }
+
+                            public static int fib(int n) {
+                                if (n <= 1) return n;
+                                return fib(n - 1) + fib(n - 2);
+                            }
+
+                            public static void main(String[] args) {
+                                countdown(5);
+                                System.out.println("fib(10) = " + fib(10));
+                            }
+                        }
+                        """)
+        );
+    }
+
+    public static List<TextFile> calculatorSample() {
+        return List.of(
+                new TextFile("README.txt", """
+                        Calculator
+
+                        Enter: number operator number
+                        Example: 12 / 5
+                        """),
+                new TextFile("src/tools/Calculator.java", """
+                        package tools;
+
+                        import java.util.Scanner;
+
+                        public class Calculator {
+                            public static double apply(double a, String op, double b) {
+                                return switch (op) {
+                                    case "+" -> a + b;
+                                    case "-" -> a - b;
+                                    case "*" -> a * b;
+                                    case "/" -> {
+                                        if (b == 0) throw new ArithmeticException("Division by zero");
+                                        yield a / b;
+                                    }
+                                    default -> throw new IllegalArgumentException("Unknown operator: " + op);
+                                };
+                            }
+
+                            public static void main(String[] args) {
+                                Scanner in = new Scanner(System.in);
+                                System.out.print("Expression (a op b): ");
+                                double a = in.nextDouble();
+                                String op = in.next();
+                                double b = in.nextDouble();
+                                System.out.println("= " + apply(a, op, b));
+                            }
+                        }
+                        """)
+        );
+    }
+
+    public static List<TextFile> gradesSample() {
+        return List.of(
+                new TextFile("README.txt", """
+                        Grade book
+
+                        Stores scores in an ArrayList and prints the average.
+                        """),
+                new TextFile("src/school/GradeBook.java", """
+                        package school;
+
+                        import java.util.ArrayList;
+                        import java.util.List;
+
+                        public class GradeBook {
+                            private final List<Integer> scores = new ArrayList<>();
+
+                            public void add(int score) {
+                                scores.add(score);
+                            }
+
+                            public double average() {
+                                if (scores.isEmpty()) return 0;
+                                int sum = 0;
+                                for (int score : scores) sum += score;
+                                return sum / (double) scores.size();
+                            }
+
+                            public String letter() {
+                                double avg = average();
+                                if (avg >= 90) return "A";
+                                if (avg >= 80) return "B";
+                                if (avg >= 70) return "C";
+                                if (avg >= 60) return "D";
+                                return "F";
+                            }
+
+                            public static void main(String[] args) {
+                                GradeBook book = new GradeBook();
+                                book.add(88);
+                                book.add(92);
+                                book.add(79);
+                                System.out.println("Average: " + book.average());
+                                System.out.println("Letter:  " + book.letter());
+                            }
+                        }
+                        """)
+        );
     }
 
     public static void deleteTree(Path path) throws IOException {

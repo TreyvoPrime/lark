@@ -26,9 +26,10 @@
           <path d="M3 16c4.2-.7 6-6 9-11 2.8 5 4.8 10.2 9 11" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/>
           <path d="M7 16.5h10" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/>
         </svg>
-        <span class="word">Lark <em class="ver">2.3.2</em></span>
+        <span class="word">Lark <em class="ver">3.0</em></span>
       </button>
-      <button id="files-toggle" type="button">Files</button>
+      <button id="files-toggle" type="button" title="Toggle files (Ctrl+B)">Files</button>
+      <button id="project-search" type="button" title="Search in project (Ctrl+Shift+F)">Search</button>
       <label class="project-pick">
         <span class="sr">Project</span>
         <select id="project"></select>
@@ -54,17 +55,20 @@
     <div id="workspace">
       <aside id="files">
         <div class="splitter" data-split="files"></div>
-        <div class="pane-head">
-          <span>Files</span>
+        <div class="pane-head tray-head">
+          <div class="tray-title">
+            <span class="tray-label">Explorer</span>
+            <strong id="tray-project">Project</strong>
+          </div>
           <span class="pane-actions">
-            <button type="button" id="new-class">Class</button>
-            <button type="button" id="new-file">File</button>
-            <button type="button" id="new-folder">Folder</button>
+            <button type="button" id="new-class" title="New Java class">+ Class</button>
+            <button type="button" id="new-file" title="New file">File</button>
+            <button type="button" id="new-folder" title="New folder">Folder</button>
           </span>
         </div>
-        <div id="tree"></div>
+        <div id="tree" class="file-tray"></div>
         <div id="structure">
-          <div class="pane-head structure-head"><span>Structure</span></div>
+          <div class="pane-head structure-head"><span>Outline</span></div>
           <div id="structure-list"></div>
         </div>
       </aside>
@@ -98,8 +102,8 @@
                 </svg>
                 <h1>Lark</h1>
               </div>
-              <p class="welcome-kicker">Lark 2.3.2</p>
-              <p class="welcome-lead">A Java IDE with go-to-definition, debugger, JUnit, filled Javadoc stubs, and themes built for school coding sessions.</p>
+              <p class="welcome-kicker">Lark 3.0</p>
+              <p class="welcome-lead">A focused Java IDE — compile, run, debug, and refactor without the weight of a full enterprise suite. Built for learning, labs, and shipping small programs cleanly.</p>
               <div class="welcome-grid">
                 <section>
                   <h2>Start</h2>
@@ -113,12 +117,12 @@
                   <div id="welcome-recent" class="welcome-recent"></div>
                 </section>
                 <section>
-                  <h2>What’s new</h2>
+                  <h2>What’s new in 3.0</h2>
                   <ul class="welcome-tips">
-                    <li>Type <strong>/**</strong> above a method — Lark fills summary, <code>@param</code>, and <code>@return</code>.</li>
-                    <li><strong>F12</strong> go to definition · <strong>Shift+F12</strong> find usages · <strong>F2</strong> rename.</li>
-                    <li><strong>Debug</strong> / <strong>Tests</strong> · <strong>Split</strong> editor · stronger <strong>Ctrl+P</strong>.</li>
-                    <li>Format on save, run configs, and quick fixes in Problems.</li>
+                    <li><strong>Ctrl+M</strong> jump braces · block highlight while you nest.</li>
+                    <li>Live <strong>Compiles</strong> status while typing — no full Run needed.</li>
+                    <li><strong>Extract method</strong> / <strong>Introduce variable</strong> · <strong>Ctrl+Shift+F</strong> project search.</li>
+                    <li>Presets: BigInteger factorial, quiz, sorting, recursion, and more.</li>
                   </ul>
                 </section>
               </div>
@@ -150,8 +154,15 @@
           <pre id="console-out">Run a class and the output shows up here.</pre>
           <div id="problems" hidden></div>
           <div id="debug-pane" hidden>
-            <pre id="debug-out">Click Debug (or F5). Click a line number gutter to set breakpoints.</pre>
-            <div id="debug-locals" class="debug-locals"></div>
+            <div class="debug-layout">
+              <pre id="debug-out" class="debug-out">Click Debug (or F5). Click a line number gutter to set breakpoints. Click a stack line or local to jump.</pre>
+              <div class="debug-side">
+                <div class="debug-side-head">Locals</div>
+                <div id="debug-locals" class="debug-locals"></div>
+                <div class="debug-side-head">Stack</div>
+                <div id="debug-stack" class="debug-stack"></div>
+              </div>
+            </div>
           </div>
           <div id="tests-pane" hidden>
             <div class="tests-toolbar">
@@ -185,6 +196,7 @@
     <footer id="status">
       <span id="status-path">Lark</span>
       <span id="status-save"></span>
+      <span id="status-check" title="Live compile check"></span>
       <span id="status-sig"></span>
       <span class="grow"></span>
       <span id="status-cursor">Ln 1, Col 1</span>
@@ -222,6 +234,12 @@
     <button type="button" data-assist="usages">Find usages</button>
     <button type="button" data-assist="rename">Rename symbol…</button>
     <button type="button" data-assist="rename-file">Rename in file (multi-cursor)</button>
+    <hr class="settings-rule">
+    <button type="button" data-assist="extract">Extract method…</button>
+    <button type="button" data-assist="introduce">Introduce variable…</button>
+    <button type="button" data-assist="brace">Jump to matching brace</button>
+    <button type="button" data-assist="search">Search in project…</button>
+    <button type="button" data-assist="check">Compile check now</button>
   </div>
   <div id="menu-run-config" class="popover menu" hidden>
     <button type="button" data-run-cfg="save">Save current as config…</button>
@@ -254,6 +272,12 @@
     <button type="button" data-theme-choice="atelier"><i class="swatch" style="background:#3d5a80"></i>Atelier</button>
     <button type="button" data-theme-choice="obsidian"><i class="swatch" style="background:#d4a45a"></i>Obsidian</button>
     <button type="button" data-theme-choice="glacier"><i class="swatch" style="background:#4a7a9b"></i>Glacier</button>
+    <hr class="settings-rule">
+    <button type="button" data-theme-choice="cedar"><i class="swatch" style="background:#c4784a"></i>Cedar</button>
+    <button type="button" data-theme-choice="inkwell"><i class="swatch" style="background:#6b8cae"></i>Inkwell</button>
+    <button type="button" data-theme-choice="porcelain"><i class="swatch" style="background:#5a7d9a"></i>Porcelain</button>
+    <button type="button" data-theme-choice="hearth"><i class="swatch" style="background:#c07048"></i>Hearth</button>
+    <button type="button" data-theme-choice="canopy"><i class="swatch" style="background:#5f8f6a"></i>Canopy</button>
   </div>
   <div id="menu-settings" class="popover settings-pop" hidden>
     <label class="settings-row">Font size
@@ -335,6 +359,10 @@
       <li><span>Go to definition</span><kbd>F12</kbd></li>
       <li><span>Find usages</span><kbd>Shift+F12</kbd></li>
       <li><span>Rename</span><kbd>F2</kbd></li>
+      <li><span>Matching brace</span><kbd>Ctrl+M</kbd></li>
+      <li><span>Project search</span><kbd>Ctrl+Shift+F</kbd></li>
+      <li><span>Extract method</span><kbd>Ctrl+Alt+M</kbd></li>
+      <li><span>Introduce variable</span><kbd>Ctrl+Alt+V</kbd></li>
       <li><span>Save</span><kbd>Ctrl+S</kbd></li>
       <li><span>Split / unsplit</span><kbd>Ctrl+\</kbd></li>
       <li><span>Javadoc stub</span><kbd>/**</kbd></li>
@@ -348,7 +376,18 @@
       <li><span>Files</span><kbd>Ctrl+B</kbd></li>
       <li><span>Zoom</span><kbd>Ctrl+= / Ctrl+-</kbd></li>
     </ul>
-    <p class="path-note">On a Mac, use Command instead of Ctrl. Click the line-number gutter to set breakpoints. Type /** above a method for Javadoc.</p>
+    <p class="path-note">On a Mac, use Command instead of Ctrl. Click the line-number gutter to set breakpoints. Type /** above a method for Javadoc. Live compile status appears in the footer.</p>
+  </div>
+  <div id="search-panel" class="search-panel" hidden>
+    <div class="search-card">
+      <div class="search-head">
+        <strong>Search in project</strong>
+        <button type="button" id="search-close" aria-label="Close search">×</button>
+      </div>
+      <input id="search-input" type="text" placeholder="Find across files…" spellcheck="false" autocomplete="off">
+      <div id="search-results" class="search-results"></div>
+      <p class="path-note">Enter opens the selected hit · Esc closes</p>
+    </div>
   </div>
   <div id="context" hidden></div>
 

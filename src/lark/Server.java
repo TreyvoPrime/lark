@@ -23,6 +23,7 @@ public final class Server {
     private final Runner runner;
     private final Debugger debugger;
     private final Tests tests;
+    private final Checker checker;
     private final GitHub github;
     private final Updates updates;
     private final Terminal terminal;
@@ -30,13 +31,14 @@ public final class Server {
     private final Path webDir;
 
     private Server(HttpServer http, int port, Projects projects, Runner runner, Debugger debugger, Tests tests,
-                   GitHub github, Updates updates, Terminal terminal, Settings settings, Path webDir) {
+                   Checker checker, GitHub github, Updates updates, Terminal terminal, Settings settings, Path webDir) {
         this.http = http;
         this.port = port;
         this.projects = projects;
         this.runner = runner;
         this.debugger = debugger;
         this.tests = tests;
+        this.checker = checker;
         this.github = github;
         this.updates = updates;
         this.terminal = terminal;
@@ -58,7 +60,7 @@ public final class Server {
             }
         }
         if (http == null) throw last == null ? new IOException("No free port") : last;
-        Server server = new Server(http, chosen, projects, runner, new Debugger(), new Tests(), github,
+        Server server = new Server(http, chosen, projects, runner, new Debugger(), new Tests(), new Checker(), github,
                 new Updates(settings), new Terminal(), settings, findWeb());
         http.createContext("/", server::handle);
         http.setExecutor(Executors.newFixedThreadPool(8, runnable -> {
@@ -215,12 +217,21 @@ public final class Server {
             sendJson(exchange, 200, new Json.Obj().put("ok", true).put("projects", list));
             return;
         }
+        if ("/api/templates".equals(path) && "GET".equals(method)) {
+            sendJson(exchange, 200, new Json.Obj().put("ok", true).put("templates", Projects.templateCatalog()));
+            return;
+        }
         if ("/api/projects".equals(path) && "POST".equals(method)) {
             Json.Obj body = body(exchange);
             String template = body.str("template", "empty");
-            if (!template.equals("library") && !template.equals("empty")) template = "empty";
+            if (!Projects.TEMPLATES.contains(template)) template = "empty";
             String id = projects.create(body.str("name", ""), template);
             sendJson(exchange, 200, new Json.Obj().put("ok", true).put("id", id));
+            return;
+        }
+        if ("/api/check".equals(path) && "POST".equals(method)) {
+            Json.Obj body = body(exchange);
+            sendJson(exchange, 200, checker.check(projects.projectDir(body.str("project", ""))));
             return;
         }
         if ("/api/import".equals(path) && "POST".equals(method)) {

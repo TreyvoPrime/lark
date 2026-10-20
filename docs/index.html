@@ -3,9 +3,9 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>Lark — Download</title>
+  <title>Lark 3 — Focused Java IDE</title>
   <link rel="icon" href="./favicon.svg">
-  <meta name="description" content="Download Lark Desktop — enterprise Java IDE with update prompts — or the portable zip. No admin password.">
+  <meta name="description" content="Lark 3: a focused Java IDE. Compile, run, debug, and refactor — without the bloat. Desktop or portable zip. No admin password.">
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,500;9..144,700&family=IBM+Plex+Sans:wght@400;500;600&family=IBM+Plex+Mono:wght@500&display=swap" rel="stylesheet">
@@ -102,9 +102,10 @@
       animation: fadeUp 1s ease 0.6s forwards;
     }
     .hero-visual .code-lines span { display: block; white-space: nowrap; overflow: hidden; }
-    .hero-visual .code-lines span:nth-child(1) { animation: typeLine 0.8s steps(24) 0.9s forwards; width: 0; }
-    .hero-visual .code-lines span:nth-child(2) { animation: typeLine 0.7s steps(20) 1.5s forwards; width: 0; }
-    .hero-visual .code-lines span:nth-child(3) { animation: typeLine 0.9s steps(28) 2.1s forwards; width: 0; color: var(--moss); }
+    .hero-visual .code-lines span:nth-child(1) { animation: typeLine 0.8s steps(28) 0.9s forwards; width: 0; }
+    .hero-visual .code-lines span:nth-child(2) { animation: typeLine 0.7s steps(22) 1.5s forwards; width: 0; }
+    .hero-visual .code-lines span:nth-child(3) { animation: typeLine 0.9s steps(30) 2.1s forwards; width: 0; color: var(--moss); }
+    .hero-visual .code-lines span:nth-child(4) { animation: typeLine 0.6s steps(16) 2.9s forwards; width: 0; color: var(--amber); }
     @keyframes typeLine { to { width: 100%; } }
     @keyframes panelFloat {
       0%, 100% { transform: perspective(900px) rotateY(-8deg) rotateX(4deg) translateY(0); }
@@ -145,7 +146,7 @@
     }
     .headline {
       margin: 18px 0 0;
-      max-width: 20ch;
+      max-width: 22ch;
       font-family: Fraunces, Georgia, serif;
       font-weight: 500;
       font-size: clamp(22px, 3.4vw, 34px);
@@ -156,7 +157,7 @@
     }
     .lead {
       margin: 12px 0 0;
-      max-width: 44ch;
+      max-width: 46ch;
       color: var(--mist);
       font-size: 17px;
       line-height: 1.55;
@@ -212,7 +213,43 @@
       font-size: clamp(26px, 3vw, 34px);
       letter-spacing: -0.02em;
     }
-    .section .sub { margin: 0 0 22px; color: var(--mist); max-width: 52ch; }
+    .section .sub { margin: 0 0 22px; color: var(--mist); max-width: 56ch; }
+    .benefits {
+      display: grid;
+      grid-template-columns: repeat(3, 1fr);
+      gap: 14px;
+    }
+    .benefit {
+      background: var(--panel);
+      border: 1px solid var(--line);
+      border-radius: 4px;
+      padding: 22px;
+      opacity: 0;
+      transform: translateY(24px);
+    }
+    .benefit.in {
+      opacity: 1;
+      transform: none;
+      transition: opacity 0.7s ease, transform 0.7s ease, border-color 0.25s ease;
+    }
+    .benefit:hover { border-color: rgba(111, 143, 92, 0.55); }
+    .benefit h3 {
+      margin: 0 0 8px;
+      font-family: Fraunces, Georgia, serif;
+      font-weight: 500;
+      font-size: 22px;
+      letter-spacing: -0.02em;
+    }
+    .benefit p { margin: 0; color: var(--mist); line-height: 1.5; font-size: 14px; }
+    .benefit .tag {
+      display: inline-block;
+      font-family: "IBM Plex Mono", ui-monospace, monospace;
+      font-size: 11px;
+      letter-spacing: 0.12em;
+      text-transform: uppercase;
+      color: var(--amber);
+      margin-bottom: 10px;
+    }
     .grid {
       display: grid;
       grid-template-columns: repeat(3, 1fr);
@@ -296,7 +333,6 @@
     }
     .compare td { color: var(--mist); line-height: 1.45; }
     .compare .yes { color: var(--moss); }
-    .compare code { font-size: 0.88em; }
     .cta-pair {
       display: grid;
       grid-template-columns: 1fr 1fr;
@@ -304,7 +340,7 @@
       margin-top: 8px;
     }
     @media (max-width: 800px) {
-      .cta-pair { grid-template-columns: 1fr; }
+      .cta-pair, .benefits, .grid { grid-template-columns: 1fr; }
     }
     .track-card {
       background: var(--panel);
@@ -371,14 +407,13 @@
     }
     a { color: #9bb58a; }
     @media (max-width: 800px) {
-      .grid { grid-template-columns: 1fr; }
       .hero-visual::after, .hero-visual .code-lines { display: none; }
       .hero { min-height: auto; padding-top: 40px; }
       .hero-visual { position: relative; inset: auto; height: 160px; margin-bottom: 20px; }
     }
     @media (prefers-reduced-motion: reduce) {
       *, *::before, *::after { animation: none !important; transition: none !important; }
-      article, .steps li, .brand, .headline, .lead, .cta, #status, .hero-visual .code-lines {
+      article, .steps li, .benefit, .brand, .headline, .lead, .cta, #status, .hero-visual .code-lines {
         opacity: 1 !important; transform: none !important; width: auto !important;
       }
     }
@@ -386,12 +421,13 @@
 </head>
 <body>
   <div class="wrap">
-    <section class="hero" aria-label="Lark download">
+    <section class="hero" aria-label="Lark 3">
       <div class="hero-visual" aria-hidden="true">
         <div class="code-lines">
-          <span>public class Main {</span>
-          <span>&nbsp;&nbsp;public static void main() {</span>
-          <span>&nbsp;&nbsp;&nbsp;&nbsp;System.out.println("ready");</span>
+          <span>BigInteger n = factorial(100);</span>
+          <span>&nbsp;&nbsp;// Compiles ✓ · Ctrl+M braces</span>
+          <span>&nbsp;&nbsp;System.out.println(n);</span>
+          <span>}</span>
         </div>
       </div>
       <div class="brand">
@@ -399,10 +435,10 @@
           <path d="M3 16c4.2-.7 6-6 9-11 2.8 5 4.8 10.2 9 11" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/>
           <path d="M7 16.5h10" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/>
         </svg>
-        <p class="brand-name">Lark<span>Desktop</span></p>
+        <p class="brand-name">Lark<span>Version 3.0</span></p>
       </div>
-      <h1 class="headline">Two downloads. Pick Desktop or a portable zip.</h1>
-      <p class="lead">Same Java IDE either way — Terminal, themes, GitHub, compile &amp; run. Desktop installs with a shortcut and update prompts. The zip is a folder you unzip and run.</p>
+      <h1 class="headline">Java without the weight.</h1>
+      <p class="lead">Lark is a focused IDE for school labs and small programs — compile, run, debug, and refactor. Not a plugin marketplace. Not a month of setup. Just the tools you actually use.</p>
       <div class="cta">
         <a id="primary-dl" class="primary" href="https://github.com/TreyvoPrime/lark/releases/latest/download/lark-desktop-windows.zip">Download Lark Desktop</a>
         <a id="portable-dl" class="ghost" href="https://github.com/TreyvoPrime/lark/releases/latest/download/lark-windows.zip">Download portable zip</a>
@@ -410,9 +446,46 @@
       <p id="status"></p>
     </section>
 
+    <section class="section" aria-label="Why Lark">
+      <h2>Why Lark stays small</h2>
+      <p class="sub">Prestige is clarity. Lark 3 ships the features that keep you in flow — and leaves the rest out.</p>
+      <div class="benefits">
+        <div class="benefit">
+          <p class="tag">Focus</p>
+          <h3>Not bloated</h3>
+          <p>No plugin zoo, no enterprise panels you never open. One window: explorer, editor, output, debug.</p>
+        </div>
+        <div class="benefit">
+          <p class="tag">Speed</p>
+          <h3>Live compile</h3>
+          <p>See “Compiles” in the footer while you type. Catch nesting and import mistakes before a full Run.</p>
+        </div>
+        <div class="benefit">
+          <p class="tag">Learning</p>
+          <h3>Brace guide</h3>
+          <p>Jump matching braces with Ctrl+M and see the whole block highlighted — nesting stops feeling like fog.</p>
+        </div>
+        <div class="benefit">
+          <p class="tag">Craft</p>
+          <h3>Small refactors</h3>
+          <p>Extract method and introduce variable for the edits students actually make — not a 40-item refactor menu.</p>
+        </div>
+        <div class="benefit">
+          <p class="tag">Find</p>
+          <h3>Project search</h3>
+          <p>Ctrl+Shift+F across files. Presets like BigInteger factorial get you coding in one click.</p>
+        </div>
+        <div class="benefit">
+          <p class="tag">Trust</p>
+          <h3>Portable &amp; Desktop</h3>
+          <p>Bundled JDK, no admin password. Desktop prompts for updates; portable stays a folder you own.</p>
+        </div>
+      </div>
+    </section>
+
     <section class="section" id="compare" aria-label="Desktop vs portable">
       <h2>What’s the difference?</h2>
-      <p class="sub">Both include the full IDE and a bundled JDK. Choose how you want to launch and update.</p>
+      <p class="sub">Both include the full Lark 3 IDE and a bundled JDK. Choose how you want to launch and update.</p>
       <div class="cta-pair">
         <div class="track-card featured">
           <p class="track-badge">Recommended</p>
@@ -424,7 +497,7 @@
         <div class="track-card">
           <p class="track-badge">Portable</p>
           <h3>Lark zip</h3>
-          <p>No installer. Extract All, then run <code>Start Lark.bat</code> / <code>.command</code> / <code>start-lark.sh</code>. Keep the whole folder together. Move it on a USB drive if you want.</p>
+          <p>No installer. Extract All, then run <code>Start Lark.bat</code> / <code>.command</code> / <code>start-lark.sh</code>. Keep the whole folder together.</p>
           <p>File names: <code>lark-windows.zip</code>, <code>lark-mac.zip</code>, <code>lark-linux.zip</code></p>
           <a id="compare-portable" class="dl ghost" href="https://github.com/TreyvoPrime/lark/releases/latest/download/lark-windows.zip">Get portable zip</a>
         </div>
@@ -492,7 +565,7 @@
     <ol class="steps">
       <li>Choose <strong>Desktop</strong> (<code>lark-desktop-…zip</code>) or <strong>portable</strong> (<code>lark-windows.zip</code> / mac / linux).</li>
       <li>Desktop: Extract All → run <code>Install Lark Desktop.ps1</code> (Windows) or the <code>.command</code> installer. Portable: Extract All → run Start Lark.</li>
-      <li>Desktop prompts on updates. Portable can check under Aa → Updates.</li>
+      <li>Open a preset (try BigInteger factorial), Run with Ctrl+Enter, Search with Ctrl+Shift+F.</li>
       <li>Optional: connect GitHub with a classic token that has the <code>repo</code> scope.</li>
     </ol>
 
@@ -545,15 +618,15 @@
       if (el) { el.href = latest(portableFile); }
     });
     document.getElementById("status").textContent =
-      "Detected " + (key === "windows" ? "Windows" : key === "mac" ? "Mac" : "Linux") +
-      " — two links: Desktop (" + desktopFile + ") and portable (" + portableFile + ").";
+      "Lark 3.0 · Detected " + (key === "windows" ? "Windows" : key === "mac" ? "Mac" : "Linux") +
+      " — Desktop (" + desktopFile + ") or portable (" + portableFile + ").";
 
     const io = new IntersectionObserver((entries) => {
       entries.forEach((e) => {
         if (e.isIntersecting) e.target.classList.add("in");
       });
     }, { threshold: 0.18 });
-    document.querySelectorAll("article, .steps li, .track-card").forEach((el, i) => {
+    document.querySelectorAll("article, .steps li, .track-card, .benefit").forEach((el, i) => {
       el.style.transitionDelay = (i % 3) * 90 + "ms";
       io.observe(el);
     });

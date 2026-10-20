@@ -24,6 +24,11 @@
     atelier: "Atelier",
     obsidian: "Obsidian",
     glacier: "Glacier",
+    cedar: "Cedar",
+    inkwell: "Inkwell",
+    porcelain: "Porcelain",
+    hearth: "Hearth",
+    canopy: "Canopy",
     ink: "Desk",
     paper: "Daylight",
     tide: "Moss",
@@ -45,7 +50,8 @@
     "desk", "daylight", "moss", "ember", "fog",
     "blossom", "candy", "midnight", "citrus", "harbor",
     "graphite", "navy", "terminal", "parchment", "ultraviolet", "forest", "monochrome", "amber",
-    "lagoon", "rosewood", "nova", "atelier", "obsidian", "glacier"
+    "lagoon", "rosewood", "nova", "atelier", "obsidian", "glacier",
+    "cedar", "inkwell", "porcelain", "hearth", "canopy"
   ];
   const FONT_STACKS = {
     jetbrains: '"JetBrains Mono", "Cascadia Mono", "Liberation Mono", ui-monospace, monospace',
@@ -86,7 +92,13 @@
     testJob: null,
     testPoll: null,
     discoveredTests: [],
-    paletteItems: []
+    paletteItems: [],
+    compileProblems: [],
+    checkTimer: null,
+    checkSeq: 0,
+    braceMarks: [],
+    searchHits: [],
+    searchIndex: 0
   };
   const docs = new Map();
   const parsedCache = new Map();
@@ -324,6 +336,7 @@
       refreshLocalProblems();
       renderProblems();
       markErrors();
+      scheduleCompileCheck();
       if (state.settings && state.settings.autoSave === false) setSaveStatus("Unsaved");
       else setSaveStatus("Saving…");
     });
@@ -331,6 +344,7 @@
       const cursor = cm.getCursor();
       $("status-cursor").textContent = "Ln " + (cursor.line + 1) + ", Col " + (cursor.ch + 1);
       updateSignatureHelp();
+      updateBraceGuide(cm);
     });
   }
 
@@ -371,7 +385,15 @@
       "F2": () => renameSymbol().catch((e) => toast(e.message)),
       "F5": () => startDebug().catch((e) => toast(e.message)),
       "Ctrl-D": () => renameInFileMulti(),
-      "Cmd-D": () => renameInFileMulti()
+      "Cmd-D": () => renameInFileMulti(),
+      "Ctrl-M": () => jumpMatchingBrace(),
+      "Cmd-M": () => jumpMatchingBrace(),
+      "Shift-Ctrl-F": () => openProjectSearch(),
+      "Shift-Cmd-F": () => openProjectSearch(),
+      "Ctrl-Alt-M": () => extractMethodAtSelection().catch((e) => toast(e.message)),
+      "Cmd-Alt-M": () => extractMethodAtSelection().catch((e) => toast(e.message)),
+      "Ctrl-Alt-V": () => introduceVarAtSelection().catch((e) => toast(e.message)),
+      "Cmd-Alt-V": () => introduceVarAtSelection().catch((e) => toast(e.message))
     };
   }
 
@@ -773,6 +795,9 @@
   function renderTree() {
     const box = $("tree");
     box.replaceChildren();
+    if ($("tray-project")) {
+      $("tray-project").textContent = state.project ? state.project.name : "Project";
+    }
     const root = buildTree();
     if (!root.children.length) {
       const p = document.createElement("p");
@@ -781,7 +806,28 @@
       box.appendChild(p);
       return;
     }
-    root.children.forEach((node) => box.appendChild(renderNode(node, 0)));
+    root.children.forEach((node, i) => {
+      const el = renderNode(node, 0);
+      el.style.animationDelay = Math.min(i, 12) * 18 + "ms";
+      box.appendChild(el);
+    });
+  }
+
+  function fileIcon(node) {
+    const icon = document.createElement("span");
+    icon.className = "tree-icon";
+    if (node.dir) {
+      icon.classList.add("folder");
+      icon.textContent = state.collapsed.has(node.path) ? "▸" : "▾";
+      return icon;
+    }
+    if (node.path.endsWith(".java")) {
+      icon.textContent = "J";
+      return icon;
+    }
+    icon.classList.add("txt");
+    icon.textContent = node.path.endsWith(".txt") ? "T" : "·";
+    return icon;
   }
 
   function renderNode(node, depth) {
@@ -790,16 +836,13 @@
     row.type = "button";
     row.className = "tree-row" + (node.path === state.active ? " active" : "") + (node.path === state.selected ? " selected" : "") + (node.path.endsWith(".java") ? " java" : "");
     row.style.paddingLeft = (8 + depth * 14) + "px";
-    const chev = document.createElement("span");
-    chev.className = "chev";
-    chev.textContent = node.dir ? (state.collapsed.has(node.path) ? "▸" : "▾") : "";
     const name = document.createElement("span");
     name.className = "name";
     name.textContent = node.name;
     const kind = document.createElement("span");
     kind.className = "kind";
-    kind.textContent = node.dir ? "Folder" : node.path.endsWith(".java") ? "Class" : "File";
-    row.append(chev, name, kind);
+    kind.textContent = node.dir ? "dir" : node.path.endsWith(".java") ? ".java" : "file";
+    row.append(fileIcon(node), name, kind);
     row.addEventListener("click", () => {
       state.selected = node.path;
       if (node.dir) {
@@ -1007,6 +1050,216 @@
     });
     return cmB;
   }
+
+
+  function clearBraceGuide() {
+    (state.braceMarks || []).forEach((m) => { try { m.clear(); } catch (e) {} });
+    state.braceMarks = [];
+  }
+
+  function updateBraceGuide(editor) {
+    clearBraceGuide();
+    if (!editor) return;
+    const cur = editor.getCursor();
+    const token = editor.getTokenAt(cur);
+    const ch = editor.getLine(cur.line)[cur.ch] || editor.getLine(cur.line)[cur.ch - 1];
+    let match = null;
+    try {
+      if (ch === "{" || ch === "}" || ch === "(" || ch === ")" || ch === "[" || ch === "]") {
+        match = editor.findMatchingBracket(cur.ch && editor.getLine(cur.line)[cur.ch] ? cur : { line: cur.line, ch: Math.max(0, cur.ch - 1) });
+      } else {
+        match = editor.findMatchingBracket(cur);
+      }
+    } catch (e) { match = null; }
+    if (match && match.match) {
+      state.braceMarks.push(editor.markText(match.from, { line: match.from.line, ch: match.from.ch + 1 }, { className: "cm-brace-pair" }));
+      state.braceMarks.push(editor.markText(match.to, { line: match.to.line, ch: match.to.ch + 1 }, { className: "cm-brace-pair" }));
+      if (match.from.line !== match.to.line) {
+        const start = Math.min(match.from.line, match.to.line);
+        const end = Math.max(match.from.line, match.to.line);
+        for (let line = start; line <= end; line++) {
+          editor.addLineClass(line, "background", "cm-brace-block");
+          state.braceMarks.push({ clear: () => editor.removeLineClass(line, "background", "cm-brace-block") });
+        }
+      }
+    }
+    // Enclosing block guide from source offset
+    const text = editor.getValue();
+    const offset = editor.indexFromPos(cur);
+    const range = window.LarkJava.enclosingBraceRange(text, offset);
+    if (range) {
+      const from = editor.posFromIndex(range.from);
+      const to = editor.posFromIndex(range.to);
+      if (!match || match.from.line !== from.line) {
+        state.braceMarks.push(editor.markText(from, { line: from.line, ch: from.ch + 1 }, { className: "cm-brace-pair" }));
+        state.braceMarks.push(editor.markText(to, { line: to.line, ch: to.ch + 1 }, { className: "cm-brace-pair" }));
+      }
+    }
+  }
+
+  function jumpMatchingBrace() {
+    const editor = activeCm();
+    if (!editor) return;
+    const cur = editor.getCursor();
+    const match = editor.findMatchingBracket(cur) || editor.findMatchingBracket({ line: cur.line, ch: Math.max(0, cur.ch - 1) });
+    if (!match || !match.match) return toast("No matching brace here.");
+    editor.setCursor(match.to);
+    editor.scrollIntoView(match.to, 60);
+    updateBraceGuide(editor);
+  }
+
+  function scheduleCompileCheck() {
+    if (state.checkTimer) clearTimeout(state.checkTimer);
+    state.checkTimer = setTimeout(() => {
+      state.checkTimer = null;
+      runCompileCheck().catch(() => {});
+    }, 1100);
+  }
+
+  async function runCompileCheck() {
+    if (!state.project) return;
+    await flushSaves();
+    const seq = ++state.checkSeq;
+    try {
+      const data = await api("POST", "/api/check", { project: state.project.id });
+      if (seq !== state.checkSeq) return;
+      state.compileProblems = data.problems || [];
+      renderProblems();
+      markErrors();
+      const errCount = state.compileProblems.filter((p) => p.severity === "error").length;
+      if ($("status-check")) {
+        $("status-check").textContent = data.clean ? "Compiles" : (errCount ? errCount + " error" + (errCount === 1 ? "" : "s") : "Warnings");
+        $("status-check").dataset.state = data.clean ? "ok" : (errCount ? "err" : "warn");
+      }
+    } catch (err) {
+      if ($("status-check")) {
+        $("status-check").textContent = "";
+        delete $("status-check").dataset.state;
+      }
+    }
+  }
+
+  function openProjectSearch() {
+    if (!$("modal").hidden) return;
+    closePopovers();
+    const box = $("search-panel");
+    if (!box) return openPalette("open");
+    box.hidden = false;
+    $("search-input").value = "";
+    $("search-results").replaceChildren();
+    $("search-input").focus();
+    state.searchHits = [];
+    state.searchIndex = 0;
+  }
+
+  function closeProjectSearch() {
+    if ($("search-panel")) $("search-panel").hidden = true;
+  }
+
+  function runProjectSearch(query) {
+    const q = (query || "").trim();
+    const list = $("search-results");
+    if (!list) return;
+    list.replaceChildren();
+    state.searchHits = [];
+    if (!q) {
+      list.appendChild(note("Type to search the project."));
+      return;
+    }
+    const lower = q.toLowerCase();
+    state.files.forEach((file) => {
+      if (!file.path.endsWith(".java") && !file.path.endsWith(".txt")) return;
+      const lines = (file.content || "").split("\n");
+      lines.forEach((line, i) => {
+        if (!line.toLowerCase().includes(lower)) return;
+        state.searchHits.push({ file: file.path, line: i + 1, text: line.trim() });
+      });
+    });
+    if (!state.searchHits.length) {
+      list.appendChild(note("No matches."));
+      return;
+    }
+    state.searchHits.slice(0, 80).forEach((hit, index) => {
+      const btn = document.createElement("button");
+      btn.type = "button";
+      btn.className = "search-hit" + (index === state.searchIndex ? " active" : "");
+      btn.innerHTML = "<strong></strong><span></span>";
+      btn.querySelector("strong").textContent = hit.file + ":" + hit.line;
+      btn.querySelector("span").textContent = hit.text.slice(0, 120);
+      btn.addEventListener("click", () => {
+        closeProjectSearch();
+        jumpTo(hit.file, hit.line, 1);
+      });
+      list.appendChild(btn);
+    });
+  }
+
+  async function introduceVarAtSelection() {
+    const editor = activeCm();
+    const path = activePath();
+    if (!editor || !path || !path.endsWith(".java")) return toast("Select an expression in a Java file.");
+    if (!editor.somethingSelected()) return toast("Select the expression first.");
+    const selected = editor.getSelection();
+    const values = await formDialog({
+      title: "Introduce variable",
+      ok: "Introduce",
+      fields: [
+        { name: "name", label: "Name", value: "value" },
+        { name: "type", label: "Type (blank = guess)", value: "" }
+      ]
+    });
+    if (!values) return;
+    const plan = window.LarkJava.introduceVariable(editor.getValue(), selected, values.name.trim(), values.type.trim());
+    if (!plan) return toast("Couldn't introduce a variable from that selection.");
+    const from = editor.getCursor("from");
+    suppress = true;
+    editor.replaceSelection(plan.replacement);
+    editor.replaceRange(plan.declaration + "\n" + (editor.getLine(from.line).match(/^\s*/) || [""])[0], { line: from.line, ch: 0 });
+    suppress = false;
+    let next = editor.getValue();
+    if (plan.importHints && plan.importHints.length) {
+      const withImp = window.LarkJava.ensureImports(next, plan.importHints);
+      if (withImp) {
+        suppress = true;
+        editor.setValue(withImp);
+        suppress = false;
+        next = withImp;
+      }
+    }
+    const file = fileByPath(path);
+    if (file) file.content = next;
+    state.dirty.add(path);
+    afterEdit();
+    toast("Introduced " + values.name.trim() + ".");
+  }
+
+  async function extractMethodAtSelection() {
+    const editor = activeCm();
+    const path = activePath();
+    if (!editor || !path || !path.endsWith(".java")) return toast("Select statements in a Java file.");
+    if (!editor.somethingSelected()) return toast("Select the code to extract first.");
+    const selected = editor.getSelection();
+    const values = await formDialog({
+      title: "Extract method",
+      ok: "Extract",
+      fields: [{ name: "name", label: "Method name", value: "extracted" }]
+    });
+    if (!values) return;
+    const indent = " ".repeat((state.settings && state.settings.indentSize) || 4);
+    const plan = window.LarkJava.extractMethod(editor.getValue(), selected, values.name.trim(), indent);
+    if (!plan) return toast("Couldn't extract that selection.");
+    suppress = true;
+    editor.replaceSelection(plan.call);
+    const end = editor.lastLine();
+    editor.replaceRange(plan.method, { line: end, ch: editor.getLine(end).length });
+    suppress = false;
+    const file = fileByPath(path);
+    if (file) file.content = editor.getValue();
+    state.dirty.add(path);
+    afterEdit();
+    toast(plan.note || ("Extracted " + values.name.trim() + "()."));
+  }
+
 
   function updateSplitButton() {
     const btn = $("split-editor");
@@ -1361,6 +1614,7 @@
     refreshLocalProblems();
     renderProblems();
     markErrors();
+    scheduleCompileCheck();
   }
 
   function insertAtCursor(code) {
@@ -1447,6 +1701,11 @@
     if (act === "usages") { await findUsagesAtCursor(); return; }
     if (act === "rename") { await renameSymbol(); return; }
     if (act === "rename-file") { renameInFileMulti(); return; }
+    if (act === "extract") { await extractMethodAtSelection(); return; }
+    if (act === "introduce") { await introduceVarAtSelection(); return; }
+    if (act === "brace") { jumpMatchingBrace(); return; }
+    if (act === "search") { openProjectSearch(); return; }
+    if (act === "check") { await runCompileCheck(); toast("Compile check finished."); return; }
     const parsed = currentJavaParsed();
     if (!parsed && act !== "explain" && act !== "snippet") return toast("Open a Java class first.");
     if (act === "explain") {
@@ -1556,8 +1815,9 @@
       return;
     }
     if (act === "import") {
-      if (!cm) return;
-      const token = cm.getTokenAt(cm.getCursor()).string.replace(/[^\w]/g, "");
+      const editor = activeCm() || cm;
+      if (!editor) return;
+      const token = editor.getTokenAt(editor.getCursor()).string.replace(/[^\w]/g, "");
       if (!token) return toast("Put the cursor on a type name first.");
       const projectTypes = [];
       state.files.forEach((file) => {
@@ -1574,18 +1834,18 @@
       const already = parsed.imports || [];
       const pick = suggestions.find((s) => !already.includes(s)) || suggestions[0];
       if (already.includes(pick)) return toast(pick + " is already imported.");
-      const text = cm.getValue();
-      let insertAt = 0;
-      const pkgMatch = text.match(/^\s*package\s+[\w.]+\s*;\s*\n/);
-      if (pkgMatch) insertAt = pkgMatch[0].length;
-      const line = "import " + pick + ";\n";
+      const next = window.LarkJava.ensureImports(editor.getValue(), [pick]);
+      if (!next) return toast(pick + " is already imported.");
+      const cursor = editor.getCursor();
       suppress = true;
-      cm.replaceRange(pkgMatch ? line : line + "\n", { line: 0, ch: insertAt }, { line: 0, ch: insertAt });
+      editor.setValue(next);
+      editor.setCursor(cursor);
       suppress = false;
-      const file = fileByPath(state.active);
-      if (file) file.content = cm.getValue();
-      state.dirty.add(state.active);
-      scheduleSave(state.active);
+      const path = activePath() || state.active;
+      const file = fileByPath(path);
+      if (file) file.content = next;
+      state.dirty.add(path);
+      afterEdit();
       toast("Added import " + pick);
       return;
     }
@@ -1616,7 +1876,23 @@
       const type = summary.types.find((t) => t.kind === "class") || summary.types[0];
       if (!type) return toast("No class found in this file.");
       insertBeforeClassClose(window.LarkJava.generateEqualsHashCode(type.name, chosen));
-      toast("Inserted equals and hashCode. Add import java.util.Objects if needed.");
+      const editor = activeCm() || cm;
+      if (editor) {
+        const withImp = window.LarkJava.ensureImports(editor.getValue(), ["java.util.Objects"]);
+        if (withImp) {
+          const cursor = editor.getCursor();
+          suppress = true;
+          editor.setValue(withImp);
+          editor.setCursor(cursor);
+          suppress = false;
+          const path = activePath() || state.active;
+          const file = fileByPath(path);
+          if (file) file.content = withImp;
+          state.dirty.add(path);
+          afterEdit();
+        }
+      }
+      toast("Inserted equals and hashCode.");
       return;
     }
   }
@@ -2263,8 +2539,18 @@
 
   function allProblems() {
     const compile = state.problems || [];
+    const live = state.compileProblems || [];
     const local = state.localProblems || [];
-    return compile.concat(local);
+    // Prefer run diagnostics over live check for same file:line
+    const seen = new Set();
+    const out = [];
+    compile.concat(live).concat(local).forEach((p) => {
+      const key = (p.file || "") + ":" + p.line + ":" + (p.message || p.plain || "");
+      if (seen.has(key)) return;
+      seen.add(key);
+      out.push(p);
+    });
+    return out;
   }
 
   function openPalette(mode) {
@@ -2374,16 +2660,25 @@
   }
 
   async function newProject() {
+    let options = ["empty", "library", "factorial", "quiz", "sorting", "recursion", "calculator", "grades"];
+    try {
+      const catalog = await api("GET", "/api/templates");
+      if (catalog.templates && catalog.templates.length) {
+        options = catalog.templates.map((t) => t.id + " — " + t.name);
+      }
+    } catch (_) {}
     const values = await formDialog({
       title: "New project",
       ok: "Create",
+      note: "Pick a preset to start with working Java you can Run immediately.",
       fields: [
         { name: "name", label: "Name", value: "" },
-        { name: "template", label: "Start from", type: "select", value: "empty", options: ["empty", "library"] }
+        { name: "template", label: "Preset", type: "select", value: options[0], options: options }
       ]
     });
     if (!values || !values.name.trim()) return;
-    const data = await api("POST", "/api/projects", { name: values.name.trim(), template: values.template });
+    const template = String(values.template || "empty").split(" — ")[0].trim();
+    const data = await api("POST", "/api/projects", { name: values.name.trim(), template: template });
     await refreshProjects(data.id);
   }
 
@@ -2862,24 +3157,123 @@
     }
   }
 
+  function findJavaBySimpleName(simple) {
+    if (!simple) return null;
+    return state.files.find((f) => f.path.endsWith("/" + simple + ".java") || f.path === simple + ".java") || null;
+  }
+
+  function jumpDebugLocation(className, line) {
+    const cls = className || "";
+    const simple = cls.includes(".") ? cls.slice(cls.lastIndexOf(".") + 1) : cls;
+    const file = findJavaBySimpleName(simple);
+    if (!file) return toast("Couldn't find source for " + (simple || "that frame") + ".");
+    jumpTo(file.path, line || 1, 1);
+  }
+
+  function parseDebugStack(output) {
+    const frames = [];
+    const text = output || "";
+    const re = /\[(\d+)\]\s+([\w.$]+)\s+\(([^:)]+):(\d+)\)/g;
+    let m;
+    while ((m = re.exec(text)) !== null) {
+      frames.push({
+        depth: m[1],
+        method: m[2],
+        file: m[3].replace(/\.java$/, ""),
+        line: Number(m[4])
+      });
+      if (frames.length >= 24) break;
+    }
+    return frames;
+  }
+
   function renderDebug(session) {
     const pre = $("debug-out");
     if (pre) {
       const stick = pre.scrollHeight - pre.scrollTop - pre.clientHeight < 48;
       pre.textContent = (session && session.output) || "";
       if (stick) pre.scrollTop = pre.scrollHeight;
+      pre.onclick = (event) => {
+        const lineEl = event.target;
+        if (!lineEl || lineEl !== pre) {
+          // Allow selecting text; jump when user double-clicks a stack-looking line.
+        }
+      };
+      pre.ondblclick = () => {
+        const sel = (window.getSelection() || "").toString().trim();
+        const hit = sel.match(/([\w.$]+)\s*\(([^:)]+):(\d+)\)/) || sel.match(/([\w.$]+):(\d+)/);
+        if (!hit) return;
+        if (hit.length === 4) jumpDebugLocation(hit[2].replace(/\.java$/, ""), Number(hit[3]));
+        else jumpDebugLocation(hit[1], Number(hit[2]));
+      };
     }
     const locals = $("debug-locals");
     if (locals) {
+      locals.replaceChildren();
       const list = (session && session.locals) || [];
-      locals.textContent = list.length ? list.join("\n") : "Locals appear when paused (click Locals).";
+      if (!list.length) {
+        locals.appendChild(note("Locals appear when paused — click Locals."));
+      } else {
+        list.forEach((line) => {
+          const btn = document.createElement("button");
+          btn.type = "button";
+          btn.className = "debug-local";
+          btn.textContent = line;
+          btn.title = "Jump to paused line";
+          btn.addEventListener("click", () => {
+            if (session && session.currentLine) {
+              jumpDebugLocation(session.currentClass, session.currentLine);
+            }
+          });
+          locals.appendChild(btn);
+        });
+      }
+    }
+    const stack = $("debug-stack");
+    if (stack) {
+      stack.replaceChildren();
+      const frames = parseDebugStack((session && session.output) || "");
+      if (session && session.currentClass && session.currentLine) {
+        frames.unshift({
+          depth: "0",
+          method: session.currentClass,
+          file: (session.currentClass || "").split(".").pop(),
+          line: session.currentLine,
+          current: true
+        });
+      }
+      const seen = new Set();
+      const unique = frames.filter((f) => {
+        const key = f.file + ":" + f.line + ":" + f.method;
+        if (seen.has(key)) return false;
+        seen.add(key);
+        return true;
+      });
+      if (!unique.length) {
+        stack.appendChild(note("Stack frames appear when paused."));
+      } else {
+        unique.forEach((frame) => {
+          const btn = document.createElement("button");
+          btn.type = "button";
+          btn.className = "debug-frame" + (frame.current ? " active" : "");
+          btn.innerHTML = "<div></div><div class=\"frame-meta\"></div>";
+          btn.firstChild.textContent = frame.method;
+          btn.lastChild.textContent = frame.file + ".java:" + frame.line;
+          btn.addEventListener("click", () => jumpDebugLocation(frame.file, frame.line));
+          stack.appendChild(btn);
+        });
+      }
     }
     if ($("dbg-status")) {
       const phase = (session && session.phase) || "idle";
       const where = session && session.currentLine
         ? (" · " + (session.currentClass || "") + ":" + session.currentLine)
         : "";
-      $("dbg-status").textContent = phase + where;
+      $("dbg-status").textContent = (phase === "paused" ? "Paused here" : phase) + where;
+      $("dbg-status").dataset.phase = phase;
+    }
+    if ($("debug-bar")) {
+      $("debug-bar").classList.toggle("paused", !!(session && session.phase === "paused"));
     }
     if (state.debugLineMark && state.debugLineMark.doc) {
       state.debugLineMark.doc.removeLineClass(state.debugLineMark.line, "background", "cm-debug-line");
@@ -2888,10 +3282,7 @@
     if (session && session.currentLine && session.phase === "paused") {
       const cls = session.currentClass || "";
       const simple = cls.includes(".") ? cls.slice(cls.lastIndexOf(".") + 1) : cls;
-      let file = null;
-      if (simple) {
-        file = state.files.find((f) => f.path.endsWith("/" + simple + ".java") || f.path === simple + ".java");
-      }
+      const file = findJavaBySimpleName(simple);
       if (file) {
         jumpTo(file.path, session.currentLine, 1);
         const doc = docs.get(file.path);
@@ -3110,6 +3501,44 @@
       togglePopover(event.currentTarget);
     });
     if ($("beautify")) $("beautify").addEventListener("click", () => beautifyActiveFile());
+    if ($("project-search")) $("project-search").addEventListener("click", () => openProjectSearch());
+    if ($("search-close")) $("search-close").addEventListener("click", () => closeProjectSearch());
+    if ($("search-input")) {
+      $("search-input").addEventListener("input", () => runProjectSearch($("search-input").value));
+      $("search-input").addEventListener("keydown", (event) => {
+        const hits = state.searchHits || [];
+        if (event.key === "Escape") {
+          event.preventDefault();
+          closeProjectSearch();
+          return;
+        }
+        if (event.key === "ArrowDown") {
+          event.preventDefault();
+          state.searchIndex = Math.min(hits.length - 1, (state.searchIndex || 0) + 1);
+          runProjectSearch($("search-input").value);
+          return;
+        }
+        if (event.key === "ArrowUp") {
+          event.preventDefault();
+          state.searchIndex = Math.max(0, (state.searchIndex || 0) - 1);
+          runProjectSearch($("search-input").value);
+          return;
+        }
+        if (event.key === "Enter") {
+          event.preventDefault();
+          const hit = hits[state.searchIndex || 0];
+          if (hit) {
+            closeProjectSearch();
+            jumpTo(hit.file, hit.line, 1);
+          }
+        }
+      });
+    }
+    if ($("search-panel")) {
+      $("search-panel").addEventListener("click", (event) => {
+        if (event.target === $("search-panel")) closeProjectSearch();
+      });
+    }
     if ($("brand-home")) {
       $("brand-home").addEventListener("click", () => {
         closePopovers();
@@ -3401,10 +3830,28 @@
     window.addEventListener("keydown", (event) => {
       const key = event.key.toLowerCase();
       if (event.key === "Escape") {
+        if ($("search-panel") && !$("search-panel").hidden) { closeProjectSearch(); return; }
         if (!$("palette").hidden) { $("palette").hidden = true; return; }
         if (!$("modal").hidden) { closeModal(null); return; }
         if (!$("drawer").hidden) { closeDrawer(); return; }
         closePopovers();
+      }
+      if ((event.ctrlKey || event.metaKey) && event.shiftKey && key === "f") {
+        event.preventDefault();
+        openProjectSearch();
+        return;
+      }
+      if ((event.ctrlKey || event.metaKey) && event.altKey && key === "m") {
+        if (!$("modal").hidden || isDialogTyping()) return;
+        event.preventDefault();
+        extractMethodAtSelection().catch((err) => toast(err.message));
+        return;
+      }
+      if ((event.ctrlKey || event.metaKey) && event.altKey && key === "v") {
+        if (!$("modal").hidden || isDialogTyping()) return;
+        event.preventDefault();
+        introduceVarAtSelection().catch((err) => toast(err.message));
+        return;
       }
       if ((event.ctrlKey || event.metaKey) && event.key === "Enter") {
         if (!$("modal").hidden || isDialogTyping()) return;
