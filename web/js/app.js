@@ -2330,6 +2330,48 @@
     return false;
   }
 
+  /** Stop focus/overflow from scrolling the file tray off the left edge. */
+  function pinLayoutScroll() {
+    ["shell", "workspace", "center", "files", "console"].forEach((id) => {
+      const el = $(id);
+      if (!el) return;
+      if (el.scrollLeft) el.scrollLeft = 0;
+    });
+    if (document.documentElement.scrollLeft) document.documentElement.scrollLeft = 0;
+    if (document.body.scrollLeft) document.body.scrollLeft = 0;
+  }
+
+  function fitConsoleForReply(show) {
+    const style = document.documentElement.style;
+    const current = clampPanel(
+      getComputedStyle(document.documentElement).getPropertyValue("--console-h"),
+      72, 640, 188
+    );
+    if (show) {
+      if (state._consoleHBeforeReply == null) state._consoleHBeforeReply = current;
+      // One compact reply row needs ~48px on top of output; keep trays in place.
+      const needed = Math.max(current, Math.min(280, state._consoleHBeforeReply + 56));
+      const centerH = $("center") ? $("center").getBoundingClientRect().height : 0;
+      const max = centerH > 0 ? Math.max(140, centerH - 96) : needed;
+      style.setProperty("--console-h", Math.min(needed, max) + "px");
+    } else if (state._consoleHBeforeReply != null) {
+      style.setProperty("--console-h", state._consoleHBeforeReply + "px");
+      delete state._consoleHBeforeReply;
+    }
+    pinLayoutScroll();
+  }
+
+  function focusConsoleInput() {
+    const input = $("console-input");
+    if (!input) return;
+    try {
+      input.focus({ preventScroll: true });
+    } catch (e) {
+      input.focus();
+    }
+    pinLayoutScroll();
+  }
+
   function setRunning(running, acceptsInput) {
     $("run").textContent = running ? "Stop" : "Run";
     const reply = $("console-reply");
@@ -2337,21 +2379,25 @@
     const show = !!(running && acceptsInput);
     const wasHidden = reply.hidden;
     reply.hidden = !show;
+    fitConsoleForReply(show);
     if (!show) {
       delete reply.dataset.armed;
+      pinLayoutScroll();
       return;
     }
     // Only steal focus the first time the reply box appears — never while naming a class.
+    // preventScroll: focusing used to scroll #workspace and shove the file tray off-screen.
     if (wasHidden || !reply.dataset.armed) {
       reply.dataset.armed = "1";
-      const input = $("console-input");
-      if (input && !isDialogTyping()) {
+      if (!isDialogTyping()) {
         setTimeout(() => {
           if (isDialogTyping()) return;
           if (reply.hidden) return;
-          input.focus();
+          focusConsoleInput();
         }, 120);
       }
+    } else {
+      pinLayoutScroll();
     }
   }
 
@@ -2362,7 +2408,7 @@
     input.value = "";
     try {
       await api("POST", "/api/run/" + state.job.id + "/input", { text: text });
-      input.focus();
+      focusConsoleInput();
     } catch (err) {
       toast(err.message);
     }
@@ -4200,6 +4246,13 @@
       refreshAllEditors();
     });
     bindSplitters();
+    ["shell", "workspace", "center"].forEach((id) => {
+      const el = $(id);
+      if (!el) return;
+      el.addEventListener("scroll", () => {
+        if (el.scrollLeft !== 0) el.scrollLeft = 0;
+      }, { passive: true });
+    });
     if (document.fonts && document.fonts.ready) {
       document.fonts.ready.then(() => refreshAllEditors()).catch(() => {});
     }

@@ -1113,6 +1113,9 @@ select:focus, input:focus, textarea:focus, button:focus-visible {
   overflow: hidden;
   width: 100%;
   max-width: 100%;
+  /* Stay in the first grid track — never scroll away when the console steals focus */
+  justify-self: stretch;
+  z-index: 2;
   background:
     linear-gradient(180deg, color-mix(in srgb, var(--accent) 5%, var(--bg-elev)), var(--bg-elev) 40px);
 }
@@ -1217,9 +1220,13 @@ select:focus, input:focus, textarea:focus, button:focus-visible {
 }
 #center {
   display: grid;
-  grid-template-rows: minmax(96px, 1fr) var(--console-h);
+  /* minmax(0, …) so the console cannot grow past --console-h and shove the layout */
+  grid-template-rows: minmax(0, 1fr) minmax(0, var(--console-h));
   min-height: 0;
   min-width: 0;
+  overflow: hidden;
+  width: 100%;
+  max-width: 100%;
 }
 .pane-head {
   height: 32px;
@@ -1687,12 +1694,31 @@ body.split-on #split-editor { color: var(--accent, var(--moss, #6f8f5c)); }
 #empty h2 { font-family: var(--font); font-weight: 600; font-size: 22px; margin: 0 0 8px; }
 #empty p { margin: 0 0 16px; color: var(--muted); }
 
-#console { border-top: 1px solid var(--line); display: flex; flex-direction: column; position: relative; }
-#console .pane-head { text-transform: none; letter-spacing: 0; }
-.tabs-inline { display: flex; gap: 4px; }
+#console {
+  border-top: 1px solid var(--line);
+  display: flex;
+  flex-direction: column;
+  position: relative;
+  min-height: 0;
+  min-width: 0;
+  height: 100%;
+  max-height: 100%;
+  overflow: hidden;
+  width: 100%;
+  max-width: 100%;
+}
+#console .pane-head {
+  text-transform: none;
+  letter-spacing: 0;
+  flex: none;
+  min-width: 0;
+  overflow-x: auto;
+  overflow-y: hidden;
+}
+.tabs-inline { display: flex; gap: 4px; flex: none; }
 .tabs-inline button.on { color: var(--text); background: var(--hover); }
-.args { margin-left: auto; display: flex; align-items: center; gap: 6px; color: var(--muted); font-size: 12px; }
-.args input { width: 180px; padding: 4px 8px; }
+.args { margin-left: auto; display: flex; align-items: center; gap: 6px; color: var(--muted); font-size: 12px; flex: none; }
+.args input { width: min(180px, 28vw); max-width: 180px; padding: 4px 8px; }
 #console-out, #problems {
   margin: 0;
   flex: 1;
@@ -1793,28 +1819,40 @@ button.linkish {
 }
 .console-reply {
   display: flex;
-  flex-wrap: wrap;
+  flex-wrap: nowrap;
   gap: 8px;
   align-items: center;
+  flex: none;
+  width: 100%;
+  max-width: 100%;
+  min-width: 0;
+  box-sizing: border-box;
   border-top: 1px solid var(--accent);
-  padding: 8px 10px;
+  padding: 6px 10px;
   background: color-mix(in srgb, var(--accent) 12%, var(--bg-elev));
   animation: reply-pulse 1.6s ease-in-out infinite;
 }
 .console-reply[hidden] { display: none; animation: none; }
 .console-reply-label {
-  flex: 0 0 100%;
+  flex: 0 1 auto;
+  min-width: 0;
   font-size: 12px;
   color: var(--accent);
   font-weight: 600;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  max-width: 42%;
 }
 .console-reply input {
-  flex: 1;
+  flex: 1 1 auto;
   min-width: 0;
+  width: 0; /* flex item: share row without forcing parent wider */
   border: 1px solid var(--accent);
   background: var(--bg);
 }
 .console-reply button {
+  flex: none;
   border: 1px solid var(--line);
   background: var(--bg);
   border-radius: 5px;
@@ -1917,8 +1955,23 @@ body.edition-desktop .brand .word::after {
   font-weight: 500;
 }
 body.edition-desktop .brand .word .ver { display: none; }
-#stdin-wrap { border-top: 1px solid var(--line); padding: 4px 12px 8px; color: var(--muted); font-size: 12px; }
-#stdin-wrap textarea { width: 100%; margin-top: 6px; resize: vertical; }
+#stdin-wrap {
+  border-top: 1px solid var(--line);
+  padding: 4px 12px 8px;
+  color: var(--muted);
+  font-size: 12px;
+  flex: none;
+  min-width: 0;
+  max-width: 100%;
+  overflow: hidden;
+}
+#stdin-wrap textarea {
+  width: 100%;
+  max-width: 100%;
+  box-sizing: border-box;
+  margin-top: 6px;
+  resize: vertical;
+}
 #terminal-pane {
   display: flex;
   flex-direction: column;
