@@ -64,6 +64,10 @@ https://github.com/TreyvoPrime/lark/releases/latest/download/lark-mobile-linux.z
 
 Do not open launchers from inside a zip preview / Temp folder.
 
+## What’s new in 3.2.2
+
+- **Homework code blocks** — fill/print array, sum/min/max, linear search, count occurrences, sentinel read, menu loop, file I/O, String split, 2D fill, copy/reverse array (Java menu + Ctrl+Space; Mobile Edit/More)
+
 ## What’s new in 3.2.1
 
 - **Matrix print auto-block** — Java → Insert matrix print loops (or Ctrl+Space `matrix` / `matblock`) inserts a sample `int[][]` and nested for-loops that print each row; same action on Lark Mobile (Edit / More)

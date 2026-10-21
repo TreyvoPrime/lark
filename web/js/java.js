@@ -58,6 +58,17 @@
       "    }\n" +
       "    System.out.println();\n" +
       "}" },
+    { id: "arrfill", trigger: "arrfill", label: "fill + print 1D array (Scanner)", text: null },
+    { id: "arrstats", trigger: "arrstats", label: "array sum / average / min / max", text: null },
+    { id: "linsearch", trigger: "linsearch", label: "linear search", text: null },
+    { id: "countocc", trigger: "countocc", label: "count occurrences", text: null },
+    { id: "sentinel", trigger: "sentinel", label: "read until sentinel", text: null },
+    { id: "menu", trigger: "menu", label: "menu loop (do / switch)", text: null },
+    { id: "fileio", trigger: "fileio", label: "file read / write", text: null },
+    { id: "splitloop", trigger: "splitloop", label: "String split + loop", text: null },
+    { id: "matfill", trigger: "matfill", label: "2D array fill (nested loops)", text: null },
+    { id: "arrcopy", trigger: "arrcopy", label: "copy array", text: null },
+    { id: "arrrev", trigger: "arrrev", label: "reverse array", text: null },
     { id: "foreach", trigger: "foreach", label: "for-each loop", text:
       "for (Type item : collection) {\n    \n}" },
     { id: "while", trigger: "while", label: "while loop", text:
@@ -741,9 +752,19 @@
     );
   }
 
+  function ident(name, fallback) {
+    const s = String(name == null ? "" : name).replace(/[^\w$]/g, "");
+    return s || fallback;
+  }
+
+  function intOr(value, fallback) {
+    const n = parseInt(value, 10);
+    return Number.isFinite(n) && n > 0 ? n : fallback;
+  }
+
   /** Nested for-loops that print a 2D int matrix (sample data + print, or loops only). */
   function generateMatrixPrint(varName, includeSample) {
-    const name = String(varName || "matrix").replace(/[^\w$]/g, "") || "matrix";
+    const name = ident(varName, "matrix");
     const sample =
       "int[][] " + name + " = {\n" +
       "    {1, 2, 3},\n" +
@@ -759,6 +780,223 @@
       "}";
     return (includeSample === false ? "" : sample) + loops;
   }
+
+  const HOMEWORK_BLOCK_IDS = [
+    "arrfill", "arrstats", "linsearch", "countocc", "sentinel",
+    "menu", "fileio", "splitloop", "matfill", "arrcopy", "arrrev"
+  ];
+
+  /** Homework-style multi-line blocks (array fill, search, menu, file I/O, …). */
+  function generateHomeworkBlock(kind, options) {
+    const opts = options || {};
+    switch (String(kind || "")) {
+      case "arrfill": {
+        const name = ident(opts.name, "nums");
+        const size = intOr(opts.size, 10);
+        return (
+          "Scanner in = new Scanner(System.in);\n" +
+          "int[] " + name + " = new int[" + size + "];\n" +
+          "System.out.println(\"Enter " + size + " integers:\");\n" +
+          "for (int i = 0; i < " + name + ".length; i++) {\n" +
+          "    " + name + "[i] = in.nextInt();\n" +
+          "}\n" +
+          "System.out.print(\"Array: \");\n" +
+          "for (int i = 0; i < " + name + ".length; i++) {\n" +
+          "    System.out.print(" + name + "[i] + \" \");\n" +
+          "}\n" +
+          "System.out.println();"
+        );
+      }
+      case "arrstats": {
+        const name = ident(opts.name, "nums");
+        return (
+          "int sum = 0;\n" +
+          "int min = " + name + "[0];\n" +
+          "int max = " + name + "[0];\n" +
+          "for (int i = 0; i < " + name + ".length; i++) {\n" +
+          "    sum += " + name + "[i];\n" +
+          "    if (" + name + "[i] < min) min = " + name + "[i];\n" +
+          "    if (" + name + "[i] > max) max = " + name + "[i];\n" +
+          "}\n" +
+          "double average = (double) sum / " + name + ".length;\n" +
+          "System.out.println(\"Sum: \" + sum);\n" +
+          "System.out.println(\"Average: \" + average);\n" +
+          "System.out.println(\"Min: \" + min);\n" +
+          "System.out.println(\"Max: \" + max);"
+        );
+      }
+      case "linsearch": {
+        const name = ident(opts.name, "nums");
+        const target = ident(opts.target, "target");
+        return (
+          "int " + target + " = 0; // value to find\n" +
+          "int index = -1;\n" +
+          "for (int i = 0; i < " + name + ".length; i++) {\n" +
+          "    if (" + name + "[i] == " + target + ") {\n" +
+          "        index = i;\n" +
+          "        break;\n" +
+          "    }\n" +
+          "}\n" +
+          "if (index >= 0) {\n" +
+          "    System.out.println(\"Found at index \" + index);\n" +
+          "} else {\n" +
+          "    System.out.println(\"Not found\");\n" +
+          "}"
+        );
+      }
+      case "countocc": {
+        if (String(opts.mode || "array").toLowerCase().indexOf("string") >= 0) {
+          const text = ident(opts.name, "text");
+          const needle = ident(opts.needle, "ch");
+          return (
+            "String " + text + " = \"hello\";\n" +
+            "char " + needle + " = 'l';\n" +
+            "int count = 0;\n" +
+            "for (int i = 0; i < " + text + ".length(); i++) {\n" +
+            "    if (" + text + ".charAt(i) == " + needle + ") {\n" +
+            "        count++;\n" +
+            "    }\n" +
+            "}\n" +
+            "System.out.println(\"Count: \" + count);"
+          );
+        }
+        const name = ident(opts.name, "nums");
+        const target = ident(opts.target, "target");
+        return (
+          "int " + target + " = 0; // value to count\n" +
+          "int count = 0;\n" +
+          "for (int i = 0; i < " + name + ".length; i++) {\n" +
+          "    if (" + name + "[i] == " + target + ") {\n" +
+          "        count++;\n" +
+          "    }\n" +
+          "}\n" +
+          "System.out.println(\"Count: \" + count);"
+        );
+      }
+      case "sentinel": {
+        if (String(opts.mode || "int").toLowerCase().indexOf("string") >= 0 ||
+            String(opts.mode || "").toLowerCase().indexOf("quit") >= 0) {
+          return (
+            "Scanner in = new Scanner(System.in);\n" +
+            "System.out.println(\"Enter words (quit to stop):\");\n" +
+            "String word = in.next();\n" +
+            "while (!word.equalsIgnoreCase(\"quit\")) {\n" +
+            "    System.out.println(\"You typed: \" + word);\n" +
+            "    word = in.next();\n" +
+            "}"
+          );
+        }
+        return (
+          "Scanner in = new Scanner(System.in);\n" +
+          "System.out.println(\"Enter integers (-1 to stop):\");\n" +
+          "int value = in.nextInt();\n" +
+          "while (value != -1) {\n" +
+          "    System.out.println(\"You entered: \" + value);\n" +
+          "    value = in.nextInt();\n" +
+          "}"
+        );
+      }
+      case "menu":
+        return (
+          "Scanner in = new Scanner(System.in);\n" +
+          "boolean done = false;\n" +
+          "do {\n" +
+          "    System.out.println(\"1) Option A\");\n" +
+          "    System.out.println(\"2) Option B\");\n" +
+          "    System.out.println(\"3) Quit\");\n" +
+          "    System.out.print(\"Choice: \");\n" +
+          "    int choice = in.nextInt();\n" +
+          "    switch (choice) {\n" +
+          "        case 1:\n" +
+          "            System.out.println(\"You picked A\");\n" +
+          "            break;\n" +
+          "        case 2:\n" +
+          "            System.out.println(\"You picked B\");\n" +
+          "            break;\n" +
+          "        case 3:\n" +
+          "            done = true;\n" +
+          "            break;\n" +
+          "        default:\n" +
+          "            System.out.println(\"Invalid choice\");\n" +
+          "            break;\n" +
+          "    }\n" +
+          "} while (!done);"
+        );
+      case "fileio": {
+        const mode = String(opts.mode || "both").toLowerCase();
+        const readBlock =
+          "try (Scanner fileIn = new Scanner(new java.io.File(\"input.txt\"))) {\n" +
+          "    while (fileIn.hasNextLine()) {\n" +
+          "        String line = fileIn.nextLine();\n" +
+          "        System.out.println(line);\n" +
+          "    }\n" +
+          "}";
+        const writeBlock =
+          "try (java.io.PrintWriter fileOut = new java.io.PrintWriter(\"output.txt\")) {\n" +
+          "    fileOut.println(\"Hello, file!\");\n" +
+          "}";
+        if (mode.indexOf("read") >= 0 && mode.indexOf("write") < 0 && mode.indexOf("both") < 0) {
+          return readBlock;
+        }
+        if (mode.indexOf("write") >= 0 && mode.indexOf("read") < 0 && mode.indexOf("both") < 0) {
+          return writeBlock;
+        }
+        return readBlock + "\n\n" + writeBlock;
+      }
+      case "splitloop":
+        return (
+          "String line = \"apple,banana,cherry\";\n" +
+          "String[] parts = line.split(\",\");\n" +
+          "for (String part : parts) {\n" +
+          "    System.out.println(part);\n" +
+          "}"
+        );
+      case "matfill": {
+        const name = ident(opts.name, "matrix");
+        const rows = intOr(opts.rows, 3);
+        const cols = intOr(opts.cols, 3);
+        return (
+          "Scanner in = new Scanner(System.in);\n" +
+          "int[][] " + name + " = new int[" + rows + "][" + cols + "];\n" +
+          "System.out.println(\"Enter " + rows + "x" + cols + " integers:\");\n" +
+          "for (int i = 0; i < " + name + ".length; i++) {\n" +
+          "    for (int j = 0; j < " + name + "[i].length; j++) {\n" +
+          "        " + name + "[i][j] = in.nextInt();\n" +
+          "    }\n" +
+          "}"
+        );
+      }
+      case "arrcopy": {
+        const name = ident(opts.name, "nums");
+        const copy = ident(opts.copy, name + "Copy");
+        return (
+          "int[] " + copy + " = new int[" + name + ".length];\n" +
+          "for (int i = 0; i < " + name + ".length; i++) {\n" +
+          "    " + copy + "[i] = " + name + "[i];\n" +
+          "}"
+        );
+      }
+      case "arrrev": {
+        const name = ident(opts.name, "nums");
+        return (
+          "for (int i = 0; i < " + name + ".length / 2; i++) {\n" +
+          "    int temp = " + name + "[i];\n" +
+          "    " + name + "[i] = " + name + "[" + name + ".length - 1 - i];\n" +
+          "    " + name + "[" + name + ".length - 1 - i] = temp;\n" +
+          "}"
+        );
+      }
+      default:
+        return "";
+    }
+  }
+
+  // Fill homework snippet bodies from generators (keeps Ctrl+Space text in sync).
+  SNIPPETS.forEach((s) => {
+    if (s.text == null && HOMEWORK_BLOCK_IDS.indexOf(s.id) >= 0) {
+      s.text = generateHomeworkBlock(s.id, {});
+    }
+  });
 
   function generateToString(className, fields) {
     const list = fields || [];
@@ -1536,6 +1774,8 @@
     generateConstructor: generateConstructor,
     generateMain: generateMain,
     generateMatrixPrint: generateMatrixPrint,
+    generateHomeworkBlock: generateHomeworkBlock,
+    homeworkBlockIds: HOMEWORK_BLOCK_IDS.slice(),
     generateToString: generateToString,
     generateEqualsHashCode: generateEqualsHashCode,
     classSummary: classSummary,

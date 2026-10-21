@@ -1800,6 +1800,124 @@
     cm.focus();
   }
 
+  async function insertHomeworkBlock(kind) {
+    if (!window.LarkJava || !window.LarkJava.generateHomeworkBlock) return null;
+    const snip = (window.LarkJava.snippets || []).find((s) => s.id === kind);
+    const label = snip ? snip.label : kind;
+    let options = {};
+    if (kind === "arrfill") {
+      const values = await formDialog({
+        title: "Fill + print array",
+        ok: "Insert",
+        note: "Reads ints from Scanner into an array, then prints them.",
+        fields: [
+          { name: "name", label: "Array variable name", value: "nums" },
+          { name: "size", label: "Length", value: "10" }
+        ]
+      });
+      if (!values) return null;
+      options = { name: values.name, size: values.size };
+    } else if (kind === "arrstats" || kind === "arrcopy" || kind === "arrrev") {
+      const values = await formDialog({
+        title: label,
+        ok: "Insert",
+        note: "Uses an existing int[] (or rename to match yours).",
+        fields: [{ name: "name", label: "Array variable name", value: "nums" }]
+      });
+      if (!values) return null;
+      options = { name: values.name };
+    } else if (kind === "linsearch") {
+      const values = await formDialog({
+        title: "Linear search",
+        ok: "Insert",
+        note: "Scans the array for a target value and reports the index.",
+        fields: [
+          { name: "name", label: "Array variable name", value: "nums" },
+          { name: "target", label: "Target variable name", value: "target" }
+        ]
+      });
+      if (!values) return null;
+      options = { name: values.name, target: values.target };
+    } else if (kind === "countocc") {
+      const values = await formDialog({
+        title: "Count occurrences",
+        ok: "Insert",
+        note: "Tally how many times a value appears in an array or a char in a String.",
+        fields: [
+          {
+            name: "mode",
+            label: "Count in",
+            type: "select",
+            value: "array of ints",
+            options: ["array of ints", "characters in a String"]
+          },
+          { name: "name", label: "Array or String name", value: "nums" }
+        ]
+      });
+      if (!values) return null;
+      options = {
+        mode: String(values.mode || "").indexOf("String") >= 0 ? "string" : "array",
+        name: values.name
+      };
+    } else if (kind === "sentinel") {
+      const values = await formDialog({
+        title: "Read until sentinel",
+        ok: "Insert",
+        note: "Keeps reading from Scanner until a stop value.",
+        fields: [{
+          name: "mode",
+          label: "Sentinel style",
+          type: "select",
+          value: "integers until -1",
+          options: ["integers until -1", "words until quit"]
+        }]
+      });
+      if (!values) return null;
+      options = {
+        mode: String(values.mode || "").indexOf("quit") >= 0 ? "string" : "int"
+      };
+    } else if (kind === "fileio") {
+      const values = await formDialog({
+        title: "File read / write",
+        ok: "Insert",
+        note: "try-with-resources using Scanner and/or PrintWriter.",
+        fields: [{
+          name: "mode",
+          label: "What to insert",
+          type: "select",
+          value: "read and write",
+          options: ["read and write", "read only", "write only"]
+        }]
+      });
+      if (!values) return null;
+      const m = String(values.mode || "");
+      options = {
+        mode: m.indexOf("read only") >= 0 ? "read" : m.indexOf("write only") >= 0 ? "write" : "both"
+      };
+    } else if (kind === "matfill") {
+      const values = await formDialog({
+        title: "2D array fill",
+        ok: "Insert",
+        note: "Nested loops that fill matrix[i][j] from Scanner. Pair with matrix print.",
+        fields: [
+          { name: "name", label: "Matrix variable name", value: "matrix" },
+          { name: "rows", label: "Rows", value: "3" },
+          { name: "cols", label: "Columns", value: "3" }
+        ]
+      });
+      if (!values) return null;
+      options = { name: values.name, rows: values.rows, cols: values.cols };
+    } else if (kind === "menu" || kind === "splitloop") {
+      // no options
+    } else {
+      return null;
+    }
+    const code = window.LarkJava.generateHomeworkBlock(kind, options);
+    if (!code) return null;
+    insertAtCursor(code);
+    return label;
+  }
+
   function insertBeforeClassClose(code) {
     if (!cm || !code) return;
     const text = cm.getValue();
@@ -1892,7 +2010,7 @@
           window.LarkJava.explain("extends") + "\n\n" +
           window.LarkJava.explain("implements") + "\n\n" +
           window.LarkJava.explain("super") + "\n\n" +
-          "Tip: press Ctrl+Space and type main, fori, matrix, sout, try, scanner, list… to autofill building blocks.",
+          "Tip: press Ctrl+Space and type main, fori, matrix, arrfill, menu, sentinel… to autofill building blocks.",
         fields: []
       });
       return;
@@ -1903,7 +2021,7 @@
       const values = await formDialog({
         title: "Insert building block",
         ok: "Insert",
-        note: "These also appear when you press Ctrl+Space and type the short name (main, fori, matrix, sout…).",
+        note: "These also appear when you press Ctrl+Space and type the short name (main, fori, matrix, arrfill…).",
         fields: [{
           name: "which",
           label: "Snippet",
@@ -1950,6 +2068,32 @@
       const code = window.LarkJava.generateMatrixPrint(values.name || "matrix", includeSample);
       insertAtCursor(code);
       toast("Inserted matrix print loops.");
+      return;
+    }
+    const homeworkIds = window.LarkJava.homeworkBlockIds || [];
+    if (act === "homework" || homeworkIds.indexOf(act) >= 0) {
+      if (!cm) return toast("Open a file first.");
+      let kind = act === "homework" ? "" : act;
+      if (!kind) {
+        const pick = await formDialog({
+          title: "Insert homework block",
+          ok: "Next",
+          note: "Common multi-line patterns for arrays, search, menus, and files. Also available via Ctrl+Space (arrfill, menu, sentinel…).",
+          fields: [{
+            name: "which",
+            label: "Pattern",
+            type: "select",
+            value: "arrfill — fill + print 1D array (Scanner)",
+            options: (window.LarkJava.snippets || [])
+              .filter((s) => homeworkIds.indexOf(s.id) >= 0)
+              .map((s) => s.id + " — " + s.label)
+          }]
+        });
+        if (!pick) return;
+        kind = String(pick.which || "").split(" — ")[0];
+      }
+      const inserted = await insertHomeworkBlock(kind);
+      if (inserted) toast("Inserted " + inserted + ".");
       return;
     }
     if (act === "fori" || act === "foreach" || act === "try" || act === "scanner") {
