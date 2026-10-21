@@ -20,7 +20,20 @@ cp "packaging/desktop/Launch Lark Desktop.vbs" build/lark/launch/LaunchDesktop.v
 cp packaging/desktop/start-lark-desktop.sh build/lark/launch/start-lark-desktop.sh
 cp "packaging/desktop/Install Lark Desktop.ps1" build/lark/launch/InstallDesktop.ps1
 cp "packaging/desktop/Uninstall Lark Desktop.ps1" build/lark/launch/UninstallDesktop.ps1
-jar --create --file dist/lark.jar --main-class lark.Lark -C build . -C . web
+# Mobile launchers (touch UI edition).
+cp "packaging/mobile/Start Lark Mobile.bat" build/lark/launch/StartMobile.bat
+cp "packaging/mobile/Start Lark Mobile.vbs" build/lark/launch/StartMobile.vbs
+cp packaging/mobile/start-lark-mobile.sh build/lark/launch/start-lark-mobile.sh
+# Ensure mobile UI can reuse desktop vendor/fonts if not duplicated.
+mkdir -p web-mobile/vendor web-mobile/fonts
+if [ ! -e web-mobile/vendor/codemirror ]; then
+  cp -a web/vendor/codemirror web-mobile/vendor/codemirror
+fi
+if [ ! -e web-mobile/fonts/JetBrainsMono-Regular.woff2 ]; then
+  cp -a web/fonts/. web-mobile/fonts/ 2>/dev/null || true
+fi
+jar --create --file dist/lark.jar --main-class lark.Lark -C build . -C . web -C . web-mobile
 echo "Wrote dist/lark.jar"
 echo "Run portable:  java -jar dist/lark.jar"
 echo "Run desktop:   java -cp dist/lark.jar lark.Desktop"
+echo "Run mobile:    java -cp dist/lark.jar lark.Mobile"

@@ -66,6 +66,11 @@ assets=(
   release/lark-desktop-mac.zip
   release/lark-desktop-linux.zip
   release/lark-desktop-update.zip
+  release/lark-mobile.zip
+  release/lark-mobile-update.zip
+  release/lark-mobile-windows.zip
+  release/lark-mobile-mac.zip
+  release/lark-mobile-linux.zip
   release/update.json
 )
 # Optional Linux app-image zip from jpackage.

@@ -50,12 +50,22 @@ cat > release/update.json <<EOF
     "desktop": "$feed_base/lark-desktop-update.zip",
     "desktop-windows": "$feed_base/lark-desktop-update.zip",
     "desktop-mac": "$feed_base/lark-desktop-update.zip",
-    "desktop-linux": "$feed_base/lark-desktop-update.zip"
+    "desktop-linux": "$feed_base/lark-desktop-update.zip",
+    "mobile": "$feed_base/lark-mobile-update.zip",
+    "mobile-windows": "$feed_base/lark-mobile-update.zip",
+    "mobile-mac": "$feed_base/lark-mobile-update.zip",
+    "mobile-linux": "$feed_base/lark-mobile-update.zip"
   },
   "desktop": {
     "windows": "$feed_base/lark-desktop-windows.zip",
     "mac": "$feed_base/lark-desktop-mac.zip",
     "linux": "$feed_base/lark-desktop-linux.zip"
+  },
+  "mobile": {
+    "windows": "$feed_base/lark-mobile-windows.zip",
+    "mac": "$feed_base/lark-mobile-mac.zip",
+    "linux": "$feed_base/lark-mobile-linux.zip",
+    "any": "$feed_base/lark-mobile.zip"
   }
 }
 EOF
@@ -112,9 +122,12 @@ pack_platform lark-linux.zip linux "$host_arch"
 pack_platform lark-mac.zip mac "$host_arch"
 
 # Enterprise desktop packages (installers + desktop update channel).
-chmod +x packaging/make-desktop.sh
+chmod +x packaging/make-desktop.sh packaging/make-mobile.sh
 LARK_UPDATE_BASE="$feed_base" LARK_UPDATE_NOTES="$notes" ./packaging/make-desktop.sh
+
+# Separate Lark Mobile edition (touch UI + phone pair).
+LARK_SKIP_PACKAGE=1 LARK_UPDATE_BASE="$feed_base" LARK_UPDATE_NOTES="$notes" ./packaging/make-mobile.sh
 
 ls -lh release/*.zip release/update.json 2>/dev/null | head -40
 echo "Version $version"
-echo "Portable: unzip + Start Lark. Desktop: Install Lark Desktop (prompts on update)."
+echo "Portable: unzip + Start Lark. Desktop: Install Lark Desktop. Mobile: Start Lark Mobile."

@@ -114,7 +114,18 @@ public final class Updates {
             String name = asset.str("name", "").toLowerCase(Locale.ROOT);
             String url = asset.str("browser_download_url", "");
             if (url.isBlank()) continue;
-            if (name.contains("desktop") && name.contains("update")) {
+            if (name.contains("mobile") && name.contains("update")) {
+                downloads.put("mobile", url);
+                if (name.contains("windows")) downloads.put("mobile-windows", url);
+                else if (name.contains("mac") || name.contains("darwin")) downloads.put("mobile-mac", url);
+                else if (name.contains("linux")) downloads.put("mobile-linux", url);
+            } else if (name.contains("mobile") && name.contains("windows")) {
+                downloads.put("mobile-windows", url);
+            } else if (name.contains("mobile") && (name.contains("mac") || name.contains("darwin"))) {
+                downloads.put("mobile-mac", url);
+            } else if (name.contains("mobile") && name.contains("linux")) {
+                downloads.put("mobile-linux", url);
+            } else if (name.contains("desktop") && name.contains("update")) {
                 downloads.put("desktop", url);
                 if (name.contains("windows")) downloads.put("desktop-windows", url);
                 else if (name.contains("mac") || name.contains("darwin")) downloads.put("desktop-mac", url);
@@ -175,6 +186,7 @@ public final class Updates {
             // new Start Lark.bat with the old one still loaded in memory.
             refreshLaunchers(installDir);
             if (Desktop.isDesktop()) refreshDesktopLaunchers(installDir);
+            if (Mobile.isMobile()) refreshMobileLaunchers(installDir);
             extractUpdate(zip, extracted, installDir);
             try {
                 Files.move(extracted, pending, StandardCopyOption.REPLACE_EXISTING, StandardCopyOption.ATOMIC_MOVE);
@@ -239,12 +251,21 @@ public final class Updates {
         if (dir == null) throw new RequestFail(500, "Lark couldn't find its install folder.");
         boolean windows = System.getProperty("os.name", "").toLowerCase(Locale.ROOT).contains("win");
         boolean desktop = Desktop.isDesktop();
+        boolean mobile = Mobile.isMobile();
         try {
             refreshLaunchers(dir);
             refreshDesktopLaunchers(dir);
+            refreshMobileLaunchers(dir);
             if (windows) {
                 Path script;
-                if (desktop) {
+                if (mobile) {
+                    Path vbs = dir.resolve("Start Lark Mobile.vbs");
+                    Path bat = dir.resolve("Start Lark Mobile.bat");
+                    Path finish = dir.resolve("finish-update.bat");
+                    if (Files.isRegularFile(vbs)) script = vbs;
+                    else if (Files.isRegularFile(bat)) script = bat;
+                    else script = Files.isRegularFile(finish) ? finish : dir.resolve("Start Lark.bat");
+                } else if (desktop) {
                     Path vbs = dir.resolve("Launch Lark Desktop.vbs");
                     Path bat = dir.resolve("Launch Lark Desktop.bat");
                     Path finish = dir.resolve("finish-update.bat");
@@ -264,7 +285,10 @@ public final class Updates {
                         .start();
             } else {
                 Path start;
-                if (desktop) {
+                if (mobile) {
+                    start = dir.resolve("start-lark-mobile.sh");
+                    if (!Files.isRegularFile(start)) start = dir.resolve("Start Lark Mobile.command");
+                } else if (desktop) {
                     start = dir.resolve("start-lark-desktop.sh");
                     if (!Files.isRegularFile(start)) start = dir.resolve("Launch Lark Desktop.command");
                 } else {
@@ -294,9 +318,10 @@ public final class Updates {
         }, "lark-restart");
         stopper.setDaemon(true);
         stopper.start();
+        String msg = mobile ? "Restarting Lark Mobile…" : desktop ? "Restarting Lark Desktop…" : "Restarting Lark…";
         return new Json.Obj()
                 .put("ok", true)
-                .put("message", desktop ? "Restarting Lark Desktop…" : "Restarting Lark…");
+                .put("message", msg);
     }
 
     private static boolean tryApplyPending(Path pending, Path target, Path bak) {
@@ -351,6 +376,23 @@ public final class Updates {
             // Best-effort channel marker.
         }
         chmodLaunchers(installDir, "start-lark-desktop.sh", "Launch Lark Desktop.command");
+    }
+
+    /** Writes Lark Mobile launchers (touch UI + phone pair). */
+    static void refreshMobileLaunchers(Path installDir) {
+        if (installDir == null || !Files.isDirectory(installDir)) return;
+        writeLaunchResource("lark/launch/StartMobile.bat", installDir.resolve("Start Lark Mobile.bat"));
+        writeLaunchResource("lark/launch/StartMobile.vbs", installDir.resolve("Start Lark Mobile.vbs"));
+        writeLaunchResource("lark/launch/start-lark-mobile.sh", installDir.resolve("start-lark-mobile.sh"));
+        writeLaunchResource("lark/launch/start-lark-mobile.sh", installDir.resolve("Start Lark Mobile.command"));
+        try {
+            if (!Files.isRegularFile(installDir.resolve("mobile.marker"))) {
+                Files.writeString(installDir.resolve("mobile.marker"), "mobile\n");
+            }
+        } catch (IOException ignored) {
+            // Best-effort channel marker.
+        }
+        chmodLaunchers(installDir, "start-lark-mobile.sh", "Start Lark Mobile.command");
     }
 
     private static void chmodLaunchers(Path installDir, String... names) {
@@ -477,7 +519,10 @@ public final class Updates {
         if (os.contains("win")) key = "windows";
         else if (os.contains("mac")) key = "mac";
         String url = "";
-        if (Desktop.isDesktop()) {
+        if (Mobile.isMobile()) {
+            url = downloads.str("mobile-" + key, "");
+            if (url.isBlank()) url = downloads.str("mobile", "");
+        } else if (Desktop.isDesktop()) {
             url = downloads.str("desktop-" + key, "");
             if (url.isBlank()) url = downloads.str("desktop", "");
         }

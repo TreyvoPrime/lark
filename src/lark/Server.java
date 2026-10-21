@@ -29,9 +29,11 @@ public final class Server {
     private final Terminal terminal;
     private final Settings settings;
     private final Path webDir;
+    private final boolean lan;
 
     private Server(HttpServer http, int port, Projects projects, Runner runner, Debugger debugger, Tests tests,
-                   Checker checker, GitHub github, Updates updates, Terminal terminal, Settings settings, Path webDir) {
+                   Checker checker, GitHub github, Updates updates, Terminal terminal, Settings settings, Path webDir,
+                   boolean lan) {
         this.http = http;
         this.port = port;
         this.projects = projects;
@@ -44,15 +46,22 @@ public final class Server {
         this.terminal = terminal;
         this.settings = settings;
         this.webDir = webDir;
+        this.lan = lan;
     }
 
     public static Server start(int port, Projects projects, Runner runner, GitHub github, Settings settings) throws IOException {
+        return start(port, projects, runner, github, settings, false);
+    }
+
+    public static Server start(int port, Projects projects, Runner runner, GitHub github, Settings settings, boolean lan)
+            throws IOException {
         HttpServer http = null;
         IOException last = null;
         int chosen = port;
+        String bind = lan ? "0.0.0.0" : "127.0.0.1";
         for (int candidate = port; candidate < port + 20; candidate++) {
             try {
-                http = HttpServer.create(new InetSocketAddress("127.0.0.1", candidate), 0);
+                http = HttpServer.create(new InetSocketAddress(bind, candidate), 0);
                 chosen = candidate;
                 break;
             } catch (IOException e) {
@@ -61,7 +70,7 @@ public final class Server {
         }
         if (http == null) throw last == null ? new IOException("No free port") : last;
         Server server = new Server(http, chosen, projects, runner, new Debugger(), new Tests(), new Checker(), github,
-                new Updates(settings), new Terminal(), settings, findWeb());
+                new Updates(settings), new Terminal(), settings, findWeb(), lan);
         http.createContext("/", server::handle);
         http.setExecutor(Executors.newFixedThreadPool(8, runnable -> {
             Thread thread = new Thread(runnable, "lark-http");
@@ -90,8 +99,11 @@ public final class Server {
             String host = exchange.getRequestHeaders().getFirst("Host");
             String method = exchange.getRequestMethod();
             String path = exchange.getRequestURI().getPath();
-            if (!localHost(host) && !publicDownload(path, method)) {
-                sendJson(exchange, 403, new Json.Obj().put("ok", false).put("error", "Lark only answers on localhost."));
+            if (!allowedClient(exchange, host) && !publicDownload(path, method)) {
+                sendJson(exchange, 403, new Json.Obj().put("ok", false)
+                        .put("error", lan
+                                ? "Open the Phone URL with the pair code from the Lark Mobile window."
+                                : "Lark only answers on localhost."));
                 return;
             }
             if (downloadName(path) != null && ("GET".equals(method) || "HEAD".equals(method))) {
@@ -136,8 +148,26 @@ public final class Server {
             sendJson(exchange, 200, new Json.Obj()
                     .put("ok", true)
                     .put("version", Settings.VERSION)
-                    .put("edition", Desktop.isDesktop() ? "desktop" : "portable")
-                    .put("channel", Desktop.isDesktop() ? Desktop.CHANNEL : "portable"));
+                    .put("edition", editionName())
+                    .put("channel", channelName())
+                    .put("mobile", Mobile.isMobile())
+                    .put("lan", lan));
+            return;
+        }
+        if ("GET".equals(method) && "/api/mobile/info".equals(path)) {
+            Json.Arr urls = new Json.Arr();
+            for (String ip : Mobile.lanAddresses()) {
+                urls.add("http://" + ip + ":" + port + "/?pair=" + Mobile.pairToken());
+            }
+            boolean sharePair = localHost(exchange.getRequestHeaders().getFirst("Host")) || pairOk(exchange);
+            sendJson(exchange, 200, new Json.Obj()
+                    .put("ok", true)
+                    .put("edition", "mobile")
+                    .put("version", Settings.VERSION)
+                    .put("lan", lan && Mobile.lanEnabled())
+                    .put("pair", sharePair ? Mobile.pairToken() : "")
+                    .put("local", "http://127.0.0.1:" + port + "/?pair=" + Mobile.pairToken())
+                    .put("urls", urls));
             return;
         }
         if ("/api/settings".equals(path)) {
@@ -481,8 +511,36 @@ public final class Server {
                 .put("javaVersion", System.getProperty("java.version", ""))
                 .put("projectsDir", settings.projectsDir().toString())
                 .put("version", Settings.VERSION)
-                .put("edition", Desktop.isDesktop() ? "desktop" : "portable")
-                .put("channel", Desktop.isDesktop() ? Desktop.CHANNEL : "portable");
+                .put("edition", editionName())
+                .put("channel", channelName())
+                .put("mobile", Mobile.isMobile())
+                .put("lan", lan);
+    }
+
+    private static String editionName() {
+        if (Mobile.isMobile()) return "mobile";
+        if (Desktop.isDesktop()) return "desktop";
+        return "portable";
+    }
+
+    private static String channelName() {
+        if (Mobile.isMobile()) return Mobile.CHANNEL;
+        if (Desktop.isDesktop()) return Desktop.CHANNEL;
+        return "portable";
+    }
+
+    private boolean allowedClient(HttpExchange exchange, String host) {
+        if (localHost(host)) return true;
+        if (!lan || !Mobile.isMobile()) return false;
+        return pairOk(exchange);
+    }
+
+    private static boolean pairOk(HttpExchange exchange) {
+        String token = Mobile.pairToken();
+        if (token == null || token.isBlank()) return false;
+        String pair = exchange.getRequestHeaders().getFirst("X-Lark-Pair");
+        if (pair == null || pair.isBlank()) pair = query(exchange, "pair");
+        return token.equals(pair);
     }
 
     private static String downloadName(String path) {
@@ -562,14 +620,30 @@ public final class Server {
     }
 
     private byte[] readWeb(String rel) throws IOException {
+        String root = uiRootName();
         if (webDir != null) {
             Path file = webDir.resolve(rel).normalize();
             if (file.startsWith(webDir) && Files.isRegularFile(file)) return Files.readAllBytes(file);
+            // Mobile can reuse desktop vendor/fonts when developing from source.
+            if (Mobile.isMobile()) {
+                Path shared = Path.of("web").toAbsolutePath().normalize().resolve(rel).normalize();
+                Path webRoot = Path.of("web").toAbsolutePath().normalize();
+                if (shared.startsWith(webRoot) && Files.isRegularFile(shared)) return Files.readAllBytes(shared);
+            }
         }
-        try (InputStream in = Lark.class.getResourceAsStream("/web/" + rel)) {
-            if (in == null) return null;
-            return in.readAllBytes();
+        try (InputStream in = Lark.class.getResourceAsStream("/" + root + "/" + rel)) {
+            if (in != null) return in.readAllBytes();
         }
+        if (Mobile.isMobile()) {
+            try (InputStream in = Lark.class.getResourceAsStream("/web/" + rel)) {
+                if (in != null) return in.readAllBytes();
+            }
+        }
+        return null;
+    }
+
+    private static String uiRootName() {
+        return Mobile.isMobile() ? "web-mobile" : "web";
     }
 
     private static Path findWeb() {
@@ -591,8 +665,13 @@ public final class Server {
         if (install != null && !install.isBlank()) return null;
         if ("jar".equalsIgnoreCase(System.getProperty("lark.ui", ""))) return null;
 
-        Path cwd = Path.of("web").toAbsolutePath().normalize();
+        String folder = uiRootName();
+        Path cwd = Path.of(folder).toAbsolutePath().normalize();
         if (Files.isRegularFile(cwd.resolve("index.html"))) return cwd;
+        if (Mobile.isMobile()) {
+            Path desktopWeb = Path.of("web").toAbsolutePath().normalize();
+            if (Files.isRegularFile(desktopWeb.resolve("index.html"))) return desktopWeb;
+        }
         return null;
     }
 

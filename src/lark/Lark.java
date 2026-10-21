@@ -11,6 +11,10 @@ public final class Lark {
                 Desktop.main(args);
                 return;
             }
+            if ("--mobile".equals(arg)) {
+                Mobile.main(args);
+                return;
+            }
         }
         try {
             boot(args);
@@ -100,6 +104,7 @@ public final class Lark {
                 Usage:
                   ./lark.sh [--port 43123] [--no-browser]
                   ./lark.sh --desktop          # Lark Desktop (enterprise window)
+                  ./lark.sh --mobile           # Lark Mobile (touch UI + phone pair)
 
                 Projects are stored in ~/.lark/projects.
                 Package one jar with ./package.sh, then: java -jar dist/lark.jar
