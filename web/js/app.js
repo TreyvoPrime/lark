@@ -1792,7 +1792,8 @@
     const cur = cm.getCursor();
     const lineText = cm.getLine(cur.line) || "";
     const indent = (lineText.match(/^\s*/) || [""])[0];
-    const indented = code.split("\n").map((line, i) => (i === 0 ? line : indent + line)).join("\n");
+    let indented = code.split("\n").map((line, i) => (i === 0 ? line : indent + line)).join("\n");
+    if (!indented.endsWith("\n")) indented += "\n";
     suppress = true;
     cm.replaceRange(indented, cur);
     suppress = false;
