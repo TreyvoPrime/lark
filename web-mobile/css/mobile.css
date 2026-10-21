@@ -258,6 +258,10 @@ button, .ghost, .accent {
 }
 .error { color: var(--danger); }
 
+.edit-tools {
+  padding: 0 12px 8px;
+  flex: 0 0 auto;
+}
 .edit-meta {
   display: flex;
   justify-content: space-between;

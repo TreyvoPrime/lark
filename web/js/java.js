@@ -43,6 +43,21 @@
     { id: "serr", trigger: "serr", label: "print error", text: "System.err.println();" },
     { id: "fori", trigger: "fori", label: "for i loop", text:
       "for (int i = 0; i < n; i++) {\n    \n}" },
+    { id: "matrix", trigger: "matrix", label: "matrix print (nested loops)", text:
+      "int[][] matrix = {\n    {1, 2, 3},\n    {4, 5, 6},\n    {7, 8, 9}\n};\n" +
+      "for (int i = 0; i < matrix.length; i++) {\n" +
+      "    for (int j = 0; j < matrix[i].length; j++) {\n" +
+      "        System.out.print(matrix[i][j] + \" \");\n" +
+      "    }\n" +
+      "    System.out.println();\n" +
+      "}" },
+    { id: "matblock", trigger: "matblock", label: "matrix print loops only", text:
+      "for (int i = 0; i < matrix.length; i++) {\n" +
+      "    for (int j = 0; j < matrix[i].length; j++) {\n" +
+      "        System.out.print(matrix[i][j] + \" \");\n" +
+      "    }\n" +
+      "    System.out.println();\n" +
+      "}" },
     { id: "foreach", trigger: "foreach", label: "for-each loop", text:
       "for (Type item : collection) {\n    \n}" },
     { id: "while", trigger: "while", label: "while loop", text:
@@ -724,6 +739,25 @@
       "        \n" +
       "    }\n"
     );
+  }
+
+  /** Nested for-loops that print a 2D int matrix (sample data + print, or loops only). */
+  function generateMatrixPrint(varName, includeSample) {
+    const name = String(varName || "matrix").replace(/[^\w$]/g, "") || "matrix";
+    const sample =
+      "int[][] " + name + " = {\n" +
+      "    {1, 2, 3},\n" +
+      "    {4, 5, 6},\n" +
+      "    {7, 8, 9}\n" +
+      "};\n";
+    const loops =
+      "for (int i = 0; i < " + name + ".length; i++) {\n" +
+      "    for (int j = 0; j < " + name + "[i].length; j++) {\n" +
+      "        System.out.print(" + name + "[i][j] + \" \");\n" +
+      "    }\n" +
+      "    System.out.println();\n" +
+      "}";
+    return (includeSample === false ? "" : sample) + loops;
   }
 
   function generateToString(className, fields) {
@@ -1501,6 +1535,7 @@
     generateGetterSetter: generateGetterSetter,
     generateConstructor: generateConstructor,
     generateMain: generateMain,
+    generateMatrixPrint: generateMatrixPrint,
     generateToString: generateToString,
     generateEqualsHashCode: generateEqualsHashCode,
     classSummary: classSummary,

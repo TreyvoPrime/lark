@@ -1892,7 +1892,7 @@
           window.LarkJava.explain("extends") + "\n\n" +
           window.LarkJava.explain("implements") + "\n\n" +
           window.LarkJava.explain("super") + "\n\n" +
-          "Tip: press Ctrl+Space and type main, fori, sout, try, scanner, list… to autofill building blocks.",
+          "Tip: press Ctrl+Space and type main, fori, matrix, sout, try, scanner, list… to autofill building blocks.",
         fields: []
       });
       return;
@@ -1903,7 +1903,7 @@
       const values = await formDialog({
         title: "Insert building block",
         ok: "Insert",
-        note: "These also appear when you press Ctrl+Space and type the short name (main, fori, sout…).",
+        note: "These also appear when you press Ctrl+Space and type the short name (main, fori, matrix, sout…).",
         fields: [{
           name: "which",
           label: "Snippet",
@@ -1923,6 +1923,33 @@
     if (act === "main") {
       insertBeforeClassClose(window.LarkJava.generateMain());
       toast("Inserted main method.");
+      return;
+    }
+    if (act === "matrix") {
+      if (!cm) return toast("Open a file first.");
+      const values = await formDialog({
+        title: "Insert matrix print loops",
+        ok: "Insert",
+        note: "Adds a sample int[][] and nested for-loops that print each row. Rename the variable if you already have a matrix.",
+        fields: [
+          { name: "name", label: "Matrix variable name", value: "matrix" },
+          {
+            name: "mode",
+            label: "What to insert",
+            type: "select",
+            value: "sample + nested print loops",
+            options: [
+              "sample + nested print loops",
+              "nested print loops only"
+            ]
+          }
+        ]
+      });
+      if (!values) return;
+      const includeSample = String(values.mode || "").indexOf("only") < 0;
+      const code = window.LarkJava.generateMatrixPrint(values.name || "matrix", includeSample);
+      insertAtCursor(code);
+      toast("Inserted matrix print loops.");
       return;
     }
     if (act === "fori" || act === "foreach" || act === "try" || act === "scanner") {

@@ -73,6 +73,48 @@
     setTimeout(() => el.remove(), 3800);
   }
 
+  function matrixPrintBlock(varName) {
+    const name = String(varName || "matrix").replace(/[^\w$]/g, "") || "matrix";
+    return (
+      "int[][] " + name + " = {\n" +
+      "    {1, 2, 3},\n" +
+      "    {4, 5, 6},\n" +
+      "    {7, 8, 9}\n" +
+      "};\n" +
+      "for (int i = 0; i < " + name + ".length; i++) {\n" +
+      "    for (int j = 0; j < " + name + "[i].length; j++) {\n" +
+      "        System.out.print(" + name + "[i][j] + \" \");\n" +
+      "    }\n" +
+      "    System.out.println();\n" +
+      "}"
+    );
+  }
+
+  function insertAtCursor(code) {
+    const cm = ensureEditor();
+    if (!cm || !code) return;
+    if (!state.path) return toast("Open a file first.");
+    const cur = cm.getCursor();
+    const lineText = cm.getLine(cur.line) || "";
+    const indent = (lineText.match(/^\s*/) || [""])[0];
+    const indented = code.split("\n").map((line, i) => (i === 0 ? line : indent + line)).join("\n");
+    cm.replaceRange(indented, cur);
+    cm.focus();
+    toast("Inserted matrix print loops.");
+  }
+
+  function insertMatrixPrint() {
+    if (!state.path) {
+      toast("Open a Java file in Edit first.");
+      setView("edit");
+      return;
+    }
+    const raw = window.prompt("Matrix variable name", "matrix");
+    if (raw == null) return;
+    insertAtCursor(matrixPrintBlock(raw));
+    setView("edit");
+  }
+
   function setView(name) {
     state.view = name;
     document.querySelectorAll(".view").forEach((el) => {
@@ -412,6 +454,8 @@
     $("btn-run").addEventListener("click", () => runProject().catch((e) => toast(e.message)));
     $("btn-run-top").addEventListener("click", () => runProject().catch((e) => toast(e.message)));
     $("btn-stop").addEventListener("click", () => stopRun().catch((e) => toast(e.message)));
+    $("btn-matrix").addEventListener("click", () => insertMatrixPrint());
+    $("btn-matrix-more").addEventListener("click", () => insertMatrixPrint());
     $("btn-check-update").addEventListener("click", () => checkUpdate().catch((e) => toast(e.message)));
     $("btn-install-update").addEventListener("click", () => installUpdate().catch((e) => toast(e.message)));
     $("theme-select").addEventListener("change", () => {
