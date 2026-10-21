@@ -254,8 +254,8 @@ public final class Updates {
         boolean mobile = Mobile.isMobile();
         try {
             refreshLaunchers(dir);
-            refreshDesktopLaunchers(dir);
-            refreshMobileLaunchers(dir);
+            if (desktop) refreshDesktopLaunchers(dir);
+            if (mobile) refreshMobileLaunchers(dir);
             if (windows) {
                 Path script;
                 if (mobile) {
