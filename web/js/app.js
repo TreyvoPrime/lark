@@ -148,6 +148,40 @@
     }
   }
 
+  function editorFontPx(fontSize, zoom) {
+    const base = Math.min(24, Math.max(11, Math.round(Number(fontSize) || 14)));
+    const scale = Math.min(150, Math.max(80, Math.round((Number(zoom) || 100) / 5) * 5));
+    return Math.min(28, Math.max(11, Math.round(base * (scale / 100))));
+  }
+
+  /** Drop CodeMirror measurement caches so the caret matches glyphs after font changes. */
+  function refreshEditorMetrics(editor, px) {
+    if (!editor) return;
+    const wrap = editor.getWrapperElement();
+    if (wrap) wrap.style.fontSize = px + "px";
+    try {
+      if (editor.display) {
+        editor.display.cachedCharWidth = null;
+        editor.display.cachedTextHeight = null;
+        editor.display.maxLineChanged = true;
+      }
+    } catch (e) {}
+    editor.refresh();
+  }
+
+  function refreshAllEditors() {
+    const px = editorFontPx(
+      state.settings && state.settings.fontSize,
+      state.settings && state.settings.zoom
+    );
+    refreshEditorMetrics(cm, px);
+    refreshEditorMetrics(cmB, px);
+    requestAnimationFrame(() => {
+      refreshEditorMetrics(cm, px);
+      refreshEditorMetrics(cmB, px);
+    });
+  }
+
   function applyDisplay(opts, save) {
     if (!state.settings) state.settings = {};
     let fontSize = Number(opts && opts.fontSize != null ? opts.fontSize : state.settings.fontSize || 14);
@@ -158,22 +192,23 @@
     zoom = Math.min(150, Math.max(80, Math.round(zoom / 5) * 5));
     state.settings.fontSize = fontSize;
     state.settings.zoom = zoom;
-    document.documentElement.style.setProperty("--editor-font-size", fontSize + "px");
-    document.documentElement.style.setProperty("--ui-zoom", String(zoom / 100));
+    // Editor scale only — never CSS zoom on #workspace (that shifted trays and misaligned the caret).
+    const px = editorFontPx(fontSize, zoom);
+    document.documentElement.style.setProperty("--editor-font-size", px + "px");
+    document.documentElement.style.removeProperty("zoom");
+    document.body.style.removeProperty("zoom");
+    const workspace = $("workspace");
+    if (workspace) {
+      workspace.style.removeProperty("zoom");
+      workspace.style.removeProperty("transform");
+    }
     const fontSlider = $("setting-font");
     const zoomSlider = $("setting-zoom");
     if (fontSlider) fontSlider.value = String(fontSize);
     if (zoomSlider) zoomSlider.value = String(zoom);
     if ($("setting-font-out")) $("setting-font-out").textContent = String(fontSize);
     if ($("setting-zoom-out")) $("setting-zoom-out").textContent = zoom + "%";
-    if (cm) {
-      cm.getWrapperElement().style.fontSize = fontSize + "px";
-      cm.refresh();
-    }
-    if (cmB) {
-      cmB.getWrapperElement().style.fontSize = fontSize + "px";
-      cmB.refresh();
-    }
+    refreshAllEditors();
     if (save) {
       api("PUT", "/api/settings", { fontSize: fontSize, zoom: zoom }).catch((err) => toast(err.message));
     }
@@ -232,7 +267,6 @@
           else editor.replaceSelection(spaces, "end");
         }
       }));
-      cm.refresh();
     }
     if (cmB) {
       cmB.setOption("indentUnit", indentSize);
@@ -240,8 +274,8 @@
       cmB.setOption("indentWithTabs", indentWithTabs);
       cmB.setOption("lineWrapping", lineWrapping);
       cmB.setOption("extraKeys", editorExtraKeys());
-      cmB.refresh();
     }
+    refreshAllEditors();
 
     if (save) {
       api("PUT", "/api/settings", {
@@ -269,7 +303,11 @@
 
   function resetDisplaySize() {
     applyDisplay({ fontSize: 14, zoom: 100 }, true);
-    toast("Font and zoom reset.");
+    document.documentElement.style.setProperty("--files-w", "260px");
+    document.documentElement.style.setProperty("--console-h", "188px");
+    savePanels();
+    refreshAllEditors();
+    toast("Font, scale, and panels reset.");
   }
 
   function fileByPath(path) {
@@ -3136,22 +3174,56 @@
     }
   }
 
+  function clampPanel(value, min, max, fallback) {
+    const n = parseFloat(value);
+    if (!Number.isFinite(n) || n < min || n > max) return fallback;
+    return Math.round(n);
+  }
+
   function savePanels() {
+    if (document.getElementById("shell") && document.getElementById("shell").classList.contains("files-collapsed")) {
+      // Keep the last expanded width; collapse is a class, not a stored 0 width.
+      const consoleH = clampPanel(
+        getComputedStyle(document.documentElement).getPropertyValue("--console-h"),
+        72, 640, 188
+      );
+      let filesW = 260;
+      try {
+        const prev = JSON.parse(localStorage.getItem("lark-panels") || "null");
+        filesW = clampPanel(prev && prev.files, 160, 420, 260);
+      } catch (e) {}
+      localStorage.setItem("lark-panels", JSON.stringify({ files: filesW + "px", console: consoleH + "px" }));
+      return;
+    }
+    const filesW = clampPanel(
+      getComputedStyle(document.documentElement).getPropertyValue("--files-w"),
+      160, 420, 260
+    );
+    const consoleH = clampPanel(
+      getComputedStyle(document.documentElement).getPropertyValue("--console-h"),
+      72, 640, 188
+    );
     localStorage.setItem("lark-panels", JSON.stringify({
-      files: getComputedStyle(document.documentElement).getPropertyValue("--files-w").trim(),
-      console: getComputedStyle(document.documentElement).getPropertyValue("--console-h").trim()
+      files: filesW + "px",
+      console: consoleH + "px"
     }));
+  }
+
+  function restorePanels() {
+    const style = document.documentElement.style;
+    let saved = null;
+    try { saved = JSON.parse(localStorage.getItem("lark-panels") || "null"); } catch (e) { saved = null; }
+    const filesW = clampPanel(saved && saved.files, 160, 420, 260);
+    const consoleH = clampPanel(saved && saved.console, 72, 640, 188);
+    style.setProperty("--files-w", filesW + "px");
+    style.setProperty("--console-h", consoleH + "px");
+    // Rewrite sanitized values so a prior zoomed session cannot keep poisoning widths.
+    localStorage.setItem("lark-panels", JSON.stringify({ files: filesW + "px", console: consoleH + "px" }));
   }
 
   function bindSplitters() {
     const style = document.documentElement.style;
-    const saved = (() => {
-      try { return JSON.parse(localStorage.getItem("lark-panels") || "null"); } catch (e) { return null; }
-    })();
-    if (saved) {
-      if (saved.files) style.setProperty("--files-w", saved.files);
-      if (saved.console) style.setProperty("--console-h", saved.console);
-    }
+    restorePanels();
     function drag(handle, kind, onMove) {
       if (!handle) return;
       handle.addEventListener("pointerdown", (event) => {
@@ -3162,8 +3234,8 @@
         const start = {
           x: event.clientX,
           y: event.clientY,
-          files: $("files").getBoundingClientRect().width,
-          console: $("console").getBoundingClientRect().height,
+          files: clampPanel($("files").getBoundingClientRect().width, 160, 420, 260),
+          console: clampPanel($("console").getBoundingClientRect().height, 72, 640, 188),
           center: $("center").getBoundingClientRect().height
         };
         const move = (ev) => {
@@ -3177,7 +3249,7 @@
           handle.removeEventListener("pointercancel", up);
           document.body.classList.remove("dragging", "dragging-col");
           savePanels();
-          if (cm) cm.refresh();
+          refreshAllEditors();
         };
         handle.addEventListener("pointermove", move);
         handle.addEventListener("pointerup", up);
@@ -3185,19 +3257,20 @@
       });
     }
     drag(document.querySelector("[data-split=files]"), "col", (ev, start) => {
-      style.setProperty("--files-w", Math.min(420, Math.max(160, start.files + ev.clientX - start.x)) + "px");
+      const next = clampPanel(start.files + ev.clientX - start.x, 160, 420, 260);
+      style.setProperty("--files-w", next + "px");
     });
     const consoleSplit = document.querySelector("[data-split=console]");
     drag(consoleSplit, "row", (ev, start) => {
       const max = Math.max(140, start.center - 96);
-      const next = Math.min(max, Math.max(72, start.console - (ev.clientY - start.y)));
+      const next = Math.min(max, clampPanel(start.console - (ev.clientY - start.y), 72, 640, 188));
       style.setProperty("--console-h", next + "px");
     });
     if (consoleSplit) {
       consoleSplit.addEventListener("dblclick", () => {
         style.setProperty("--console-h", "188px");
         savePanels();
-        if (cm) cm.refresh();
+        refreshAllEditors();
       });
     }
   }
@@ -4105,16 +4178,31 @@
       }
     });
     window.addEventListener("resize", () => {
-      const consoleH = parseFloat(getComputedStyle(document.documentElement).getPropertyValue("--console-h")) || 188;
-      const center = $("center").getBoundingClientRect().height;
-      const max = Math.max(140, center - 96);
-      if (consoleH > max) {
-        document.documentElement.style.setProperty("--console-h", max + "px");
-        savePanels();
+      const consoleH = clampPanel(
+        getComputedStyle(document.documentElement).getPropertyValue("--console-h"),
+        72, 640, 188
+      );
+      const center = $("center") ? $("center").getBoundingClientRect().height : 0;
+      if (center > 0) {
+        const max = Math.max(140, center - 96);
+        if (consoleH > max) {
+          document.documentElement.style.setProperty("--console-h", max + "px");
+          savePanels();
+        }
       }
-      if (cm) cm.refresh();
+      const filesW = clampPanel(
+        getComputedStyle(document.documentElement).getPropertyValue("--files-w"),
+        160, 420, 260
+      );
+      if (!$("shell").classList.contains("files-collapsed")) {
+        document.documentElement.style.setProperty("--files-w", filesW + "px");
+      }
+      refreshAllEditors();
     });
     bindSplitters();
+    if (document.fonts && document.fonts.ready) {
+      document.fonts.ready.then(() => refreshAllEditors()).catch(() => {});
+    }
   }
 
   function isDesktopEdition(info) {

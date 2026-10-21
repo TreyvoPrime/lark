@@ -4,6 +4,7 @@
   --files-w: 260px;
   --console-h: 188px;
   --editor-font-size: 14px;
+  /* Kept for older sessions; never applied as CSS zoom (that breaks layout + cursor). */
   --ui-zoom: 1;
   --font: "JetBrains Mono", "Cascadia Mono", "Liberation Mono", ui-monospace, monospace;
   --mono: "JetBrains Mono", "Cascadia Mono", "Liberation Mono", ui-monospace, monospace;
@@ -838,12 +839,16 @@
 }
 
 * { box-sizing: border-box; }
-html, body { height: 100%; margin: 0; }
-/* Zoom the workspace only — keep top bar / settings usable so you can always scale back down. */
-html { zoom: 1; }
-#workspace {
-  zoom: var(--ui-zoom);
+html, body {
+  height: 100%;
+  width: 100%;
+  max-width: 100%;
+  margin: 0;
+  overflow: hidden;
 }
+/* Do not use CSS zoom / transform:scale on the IDE shell. Both desync CodeMirror's
+   cursor metrics and poison tray widths saved from getBoundingClientRect(). */
+html { zoom: 1; }
 body {
   font-family: var(--font);
   font-size: 13px;
@@ -874,9 +879,14 @@ button:disabled { opacity: 0.5; cursor: default; }
 
 #shell {
   height: 100%;
+  width: 100%;
+  max-width: 100%;
+  min-width: 0;
   display: grid;
   grid-template-rows: 44px minmax(0, 1fr) 26px;
+  grid-template-columns: minmax(0, 1fr);
   border-top: 1px solid var(--accent);
+  overflow: hidden;
   background:
     radial-gradient(1200px 500px at 0% -20%, color-mix(in srgb, var(--accent) 10%, transparent), transparent 55%),
     var(--bg);
@@ -887,6 +897,10 @@ button:disabled { opacity: 0.5; cursor: default; }
   gap: 8px;
 }
 #top {
+  width: 100%;
+  max-width: 100%;
+  min-width: 0;
+  box-sizing: border-box;
   padding: 0 12px;
   border-bottom: 1px solid var(--line);
   background: var(--bg-elev);
@@ -894,6 +908,7 @@ button:disabled { opacity: 0.5; cursor: default; }
   overflow-y: hidden;
   flex-wrap: nowrap;
   min-height: 44px;
+  height: 44px;
 }
 #top .grow { flex: 1 1 auto; min-width: 8px; }
 #top #theme,
@@ -1078,8 +1093,12 @@ select:focus, input:focus, textarea:focus, button:focus-visible {
 #workspace {
   display: grid;
   grid-template-columns: var(--files-w) minmax(0, 1fr);
+  width: 100%;
+  max-width: 100%;
+  min-width: 0;
   min-height: 0;
   position: relative;
+  overflow: hidden;
 }
 #files, #console {
   background: var(--bg-elev);
@@ -1092,6 +1111,8 @@ select:focus, input:focus, textarea:focus, button:focus-visible {
   flex-direction: column;
   position: relative;
   overflow: hidden;
+  width: 100%;
+  max-width: 100%;
   background:
     linear-gradient(180deg, color-mix(in srgb, var(--accent) 5%, var(--bg-elev)), var(--bg-elev) 40px);
 }
@@ -2195,10 +2216,16 @@ body.edition-desktop .brand .word .ver { display: none; }
   background: var(--bg-sunken);
   color: var(--text);
   font-family: var(--mono);
-  font-size: var(--editor-font-size);
+  font-size: var(--editor-font-size) !important;
   line-height: 1.55;
   font-variant-ligatures: contextual;
   font-feature-settings: "liga" 1, "calt" 1;
+}
+.CodeMirror-scroll,
+.CodeMirror-sizer,
+.CodeMirror-lines {
+  /* Keep measurement boxes on the same font metrics as the glyphs. */
+  font-size: inherit;
 }
 body.no-ligatures,
 body.no-ligatures .CodeMirror {

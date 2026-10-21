@@ -285,17 +285,17 @@
         <input id="setting-font" type="range" min="11" max="24" step="1" value="14">
         <output id="setting-font-out">14</output>
       </label>
-      <label class="settings-row">Zoom
+      <label class="settings-row">Editor scale
         <input id="setting-zoom" type="range" min="80" max="150" step="5" value="100">
         <output id="setting-zoom-out">100%</output>
       </label>
       <div class="settings-actions">
         <button type="button" id="setting-font-down" title="Smaller font">A−</button>
         <button type="button" id="setting-font-up" title="Larger font">A+</button>
-        <button type="button" id="setting-zoom-reset">Reset zoom</button>
+        <button type="button" id="setting-zoom-reset">Reset scale</button>
         <button type="button" id="setting-display-reset" class="primary">Reset size</button>
       </div>
-      <p class="path-note">Ctrl + / Ctrl − zoom · Ctrl 0 resets zoom · this panel always stays on screen</p>
+      <p class="path-note">Scale changes only editor text — not trays or the top bar. Ctrl+= / Ctrl+- · Ctrl+0 resets.</p>
     </div>
     <hr class="settings-rule">
     <label class="settings-row settings-stack">Editor font
@@ -381,7 +381,7 @@
       <li><span>Undo / Redo</span><kbd>Ctrl+Z / Ctrl+Y</kbd></li>
       <li><span>Comment</span><kbd>Ctrl+/</kbd></li>
       <li><span>Files</span><kbd>Ctrl+B</kbd></li>
-      <li><span>Zoom</span><kbd>Ctrl+= / Ctrl+-</kbd></li>
+      <li><span>Editor scale</span><kbd>Ctrl+= / Ctrl+-</kbd></li>
     </ul>
     <p class="path-note">On a Mac, use Command instead of Ctrl. Click the line-number gutter to set breakpoints. Type /** above a method for Javadoc. Live compile status appears in the footer.</p>
   </div>
