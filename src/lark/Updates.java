@@ -114,7 +114,12 @@ public final class Updates {
             String name = asset.str("name", "").toLowerCase(Locale.ROOT);
             String url = asset.str("browser_download_url", "");
             if (url.isBlank()) continue;
-            if (name.contains("mobile") && name.contains("update")) {
+            if (name.contains("school") && name.contains("update")) {
+                downloads.put("school", url);
+                downloads.put("school-windows", url);
+            } else if (name.contains("school") && name.contains("windows")) {
+                downloads.put("school-windows", url);
+            } else if (name.contains("mobile") && name.contains("update")) {
                 downloads.put("mobile", url);
                 if (name.contains("windows")) downloads.put("mobile-windows", url);
                 else if (name.contains("mac") || name.contains("darwin")) downloads.put("mobile-mac", url);
@@ -252,13 +257,35 @@ public final class Updates {
         boolean windows = System.getProperty("os.name", "").toLowerCase(Locale.ROOT).contains("win");
         boolean desktop = Desktop.isDesktop();
         boolean mobile = Mobile.isMobile();
+        boolean school = School.isSchool();
         try {
             refreshLaunchers(dir);
             if (desktop) refreshDesktopLaunchers(dir);
             if (mobile) refreshMobileLaunchers(dir);
             if (windows) {
                 Path script;
-                if (mobile) {
+                if (school) {
+                    Path exe = dir.resolve("Lark.exe");
+                    if (!Files.isRegularFile(exe)) {
+                        throw new RequestFail(500, "Lark.exe is missing. Re-download lark-school-windows.zip.");
+                    }
+                    new ProcessBuilder(exe.toAbsolutePath().toString())
+                            .directory(dir.toFile())
+                            .start();
+                    Thread stopper = new Thread(() -> {
+                        try {
+                            Thread.sleep(1500);
+                        } catch (InterruptedException ignored) {
+                            Thread.currentThread().interrupt();
+                        }
+                        System.exit(0);
+                    }, "lark-restart");
+                    stopper.setDaemon(true);
+                    stopper.start();
+                    return new Json.Obj()
+                            .put("ok", true)
+                            .put("message", "Restarting Lark School…");
+                } else if (mobile) {
                     Path vbs = dir.resolve("Start Lark Mobile.vbs");
                     Path bat = dir.resolve("Start Lark Mobile.bat");
                     Path finish = dir.resolve("finish-update.bat");
@@ -519,7 +546,10 @@ public final class Updates {
         if (os.contains("win")) key = "windows";
         else if (os.contains("mac")) key = "mac";
         String url = "";
-        if (Mobile.isMobile()) {
+        if (School.isSchool()) {
+            url = downloads.str("school-" + key, "");
+            if (url.isBlank()) url = downloads.str("school", "");
+        } else if (Mobile.isMobile()) {
             url = downloads.str("mobile-" + key, "");
             if (url.isBlank()) url = downloads.str("mobile", "");
         } else if (Desktop.isDesktop()) {
@@ -576,7 +606,9 @@ public final class Updates {
                         || "Launch Lark Desktop.bat".equals(base) || "Launch Lark Desktop.vbs".equals(base)
                         || "start-lark-desktop.sh".equals(base) || "Launch Lark Desktop.command".equals(base)
                         || "Install Lark Desktop.ps1".equals(base) || "Uninstall Lark Desktop.ps1".equals(base)
-                        || "desktop.marker".equals(base)) {
+                        || "desktop.marker".equals(base)
+                        || "Lark.exe".equals(base) || "school.marker".equals(base)
+                        || "README.txt".equals(base)) {
                     Files.copy(zin, installDir.resolve(base), StandardCopyOption.REPLACE_EXISTING);
                 }
             }

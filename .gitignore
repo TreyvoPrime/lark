@@ -3,3 +3,4 @@ dist/
 release/
 *.class
 *.larktmp
+packaging/school/bin/

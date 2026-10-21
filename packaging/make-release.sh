@@ -54,7 +54,9 @@ cat > release/update.json <<EOF
     "mobile": "$feed_base/lark-mobile-update.zip",
     "mobile-windows": "$feed_base/lark-mobile-update.zip",
     "mobile-mac": "$feed_base/lark-mobile-update.zip",
-    "mobile-linux": "$feed_base/lark-mobile-update.zip"
+    "mobile-linux": "$feed_base/lark-mobile-update.zip",
+    "school": "$feed_base/lark-school-update.zip",
+    "school-windows": "$feed_base/lark-school-update.zip"
   },
   "desktop": {
     "windows": "$feed_base/lark-desktop-windows.zip",
@@ -66,6 +68,9 @@ cat > release/update.json <<EOF
     "mac": "$feed_base/lark-mobile-mac.zip",
     "linux": "$feed_base/lark-mobile-linux.zip",
     "any": "$feed_base/lark-mobile.zip"
+  },
+  "school": {
+    "windows": "$feed_base/lark-school-windows.zip"
   }
 }
 EOF
@@ -128,6 +133,10 @@ LARK_UPDATE_BASE="$feed_base" LARK_UPDATE_NOTES="$notes" ./packaging/make-deskto
 # Separate Lark Mobile edition (touch UI + phone pair).
 LARK_SKIP_PACKAGE=1 LARK_UPDATE_BASE="$feed_base" LARK_UPDATE_NOTES="$notes" ./packaging/make-mobile.sh
 
+# School Windows zip — Lark.exe, no .bat required.
+chmod +x packaging/make-school.sh
+LARK_SKIP_PACKAGE=1 LARK_UPDATE_BASE="$feed_base" LARK_UPDATE_NOTES="$notes" ./packaging/make-school.sh
+
 ls -lh release/*.zip release/update.json 2>/dev/null | head -40
 echo "Version $version"
-echo "Portable: unzip + Start Lark. Desktop: Install Lark Desktop. Mobile: Start Lark Mobile."
+echo "Portable: Start Lark. Desktop: Install. Mobile: Start Lark Mobile. School: Lark.exe."

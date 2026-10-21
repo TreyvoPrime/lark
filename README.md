@@ -2,18 +2,15 @@
 
 Lark is a focused Java IDE: multi-file projects, live compile feedback, brace guide, small refactors, debugger, JUnit, and GitHub clone/push. Lighter than IntelliJ, more useful than a browser text box — deliberately not bloated.
 
-## Three downloads (pick one)
+## Downloads (pick one)
 
-| | **Lark Desktop** | **Portable zip** | **Lark Mobile** |
-| --- | --- | --- | --- |
-| **What it is** | Installed app for your user account | A folder you unzip and run | Separate touch-first edition |
-| **GitHub file** | `lark-desktop-windows.zip` (or mac / linux) | `lark-windows.zip` (or mac / linux) | `lark-mobile-windows.zip` (or mac / linux) |
-| **How to start** | Run **Install Lark Desktop** script | Run **Start Lark** | Run **Start Lark Mobile** |
-| **UI** | Full desktop IDE | Full desktop IDE | Bottom-tab Mobile UI |
-| **Phone** | — | — | Pair over Wi‑Fi (same network) |
-| **Updates** | Prompts you on launch | Check under Aa → Updates | More → Check for updates |
-| **Admin password** | Not required | Not required | Not required |
-| **Best for** | Everyday use on your PC | USB / shared machines | Tablets, phone editing via host |
+| | **Lark Desktop** | **Portable zip** | **Lark School** | **Lark Mobile** |
+| --- | --- | --- | --- | --- |
+| **What it is** | Installed app | Unzip folder | Unzip folder, **no .bat** | Touch-first edition |
+| **GitHub file** | `lark-desktop-windows.zip` | `lark-windows.zip` | `lark-school-windows.zip` | `lark-mobile-windows.zip` |
+| **How to start** | Install script | **Start Lark.bat** | **Lark.exe** | **Start Lark Mobile** |
+| **UI** | Full desktop IDE | Full desktop IDE | Full desktop IDE | Bottom-tab Mobile UI |
+| **Best for** | Home PC | USB / normal portable | School PCs that block .bat | Tablet + phone pair |
 
 Download site: **[treyvoprime.github.io/lark-download](https://treyvoprime.github.io/lark-download/)**  
 Releases: **[github.com/TreyvoPrime/lark/releases/latest](https://github.com/TreyvoPrime/lark/releases/latest)**
@@ -42,6 +39,16 @@ https://github.com/TreyvoPrime/lark/releases/latest/download/lark-linux.zip
 - **Mac:** `Start Lark.command`
 - **Linux:** `./start-lark.sh`
 
+### Lark School (Windows — no .bat)
+
+```text
+https://github.com/TreyvoPrime/lark/releases/latest/download/lark-school-windows.zip
+```
+
+- Extract All → double-click **Lark.exe**
+- Same IDE as portable; built for labs that block batch files
+- Keep `Lark.exe`, `lark.jar`, and `jdk\` together
+
 ### Lark Mobile (separate edition)
 
 ```text
@@ -57,11 +64,15 @@ https://github.com/TreyvoPrime/lark/releases/latest/download/lark-mobile-linux.z
 
 Do not open launchers from inside a zip preview / Temp folder.
 
+## What’s new in 3.2
+
+- **Lark School** — `lark-school-windows.zip` with **Lark.exe** (no `.bat` required)
+- For school computers that block batch files
+
 ## What’s new in 3.1
 
-- **Lark Mobile** — completely separate touch UI (Home / Files / Edit / Run / More)
-- Phone Wi‑Fi pairing with a one-time pair code
-- Dedicated `lark-mobile-*.zip` downloads and mobile update channel
+- **Lark Mobile** — touch UI + phone Wi‑Fi pairing
+- Layout fixes for long sessions and Scanner input
 
 ## What’s in 3.0
 
