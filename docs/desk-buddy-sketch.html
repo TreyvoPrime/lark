@@ -1,0 +1,351 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Lark · Desk Buddy sketch</title>
+  <style>
+    :root {
+      --bg: #2b2b2b;
+      --bg-elev: #3c3f41;
+      --bg-sunken: #242424;
+      --line: #515151;
+      --text: #a9b7c6;
+      --muted: #87939a;
+      --accent: #6897bb;
+      --green: #6a8759;
+      --red: #bc3f3c;
+      --warn: #bbb529;
+      --syn-keyword: #cc7832;
+      --font: "JetBrains Mono", "Cascadia Mono", ui-monospace, monospace;
+    }
+    * { box-sizing: border-box; }
+    html, body {
+      margin: 0;
+      min-height: 100%;
+      background:
+        radial-gradient(900px 420px at 10% -10%, rgba(104, 151, 187, 0.12), transparent 55%),
+        linear-gradient(165deg, #252525, var(--bg) 40%, #222);
+      color: var(--text);
+      font-family: "Source Serif 4", Georgia, serif;
+    }
+    .page {
+      max-width: 1100px;
+      margin: 0 auto;
+      padding: 28px 20px 48px;
+    }
+    .eyebrow {
+      font-family: var(--font);
+      font-size: 11px;
+      letter-spacing: 0.14em;
+      text-transform: uppercase;
+      color: var(--muted);
+      margin: 0 0 8px;
+    }
+    h1 {
+      font-size: clamp(1.8rem, 3vw, 2.4rem);
+      font-weight: 650;
+      margin: 0 0 8px;
+      letter-spacing: -0.02em;
+    }
+    .lead {
+      max-width: 52ch;
+      color: var(--muted);
+      line-height: 1.5;
+      margin: 0 0 22px;
+      font-size: 1.05rem;
+    }
+    .shell {
+      border: 1px solid var(--line);
+      border-radius: 12px;
+      overflow: hidden;
+      background: var(--bg);
+      box-shadow: 0 18px 40px rgba(0,0,0,0.35);
+    }
+    .top {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      padding: 8px 10px;
+      background: var(--bg-elev);
+      border-bottom: 1px solid var(--line);
+      font-family: var(--font);
+      font-size: 12px;
+      flex-wrap: wrap;
+    }
+    .brand {
+      font-weight: 700;
+      color: var(--syn-keyword);
+      margin-right: 6px;
+    }
+    .top button, .panel button, .status button {
+      font-family: var(--font);
+      font-size: 11.5px;
+      border: 1px solid var(--line);
+      background: transparent;
+      color: var(--text);
+      border-radius: 6px;
+      padding: 5px 9px;
+      cursor: pointer;
+    }
+    .top button.primary, .panel button.primary {
+      background: var(--accent);
+      border-color: var(--accent);
+      color: #1b1b1b;
+      font-weight: 650;
+    }
+    .top button:hover, .panel button:hover, .status button:hover {
+      border-color: var(--muted);
+    }
+    .workspace {
+      display: grid;
+      grid-template-columns: 200px 1fr;
+      min-height: 360px;
+    }
+    .files {
+      border-right: 1px solid var(--line);
+      background: var(--bg-sunken);
+      padding: 10px;
+      font-family: var(--font);
+      font-size: 12px;
+      color: var(--muted);
+    }
+    .files strong { color: var(--text); display: block; margin-bottom: 8px; }
+    .files div { padding: 3px 0; }
+    .editor {
+      position: relative;
+      padding: 14px 16px 18px;
+      font-family: var(--font);
+      font-size: 13px;
+      line-height: 1.55;
+      background: var(--bg-sunken);
+    }
+    .ln { color: var(--muted); display: inline-block; width: 2.2em; text-align: right; margin-right: 12px; user-select: none; }
+    .kw { color: var(--syn-keyword); }
+    .str { color: var(--green); }
+    .status {
+      position: relative;
+      height: 34px;
+      border-top: 1px solid var(--line);
+      background: var(--bg-elev);
+      display: flex;
+      align-items: center;
+      padding: 0 10px 0 8px;
+      font-family: var(--font);
+      font-size: 11.5px;
+      color: var(--muted);
+      overflow: hidden;
+    }
+    .status .left { z-index: 2; }
+    .status .right {
+      margin-left: auto;
+      z-index: 2;
+      display: flex;
+      gap: 10px;
+      align-items: center;
+      background: linear-gradient(90deg, transparent, var(--bg-elev) 18%);
+      padding-left: 24px;
+    }
+    /* Desk buddy strip */
+    .buddy-lane {
+      position: absolute;
+      inset: 0;
+      pointer-events: none;
+      z-index: 1;
+    }
+    .buddy {
+      position: absolute;
+      bottom: 2px;
+      width: 44px;
+      height: 28px;
+      transform: translateX(40px);
+      transition: filter 200ms ease;
+    }
+    .buddy svg { display: block; width: 44px; height: 28px; overflow: visible; }
+    .buddy.walk { animation: stroll 14s linear infinite; }
+    .buddy.flip { transform: scaleX(-1); }
+    .buddy.celebrate .tail { animation: wag 0.35s ease infinite alternate; }
+    .buddy.sad { filter: grayscale(0.35) brightness(0.9); }
+    .buddy.sad .ear-l { transform-origin: 10px 8px; animation: droop 1.2s ease infinite alternate; }
+    @keyframes stroll {
+      0%   { left: 4%;  transform: scaleX(1); }
+      49%  { left: 72%; transform: scaleX(1); }
+      50%  { left: 72%; transform: scaleX(-1); }
+      99%  { left: 4%;  transform: scaleX(-1); }
+      100% { left: 4%;  transform: scaleX(1); }
+    }
+    @keyframes wag {
+      from { transform: rotate(-18deg); }
+      to { transform: rotate(22deg); }
+    }
+    @keyframes droop {
+      from { transform: rotate(0deg); }
+      to { transform: rotate(-12deg); }
+    }
+    .panel {
+      margin-top: 22px;
+      display: grid;
+      grid-template-columns: 1.2fr 1fr;
+      gap: 16px;
+    }
+    @media (max-width: 800px) {
+      .workspace { grid-template-columns: 1fr; }
+      .files { display: none; }
+      .panel { grid-template-columns: 1fr; }
+    }
+    .card {
+      border: 1px solid var(--line);
+      border-radius: 12px;
+      padding: 16px 18px;
+      background: color-mix(in srgb, var(--bg-elev) 88%, transparent);
+    }
+    .card h2 {
+      font-size: 1.05rem;
+      margin: 0 0 8px;
+      font-weight: 650;
+    }
+    .card p, .card li {
+      color: var(--muted);
+      line-height: 1.45;
+      font-size: 0.95rem;
+    }
+    .card ul { margin: 0; padding-left: 1.1em; }
+    .card li { margin: 0.35em 0; }
+    .row {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 8px;
+      margin-top: 12px;
+    }
+    .pill {
+      font-family: var(--font);
+      font-size: 11px;
+      color: var(--text);
+      border: 1px solid var(--line);
+      border-radius: 999px;
+      padding: 4px 10px;
+      background: var(--bg-sunken);
+    }
+    .pill.on { border-color: var(--accent); color: var(--accent); }
+    .note {
+      margin-top: 18px;
+      font-family: var(--font);
+      font-size: 12px;
+      color: var(--muted);
+    }
+  </style>
+</head>
+<body>
+  <div class="page">
+    <p class="eyebrow">Concept sketch · not shipped</p>
+    <h1>Desk Buddy</h1>
+    <p class="lead">
+      A tiny optional companion that lives on Lark’s status bar — like VS Code Pets,
+      but quieter and desk-themed. Off by default. Never covers your code.
+    </p>
+
+    <div class="shell" aria-label="Fake Lark window">
+      <div class="top">
+        <span class="brand">Lark</span>
+        <button type="button">Files</button>
+        <button type="button">Scratch</button>
+        <button type="button" class="primary" id="btn-run">Run</button>
+        <button type="button" id="btn-fail">Fake compile fail</button>
+        <button type="button" id="btn-toggle">Buddy: on</button>
+      </div>
+      <div class="workspace">
+        <aside class="files">
+          <strong>Explorer</strong>
+          <div>src/</div>
+          <div>&nbsp;&nbsp;Main.java</div>
+          <div>&nbsp;&nbsp;Scratch ideas…</div>
+        </aside>
+        <div class="editor">
+          <div><span class="ln">1</span><span class="kw">public class</span> Main {</div>
+          <div><span class="ln">2</span>&nbsp;&nbsp;<span class="kw">public static void</span> main(String[] args) {</div>
+          <div><span class="ln">3</span>&nbsp;&nbsp;&nbsp;&nbsp;System.out.println(<span class="str">"desk clear"</span>);</div>
+          <div><span class="ln">4</span>&nbsp;&nbsp;}</div>
+          <div><span class="ln">5</span>}</div>
+        </div>
+      </div>
+      <div class="status" id="status">
+        <div class="buddy-lane" id="lane">
+          <div class="buddy walk" id="buddy" title="Desk Buddy">
+            <!-- Simple desk cat — SVG, no external assets -->
+            <svg viewBox="0 0 44 28" aria-hidden="true">
+              <ellipse cx="22" cy="20" rx="14" ry="7" fill="#c4a574"/>
+              <ellipse cx="14" cy="14" rx="7" ry="6" fill="#c4a574"/>
+              <polygon class="ear-l" points="9,10 11,3 15,9" fill="#c4a574"/>
+              <polygon points="13,9 17,2 20,10" fill="#b08d5a"/>
+              <circle cx="12" cy="13" r="1.1" fill="#2b2b2b"/>
+              <circle cx="16.5" cy="13" r="1.1" fill="#2b2b2b"/>
+              <path d="M10 16 q4 2 8 0" stroke="#2b2b2b" stroke-width="0.8" fill="none"/>
+              <path class="tail" d="M34 18 q8 -10 6 -16" stroke="#c4a574" stroke-width="3" fill="none" stroke-linecap="round"/>
+            </svg>
+          </div>
+        </div>
+        <span class="left">src / Main.java · Ln 3, Col 28</span>
+        <span class="right">
+          <span id="mood">idle</span>
+          <span>Lark 3.2.6 · Java 21</span>
+        </span>
+      </div>
+    </div>
+
+    <div class="panel">
+      <section class="card">
+        <h2>Placement</h2>
+        <ul>
+          <li><strong>Status-bar lane only</strong> — walks behind the path / version text, never over the editor.</li>
+          <li>One species to start (“desk cat”); later slate fox / studio sparrow as theme cousins.</li>
+          <li>Clicking the buddy could open a tiny menu: hide for session / open settings.</li>
+        </ul>
+        <div class="row">
+          <span class="pill on">Optional</span>
+          <span class="pill">Local SVG</span>
+          <span class="pill">No sounds by default</span>
+          <span class="pill">School-safe off switch</span>
+        </div>
+      </section>
+      <section class="card">
+        <h2>Moods (demo the buttons above)</h2>
+        <ul>
+          <li><strong>Idle / walk</strong> — slow stroll while you edit.</li>
+          <li><strong>Celebrate</strong> — short tail-wag after a clean Run.</li>
+          <li><strong>Sad</strong> — brief droop on compile failure, then back to idle.</li>
+        </ul>
+        <p style="margin:12px 0 0">Settings sketch: <code style="font-family:var(--font);color:var(--text)">Show desk buddy</code> · off by default.</p>
+      </section>
+    </div>
+    <p class="note">Sketch only — not wired into Lark yet. If you like the direction, we can ship a minimal v1 next.</p>
+  </div>
+  <script>
+    const buddy = document.getElementById("buddy");
+    const mood = document.getElementById("mood");
+    const toggle = document.getElementById("btn-toggle");
+    let on = true;
+    let timer;
+
+    function setMood(name) {
+      buddy.classList.remove("celebrate", "sad", "walk");
+      if (name === "idle") buddy.classList.add("walk");
+      if (name === "celebrate") buddy.classList.add("celebrate");
+      if (name === "sad") buddy.classList.add("sad");
+      mood.textContent = name;
+      clearTimeout(timer);
+      if (name !== "idle") {
+        timer = setTimeout(() => setMood("idle"), 1600);
+      }
+    }
+
+    document.getElementById("btn-run").addEventListener("click", () => setMood("celebrate"));
+    document.getElementById("btn-fail").addEventListener("click", () => setMood("sad"));
+    toggle.addEventListener("click", () => {
+      on = !on;
+      buddy.style.display = on ? "block" : "none";
+      toggle.textContent = "Buddy: " + (on ? "on" : "off");
+      mood.textContent = on ? "idle" : "hidden";
+    });
+  </script>
+</body>
+</html>
