@@ -123,6 +123,8 @@
     + "System.out.println(\"n squared = \" + (n * n));\n";
   let spaceHeld = false;
   let scratchDrag = null;
+  let scratchResize = null;
+  let assignSketch = "";
 
   const $ = (id) => document.getElementById(id);
 
@@ -320,6 +322,57 @@
     handle.addEventListener("pointercancel", endDrag);
   }
 
+  function bindScratchResize() {
+    const pad = $("scratch-pad");
+    const handle = $("scratch-resize");
+    if (!pad || !handle || handle._larkResize) return;
+    handle._larkResize = true;
+    const minW = 280;
+    const minH = 220;
+    handle.addEventListener("pointerdown", (event) => {
+      if (event.button != null && event.button !== 0) return;
+      const rect = pad.getBoundingClientRect();
+      scratchResize = {
+        id: event.pointerId,
+        startX: event.clientX,
+        startY: event.clientY,
+        w: rect.width,
+        h: rect.height,
+        left: rect.left,
+        top: rect.top
+      };
+      pad.classList.add("resizing");
+      pad.style.left = rect.left + "px";
+      pad.style.top = rect.top + "px";
+      pad.style.right = "auto";
+      pad.style.bottom = "auto";
+      pad.style.width = rect.width + "px";
+      pad.style.height = rect.height + "px";
+      try { handle.setPointerCapture(event.pointerId); } catch (e) {}
+      event.preventDefault();
+      event.stopPropagation();
+    });
+    handle.addEventListener("pointermove", (event) => {
+      if (!scratchResize || scratchResize.id !== event.pointerId) return;
+      const maxW = Math.max(minW, window.innerWidth - scratchResize.left - 8);
+      const maxH = Math.max(minH, window.innerHeight - scratchResize.top - 8);
+      const w = Math.min(maxW, Math.max(minW, scratchResize.w + (event.clientX - scratchResize.startX)));
+      const h = Math.min(maxH, Math.max(minH, scratchResize.h + (event.clientY - scratchResize.startY)));
+      pad.style.width = w + "px";
+      pad.style.height = h + "px";
+      if (cmScratch) cmScratch.refresh();
+    });
+    const endResize = (event) => {
+      if (!scratchResize || (event && scratchResize.id !== event.pointerId)) return;
+      scratchResize = null;
+      pad.classList.remove("resizing");
+      saveScratchPos();
+      if (cmScratch) setTimeout(() => cmScratch.refresh(), 20);
+    };
+    handle.addEventListener("pointerup", endResize);
+    handle.addEventListener("pointercancel", endResize);
+  }
+
   function openScratch() {
     const pad = $("scratch-pad");
     if (!pad) return;
@@ -327,6 +380,7 @@
     document.body.classList.add("scratch-open");
     restoreScratchPos();
     bindScratchDrag();
+    bindScratchResize();
     const editor = ensureScratchEditor();
     if (editor) {
       applyEditorPrefs(state.settings || {}, false);
@@ -373,6 +427,134 @@
     try { localStorage.setItem(SCRATCH_KEY, ""); } catch (e) {}
     editor.focus();
     toast("Scratch cleared.");
+  }
+
+  function closeExtras() {
+    const panel = $("extras-panel");
+    if (panel) panel.hidden = true;
+    if ($("extras-uml")) $("extras-uml").hidden = true;
+    if ($("extras-assign")) $("extras-assign").hidden = true;
+  }
+
+  function syncActiveIntoFiles() {
+    if (!cm || !state.active) return;
+    const file = fileByPath(state.active);
+    if (file) file.content = cm.getValue();
+  }
+
+  function copyText(text, okMsg) {
+    const done = () => toast(okMsg || "Copied.");
+    if (navigator.clipboard && navigator.clipboard.writeText) {
+      navigator.clipboard.writeText(text).then(done).catch(() => {
+        const ta = document.createElement("textarea");
+        ta.value = text;
+        document.body.appendChild(ta);
+        ta.select();
+        document.execCommand("copy");
+        ta.remove();
+        done();
+      });
+    } else {
+      toast("Clipboard unavailable.");
+    }
+  }
+
+  function refreshUml() {
+    const canvas = $("uml-canvas");
+    if (!canvas || !window.LarkExtras) return;
+    syncActiveIntoFiles();
+    const result = window.LarkExtras.buildUml(state.files || []);
+    canvas._plantuml = result.plantuml || "";
+    canvas._svg = result.svg || "";
+    if (result.empty) {
+      canvas.innerHTML = "<p class=\"uml-empty\">No classes found yet. Open a project with <code>.java</code> files, then Refresh.</p>";
+      return;
+    }
+    canvas.innerHTML = result.svg;
+  }
+
+  function openExtras(kind) {
+    const panel = $("extras-panel");
+    if (!panel) return;
+    panel.hidden = false;
+    if ($("extras-uml")) $("extras-uml").hidden = kind !== "uml";
+    if ($("extras-assign")) $("extras-assign").hidden = kind !== "assign";
+    if ($("extras-title")) {
+      $("extras-title").textContent = kind === "uml" ? "UML class diagram" : "Assignment helper";
+    }
+    if (kind === "uml") refreshUml();
+    if (kind === "assign" && $("assign-input")) {
+      setTimeout(() => $("assign-input").focus(), 40);
+    }
+  }
+
+  function runAssignAnalyze() {
+    const out = $("assign-out");
+    if (!out || !window.LarkExtras) return;
+    const text = ($("assign-input") && $("assign-input").value) || "";
+    const result = window.LarkExtras.analyzeAssignment(text);
+    if (result.error) {
+      assignSketch = "";
+      out.innerHTML = "<p class=\"muted\">" + result.error + "</p>";
+      return;
+    }
+    assignSketch = result.sketch || "";
+    out.innerHTML = (result.summaryHtml || "")
+      + "<h4>Starter sketch</h4><pre>" + String(assignSketch)
+        .replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;") + "</pre>";
+  }
+
+  function bindExtras() {
+    if ($("menu-extras")) {
+      $("menu-extras").addEventListener("click", (event) => {
+        const kind = event.target.dataset.extra;
+        if (!kind) return;
+        closePopovers();
+        openExtras(kind);
+      });
+    }
+    if ($("extras-close")) $("extras-close").addEventListener("click", () => closeExtras());
+    if ($("extras-panel")) {
+      $("extras-panel").addEventListener("click", (event) => {
+        if (event.target === $("extras-panel")) closeExtras();
+      });
+    }
+    if ($("uml-refresh")) $("uml-refresh").addEventListener("click", () => refreshUml());
+    if ($("uml-copy")) {
+      $("uml-copy").addEventListener("click", () => {
+        const canvas = $("uml-canvas");
+        const text = (canvas && canvas._plantuml) || "";
+        if (!text) return toast("Nothing to copy — generate a diagram first.");
+        copyText(text, "PlantUML copied.");
+      });
+    }
+    if ($("uml-svg")) {
+      $("uml-svg").addEventListener("click", () => {
+        const canvas = $("uml-canvas");
+        const text = (canvas && canvas._svg) || "";
+        if (!text) return toast("Nothing to copy — generate a diagram first.");
+        copyText(text, "SVG copied.");
+      });
+    }
+    if ($("assign-analyze")) $("assign-analyze").addEventListener("click", () => runAssignAnalyze());
+    if ($("assign-copy")) {
+      $("assign-copy").addEventListener("click", () => {
+        if (!assignSketch) return toast("Summarize the assignment first.");
+        copyText(assignSketch, "Class sketch copied.");
+      });
+    }
+    if ($("assign-insert")) {
+      $("assign-insert").addEventListener("click", () => {
+        if (!assignSketch) return toast("Summarize the assignment first.");
+        if (!state.project || !state.active) {
+          toast("Open a project file first, then insert.");
+          return;
+        }
+        insertAtCursor(assignSketch);
+        closeExtras();
+        toast("Sketch inserted.");
+      });
+    }
   }
 
   /**
@@ -2904,10 +3086,6 @@
       if (job.done) {
         setRunning(false, false);
         const hasErr = state.problems.some((problem) => problem.severity === "error");
-        if (window.LarkBuddy) {
-          if (hasErr || (job.exit != null && job.exit !== 0)) window.LarkBuddy.sad();
-          else window.LarkBuddy.celebrate();
-        }
         if (hasErr) {
           showConsoleTab("problems");
           const first = state.problems.find((problem) => problem.severity === "error");
@@ -4279,18 +4457,9 @@
     if ($("theme-nudge-dismiss")) {
       $("theme-nudge-dismiss").addEventListener("click", () => dismissThemeNudge(false));
     }
-    if ($("setting-buddy") && window.LarkBuddy) {
-      $("setting-buddy").addEventListener("change", () => {
-        window.LarkBuddy.setEnabled($("setting-buddy").checked);
-        window.LarkBuddy.syncUi();
-      });
-    }
-    if ($("setting-buddy-species") && window.LarkBuddy) {
-      $("setting-buddy-species").addEventListener("change", () => {
-        window.LarkBuddy.setSpecies($("setting-buddy-species").value);
-      });
-    }
     bindScratchDrag();
+    bindScratchResize();
+    bindExtras();
     if ($("debug")) $("debug").addEventListener("click", () => startDebug().catch((err) => toast(err.message)));
     if ($("split-editor")) $("split-editor").addEventListener("click", () => toggleSplit());
     if ($("close-split")) $("close-split").addEventListener("click", () => closeSplit());
@@ -4367,6 +4536,7 @@
     });
     $("project-menu").addEventListener("click", (event) => togglePopover(event.currentTarget));
     if ($("java-assist")) $("java-assist").addEventListener("click", (event) => togglePopover(event.currentTarget));
+    if ($("extras")) $("extras").addEventListener("click", (event) => togglePopover(event.currentTarget));
     $("theme").addEventListener("click", (event) => togglePopover(event.currentTarget));
     $("settings").addEventListener("click", (event) => togglePopover(event.currentTarget));
     $("help").addEventListener("click", (event) => togglePopover(event.currentTarget));
@@ -4646,6 +4816,7 @@
     window.addEventListener("keydown", (event) => {
       const key = event.key.toLowerCase();
       if (event.key === "Escape") {
+        if ($("extras-panel") && !$("extras-panel").hidden) { closeExtras(); return; }
         if (scratchOpen()) { closeScratch(); return; }
         if ($("search-panel") && !$("search-panel").hidden) { closeProjectSearch(); return; }
         if (!$("palette").hidden) { $("palette").hidden = true; return; }
@@ -4895,17 +5066,6 @@
     try {
       ensureEditor();
       bind();
-      if (window.LarkBuddy && $("status")) {
-        window.LarkBuddy.mount($("status"));
-        // On by default the first time; user can turn off in Settings.
-        try {
-          if (localStorage.getItem("lark-buddy") == null) {
-            localStorage.setItem("lark-buddy", "1");
-            window.LarkBuddy.setEnabled(true);
-          }
-        } catch (e) {}
-        window.LarkBuddy.syncUi();
-      }
       let larkVer = "";
       try {
         const health = await api("GET", "/api/health");

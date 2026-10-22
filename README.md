@@ -64,9 +64,16 @@ https://github.com/TreyvoPrime/lark/releases/latest/download/lark-mobile-linux.z
 
 Do not open launchers from inside a zip preview / Temp folder.
 
+## What’s new in 3.3.0
+
+- **Extras** menu — homework helpers that stay on your machine
+  - **UML class diagram** — SVG from every `.java` file in the project (copy SVG or PlantUML)
+  - **Assignment helper** — paste the prompt; Lark lists fields, getters/setters, and a starter class sketch
+- **Scratch** — drag the corner to resize (size is remembered with position)
+- Desk Buddy pets removed
+
 ## What’s new in 3.2.7
 
-- **Desk Buddy** — optional status-bar pets (cat, crab, turtle, elephant, dog, shark, horse, cheetah); celebrate / sad on run
 - **Scratch** — drag anywhere; open with **Space+.** (was Ctrl+')
 - Age of History II mods moved to [age-of-history-mods](https://github.com/TreyvoPrime/age-of-history-mods)
 

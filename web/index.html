@@ -36,6 +36,7 @@
       </label>
       <button id="project-menu" type="button" data-pop="menu-project">Project</button>
       <button id="java-assist" type="button" data-pop="menu-assist">Java</button>
+      <button id="extras" type="button" data-pop="menu-extras">Extras</button>
       <div class="grow"></div>
       <label class="main-pick">
         <span>Main</span>
@@ -215,6 +216,11 @@
     <button type="button" data-act="delete-project" class="danger">Delete project</button>
     <p id="path-note" class="path-note"></p>
   </div>
+  <div id="menu-extras" class="popover menu" hidden>
+    <button type="button" data-extra="uml">UML class diagram…</button>
+    <button type="button" data-extra="assign">Assignment helper…</button>
+    <p class="path-note">Homework helpers — diagrams and field plans from assignment text.</p>
+  </div>
   <div id="menu-assist" class="popover menu" hidden>
     <button type="button" data-assist="beautify">Beautify indentation</button>
     <button type="button" data-assist="snippet">Insert building block…</button>
@@ -335,20 +341,6 @@
     <label class="settings-check"><input id="setting-line-wrap" type="checkbox"> Line wrap</label>
     <label class="settings-check"><input id="setting-line-numbers" type="checkbox" checked> Show line numbers</label>
     <hr class="settings-rule">
-    <label class="settings-check"><input id="setting-buddy" type="checkbox"> Desk Buddy (status bar pet)</label>
-    <label class="settings-row settings-stack">Buddy
-      <select id="setting-buddy-species">
-        <option value="cat">Cat</option>
-        <option value="crab">Crab</option>
-        <option value="turtle">Turtle</option>
-        <option value="elephant">Elephant</option>
-        <option value="dog">Dog</option>
-        <option value="shark">Shark</option>
-        <option value="horse">Horse</option>
-        <option value="cheetah">Cheetah</option>
-      </select>
-    </label>
-    <hr class="settings-rule">
     <label class="settings-check"><input id="setting-autosave" type="checkbox" checked> Autosave as you type</label>
     <label class="settings-row settings-stack">Autosave delay
       <select id="setting-autosave-delay">
@@ -380,7 +372,37 @@
       </div>
     </div>
     <div id="scratch-editor"></div>
+    <div class="scratch-resize" id="scratch-resize" title="Drag to resize"></div>
   </aside>
+  <div id="extras-panel" class="extras-panel" hidden>
+    <div class="extras-card">
+      <div class="extras-head">
+        <strong id="extras-title">Extras</strong>
+        <button type="button" id="extras-close" aria-label="Close">×</button>
+      </div>
+      <div id="extras-uml" class="extras-body" hidden>
+        <p class="path-note">Built from every <code>.java</code> file in the open project (fields − / methods +).</p>
+        <div class="extras-actions">
+          <button type="button" id="uml-refresh" class="primary">Refresh</button>
+          <button type="button" id="uml-copy">Copy PlantUML</button>
+          <button type="button" id="uml-svg">Copy SVG</button>
+        </div>
+        <div id="uml-canvas" class="uml-canvas" tabindex="0"></div>
+      </div>
+      <div id="extras-assign" class="extras-body" hidden>
+        <p class="path-note">Paste the assignment prompt. Lark lists fields, getters, setters, and a starter class sketch — no cloud AI.</p>
+        <label class="extras-label">Assignment text
+          <textarea id="assign-input" rows="8" spellcheck="true" placeholder="Example: Create a Book class with a title (String), page count (int), and whether it is checked out (boolean). Include a constructor, getters, and setters."></textarea>
+        </label>
+        <div class="extras-actions">
+          <button type="button" id="assign-analyze" class="primary">Summarize needs</button>
+          <button type="button" id="assign-insert">Insert sketch into editor</button>
+          <button type="button" id="assign-copy">Copy sketch</button>
+        </div>
+        <div id="assign-out" class="assign-out"></div>
+      </div>
+    </div>
+  </div>
   <div id="theme-nudge" class="theme-nudge" hidden>
     <div class="theme-nudge-copy">
       <strong id="theme-nudge-title">Evening light</strong>
@@ -541,7 +563,7 @@
   <script src="vendor/codemirror/addon/search/search.min.js"></script>
   <script src="vendor/codemirror/addon/hint/show-hint.min.js"></script>
   <script src="js/java.js?v=__LARK_V__"></script>
-  <script src="js/buddy.js?v=__LARK_V__"></script>
+  <script src="js/extras.js?v=__LARK_V__"></script>
   <script src="js/app.js?v=__LARK_V__"></script>
 </body>
 </html>
