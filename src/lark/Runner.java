@@ -73,6 +73,32 @@ public final class Runner {
         return id;
     }
 
+    /**
+     * Compiles and runs a single throwaway Java source (Scratch pad).
+     * Source must already be a complete compilation unit with a main method.
+     */
+    public String startScratch(String source, String mainClass, String args, String stdin) {
+        if (source == null || source.isBlank()) {
+            throw new RequestFail(400, "Scratch pad is empty.");
+        }
+        if (source.length() > 200_000) {
+            throw new RequestFail(400, "That scratch program is too long.");
+        }
+        String main = mainClass == null || mainClass.isBlank() ? "ScratchPad" : mainClass.trim();
+        if (!main.matches("[A-Za-z_][A-Za-z0-9_]*")) {
+            throw new RequestFail(400, "Invalid scratch main class.");
+        }
+        Path dir = Settings.home().resolve("scratch-run");
+        try {
+            if (Files.isDirectory(dir)) Projects.deleteTree(dir);
+            Files.createDirectories(dir);
+            Files.writeString(dir.resolve(main + ".java"), source);
+        } catch (IOException e) {
+            throw new RequestFail(500, "Couldn't prepare the scratch pad run.");
+        }
+        return start(dir, main, args == null ? "" : args, stdin == null ? "" : stdin);
+    }
+
     public Json.Obj snapshot(String id) {
         Job job = jobs.get(id);
         if (job == null) throw new RequestFail(404, "That run is gone.");

@@ -109,10 +109,17 @@
   const lineMarks = [];
   let cm = null;
   let cmB = null;
+  let cmScratch = null;
   let focusedEditor = "a";
   let suppress = false;
   let paletteIndex = 0;
   let modalResolve = null;
+  const SCRATCH_KEY = "lark-scratch-source";
+  const SCRATCH_STARTER =
+    "// Scratch — no class or main needed.\n"
+    + "// Imports stay at the top; everything else runs inside main.\n\n"
+    + "int n = 5;\n"
+    + "System.out.println(\"n squared = \" + (n * n));\n";
 
   const $ = (id) => document.getElementById(id);
 
@@ -147,6 +154,210 @@
     $("theme").textContent = themeName(theme);
     if (save && state.settings) {
       api("PUT", "/api/settings", { theme: theme }).catch((err) => toast(err.message));
+    }
+  }
+
+  /** Time-of-day theme suggestion (once per local day, dismissible). */
+  function themeSuggestionForHour(hour) {
+    if (hour >= 5 && hour < 11) {
+      return { id: "daylight", title: "Morning light", body: "Switch to Daylight for a clearer desk?" };
+    }
+    if (hour >= 11 && hour < 17) {
+      return { id: "desk", title: "Midday focus", body: "Desk is a calm production theme for afternoon work." };
+    }
+    if (hour >= 17 && hour < 21) {
+      return { id: "hearth", title: "Evening warm-up", body: "Try Hearth for a warmer late-day desk?" };
+    }
+    return { id: "slate", title: "Night mode", body: "Slate keeps things quiet for late coding." };
+  }
+
+  function maybeShowThemeNudge() {
+    const banner = $("theme-nudge");
+    if (!banner) return;
+    let dismissed = "";
+    try { dismissed = localStorage.getItem("lark-theme-nudge-day") || ""; } catch (e) {}
+    const today = new Date();
+    const dayKey = today.getFullYear() + "-" + String(today.getMonth() + 1).padStart(2, "0")
+      + "-" + String(today.getDate()).padStart(2, "0");
+    if (dismissed === dayKey) return;
+    const suggestion = themeSuggestionForHour(today.getHours());
+    const current = (state.settings && state.settings.theme) || document.documentElement.dataset.theme || "desk";
+    if (current === suggestion.id) return;
+    $("theme-nudge-title").textContent = suggestion.title;
+    $("theme-nudge-body").textContent = suggestion.body;
+    banner.dataset.themeId = suggestion.id;
+    banner.hidden = false;
+  }
+
+  function dismissThemeNudge(apply) {
+    const banner = $("theme-nudge");
+    if (!banner) return;
+    const today = new Date();
+    const dayKey = today.getFullYear() + "-" + String(today.getMonth() + 1).padStart(2, "0")
+      + "-" + String(today.getDate()).padStart(2, "0");
+    try { localStorage.setItem("lark-theme-nudge-day", dayKey); } catch (e) {}
+    if (apply && banner.dataset.themeId) {
+      applyTheme(banner.dataset.themeId, true);
+      toast("Theme → " + themeName(banner.dataset.themeId));
+    }
+    banner.hidden = true;
+  }
+
+  function scratchOpen() {
+    const pad = $("scratch-pad");
+    return !!(pad && !pad.hidden);
+  }
+
+  function ensureScratchEditor() {
+    if (cmScratch) return cmScratch;
+    const host = $("scratch-editor");
+    if (!host || typeof CodeMirror === "undefined") return null;
+    let saved = SCRATCH_STARTER;
+    try {
+      const raw = localStorage.getItem(SCRATCH_KEY);
+      if (raw != null && raw !== "") saved = raw;
+    } catch (e) {}
+    cmScratch = CodeMirror(host, {
+      value: saved,
+      mode: "text/x-java",
+      theme: "lark",
+      lineNumbers: !(state.settings && state.settings.lineNumbers === false),
+      gutters: ["CodeMirror-linenumbers"],
+      indentUnit: (state.settings && state.settings.indentSize) || 4,
+      tabSize: (state.settings && state.settings.indentSize) || 4,
+      indentWithTabs: !!(state.settings && state.settings.indentWithTabs),
+      lineWrapping: true,
+      matchBrackets: true,
+      autoCloseBrackets: { pairs: "()[]{}''\"\"", explode: "[]{}" },
+      styleActiveLine: true,
+      extraKeys: {
+        "Ctrl-Enter": () => { runScratch().catch((err) => toast(err.message)); },
+        "Cmd-Enter": () => { runScratch().catch((err) => toast(err.message)); },
+        "Esc": () => closeScratch()
+      }
+    });
+    cmScratch.on("change", () => {
+      try { localStorage.setItem(SCRATCH_KEY, cmScratch.getValue()); } catch (e) {}
+    });
+    return cmScratch;
+  }
+
+  function openScratch() {
+    const pad = $("scratch-pad");
+    if (!pad) return;
+    pad.hidden = false;
+    document.body.classList.add("scratch-open");
+    const editor = ensureScratchEditor();
+    if (editor) {
+      applyEditorPrefs(state.settings || {}, false);
+      if (cmScratch) {
+        cmScratch.setOption("lineNumbers", !(state.settings && state.settings.lineNumbers === false));
+        setTimeout(() => { cmScratch.refresh(); cmScratch.focus(); }, 40);
+      }
+    }
+  }
+
+  function closeScratch() {
+    const pad = $("scratch-pad");
+    if (pad) pad.hidden = true;
+    document.body.classList.remove("scratch-open");
+  }
+
+  function toggleScratch() {
+    if (scratchOpen()) closeScratch();
+    else openScratch();
+  }
+
+  function copyScratchAll() {
+    const editor = ensureScratchEditor();
+    if (!editor) return;
+    const text = editor.getValue();
+    const done = () => toast(text.trim() ? "Scratch copied." : "Scratch is empty.");
+    if (navigator.clipboard && navigator.clipboard.writeText) {
+      navigator.clipboard.writeText(text).then(done).catch(() => {
+        editor.execCommand("selectAll");
+        document.execCommand("copy");
+        done();
+      });
+    } else {
+      editor.execCommand("selectAll");
+      document.execCommand("copy");
+      done();
+    }
+  }
+
+  function clearScratch() {
+    const editor = ensureScratchEditor();
+    if (!editor) return;
+    editor.setValue("");
+    try { localStorage.setItem(SCRATCH_KEY, ""); } catch (e) {}
+    editor.focus();
+    toast("Scratch cleared.");
+  }
+
+  /**
+   * Turn pad text into a runnable compilation unit.
+   * Statements → wrapped in ScratchPad.main; imports kept at top.
+   * Full classes with main are left alone so advanced scratch still works.
+   */
+  function wrapScratchSource(raw) {
+    const text = (raw || "").replace(/\r\n/g, "\n");
+    if (!text.trim()) throw new Error("Scratch pad is empty.");
+    const hasMain = /\b(?:public\s+)?static\s+void\s+main\s*\(\s*String\s*/.test(text);
+    const classMatch = text.match(/\bpublic\s+class\s+(\w+)/) || text.match(/\bclass\s+(\w+)/);
+    if (hasMain && classMatch) {
+      return { source: text, mainClass: classMatch[1] };
+    }
+    const imports = [];
+    const rest = [];
+    text.split("\n").forEach((line) => {
+      if (/^\s*import\s+[\w.*]+\s*;\s*$/.test(line)) imports.push(line.trim());
+      else if (/^\s*package\s+/.test(line)) { /* default package */ }
+      else rest.push(line);
+    });
+    const body = rest.join("\n").replace(/^\n+/, "").replace(/\n+$/, "");
+    let source = imports.length ? imports.join("\n") + "\n\n" : "";
+    if (hasMain && !classMatch) {
+      source += "public class ScratchPad {\n";
+      body.split("\n").forEach((l) => { source += (l ? "  " + l : "") + "\n"; });
+      source += "}\n";
+      return { source: source, mainClass: "ScratchPad" };
+    }
+    source += "public class ScratchPad {\n";
+    source += "  public static void main(String[] args) {\n";
+    if (body) body.split("\n").forEach((l) => { source += "    " + l + "\n"; });
+    else source += "    // Write some Java here\n";
+    source += "  }\n}\n";
+    return { source: source, mainClass: "ScratchPad" };
+  }
+
+  async function runScratch() {
+    const editor = ensureScratchEditor();
+    if (!editor) return;
+    let wrapped;
+    try {
+      wrapped = wrapScratchSource(editor.getValue());
+    } catch (err) {
+      toast(err.message || "Scratch pad is empty.");
+      return;
+    }
+    if (state.job && !state.job.done) {
+      await api("POST", "/api/run/" + state.job.id + "/stop", {});
+    }
+    setRunning(true, false);
+    showConsoleTab("output");
+    renderConsole("— Scratch pad —\n");
+    try {
+      const data = await api("POST", "/api/scratch/run", {
+        source: wrapped.source,
+        mainClass: wrapped.mainClass,
+        args: ($("args") && $("args").value) || "",
+        stdin: ($("stdin") && $("stdin").value) || ""
+      });
+      poll(data.id);
+    } catch (err) {
+      setRunning(false);
+      toast(err.message);
     }
   }
 
@@ -282,7 +493,14 @@
       cmB.setOption("lineNumbers", lineNumbers);
       cmB.setOption("extraKeys", editorExtraKeys());
     }
+    if (cmScratch) {
+      cmScratch.setOption("indentUnit", indentSize);
+      cmScratch.setOption("tabSize", indentSize);
+      cmScratch.setOption("indentWithTabs", indentWithTabs);
+      cmScratch.setOption("lineNumbers", lineNumbers);
+    }
     refreshAllEditors();
+    if (cmScratch) cmScratch.refresh();
 
     if (save) {
       api("PUT", "/api/settings", {
@@ -3962,8 +4180,20 @@
         api("POST", "/api/run/" + state.job.id + "/stop", {}).catch((err) => toast(err.message));
         return;
       }
-      run().catch((err) => toast(err.message));
+      if (scratchOpen()) runScratch().catch((err) => toast(err.message));
+      else run().catch((err) => toast(err.message));
     });
+    if ($("scratch")) $("scratch").addEventListener("click", () => toggleScratch());
+    if ($("scratch-run")) $("scratch-run").addEventListener("click", () => runScratch().catch((err) => toast(err.message)));
+    if ($("scratch-copy")) $("scratch-copy").addEventListener("click", () => copyScratchAll());
+    if ($("scratch-clear")) $("scratch-clear").addEventListener("click", () => clearScratch());
+    if ($("scratch-close")) $("scratch-close").addEventListener("click", () => closeScratch());
+    if ($("theme-nudge-apply")) {
+      $("theme-nudge-apply").addEventListener("click", () => dismissThemeNudge(true));
+    }
+    if ($("theme-nudge-dismiss")) {
+      $("theme-nudge-dismiss").addEventListener("click", () => dismissThemeNudge(false));
+    }
     if ($("debug")) $("debug").addEventListener("click", () => startDebug().catch((err) => toast(err.message)));
     if ($("split-editor")) $("split-editor").addEventListener("click", () => toggleSplit());
     if ($("close-split")) $("close-split").addEventListener("click", () => closeSplit());
@@ -4315,10 +4545,12 @@
     window.addEventListener("keydown", (event) => {
       const key = event.key.toLowerCase();
       if (event.key === "Escape") {
+        if (scratchOpen()) { closeScratch(); return; }
         if ($("search-panel") && !$("search-panel").hidden) { closeProjectSearch(); return; }
         if (!$("palette").hidden) { $("palette").hidden = true; return; }
         if (!$("modal").hidden) { closeModal(null); return; }
         if (!$("drawer").hidden) { closeDrawer(); return; }
+        if ($("theme-nudge") && !$("theme-nudge").hidden) { dismissThemeNudge(false); return; }
         closePopovers();
       }
       if ((event.ctrlKey || event.metaKey) && event.shiftKey && key === "f") {
@@ -4341,7 +4573,14 @@
       if ((event.ctrlKey || event.metaKey) && event.key === "Enter") {
         if (!$("modal").hidden || isDialogTyping()) return;
         event.preventDefault();
-        run().catch((err) => toast(err.message));
+        if (scratchOpen()) runScratch().catch((err) => toast(err.message));
+        else run().catch((err) => toast(err.message));
+        return;
+      }
+      if ((event.ctrlKey || event.metaKey) && (key === "'" || event.code === "Quote")) {
+        if (!$("modal").hidden) return;
+        event.preventDefault();
+        toggleScratch();
         return;
       }
       if ((event.ctrlKey || event.metaKey) && key === "s") {
@@ -4611,6 +4850,7 @@
         cm.focus();
       }
       checkUpdates(false).catch(() => {});
+      setTimeout(() => maybeShowThemeNudge(), 1600);
     } catch (err) {
       $("boot").textContent = err.message || "Lark couldn't open.";
     }

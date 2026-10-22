@@ -319,6 +319,16 @@ public final class Server {
             sendJson(exchange, 200, new Json.Obj().put("ok", true).put("id", id));
             return;
         }
+        if ("/api/scratch/run".equals(path) && "POST".equals(method)) {
+            Json.Obj body = body(exchange);
+            String args = body.str("args", "");
+            String stdin = body.str("stdin", "");
+            if (args.length() > 2_000) throw new RequestFail(400, "Those arguments are too long.");
+            if (stdin.length() > 100_000) throw new RequestFail(400, "That input is too long.");
+            String id = runner.startScratch(body.str("source", ""), body.str("mainClass", "ScratchPad"), args, stdin);
+            sendJson(exchange, 200, new Json.Obj().put("ok", true).put("id", id));
+            return;
+        }
         if (parts.length == 4 && "api".equals(parts[1]) && "run".equals(parts[2]) && "GET".equals(method)) {
             sendJson(exchange, 200, runner.snapshot(decode(parts[3])));
             return;

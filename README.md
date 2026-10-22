@@ -64,6 +64,11 @@ https://github.com/TreyvoPrime/lark/releases/latest/download/lark-mobile-linux.z
 
 Do not open launchers from inside a zip preview / Temp folder.
 
+## What’s new in 3.2.6
+
+- **Scratch pad** — toolbar **Scratch** / `Ctrl+'`; write statements without a `main`; **Run**, **Copy all**, Clear
+- **Theme time-of-day nudge** — gentle once-a-day suggestion (Daylight / Desk / Hearth / Slate)
+
 ## What’s new in 3.2.5
 
 - Fix line numbers painting under the gutter plate (restore CodeMirror gutter z-index)
