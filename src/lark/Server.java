@@ -552,13 +552,17 @@ public final class Server {
 
     private static String editionName() {
         if (Mobile.isMobile()) return "mobile";
+        if (Enterprise.isEnterprise()) return "enterprise";
         if (Desktop.isDesktop()) return "desktop";
+        if (School.isSchool()) return "school";
         return "portable";
     }
 
     private static String channelName() {
         if (Mobile.isMobile()) return Mobile.CHANNEL;
+        if (Enterprise.isEnterprise()) return Enterprise.CHANNEL;
         if (Desktop.isDesktop()) return Desktop.CHANNEL;
+        if (School.isSchool()) return School.CHANNEL;
         return "portable";
     }
 

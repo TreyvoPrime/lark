@@ -20,6 +20,8 @@ cp "packaging/desktop/Launch Lark Desktop.vbs" build/lark/launch/LaunchDesktop.v
 cp packaging/desktop/start-lark-desktop.sh build/lark/launch/start-lark-desktop.sh
 cp "packaging/desktop/Install Lark Desktop.ps1" build/lark/launch/InstallDesktop.ps1
 cp "packaging/desktop/Uninstall Lark Desktop.ps1" build/lark/launch/UninstallDesktop.ps1
+# Enterprise launchers (Setup-wizard edition — separate from Desktop).
+cp packaging/enterprise/start-lark-enterprise.sh build/lark/launch/start-lark-enterprise.sh
 # Mobile launchers (touch UI edition).
 cp "packaging/mobile/Start Lark Mobile.bat" build/lark/launch/StartMobile.bat
 cp "packaging/mobile/Start Lark Mobile.vbs" build/lark/launch/StartMobile.vbs
@@ -35,8 +37,9 @@ fi
 jar --create --file dist/lark.jar --main-class lark.Lark -C build . -C . web -C . web-mobile
 # Never leave edition markers beside dist/lark.jar — they make portable runs
 # mis-detect as Mobile/Desktop (installDir is the jar's parent).
-rm -f dist/mobile.marker dist/desktop.marker dist/school.marker
+rm -f dist/mobile.marker dist/desktop.marker dist/school.marker dist/enterprise.marker
 echo "Wrote dist/lark.jar"
-echo "Run portable:  java -jar dist/lark.jar"
-echo "Run desktop:   java -cp dist/lark.jar lark.Desktop"
-echo "Run mobile:    java -cp dist/lark.jar lark.Mobile"
+echo "Run portable:    java -jar dist/lark.jar"
+echo "Run desktop:     java -cp dist/lark.jar lark.Desktop"
+echo "Run enterprise:  java -cp dist/lark.jar lark.Enterprise"
+echo "Run mobile:      java -cp dist/lark.jar lark.Mobile"

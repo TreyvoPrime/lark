@@ -73,6 +73,9 @@ assets=(
   release/lark-mobile-linux.zip
   release/lark-school-windows.zip
   release/lark-school-update.zip
+  release/LarkEnterpriseSetup.exe
+  release/lark-enterprise-windows.zip
+  release/lark-enterprise-update.zip
   release/update.json
 )
 # Optional Linux app-image zip from jpackage.
