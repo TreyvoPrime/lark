@@ -1,6 +1,8 @@
 (function () {
   const THEME_NAMES = {
     desk: "Desk",
+    slate: "Slate",
+    studio: "Studio",
     daylight: "Daylight",
     moss: "Moss",
     ember: "Ember",
@@ -47,7 +49,7 @@
     pink: "blossom"
   };
   const THEME_IDS = [
-    "desk", "daylight", "moss", "ember", "fog",
+    "desk", "slate", "studio", "daylight", "moss", "ember", "fog",
     "blossom", "candy", "midnight", "citrus", "harbor",
     "graphite", "navy", "terminal", "parchment", "ultraviolet", "forest", "monochrome", "amber",
     "lagoon", "rosewood", "nova", "atelier", "obsidian", "glacier",
@@ -228,6 +230,7 @@
     const ligatures = next.ligatures !== false;
     const indentWithTabs = !!next.indentWithTabs;
     const lineWrapping = !!next.lineWrapping;
+    const lineNumbers = next.lineNumbers !== false;
     const autoSave = next.autoSave !== false;
     const formatOnSave = !!next.formatOnSave;
 
@@ -236,6 +239,7 @@
     state.settings.indentSize = indentSize;
     state.settings.indentWithTabs = indentWithTabs;
     state.settings.lineWrapping = lineWrapping;
+    state.settings.lineNumbers = lineNumbers;
     state.settings.autoSave = autoSave;
     state.settings.autoSaveDelayMs = delay;
     state.settings.formatOnSave = formatOnSave;
@@ -250,6 +254,7 @@
     if ($("setting-indent-size")) $("setting-indent-size").value = String(indentSize);
     if ($("setting-indent-tabs")) $("setting-indent-tabs").checked = indentWithTabs;
     if ($("setting-line-wrap")) $("setting-line-wrap").checked = lineWrapping;
+    if ($("setting-line-numbers")) $("setting-line-numbers").checked = lineNumbers;
     if ($("setting-autosave")) $("setting-autosave").checked = autoSave;
     if ($("setting-autosave-delay")) $("setting-autosave-delay").value = String(delay);
     if ($("setting-autosave-delay")) $("setting-autosave-delay").disabled = !autoSave;
@@ -261,6 +266,7 @@
       cm.setOption("tabSize", indentSize);
       cm.setOption("indentWithTabs", indentWithTabs);
       cm.setOption("lineWrapping", lineWrapping);
+      cm.setOption("lineNumbers", lineNumbers);
       cm.setOption("extraKeys", Object.assign({}, cm.getOption("extraKeys"), {
         Tab: function (editor) {
           if (editor.somethingSelected()) editor.indentSelection("add");
@@ -273,6 +279,7 @@
       cmB.setOption("tabSize", indentSize);
       cmB.setOption("indentWithTabs", indentWithTabs);
       cmB.setOption("lineWrapping", lineWrapping);
+      cmB.setOption("lineNumbers", lineNumbers);
       cmB.setOption("extraKeys", editorExtraKeys());
     }
     refreshAllEditors();
@@ -284,6 +291,7 @@
         indentSize: indentSize,
         indentWithTabs: indentWithTabs,
         lineWrapping: lineWrapping,
+        lineNumbers: lineNumbers,
         autoSave: autoSave,
         autoSaveDelayMs: delay,
         formatOnSave: formatOnSave
@@ -349,12 +357,12 @@
       value: "",
       mode: "text/x-java",
       theme: "lark",
-      lineNumbers: true,
+      lineNumbers: !(state.settings && state.settings.lineNumbers === false),
       gutters: ["CodeMirror-linenumbers", "breakpoints"],
       indentUnit: 4,
       tabSize: 4,
       indentWithTabs: false,
-      lineWrapping: false,
+      lineWrapping: !!(state.settings && state.settings.lineWrapping),
       matchBrackets: true,
       // Do not auto-pair /* */ — that fights IntelliJ-style /** Javadoc expansion.
       autoCloseBrackets: { pairs: "()[]{}''\"\"", explode: "[]{}" },
@@ -1189,7 +1197,7 @@
       value: "",
       mode: "text/x-java",
       theme: "lark",
-      lineNumbers: true,
+      lineNumbers: !(state.settings && state.settings.lineNumbers === false),
       gutters: ["CodeMirror-linenumbers", "breakpoints"],
       indentUnit: (state.settings && state.settings.indentSize) || 4,
       tabSize: (state.settings && state.settings.indentSize) || 4,
@@ -4073,6 +4081,7 @@
     bindPref("setting-indent-size", (el) => ({ indentSize: Number(el.value) }));
     bindPref("setting-indent-tabs", (el) => ({ indentWithTabs: el.checked }));
     bindPref("setting-line-wrap", (el) => ({ lineWrapping: el.checked }));
+    bindPref("setting-line-numbers", (el) => ({ lineNumbers: el.checked }));
     bindPref("setting-autosave", (el) => ({ autoSave: el.checked }));
     bindPref("setting-autosave-delay", (el) => ({ autoSaveDelayMs: Number(el.value) }));
     bindPref("setting-format-save", (el) => ({ formatOnSave: el.checked }));
@@ -4564,6 +4573,7 @@
         indentSize: state.settings.indentSize || 4,
         indentWithTabs: !!state.settings.indentWithTabs,
         lineWrapping: !!state.settings.lineWrapping,
+        lineNumbers: state.settings.lineNumbers !== false,
         autoSave: state.settings.autoSave !== false,
         autoSaveDelayMs: state.settings.autoSaveDelayMs || 800,
         formatOnSave: !!state.settings.formatOnSave

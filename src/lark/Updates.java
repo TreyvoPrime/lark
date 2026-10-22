@@ -11,8 +11,10 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.StandardCopyOption;
 import java.nio.file.attribute.PosixFilePermission;
+import java.security.MessageDigest;
 import java.time.Duration;
 import java.util.EnumSet;
+import java.util.HexFormat;
 import java.util.Locale;
 import java.util.Set;
 import java.util.zip.ZipEntry;
@@ -71,6 +73,7 @@ public final class Updates {
                     .put("latest", latest)
                     .put("notes", notes)
                     .put("download", download == null ? "" : download)
+                    .put("sha256", info.sha256 == null ? "" : info.sha256)
                     .put("skipped", skippedThis)
                     .put("page", info.page == null ? "" : info.page)
                     .put("required", desktop && newer);
@@ -86,7 +89,7 @@ public final class Updates {
         }
     }
 
-    private record FeedInfo(String version, String notes, String download, String page) {}
+    private record FeedInfo(String version, String notes, String download, String page, String sha256) {}
 
     /** Accepts Lark update.json or a GitHub Releases /latest (or repo) URL. */
     private FeedInfo parseFeed(String feed, Json.Obj obj) {
@@ -97,13 +100,80 @@ public final class Updates {
             String page = obj.str("html_url", "");
             Json.Obj downloads = assetsToDownloads(obj.arr("assets"));
             String download = pickDownload(feed, downloads);
-            return new FeedInfo(tag, notes, download, page);
+            return new FeedInfo(tag, notes, download, page, "");
         }
         String latest = obj.str("version", "").trim();
         String notes = obj.str("notes", "");
         String download = pickDownload(feed, obj.obj("downloads"));
         String page = obj.str("page", "");
-        return new FeedInfo(latest, notes, download, page);
+        String sha256 = pickSha256(obj, download);
+        return new FeedInfo(latest, notes, download, page, sha256);
+    }
+
+    private static String pickSha256(Json.Obj feed, String downloadUrl) {
+        if (feed == null || downloadUrl == null || downloadUrl.isBlank()) return "";
+        Json.Obj hashes = feed.obj("sha256");
+        if (hashes == null) return feed.str("sha256", "").trim();
+        String base = downloadUrl;
+        int slash = Math.max(downloadUrl.lastIndexOf('/'), downloadUrl.lastIndexOf('\\'));
+        if (slash >= 0 && slash + 1 < downloadUrl.length()) base = downloadUrl.substring(slash + 1);
+        String byName = hashes.str(base, "").trim();
+        if (!byName.isBlank()) return byName;
+        // Channel keys matching downloads map
+        Json.Obj downloads = feed.has("downloads") ? feed.obj("downloads") : null;
+        for (String key : new String[]{
+                "any", "windows", "mac", "linux", "desktop", "desktop-windows", "desktop-mac", "desktop-linux",
+                "mobile", "mobile-windows", "mobile-mac", "mobile-linux", "school", "school-windows"
+        }) {
+            String url = downloads == null ? "" : downloads.str(key, "");
+            if (!url.isBlank() && (downloadUrl.equals(url) || downloadUrl.endsWith("/" + base))) {
+                String h = hashes.str(key, "").trim();
+                if (!h.isBlank()) return h;
+            }
+        }
+        return hashes.str("any", hashes.str("windows", "")).trim();
+    }
+
+    /** True for HTTPS update feeds on GitHub / official release hosts. */
+    public static boolean allowedFeedUrl(String feed) {
+        if (feed == null || feed.isBlank()) return true;
+        try {
+            URI uri = URI.create(normalizeFeed(feed.trim()));
+            String scheme = uri.getScheme() == null ? "" : uri.getScheme().toLowerCase(Locale.ROOT);
+            if (!"https".equals(scheme)) return false;
+            String host = uri.getHost() == null ? "" : uri.getHost().toLowerCase(Locale.ROOT);
+            return host.equals("github.com")
+                    || host.equals("api.github.com")
+                    || host.equals("objects.githubusercontent.com")
+                    || host.equals("release-assets.githubusercontent.com")
+                    || host.endsWith(".github.com")
+                    || host.equals("treyvoprime.github.io");
+        } catch (Exception e) {
+            return false;
+        }
+    }
+
+    static boolean allowedDownloadUrl(String url) {
+        if (url == null || url.isBlank()) return false;
+        try {
+            URI uri = URI.create(url.trim());
+            String scheme = uri.getScheme() == null ? "" : uri.getScheme().toLowerCase(Locale.ROOT);
+            if (!"https".equals(scheme) && !"http".equals(scheme)) return false;
+            // Relative/local update feeds during packaging are http://127.0.0.1 only.
+            if ("http".equals(scheme)) {
+                String host = uri.getHost() == null ? "" : uri.getHost().toLowerCase(Locale.ROOT);
+                return host.equals("127.0.0.1") || host.equals("localhost");
+            }
+            String host = uri.getHost() == null ? "" : uri.getHost().toLowerCase(Locale.ROOT);
+            return host.equals("github.com")
+                    || host.equals("objects.githubusercontent.com")
+                    || host.equals("release-assets.githubusercontent.com")
+                    || host.endsWith(".githubusercontent.com")
+                    || host.equals("api.github.com")
+                    || host.equals("treyvoprime.github.io");
+        } catch (Exception e) {
+            return false;
+        }
     }
 
     private static Json.Obj assetsToDownloads(Json.Arr assets) {
@@ -167,12 +237,32 @@ public final class Updates {
     }
 
     public Json.Obj install(String downloadUrl) {
+        return install(downloadUrl, true);
+    }
+
+    /**
+     * @param allowCustomUrl when false (Wi‑Fi / paired clients), only the feed's download URL is used.
+     */
+    public Json.Obj install(String downloadUrl, boolean allowCustomUrl) {
+        Json.Obj checked = check();
+        String feedDownload = checked.str("download", "");
+        String expectedSha = checked.str("sha256", "");
         if (downloadUrl == null || downloadUrl.isBlank()) {
-            Json.Obj checked = check();
-            downloadUrl = checked.str("download", "");
+            downloadUrl = feedDownload;
             if (!checked.bool("available") || downloadUrl.isBlank()) {
                 throw new RequestFail(400, checked.str("message", "No update is ready to install."));
             }
+        } else if (!allowCustomUrl) {
+            // Paired phones cannot point install at an arbitrary zip.
+            downloadUrl = feedDownload;
+            if (downloadUrl == null || downloadUrl.isBlank()) {
+                throw new RequestFail(403, "Updates must use the official download from the update feed.");
+            }
+        } else if (!downloadUrl.equals(feedDownload) && !allowedDownloadUrl(downloadUrl)) {
+            throw new RequestFail(400, "That update URL is not on an allowed host.");
+        }
+        if (!allowedDownloadUrl(downloadUrl)) {
+            throw new RequestFail(400, "Update downloads must use HTTPS on GitHub Releases (or localhost for packaging).");
         }
         Path installDir = installDir();
         if (installDir == null) {
@@ -186,6 +276,12 @@ public final class Updates {
         try {
             zip = Files.createTempFile("lark-update-", ".zip");
             downloadTo(downloadUrl, zip);
+            if (expectedSha != null && !expectedSha.isBlank()) {
+                String actual = sha256Hex(zip);
+                if (!expectedSha.equalsIgnoreCase(actual)) {
+                    throw new RequestFail(400, "Update zip failed integrity check (SHA-256 mismatch).");
+                }
+            }
             // Seed launchers from the running jar first, then let the update zip
             // overwrite them. Never refresh AFTER extract — that would clobber the
             // new Start Lark.bat with the old one still loaded in memory.
@@ -571,6 +667,9 @@ public final class Updates {
     }
 
     private void downloadTo(String url, Path target) throws IOException, InterruptedException {
+        if (!allowedDownloadUrl(url)) {
+            throw new RequestFail(400, "Blocked download host.");
+        }
         HttpRequest request = HttpRequest.newBuilder(URI.create(url))
                 .timeout(Duration.ofMinutes(3))
                 .header("User-Agent", "Lark-IDE/" + Settings.VERSION)
@@ -580,8 +679,26 @@ public final class Updates {
         if (response.statusCode() < 200 || response.statusCode() >= 300) {
             throw new RequestFail(502, "Download failed (" + response.statusCode() + ").");
         }
+        URI finalUri = response.uri();
+        if (finalUri != null && !allowedDownloadUrl(finalUri.toString())) {
+            throw new RequestFail(400, "Update redirect pointed at a blocked host.");
+        }
         try (InputStream in = response.body()) {
             Files.copy(in, target, StandardCopyOption.REPLACE_EXISTING);
+        }
+    }
+
+    private static String sha256Hex(Path file) throws IOException {
+        try {
+            MessageDigest digest = MessageDigest.getInstance("SHA-256");
+            try (InputStream in = Files.newInputStream(file)) {
+                byte[] buf = new byte[8192];
+                int n;
+                while ((n = in.read(buf)) >= 0) digest.update(buf, 0, n);
+            }
+            return HexFormat.of().formatHex(digest.digest());
+        } catch (java.security.NoSuchAlgorithmException e) {
+            throw new IOException("SHA-256 not available", e);
         }
     }
 

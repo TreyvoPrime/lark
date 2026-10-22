@@ -1,6 +1,8 @@
 (function () {
   const THEMES = [
     ["desk", "Desk"],
+    ["slate", "Slate"],
+    ["studio", "Studio"],
     ["daylight", "Daylight"],
     ["moss", "Moss"],
     ["cedar", "Cedar"],
@@ -192,9 +194,10 @@
 
   function ensureEditor() {
     if (state.cm) return state.cm;
+    const showLines = !(state.settings && state.settings.lineNumbers === false);
     state.cm = CodeMirror($("editor-host"), {
       mode: "text/x-java",
-      lineNumbers: true,
+      lineNumbers: showLines,
       lineWrapping: true,
       indentUnit: 4,
       matchBrackets: true,
@@ -529,6 +532,17 @@
       const fontSize = applyFont($("font-range").value);
       api("PUT", "/api/settings", { fontSize: fontSize }).catch(() => {});
     });
+    const lineToggle = $("line-numbers");
+    if (lineToggle) {
+      lineToggle.addEventListener("change", () => {
+        const on = !!lineToggle.checked;
+        if (state.settings) state.settings.lineNumbers = on;
+        const cm = ensureEditor();
+        cm.setOption("lineNumbers", on);
+        cm.refresh();
+        api("PUT", "/api/settings", { lineNumbers: on }).catch(() => {});
+      });
+    }
   }
 
   async function boot() {
@@ -550,6 +564,9 @@
       state.settings = await api("GET", "/api/settings");
       applyTheme(state.settings.theme || "desk");
       applyFont(Math.max(14, state.settings.fontSize || 16));
+      if ($("line-numbers")) {
+        $("line-numbers").checked = state.settings.lineNumbers !== false;
+      }
       await loadTemplates();
       await refreshProjects();
       await loadPairCard();

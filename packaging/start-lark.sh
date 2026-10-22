@@ -275,16 +275,13 @@ fetch_java() {
   echo "Lark is downloading a private copy of Java into your home folder."
   echo "This does not ask for an administrator password."
   tmp=$(mktemp)
-  # Prefer a normal TLS download; fall back to insecure only if the school
-  # proxy breaks certificate checks (same class of failure as Windows 0x80092012).
+  # HTTPS only — never disable certificate checks (avoids MITM JDK installs).
+  # Prefer zips that already ship jdk/ so this download is rarely needed.
   if ! curl -fL --retry 3 --retry-delay 2 -o "$tmp" "$url"; then
-    echo "Retrying download with relaxed certificate checks..."
-    if ! curl -fLk --retry 3 --retry-delay 2 -o "$tmp" "$url"; then
-      rm -f "$tmp"
-      echo "Could not download Java. School firewalls and proxies often block this step."
-      school_help
-      return 1
-    fi
+    rm -f "$tmp"
+    echo "Could not download Java over HTTPS. Use a Lark zip that includes jdk/, or fix the network proxy."
+    school_help
+    return 1
   fi
   if ! zip_ok "$tmp"; then
     rm -f "$tmp"

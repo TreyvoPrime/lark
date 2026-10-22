@@ -7,12 +7,14 @@ import java.io.ByteArrayInputStream;
 import java.io.ByteArrayOutputStream;
 import java.io.IOException;
 import java.io.InputStream;
+import java.net.InetAddress;
 import java.net.InetSocketAddress;
 import java.net.URLDecoder;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.Locale;
+import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.Executors;
 
 /** Local-only HTTP server. The editor in the browser talks to this, and nowhere else. */
@@ -30,6 +32,8 @@ public final class Server {
     private final Settings settings;
     private final Path webDir;
     private final boolean lan;
+    /** Failed pair attempts per remote IP (rate limit). */
+    private final ConcurrentHashMap<String, long[]> pairFails = new ConcurrentHashMap<>();
 
     private Server(HttpServer http, int port, Projects projects, Runner runner, Debugger debugger, Tests tests,
                    Checker checker, GitHub github, Updates updates, Terminal terminal, Settings settings, Path webDir,
@@ -155,18 +159,24 @@ public final class Server {
             return;
         }
         if ("GET".equals(method) && "/api/mobile/info".equals(path)) {
+            boolean loopback = isLoopbackPeer(exchange);
+            boolean paired = pairOk(exchange);
+            boolean sharePair = loopback || paired;
             Json.Arr urls = new Json.Arr();
-            for (String ip : Mobile.lanAddresses()) {
-                urls.add("http://" + ip + ":" + port + "/?pair=" + Mobile.pairToken());
+            if (sharePair) {
+                for (String ip : Mobile.lanAddresses()) {
+                    urls.add("http://" + ip + ":" + port + "/?pair=" + Mobile.pairToken());
+                }
             }
-            boolean sharePair = localHost(exchange.getRequestHeaders().getFirst("Host")) || pairOk(exchange);
             sendJson(exchange, 200, new Json.Obj()
                     .put("ok", true)
                     .put("edition", "mobile")
                     .put("version", Settings.VERSION)
                     .put("lan", lan && Mobile.lanEnabled())
                     .put("pair", sharePair ? Mobile.pairToken() : "")
-                    .put("local", "http://127.0.0.1:" + port + "/?pair=" + Mobile.pairToken())
+                    .put("local", sharePair
+                            ? ("http://127.0.0.1:" + port + "/?pair=" + Mobile.pairToken())
+                            : ("http://127.0.0.1:" + port + "/"))
                     .put("urls", urls));
             return;
         }
@@ -209,6 +219,7 @@ public final class Server {
                 }
                 if (body.has("indentWithTabs")) settings.indentWithTabs = body.bool("indentWithTabs");
                 if (body.has("lineWrapping")) settings.lineWrapping = body.bool("lineWrapping");
+                if (body.has("lineNumbers")) settings.lineNumbers = body.bool("lineNumbers");
                 if (body.has("autoSave")) settings.autoSave = body.bool("autoSave");
                 if (body.has("autoSaveDelayMs")) {
                     int delay = (int) body.longVal("autoSaveDelayMs");
@@ -218,7 +229,18 @@ public final class Server {
                     settings.autoSaveDelayMs = delay;
                 }
                 if (body.has("formatOnSave")) settings.formatOnSave = body.bool("formatOnSave");
-                if (body.has("updateFeed")) settings.updateFeed = body.str("updateFeed", "").trim();
+                if (body.has("updateFeed")) {
+                    String feed = body.str("updateFeed", "").trim();
+                    if (!feed.isBlank() && !Updates.allowedFeedUrl(feed)) {
+                        throw new RequestFail(400, "Update feed must be HTTPS on GitHub or the official Lark release host.");
+                    }
+                    // Only the machine running Lark can retarget the update feed.
+                    if (!feed.equals(settings.updateFeed == null ? "" : settings.updateFeed)
+                            && !isLoopbackPeer(exchange)) {
+                        throw new RequestFail(403, "Change the update feed from this computer, not over Wi‑Fi.");
+                    }
+                    settings.updateFeed = feed;
+                }
                 settings.save();
                 sendJson(exchange, 200, settingsJson());
                 return;
@@ -230,7 +252,7 @@ public final class Server {
         }
         if ("/api/update/install".equals(path) && "POST".equals(method)) {
             Json.Obj body = body(exchange);
-            sendJson(exchange, 200, updates.install(body.str("download", "")));
+            sendJson(exchange, 200, updates.install(body.str("download", ""), isLoopbackPeer(exchange)));
             return;
         }
         if ("/api/update/skip".equals(path) && "POST".equals(method)) {
@@ -501,6 +523,7 @@ public final class Server {
                 .put("indentSize", settings.indentSize)
                 .put("indentWithTabs", settings.indentWithTabs)
                 .put("lineWrapping", settings.lineWrapping)
+                .put("lineNumbers", settings.lineNumbers)
                 .put("autoSave", settings.autoSave)
                 .put("autoSaveDelayMs", settings.autoSaveDelayMs)
                 .put("formatOnSave", settings.formatOnSave)
@@ -530,9 +553,52 @@ public final class Server {
     }
 
     private boolean allowedClient(HttpExchange exchange, String host) {
-        if (localHost(host)) return true;
+        // Authorize by TCP peer, never by the spoofable Host header.
+        if (isLoopbackPeer(exchange)) return true;
         if (!lan || !Mobile.isMobile()) return false;
-        return pairOk(exchange);
+        if (!pairAttemptAllowed(exchange)) return false;
+        boolean ok = pairOk(exchange);
+        if (!ok) notePairFail(exchange);
+        return ok;
+    }
+
+    private static boolean isLoopbackPeer(HttpExchange exchange) {
+        try {
+            InetSocketAddress remote = exchange.getRemoteAddress();
+            if (remote == null) return false;
+            InetAddress addr = remote.getAddress();
+            return addr != null && addr.isLoopbackAddress();
+        } catch (Exception e) {
+            return false;
+        }
+    }
+
+    private boolean pairAttemptAllowed(HttpExchange exchange) {
+        String key = peerKey(exchange);
+        long[] slot = pairFails.get(key);
+        if (slot == null) return true;
+        long windowStart = slot[0];
+        long count = slot[1];
+        long now = System.currentTimeMillis();
+        if (now - windowStart > 60_000L) return true;
+        return count < 20;
+    }
+
+    private void notePairFail(HttpExchange exchange) {
+        String key = peerKey(exchange);
+        long now = System.currentTimeMillis();
+        pairFails.compute(key, (k, prev) -> {
+            if (prev == null || now - prev[0] > 60_000L) return new long[]{now, 1};
+            return new long[]{prev[0], prev[1] + 1};
+        });
+    }
+
+    private static String peerKey(HttpExchange exchange) {
+        try {
+            InetSocketAddress remote = exchange.getRemoteAddress();
+            if (remote != null && remote.getAddress() != null) return remote.getAddress().getHostAddress();
+        } catch (Exception ignored) {}
+        return "unknown";
     }
 
     private static boolean pairOk(HttpExchange exchange) {
@@ -540,7 +606,18 @@ public final class Server {
         if (token == null || token.isBlank()) return false;
         String pair = exchange.getRequestHeaders().getFirst("X-Lark-Pair");
         if (pair == null || pair.isBlank()) pair = query(exchange, "pair");
-        return token.equals(pair);
+        if (pair == null) return false;
+        return constantTimeEquals(token, pair.trim());
+    }
+
+    private static boolean constantTimeEquals(String a, String b) {
+        if (a == null || b == null) return false;
+        byte[] x = a.getBytes(StandardCharsets.UTF_8);
+        byte[] y = b.getBytes(StandardCharsets.UTF_8);
+        if (x.length != y.length) return false;
+        int diff = 0;
+        for (int i = 0; i < x.length; i++) diff |= x[i] ^ y[i];
+        return diff == 0;
     }
 
     private static String downloadName(String path) {
@@ -762,6 +839,16 @@ public final class Server {
         exchange.getResponseHeaders().set("Content-Type", type);
         exchange.getResponseHeaders().set("Cache-Control", "no-store");
         exchange.getResponseHeaders().set("X-Content-Type-Options", "nosniff");
+        exchange.getResponseHeaders().set("X-Frame-Options", "SAMEORIGIN");
+        exchange.getResponseHeaders().set("Referrer-Policy", "no-referrer");
+        // Local IDE UI — no third-party scripts; block inline eval and cross-origin framing.
+        if (type != null && (type.startsWith("text/html") || type.startsWith("application/javascript")
+                || type.contains("text/css"))) {
+            exchange.getResponseHeaders().set("Content-Security-Policy",
+                    "default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; "
+                            + "font-src 'self' https://fonts.gstatic.com data:; img-src 'self' data:; "
+                            + "connect-src 'self'; frame-ancestors 'none'; base-uri 'self'; form-action 'self'");
+        }
         exchange.sendResponseHeaders(status, data.length);
         exchange.getResponseBody().write(data);
         exchange.close();

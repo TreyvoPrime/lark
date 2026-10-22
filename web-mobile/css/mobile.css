@@ -329,6 +329,15 @@ button, .ghost, .accent {
   gap: 6px;
   margin-bottom: 12px;
 }
+.field.check {
+  grid-template-columns: 1fr auto;
+  align-items: center;
+}
+.field.check input[type="checkbox"] {
+  width: auto;
+  min-height: 0;
+  margin: 0;
+}
 .field span {
   font-size: 0.78rem;
   letter-spacing: 0.08em;
