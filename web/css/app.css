@@ -2360,7 +2360,9 @@ body.no-ligatures .CodeMirror {
 .CodeMirror-gutter.breakpoints {
   width: 14px;
 }
-.CodeMirror-gutter-wrapper { z-index: 1; }
+/* Must stay above .CodeMirror-gutters (z-index: 3) or line numbers paint under the gutter plate. */
+.CodeMirror-gutter-wrapper,
+.CodeMirror-gutter-elt { z-index: 4; }
 .CodeMirror pre.CodeMirror-line,
 .CodeMirror pre.CodeMirror-line-like {
   padding-left: 8px;
