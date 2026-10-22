@@ -1,6 +1,0 @@
-{
-	Name: "Definitive Navy",
-	Description: "Ports, shipyards, nine ship types, fleets, invasions, sea control, and the bills that come with them.",
-	Tags: [ "Mod", "Units", "Events" ],
-	ChangeNote: "Navy 1.0 through a playable slice of 3.0, as events on the existing game.",
-}

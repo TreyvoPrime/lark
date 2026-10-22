@@ -115,11 +115,14 @@
   let paletteIndex = 0;
   let modalResolve = null;
   const SCRATCH_KEY = "lark-scratch-source";
+  const SCRATCH_POS_KEY = "lark-scratch-pos";
   const SCRATCH_STARTER =
     "// Scratch — no class or main needed.\n"
     + "// Imports stay at the top; everything else runs inside main.\n\n"
     + "int n = 5;\n"
     + "System.out.println(\"n squared = \" + (n * n));\n";
+  let spaceHeld = false;
+  let scratchDrag = null;
 
   const $ = (id) => document.getElementById(id);
 
@@ -242,11 +245,88 @@
     return cmScratch;
   }
 
+  function restoreScratchPos() {
+    const pad = $("scratch-pad");
+    if (!pad) return;
+    try {
+      const raw = localStorage.getItem(SCRATCH_POS_KEY);
+      if (!raw) return;
+      const pos = JSON.parse(raw);
+      if (typeof pos.left === "number" && typeof pos.top === "number") {
+        pad.style.left = Math.max(0, pos.left) + "px";
+        pad.style.top = Math.max(0, pos.top) + "px";
+        pad.style.right = "auto";
+        pad.style.bottom = "auto";
+      }
+      if (typeof pos.width === "number") pad.style.width = pos.width + "px";
+      if (typeof pos.height === "number") pad.style.height = pos.height + "px";
+    } catch (e) {}
+  }
+
+  function saveScratchPos() {
+    const pad = $("scratch-pad");
+    if (!pad || pad.hidden) return;
+    const rect = pad.getBoundingClientRect();
+    try {
+      localStorage.setItem(SCRATCH_POS_KEY, JSON.stringify({
+        left: rect.left,
+        top: rect.top,
+        width: rect.width,
+        height: rect.height
+      }));
+    } catch (e) {}
+  }
+
+  function bindScratchDrag() {
+    const pad = $("scratch-pad");
+    const handle = $("scratch-drag") || (pad && pad.querySelector(".scratch-head"));
+    if (!pad || !handle || handle._larkDrag) return;
+    handle._larkDrag = true;
+    handle.addEventListener("pointerdown", (event) => {
+      if (event.button != null && event.button !== 0) return;
+      if (event.target.closest("button, select, input, a")) return;
+      const rect = pad.getBoundingClientRect();
+      scratchDrag = {
+        id: event.pointerId,
+        ox: event.clientX - rect.left,
+        oy: event.clientY - rect.top,
+        w: rect.width,
+        h: rect.height
+      };
+      pad.classList.add("dragging");
+      pad.style.left = rect.left + "px";
+      pad.style.top = rect.top + "px";
+      pad.style.right = "auto";
+      pad.style.bottom = "auto";
+      try { handle.setPointerCapture(event.pointerId); } catch (e) {}
+      event.preventDefault();
+    });
+    handle.addEventListener("pointermove", (event) => {
+      if (!scratchDrag || scratchDrag.id !== event.pointerId) return;
+      const maxX = Math.max(0, window.innerWidth - scratchDrag.w);
+      const maxY = Math.max(0, window.innerHeight - scratchDrag.h);
+      const left = Math.min(maxX, Math.max(0, event.clientX - scratchDrag.ox));
+      const top = Math.min(maxY, Math.max(0, event.clientY - scratchDrag.oy));
+      pad.style.left = left + "px";
+      pad.style.top = top + "px";
+    });
+    const endDrag = (event) => {
+      if (!scratchDrag || (event && scratchDrag.id !== event.pointerId)) return;
+      scratchDrag = null;
+      pad.classList.remove("dragging");
+      saveScratchPos();
+    };
+    handle.addEventListener("pointerup", endDrag);
+    handle.addEventListener("pointercancel", endDrag);
+  }
+
   function openScratch() {
     const pad = $("scratch-pad");
     if (!pad) return;
     pad.hidden = false;
     document.body.classList.add("scratch-open");
+    restoreScratchPos();
+    bindScratchDrag();
     const editor = ensureScratchEditor();
     if (editor) {
       applyEditorPrefs(state.settings || {}, false);
@@ -2823,7 +2903,12 @@
       renderTabs();
       if (job.done) {
         setRunning(false, false);
-        if (state.problems.some((problem) => problem.severity === "error")) {
+        const hasErr = state.problems.some((problem) => problem.severity === "error");
+        if (window.LarkBuddy) {
+          if (hasErr || (job.exit != null && job.exit !== 0)) window.LarkBuddy.sad();
+          else window.LarkBuddy.celebrate();
+        }
+        if (hasErr) {
           showConsoleTab("problems");
           const first = state.problems.find((problem) => problem.severity === "error");
           if (first) jumpTo(first.file, first.line, first.column || 1);
@@ -4194,6 +4279,18 @@
     if ($("theme-nudge-dismiss")) {
       $("theme-nudge-dismiss").addEventListener("click", () => dismissThemeNudge(false));
     }
+    if ($("setting-buddy") && window.LarkBuddy) {
+      $("setting-buddy").addEventListener("change", () => {
+        window.LarkBuddy.setEnabled($("setting-buddy").checked);
+        window.LarkBuddy.syncUi();
+      });
+    }
+    if ($("setting-buddy-species") && window.LarkBuddy) {
+      $("setting-buddy-species").addEventListener("change", () => {
+        window.LarkBuddy.setSpecies($("setting-buddy-species").value);
+      });
+    }
+    bindScratchDrag();
     if ($("debug")) $("debug").addEventListener("click", () => startDebug().catch((err) => toast(err.message)));
     if ($("split-editor")) $("split-editor").addEventListener("click", () => toggleSplit());
     if ($("close-split")) $("close-split").addEventListener("click", () => closeSplit());
@@ -4542,6 +4639,10 @@
       if (event.target.closest(".popover") || event.target.closest("[data-pop]") || event.target.closest("#context")) return;
       closePopovers();
     });
+    window.addEventListener("keyup", (event) => {
+      if (event.code === "Space" || event.key === " ") spaceHeld = false;
+    });
+    window.addEventListener("blur", () => { spaceHeld = false; });
     window.addEventListener("keydown", (event) => {
       const key = event.key.toLowerCase();
       if (event.key === "Escape") {
@@ -4577,7 +4678,9 @@
         else run().catch((err) => toast(err.message));
         return;
       }
-      if ((event.ctrlKey || event.metaKey) && (key === "'" || event.code === "Quote")) {
+      if (event.code === "Space" || event.key === " ") spaceHeld = true;
+      if (spaceHeld && (event.key === "." || event.code === "Period")
+          && !event.ctrlKey && !event.metaKey && !event.altKey) {
         if (!$("modal").hidden) return;
         event.preventDefault();
         toggleScratch();
@@ -4792,6 +4895,17 @@
     try {
       ensureEditor();
       bind();
+      if (window.LarkBuddy && $("status")) {
+        window.LarkBuddy.mount($("status"));
+        // On by default the first time; user can turn off in Settings.
+        try {
+          if (localStorage.getItem("lark-buddy") == null) {
+            localStorage.setItem("lark-buddy", "1");
+            window.LarkBuddy.setEnabled(true);
+          }
+        } catch (e) {}
+        window.LarkBuddy.syncUi();
+      }
       let larkVer = "";
       try {
         const health = await api("GET", "/api/health");

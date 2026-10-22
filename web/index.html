@@ -45,7 +45,7 @@
       <button id="run" type="button" class="primary run-btn" title="Ctrl+Enter">Run</button>
       <button id="debug" type="button" title="Start debugger (F5)">Debug</button>
       <button id="split-editor" type="button" title="Split editor (Ctrl+\)">Split</button>
-      <button id="scratch" type="button" title="Scratch pad (Ctrl+')">Scratch</button>
+      <button id="scratch" type="button" title="Scratch pad (Space+.)">Scratch</button>
       <button id="github" type="button">GitHub</button>
       <button id="theme" type="button" data-pop="menu-theme">Desk</button>
       <button id="beautify" type="button" title="Fix indentation (Shift+Alt+F)">Beautify</button>
@@ -335,6 +335,20 @@
     <label class="settings-check"><input id="setting-line-wrap" type="checkbox"> Line wrap</label>
     <label class="settings-check"><input id="setting-line-numbers" type="checkbox" checked> Show line numbers</label>
     <hr class="settings-rule">
+    <label class="settings-check"><input id="setting-buddy" type="checkbox"> Desk Buddy (status bar pet)</label>
+    <label class="settings-row settings-stack">Buddy
+      <select id="setting-buddy-species">
+        <option value="cat">Cat</option>
+        <option value="crab">Crab</option>
+        <option value="turtle">Turtle</option>
+        <option value="elephant">Elephant</option>
+        <option value="dog">Dog</option>
+        <option value="shark">Shark</option>
+        <option value="horse">Horse</option>
+        <option value="cheetah">Cheetah</option>
+      </select>
+    </label>
+    <hr class="settings-rule">
     <label class="settings-check"><input id="setting-autosave" type="checkbox" checked> Autosave as you type</label>
     <label class="settings-row settings-stack">Autosave delay
       <select id="setting-autosave-delay">
@@ -353,10 +367,10 @@
     <p id="setting-update-status" class="path-note"></p>
   </div>
   <aside id="scratch-pad" class="scratch-pad" hidden>
-    <div class="scratch-head">
+    <div class="scratch-head" id="scratch-drag" title="Drag to move">
       <div class="scratch-title">
         <strong>Scratch</strong>
-        <span>Runs inside an invisible <code>main</code> — just write statements.</span>
+        <span>Drag anywhere · Space+. to toggle · auto-<code>main</code></span>
       </div>
       <div class="scratch-actions">
         <button type="button" id="scratch-run" class="primary" title="Run scratch (Ctrl+Enter)">Run</button>
@@ -414,7 +428,7 @@
       <li><span>Introduce variable</span><kbd>Ctrl+Alt+V</kbd></li>
       <li><span>Save</span><kbd>Ctrl+S</kbd></li>
       <li><span>Split / unsplit</span><kbd>Ctrl+\</kbd></li>
-      <li><span>Scratch pad</span><kbd>Ctrl+'</kbd></li>
+      <li><span>Scratch pad</span><kbd>Space+.</kbd></li>
       <li><span>Run scratch</span><kbd>Ctrl+Enter</kbd> <span class="path-note">(while Scratch is open)</span></li>
       <li><span>Javadoc stub</span><kbd>/**</kbd></li>
       <li><span>Beautify</span><kbd>Shift+Alt+F</kbd></li>
@@ -527,6 +541,7 @@
   <script src="vendor/codemirror/addon/search/search.min.js"></script>
   <script src="vendor/codemirror/addon/hint/show-hint.min.js"></script>
   <script src="js/java.js?v=__LARK_V__"></script>
+  <script src="js/buddy.js?v=__LARK_V__"></script>
   <script src="js/app.js?v=__LARK_V__"></script>
 </body>
 </html>
