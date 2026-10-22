@@ -57,7 +57,9 @@ cat > release/update.json <<EOF
     "mobile-mac": "$feed_base/lark-mobile-update.zip",
     "mobile-linux": "$feed_base/lark-mobile-update.zip",
     "school": "$feed_base/lark-school-update.zip",
-    "school-windows": "$feed_base/lark-school-update.zip"
+    "school-windows": "$feed_base/lark-school-update.zip",
+    "enterprise": "$feed_base/lark-enterprise-update.zip",
+    "enterprise-windows": "$feed_base/lark-enterprise-update.zip"
   },
   "desktop": {
     "windows": "$feed_base/lark-desktop-windows.zip",
@@ -72,6 +74,10 @@ cat > release/update.json <<EOF
   },
   "school": {
     "windows": "$feed_base/lark-school-windows.zip"
+  },
+  "enterprise": {
+    "windows": "$feed_base/LarkEnterpriseSetup.exe",
+    "windows-zip": "$feed_base/lark-enterprise-windows.zip"
   },
   "sha256": {}
 }
@@ -139,6 +145,10 @@ LARK_SKIP_PACKAGE=1 LARK_UPDATE_BASE="$feed_base" LARK_UPDATE_NOTES="$notes" ./p
 chmod +x packaging/make-school.sh
 LARK_SKIP_PACKAGE=1 LARK_UPDATE_BASE="$feed_base" LARK_UPDATE_NOTES="$notes" ./packaging/make-school.sh
 
+# Lark Enterprise — Setup wizard (separate from Desktop).
+chmod +x packaging/make-enterprise.sh
+LARK_SKIP_PACKAGE=1 LARK_UPDATE_BASE="$feed_base" LARK_UPDATE_NOTES="$notes" ./packaging/make-enterprise.sh
+
 # Integrity hashes for in-app update verification.
 hash_file() {
   f=$1
@@ -154,6 +164,8 @@ h_update=$(hash_file release/lark-update.zip)
 h_desktop=$(hash_file release/lark-desktop-update.zip)
 h_mobile=$(hash_file release/lark-mobile-update.zip)
 h_school=$(hash_file release/lark-school-update.zip)
+h_enterprise=$(hash_file release/lark-enterprise-update.zip)
+h_enterprise_setup=$(hash_file release/LarkEnterpriseSetup.exe)
 # Rebuild feed with sha256 map (channel keys + filenames).
 python3 - <<PY
 import json, pathlib
@@ -179,6 +191,10 @@ pairs = [
     ("school", """$h_school"""),
     ("school-windows", """$h_school"""),
     ("lark-school-update.zip", """$h_school"""),
+    ("enterprise", """$h_enterprise"""),
+    ("enterprise-windows", """$h_enterprise"""),
+    ("lark-enterprise-update.zip", """$h_enterprise"""),
+    ("LarkEnterpriseSetup.exe", """$h_enterprise_setup"""),
 ]
 for k, v in pairs:
     v = (v or "").strip()

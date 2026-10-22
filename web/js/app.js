@@ -4601,7 +4601,8 @@
     if ($("update-restart")) $("update-restart").addEventListener("click", () => restartAfterUpdate().catch((err) => toast(err.message)));
     if ($("update-modal-later")) $("update-modal-later").addEventListener("click", () => {
       hideUpdateBanner();
-      toast("You'll be prompted again next time you open Lark Desktop.");
+      const ed = (state.settings && state.settings.edition) || "";
+      toast("You'll be prompted again next time you open " + productName(ed) + ".");
     });
     if ($("update-modal-now")) $("update-modal-now").addEventListener("click", () => installUpdate().catch((err) => toast(err.message)));
     if ($("update-modal-restart")) $("update-modal-restart").addEventListener("click", () => restartAfterUpdate().catch((err) => toast(err.message)));
@@ -4952,9 +4953,18 @@
     }
   }
 
+  function productName(edition) {
+    if (edition === "enterprise") return "Lark Enterprise";
+    if (edition === "desktop") return "Lark Desktop";
+    if (edition === "mobile") return "Lark Mobile";
+    if (edition === "school") return "Lark School";
+    return "Lark";
+  }
+
   function isDesktopEdition(info) {
     const edition = (info && info.edition) || (state.settings && state.settings.edition) || "";
-    return edition === "desktop" || !!(info && (info.prompt || info.required));
+    // Enterprise uses the same “prompt every launch” update UX as Desktop.
+    return edition === "desktop" || edition === "enterprise" || !!(info && (info.prompt || info.required));
   }
 
   function hideUpdateBanner() {
@@ -4967,8 +4977,9 @@
   function showUpdateBanner(info) {
     state.updateInfo = info;
     const desktop = isDesktopEdition(info);
+    const edition = (info && info.edition) || (state.settings && state.settings.edition) || "";
     const title = desktop
-      ? ("Lark Desktop " + (info.latest || "") + " is ready")
+      ? (productName(edition) + " " + (info.latest || "") + " is ready")
       : ("Lark " + (info.latest || "") + " is ready");
     const notes = info.notes || info.message || ("You have " + (info.current || "") + ".");
 
@@ -5021,9 +5032,10 @@
     const info = state.updateInfo;
     if (!info || !info.latest) return hideUpdateBanner();
     if (isDesktopEdition(info)) {
-      // Desktop: Later only hides for this session; next launch prompts again.
+      // Desktop / Enterprise: Later only hides for this session; next launch prompts again.
       hideUpdateBanner();
-      toast("You'll be prompted again next time you open Lark Desktop.");
+      const ed = (info && info.edition) || (state.settings && state.settings.edition) || "";
+      toast("You'll be prompted again next time you open " + productName(ed) + ".");
       return;
     }
     await api("POST", "/api/update/skip", { version: info.latest });
@@ -5041,7 +5053,8 @@
       if (desktop && $("update-modal")) {
         $("update-modal").hidden = false;
         $("update-modal-title").textContent = "Update installed";
-        $("update-modal-notes").textContent = result.message || "Restart Lark Desktop to finish.";
+        const ed = (info && info.edition) || (state.settings && state.settings.edition) || "";
+        $("update-modal-notes").textContent = result.message || ("Restart " + productName(ed) + " to finish.");
         if ($("update-modal-now")) $("update-modal-now").hidden = true;
         if ($("update-modal-later")) $("update-modal-later").hidden = true;
         if ($("update-modal-restart")) $("update-modal-restart").hidden = false;
@@ -5074,6 +5087,9 @@
       state.settings = await api("GET", "/api/settings");
       const edition = state.settings.edition || "portable";
       document.body.classList.toggle("edition-desktop", edition === "desktop");
+      document.body.classList.toggle("edition-enterprise", edition === "enterprise");
+      const brandVer = document.querySelector("#brand-home .ver");
+      if (brandVer && edition === "enterprise") brandVer.textContent = "Ent";
       applyTheme(state.settings.theme, false);
       applyDisplay({
         fontSize: state.settings.fontSize || 14,
@@ -5095,11 +5111,11 @@
       showGithub();
       const version = (state.settings.javaVersion || "").split(".")[0];
       const bits = [];
-      if (larkVer) bits.push((edition === "desktop" ? "Lark Desktop " : "Lark ") + larkVer);
+      if (larkVer) bits.push(productName(edition) + " " + larkVer);
       if (version) bits.push("Java " + version);
       $("status-java").textContent = bits.join(" · ");
       if ($("status-path") && larkVer) {
-        $("status-path").textContent = (edition === "desktop" ? "Lark Desktop " : "Lark ") + larkVer;
+        $("status-path").textContent = productName(edition) + " " + larkVer;
       }
       const data = await api("GET", "/api/projects");
       state.projects = data.projects;

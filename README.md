@@ -4,18 +4,18 @@ Lark is a focused Java IDE: multi-file projects, live compile feedback, brace gu
 
 ## Downloads (pick one)
 
-| | **Lark Desktop** | **Portable zip** | **Lark School** | **Lark Mobile** |
-| --- | --- | --- | --- | --- |
-| **What it is** | Installed app | Unzip folder | Unzip folder, **no .bat** | Touch-first edition |
-| **GitHub file** | `lark-desktop-windows.zip` | `lark-windows.zip` | `lark-school-windows.zip` | `lark-mobile-windows.zip` |
-| **How to start** | Install script | **Start Lark.bat** | **Lark.exe** | **Start Lark Mobile** |
-| **UI** | Full desktop IDE | Full desktop IDE | Full desktop IDE | Bottom-tab Mobile UI |
-| **Best for** | Home PC | USB / normal portable | School PCs that block .bat | Tablet + phone pair |
+| | **Lark Desktop** (default) | **Lark Enterprise** | **Portable zip** | **Lark School** | **Lark Mobile** |
+| --- | --- | --- | --- | --- | --- |
+| **What it is** | Installed app | Setup wizard install | Unzip folder | Unzip folder, **no .bat** | Touch-first edition |
+| **GitHub file** | `lark-desktop-windows.zip` | `LarkEnterpriseSetup.exe` | `lark-windows.zip` | `lark-school-windows.zip` | `lark-mobile-windows.zip` |
+| **How to start** | Install script | **Setup.exe wizard** | **Start Lark.bat** | **Lark.exe** | **Start Lark Mobile** |
+| **UI** | Full desktop IDE | Full desktop IDE | Full desktop IDE | Full desktop IDE | Bottom-tab Mobile UI |
+| **Best for** | Home PC (default) | Real PC install + Start Menu | USB / portable | School PCs that block .bat | Tablet + phone pair |
 
 Download site: **[treyvoprime.github.io/lark-download](https://treyvoprime.github.io/lark-download/)**  
 Releases: **[github.com/TreyvoPrime/lark/releases/latest](https://github.com/TreyvoPrime/lark/releases/latest)**
 
-### Lark Desktop (recommended for PC)
+### Lark Desktop (default for PC)
 
 ```text
 https://github.com/TreyvoPrime/lark/releases/latest/download/lark-desktop-windows.zip
@@ -26,6 +26,18 @@ https://github.com/TreyvoPrime/lark/releases/latest/download/lark-desktop-linux.
 - **Windows:** Extract All → in PowerShell:  
   `powershell -ExecutionPolicy Bypass -File ".\Install Lark Desktop.ps1"`
 - **Mac / Linux:** Extract → run `Install Lark Desktop.command`
+
+### Lark Enterprise (Setup wizard — separate from Desktop)
+
+```text
+https://github.com/TreyvoPrime/lark/releases/latest/download/LarkEnterpriseSetup.exe
+```
+
+- Run **LarkEnterpriseSetup.exe** — welcome → folder → install → finish / launch
+- Installs to `%LOCALAPPDATA%\Programs\Lark Enterprise` (no admin password)
+- Start Menu + Desktop shortcuts with app icon; Add/Remove Programs entry
+- Own update channel; does **not** replace Lark Desktop
+- ~200 MB on disk (bundled JDK). Optional zip: `lark-enterprise-windows.zip`
 
 ### Portable zip
 
@@ -63,6 +75,11 @@ https://github.com/TreyvoPrime/lark/releases/latest/download/lark-mobile-linux.z
 - Compile and run stay on the host; the phone is the editor
 
 Do not open launchers from inside a zip preview / Temp folder.
+
+## What’s new in 3.4.0
+
+- **Lark Enterprise** — real Windows Setup wizard (`LarkEnterpriseSetup.exe`), Start Menu app, icon, Add/Remove Programs; separate from **Lark Desktop** (still the default)
+- Own install folder + update channel; can sit beside Desktop (~200 MB with JDK)
 
 ## What’s new in 3.3.0
 
