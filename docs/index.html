@@ -441,6 +441,7 @@
       <p class="lead">Lark is a focused IDE for real Java work — compile, run, debug, and refactor. Not a plugin marketplace. Not a month of setup. Just the tools you actually use.</p>
       <div class="cta">
         <a id="primary-dl" class="primary" href="https://github.com/TreyvoPrime/lark/releases/latest/download/lark-desktop-windows.zip">Download Lark Desktop</a>
+        <a id="enterprise-dl" class="ghost" href="https://github.com/TreyvoPrime/lark/releases/latest/download/LarkEnterpriseSetup.exe">Lark Enterprise Setup</a>
         <a id="portable-dl" class="ghost" href="https://github.com/TreyvoPrime/lark/releases/latest/download/lark-windows.zip">Download portable zip</a>
       </div>
       <p id="status"></p>
@@ -453,7 +454,7 @@
         <div class="benefit">
           <p class="tag">Focus</p>
           <h3>Not bloated</h3>
-          <p>No plugin zoo, no enterprise panels you never open. One window: explorer, editor, output, debug.</p>
+          <p>No plugin zoo, no cluttered sidebars you never open. One window: explorer, editor, output, debug.</p>
         </div>
         <div class="benefit">
           <p class="tag">Speed</p>
@@ -485,15 +486,24 @@
 
     <section class="section" id="compare" aria-label="Desktop vs portable vs mobile">
       <h2>What’s the difference?</h2>
-      <p class="sub">Desktop and portable share the full IDE. Lark Mobile is a completely different touch UI with its own zip.</p>
+      <p class="sub">Desktop is the default install. Enterprise is a separate Setup wizard edition. Portable is unzip-and-run. Mobile is its own touch UI.</p>
       <div class="cta-pair">
         <div class="track-card featured">
-          <p class="track-badge">Recommended</p>
+          <p class="track-badge">Default</p>
           <h3>Lark Desktop</h3>
           <p>Per-user install (no admin). Start Menu / Applications shortcut. Opens in its own window. Prompts you when an update is published.</p>
           <p>File names: <code>lark-desktop-windows.zip</code>, <code>lark-desktop-mac.zip</code>, <code>lark-desktop-linux.zip</code></p>
           <a id="compare-desktop" class="dl" href="https://github.com/TreyvoPrime/lark/releases/latest/download/lark-desktop-windows.zip">Get Lark Desktop</a>
         </div>
+        <div class="track-card featured">
+          <p class="track-badge">Setup wizard</p>
+          <h3>Lark Enterprise</h3>
+          <p>Real Windows installer — welcome → folder → install → launch. Start Menu app, icon, Add/Remove Programs. Completely separate from Desktop.</p>
+          <p>File name: <code>LarkEnterpriseSetup.exe</code></p>
+          <a id="compare-enterprise" class="dl" href="https://github.com/TreyvoPrime/lark/releases/latest/download/LarkEnterpriseSetup.exe">Get Lark Enterprise</a>
+        </div>
+      </div>
+      <div class="cta-pair" style="margin-top:16px">
         <div class="track-card">
           <p class="track-badge">Portable</p>
           <h3>Lark zip</h3>
@@ -501,15 +511,15 @@
           <p>File names: <code>lark-windows.zip</code>, <code>lark-mac.zip</code>, <code>lark-linux.zip</code></p>
           <a id="compare-portable" class="dl ghost" href="https://github.com/TreyvoPrime/lark/releases/latest/download/lark-windows.zip">Get portable zip</a>
         </div>
-      </div>
-      <div class="cta-pair" style="margin-top:16px">
-        <div class="track-card featured">
+        <div class="track-card">
           <p class="track-badge">School PCs</p>
           <h3>Lark School</h3>
           <p>Same Java IDE, but you double-click <code>Lark.exe</code> — no <code>.bat</code> file. Built for labs that block batch scripts.</p>
           <p>File name: <code>lark-school-windows.zip</code></p>
           <a id="compare-school" class="dl" href="https://github.com/TreyvoPrime/lark/releases/latest/download/lark-school-windows.zip">Get Lark School</a>
         </div>
+      </div>
+      <div class="cta-pair" style="margin-top:16px">
         <div class="track-card">
           <p class="track-badge">Mobile</p>
           <h3>Lark Mobile</h3>
@@ -520,17 +530,35 @@
       </div>
       <table class="compare" style="margin-top:28px">
         <thead>
-          <tr><th></th><th>Lark Desktop</th><th>Portable zip</th><th>Lark Mobile</th></tr>
+          <tr><th></th><th>Desktop</th><th>Enterprise</th><th>Portable</th><th>Mobile</th></tr>
         </thead>
         <tbody>
-          <tr><td>Install</td><td class="yes">Run Install script → Programs folder</td><td>Unzip only</td><td>Unzip only</td></tr>
-          <tr><td>Admin password</td><td class="yes">Not required</td><td class="yes">Not required</td><td class="yes">Not required</td></tr>
-          <tr><td>UI</td><td>Full desktop IDE</td><td>Full desktop IDE</td><td class="yes">Touch Mobile UI</td></tr>
-          <tr><td>Phone pair</td><td>—</td><td>—</td><td class="yes">Wi‑Fi URL + pair code</td></tr>
-          <tr><td>Updates</td><td class="yes">Prompts on launch</td><td>In-app check / banner</td><td class="yes">Mobile channel</td></tr>
-          <tr><td>Best for</td><td>Everyday machine, own window</td><td>USB, shared machines</td><td>Tablet + phone editing</td></tr>
+          <tr><td>Install</td><td class="yes">Install script</td><td class="yes">Setup.exe wizard</td><td>Unzip only</td><td>Unzip only</td></tr>
+          <tr><td>Admin password</td><td class="yes">Not required</td><td class="yes">Not required</td><td class="yes">Not required</td><td class="yes">Not required</td></tr>
+          <tr><td>UI</td><td>Full desktop IDE</td><td>Full desktop IDE</td><td>Full desktop IDE</td><td class="yes">Touch Mobile UI</td></tr>
+          <tr><td>Start Menu / icon</td><td class="yes">Yes</td><td class="yes">Yes (wizard)</td><td>—</td><td>—</td></tr>
+          <tr><td>Updates</td><td class="yes">Desktop channel</td><td class="yes">Enterprise channel</td><td>In-app check</td><td class="yes">Mobile channel</td></tr>
+          <tr><td>Best for</td><td>Default everyday PC</td><td>Real installer on your disk</td><td>USB / shared machines</td><td>Tablet + phone</td></tr>
         </tbody>
       </table>
+    </section>
+
+    <section class="section" id="enterprise" aria-label="Enterprise downloads">
+      <p class="track-badge">Track · Enterprise</p>
+      <h2>Lark Enterprise</h2>
+      <p class="sub">Windows Setup wizard edition — separate from Lark Desktop (Desktop stays the default). Installs to <code>%LOCALAPPDATA%\Programs\Lark Enterprise</code>, adds Start Menu + Desktop shortcuts, and uses its own update channel. About 45&nbsp;MB download · ~200&nbsp;MB on disk with the bundled JDK.</p>
+      <div class="grid">
+        <article id="card-enterprise-setup" class="pick">
+          <h3>Windows Setup</h3>
+          <p>Run <code>LarkEnterpriseSetup.exe</code> — welcome → folder → install → launch. No admin password.</p>
+          <a id="enterprise-setup-link" class="dl" href="https://github.com/TreyvoPrime/lark/releases/latest/download/LarkEnterpriseSetup.exe">LarkEnterpriseSetup.exe</a>
+        </article>
+        <article id="card-enterprise-zip">
+          <h3>Windows zip (optional)</h3>
+          <p>Full payload folder if you want to inspect files before installing. Prefer the Setup wizard for a normal PC install.</p>
+          <a class="dl ghost" href="https://github.com/TreyvoPrime/lark/releases/latest/download/lark-enterprise-windows.zip">lark-enterprise-windows.zip</a>
+        </article>
+      </div>
     </section>
 
     <section class="section" id="school" aria-label="School downloads">
@@ -616,8 +644,8 @@
     </section>
 
     <ol class="steps">
-      <li>Choose <strong>Desktop</strong> (<code>lark-desktop-…zip</code>) or <strong>portable</strong> (<code>lark-windows.zip</code> / mac / linux).</li>
-      <li>Desktop: Extract All → run <code>Install Lark Desktop.ps1</code> (Windows) or the <code>.command</code> installer. Portable: Extract All → run Start Lark.</li>
+      <li>Choose <strong>Desktop</strong> (default), <strong>Enterprise</strong> (Setup wizard), or <strong>portable</strong>.</li>
+      <li>Desktop: Extract All → run <code>Install Lark Desktop.ps1</code>. Enterprise: run <code>LarkEnterpriseSetup.exe</code>. Portable: Extract All → Start Lark.</li>
       <li>Open a preset (try BigInteger factorial), Run with Ctrl+Enter, Search with Ctrl+Shift+F.</li>
       <li>Optional: connect GitHub with a classic token that has the <code>repo</code> scope.</li>
     </ol>
@@ -670,9 +698,15 @@
       const el = document.getElementById(id);
       if (el) { el.href = latest(portableFile); }
     });
+    const enterpriseHref = latest("LarkEnterpriseSetup.exe");
+    ["enterprise-dl", "compare-enterprise", "enterprise-setup-link"].forEach((id) => {
+      const el = document.getElementById(id);
+      if (el) el.href = enterpriseHref;
+    });
+
     document.getElementById("status").textContent =
-      "Lark 3.0 · Detected " + (key === "windows" ? "Windows" : key === "mac" ? "Mac" : "Linux") +
-      " — Desktop (" + desktopFile + ") or portable (" + portableFile + ").";
+      "Lark 3 · Detected " + (key === "windows" ? "Windows" : key === "mac" ? "Mac" : "Linux") +
+      " — Desktop (" + desktopFile + "), Enterprise Setup, or portable (" + portableFile + ").";
 
     const io = new IntersectionObserver((entries) => {
       entries.forEach((e) => {
