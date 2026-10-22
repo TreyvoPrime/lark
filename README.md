@@ -64,6 +64,12 @@ https://github.com/TreyvoPrime/lark/releases/latest/download/lark-mobile-linux.z
 
 Do not open launchers from inside a zip preview / Temp folder.
 
+## What’s new in 3.2.4
+
+- Fix line-number gutter CSS; Settings control labeled clearly (`Aa` → title “Settings”)
+- Desk / Slate / Studio listed first in the theme menu
+- Stop leftover `dist/mobile.marker` from making portable runs load Mobile UI
+
 ## What’s new in 3.2.3
 
 - **Security harden** — loopback-based API auth (not spoofable Host), stronger Mobile pair tokens, update URL allowlist + SHA-256 when present, HTTPS-only JDK fetch, CSP headers

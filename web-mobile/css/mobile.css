@@ -303,7 +303,13 @@ button, .ghost, .accent {
   background: rgba(0, 0, 0, 0.18);
   border-right: 1px solid var(--line);
 }
-.CodeMirror-linenumber { color: var(--muted); }
+.CodeMirror-linenumber {
+  color: var(--muted);
+  padding: 0 8px 0 6px;
+  min-width: 2.4em;
+  text-align: right;
+}
+.CodeMirror-gutter.CodeMirror-linenumbers { min-width: 2.8em; }
 .CodeMirror-cursor { border-left: 2px solid var(--accent); }
 .CodeMirror-selected { background: rgba(111, 158, 141, 0.28); }
 .cm-s-default .cm-keyword { color: #c9b08a; }

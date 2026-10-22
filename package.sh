@@ -33,6 +33,9 @@ if [ ! -e web-mobile/fonts/JetBrainsMono-Regular.woff2 ]; then
   cp -a web/fonts/. web-mobile/fonts/ 2>/dev/null || true
 fi
 jar --create --file dist/lark.jar --main-class lark.Lark -C build . -C . web -C . web-mobile
+# Never leave edition markers beside dist/lark.jar — they make portable runs
+# mis-detect as Mobile/Desktop (installDir is the jar's parent).
+rm -f dist/mobile.marker dist/desktop.marker dist/school.marker
 echo "Wrote dist/lark.jar"
 echo "Run portable:  java -jar dist/lark.jar"
 echo "Run desktop:   java -cp dist/lark.jar lark.Desktop"
