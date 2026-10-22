@@ -1,11 +1,9 @@
 @echo off
 rem ============================================================================
-rem  Lark for Windows — path-safe boot + update-safe run
-rem  Works when the folder name has spaces or parentheses.
-rem  - No multi-line IF ( ) blocks with paths
-rem  - Window stays open via cmd /k
-rem  - Runs a COPY of lark.jar under %%LOCALAPPDATA%%\Lark\run
-rem    so the install jar is never locked and updates can replace it
+rem  Lark for Windows — official open-source launcher (https://github.com/TreyvoPrime/lark)
+rem  This script ONLY starts the bundled jdk\bin\java.exe with lark.jar.
+rem  It does not download programs from the internet.
+rem  Path-safe boot + update-safe run (copy under %%LOCALAPPDATA%%\Lark\run).
 rem ============================================================================
 setlocal EnableExtensions
 title Lark

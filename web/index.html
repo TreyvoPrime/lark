@@ -36,6 +36,7 @@
       </label>
       <button id="project-menu" type="button" data-pop="menu-project">Project</button>
       <button id="java-assist" type="button" data-pop="menu-assist">Java</button>
+      <button id="extras" type="button" data-pop="menu-extras">Extras</button>
       <div class="grow"></div>
       <label class="main-pick">
         <span>Main</span>
@@ -45,10 +46,11 @@
       <button id="run" type="button" class="primary run-btn" title="Ctrl+Enter">Run</button>
       <button id="debug" type="button" title="Start debugger (F5)">Debug</button>
       <button id="split-editor" type="button" title="Split editor (Ctrl+\)">Split</button>
+      <button id="scratch" type="button" title="Scratch pad (Space+.)">Scratch</button>
       <button id="github" type="button">GitHub</button>
       <button id="theme" type="button" data-pop="menu-theme">Desk</button>
       <button id="beautify" type="button" title="Fix indentation (Shift+Alt+F)">Beautify</button>
-      <button id="settings" type="button" data-pop="menu-settings">Aa</button>
+      <button id="settings" type="button" data-pop="menu-settings" title="Settings" aria-label="Settings">Aa</button>
       <button id="help" type="button" data-pop="menu-help" aria-label="Keyboard shortcuts">?</button>
     </header>
 
@@ -214,12 +216,29 @@
     <button type="button" data-act="delete-project" class="danger">Delete project</button>
     <p id="path-note" class="path-note"></p>
   </div>
+  <div id="menu-extras" class="popover menu" hidden>
+    <button type="button" data-extra="uml">UML class diagram…</button>
+    <button type="button" data-extra="assign">Assignment helper…</button>
+    <p class="path-note">Homework helpers — diagrams and field plans from assignment text.</p>
+  </div>
   <div id="menu-assist" class="popover menu" hidden>
     <button type="button" data-assist="beautify">Beautify indentation</button>
     <button type="button" data-assist="snippet">Insert building block…</button>
     <button type="button" data-assist="main">Insert main method</button>
     <button type="button" data-assist="fori">Insert for-i loop</button>
     <button type="button" data-assist="matrix">Insert matrix print loops…</button>
+    <button type="button" data-assist="homework">Insert homework block…</button>
+    <button type="button" data-assist="arrfill">Insert fill + print array…</button>
+    <button type="button" data-assist="arrstats">Insert array sum / min / max…</button>
+    <button type="button" data-assist="linsearch">Insert linear search…</button>
+    <button type="button" data-assist="countocc">Insert count occurrences…</button>
+    <button type="button" data-assist="sentinel">Insert sentinel read loop…</button>
+    <button type="button" data-assist="menu">Insert menu loop</button>
+    <button type="button" data-assist="fileio">Insert file read / write…</button>
+    <button type="button" data-assist="splitloop">Insert String split + loop</button>
+    <button type="button" data-assist="matfill">Insert 2D array fill…</button>
+    <button type="button" data-assist="arrcopy">Insert copy array…</button>
+    <button type="button" data-assist="arrrev">Insert reverse array…</button>
     <button type="button" data-assist="foreach">Insert for-each loop</button>
     <button type="button" data-assist="try">Insert try / catch</button>
     <button type="button" data-assist="scanner">Insert Scanner input</button>
@@ -249,6 +268,9 @@
     <div id="run-config-list"></div>
   </div>
   <div id="menu-theme" class="popover menu" hidden>
+    <button type="button" data-theme-choice="desk"><i class="swatch" style="background:#cc7832"></i>Desk</button>
+    <button type="button" data-theme-choice="slate"><i class="swatch" style="background:#8aa4b8"></i>Slate</button>
+    <button type="button" data-theme-choice="studio"><i class="swatch" style="background:#d19a66"></i>Studio</button>
     <button type="button" data-theme-choice="graphite"><i class="swatch" style="background:#36cfc9"></i>Graphite &amp; Teal</button>
     <button type="button" data-theme-choice="navy"><i class="swatch" style="background:#4d8dff"></i>Midnight Blue</button>
     <button type="button" data-theme-choice="terminal"><i class="swatch" style="background:#9fe870"></i>Terminal Green</button>
@@ -259,7 +281,6 @@
     <button type="button" data-theme-choice="amber"><i class="swatch" style="background:#ffb454"></i>Amber Terminal</button>
     <button type="button" data-theme-choice="blossom"><i class="swatch" style="background:#ff6b9d"></i>Blossom</button>
     <button type="button" data-theme-choice="candy"><i class="swatch" style="background:#ff7eb3"></i>Candy</button>
-    <button type="button" data-theme-choice="desk"><i class="swatch" style="background:#cc7832"></i>Desk</button>
     <button type="button" data-theme-choice="daylight"><i class="swatch" style="background:#0033b3"></i>Daylight</button>
     <button type="button" data-theme-choice="moss"><i class="swatch" style="background:#e0a070"></i>Moss</button>
     <button type="button" data-theme-choice="ember"><i class="swatch" style="background:#e89a5c"></i>Ember</button>
@@ -318,6 +339,7 @@
     </label>
     <label class="settings-check"><input id="setting-indent-tabs" type="checkbox"> Indent with tabs</label>
     <label class="settings-check"><input id="setting-line-wrap" type="checkbox"> Line wrap</label>
+    <label class="settings-check"><input id="setting-line-numbers" type="checkbox" checked> Show line numbers</label>
     <hr class="settings-rule">
     <label class="settings-check"><input id="setting-autosave" type="checkbox" checked> Autosave as you type</label>
     <label class="settings-row settings-stack">Autosave delay
@@ -335,6 +357,61 @@
     </label>
     <button type="button" id="setting-check-updates">Check for updates</button>
     <p id="setting-update-status" class="path-note"></p>
+  </div>
+  <aside id="scratch-pad" class="scratch-pad" hidden>
+    <div class="scratch-head" id="scratch-drag" title="Drag to move">
+      <div class="scratch-title">
+        <strong>Scratch</strong>
+        <span>Drag anywhere · Space+. to toggle · auto-<code>main</code></span>
+      </div>
+      <div class="scratch-actions">
+        <button type="button" id="scratch-run" class="primary" title="Run scratch (Ctrl+Enter)">Run</button>
+        <button type="button" id="scratch-copy" title="Copy all scratch code">Copy all</button>
+        <button type="button" id="scratch-clear" title="Clear scratch">Clear</button>
+        <button type="button" id="scratch-close" class="close-split" title="Close scratch" aria-label="Close scratch">×</button>
+      </div>
+    </div>
+    <div id="scratch-editor"></div>
+    <div class="scratch-resize" id="scratch-resize" title="Drag to resize"></div>
+  </aside>
+  <div id="extras-panel" class="extras-panel" hidden>
+    <div class="extras-card">
+      <div class="extras-head">
+        <strong id="extras-title">Extras</strong>
+        <button type="button" id="extras-close" aria-label="Close">×</button>
+      </div>
+      <div id="extras-uml" class="extras-body" hidden>
+        <p class="path-note">Built from every <code>.java</code> file in the open project (fields − / methods +).</p>
+        <div class="extras-actions">
+          <button type="button" id="uml-refresh" class="primary">Refresh</button>
+          <button type="button" id="uml-copy">Copy PlantUML</button>
+          <button type="button" id="uml-svg">Copy SVG</button>
+        </div>
+        <div id="uml-canvas" class="uml-canvas" tabindex="0"></div>
+      </div>
+      <div id="extras-assign" class="extras-body" hidden>
+        <p class="path-note">Paste the assignment prompt. Lark lists fields, getters, setters, and a starter class sketch — no cloud AI.</p>
+        <label class="extras-label">Assignment text
+          <textarea id="assign-input" rows="8" spellcheck="true" placeholder="Example: Create a Book class with a title (String), page count (int), and whether it is checked out (boolean). Include a constructor, getters, and setters."></textarea>
+        </label>
+        <div class="extras-actions">
+          <button type="button" id="assign-analyze" class="primary">Summarize needs</button>
+          <button type="button" id="assign-insert">Insert sketch into editor</button>
+          <button type="button" id="assign-copy">Copy sketch</button>
+        </div>
+        <div id="assign-out" class="assign-out"></div>
+      </div>
+    </div>
+  </div>
+  <div id="theme-nudge" class="theme-nudge" hidden>
+    <div class="theme-nudge-copy">
+      <strong id="theme-nudge-title">Evening light</strong>
+      <p id="theme-nudge-body">Switch to Hearth for a warmer desk?</p>
+    </div>
+    <div class="theme-nudge-actions">
+      <button type="button" id="theme-nudge-dismiss">Not now</button>
+      <button type="button" id="theme-nudge-apply" class="primary">Try it</button>
+    </div>
   </div>
   <div id="update-banner" class="update-banner" hidden>
     <div>
@@ -373,6 +450,8 @@
       <li><span>Introduce variable</span><kbd>Ctrl+Alt+V</kbd></li>
       <li><span>Save</span><kbd>Ctrl+S</kbd></li>
       <li><span>Split / unsplit</span><kbd>Ctrl+\</kbd></li>
+      <li><span>Scratch pad</span><kbd>Space+.</kbd></li>
+      <li><span>Run scratch</span><kbd>Ctrl+Enter</kbd> <span class="path-note">(while Scratch is open)</span></li>
       <li><span>Javadoc stub</span><kbd>/**</kbd></li>
       <li><span>Beautify</span><kbd>Shift+Alt+F</kbd></li>
       <li><span>Open file / class</span><kbd>Ctrl+P</kbd></li>
@@ -484,6 +563,7 @@
   <script src="vendor/codemirror/addon/search/search.min.js"></script>
   <script src="vendor/codemirror/addon/hint/show-hint.min.js"></script>
   <script src="js/java.js?v=__LARK_V__"></script>
+  <script src="js/extras.js?v=__LARK_V__"></script>
   <script src="js/app.js?v=__LARK_V__"></script>
 </body>
 </html>

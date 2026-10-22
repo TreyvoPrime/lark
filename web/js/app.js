@@ -1,6 +1,8 @@
 (function () {
   const THEME_NAMES = {
     desk: "Desk",
+    slate: "Slate",
+    studio: "Studio",
     daylight: "Daylight",
     moss: "Moss",
     ember: "Ember",
@@ -47,7 +49,7 @@
     pink: "blossom"
   };
   const THEME_IDS = [
-    "desk", "daylight", "moss", "ember", "fog",
+    "desk", "slate", "studio", "daylight", "moss", "ember", "fog",
     "blossom", "candy", "midnight", "citrus", "harbor",
     "graphite", "navy", "terminal", "parchment", "ultraviolet", "forest", "monochrome", "amber",
     "lagoon", "rosewood", "nova", "atelier", "obsidian", "glacier",
@@ -107,10 +109,22 @@
   const lineMarks = [];
   let cm = null;
   let cmB = null;
+  let cmScratch = null;
   let focusedEditor = "a";
   let suppress = false;
   let paletteIndex = 0;
   let modalResolve = null;
+  const SCRATCH_KEY = "lark-scratch-source";
+  const SCRATCH_POS_KEY = "lark-scratch-pos";
+  const SCRATCH_STARTER =
+    "// Scratch — no class or main needed.\n"
+    + "// Imports stay at the top; everything else runs inside main.\n\n"
+    + "int n = 5;\n"
+    + "System.out.println(\"n squared = \" + (n * n));\n";
+  let spaceHeld = false;
+  let scratchDrag = null;
+  let scratchResize = null;
+  let assignSketch = "";
 
   const $ = (id) => document.getElementById(id);
 
@@ -145,6 +159,467 @@
     $("theme").textContent = themeName(theme);
     if (save && state.settings) {
       api("PUT", "/api/settings", { theme: theme }).catch((err) => toast(err.message));
+    }
+  }
+
+  /** Time-of-day theme suggestion (once per local day, dismissible). */
+  function themeSuggestionForHour(hour) {
+    if (hour >= 5 && hour < 11) {
+      return { id: "daylight", title: "Morning light", body: "Switch to Daylight for a clearer desk?" };
+    }
+    if (hour >= 11 && hour < 17) {
+      return { id: "desk", title: "Midday focus", body: "Desk is a calm production theme for afternoon work." };
+    }
+    if (hour >= 17 && hour < 21) {
+      return { id: "hearth", title: "Evening warm-up", body: "Try Hearth for a warmer late-day desk?" };
+    }
+    return { id: "slate", title: "Night mode", body: "Slate keeps things quiet for late coding." };
+  }
+
+  function maybeShowThemeNudge() {
+    const banner = $("theme-nudge");
+    if (!banner) return;
+    let dismissed = "";
+    try { dismissed = localStorage.getItem("lark-theme-nudge-day") || ""; } catch (e) {}
+    const today = new Date();
+    const dayKey = today.getFullYear() + "-" + String(today.getMonth() + 1).padStart(2, "0")
+      + "-" + String(today.getDate()).padStart(2, "0");
+    if (dismissed === dayKey) return;
+    const suggestion = themeSuggestionForHour(today.getHours());
+    const current = (state.settings && state.settings.theme) || document.documentElement.dataset.theme || "desk";
+    if (current === suggestion.id) return;
+    $("theme-nudge-title").textContent = suggestion.title;
+    $("theme-nudge-body").textContent = suggestion.body;
+    banner.dataset.themeId = suggestion.id;
+    banner.hidden = false;
+  }
+
+  function dismissThemeNudge(apply) {
+    const banner = $("theme-nudge");
+    if (!banner) return;
+    const today = new Date();
+    const dayKey = today.getFullYear() + "-" + String(today.getMonth() + 1).padStart(2, "0")
+      + "-" + String(today.getDate()).padStart(2, "0");
+    try { localStorage.setItem("lark-theme-nudge-day", dayKey); } catch (e) {}
+    if (apply && banner.dataset.themeId) {
+      applyTheme(banner.dataset.themeId, true);
+      toast("Theme → " + themeName(banner.dataset.themeId));
+    }
+    banner.hidden = true;
+  }
+
+  function scratchOpen() {
+    const pad = $("scratch-pad");
+    return !!(pad && !pad.hidden);
+  }
+
+  function ensureScratchEditor() {
+    if (cmScratch) return cmScratch;
+    const host = $("scratch-editor");
+    if (!host || typeof CodeMirror === "undefined") return null;
+    let saved = SCRATCH_STARTER;
+    try {
+      const raw = localStorage.getItem(SCRATCH_KEY);
+      if (raw != null && raw !== "") saved = raw;
+    } catch (e) {}
+    cmScratch = CodeMirror(host, {
+      value: saved,
+      mode: "text/x-java",
+      theme: "lark",
+      lineNumbers: !(state.settings && state.settings.lineNumbers === false),
+      gutters: ["CodeMirror-linenumbers"],
+      indentUnit: (state.settings && state.settings.indentSize) || 4,
+      tabSize: (state.settings && state.settings.indentSize) || 4,
+      indentWithTabs: !!(state.settings && state.settings.indentWithTabs),
+      lineWrapping: true,
+      matchBrackets: true,
+      autoCloseBrackets: { pairs: "()[]{}''\"\"", explode: "[]{}" },
+      styleActiveLine: true,
+      extraKeys: {
+        "Ctrl-Enter": () => { runScratch().catch((err) => toast(err.message)); },
+        "Cmd-Enter": () => { runScratch().catch((err) => toast(err.message)); },
+        "Esc": () => closeScratch()
+      }
+    });
+    cmScratch.on("change", () => {
+      try { localStorage.setItem(SCRATCH_KEY, cmScratch.getValue()); } catch (e) {}
+    });
+    return cmScratch;
+  }
+
+  function restoreScratchPos() {
+    const pad = $("scratch-pad");
+    if (!pad) return;
+    try {
+      const raw = localStorage.getItem(SCRATCH_POS_KEY);
+      if (!raw) return;
+      const pos = JSON.parse(raw);
+      if (typeof pos.left === "number" && typeof pos.top === "number") {
+        pad.style.left = Math.max(0, pos.left) + "px";
+        pad.style.top = Math.max(0, pos.top) + "px";
+        pad.style.right = "auto";
+        pad.style.bottom = "auto";
+      }
+      if (typeof pos.width === "number") pad.style.width = pos.width + "px";
+      if (typeof pos.height === "number") pad.style.height = pos.height + "px";
+    } catch (e) {}
+  }
+
+  function saveScratchPos() {
+    const pad = $("scratch-pad");
+    if (!pad || pad.hidden) return;
+    const rect = pad.getBoundingClientRect();
+    try {
+      localStorage.setItem(SCRATCH_POS_KEY, JSON.stringify({
+        left: rect.left,
+        top: rect.top,
+        width: rect.width,
+        height: rect.height
+      }));
+    } catch (e) {}
+  }
+
+  function bindScratchDrag() {
+    const pad = $("scratch-pad");
+    const handle = $("scratch-drag") || (pad && pad.querySelector(".scratch-head"));
+    if (!pad || !handle || handle._larkDrag) return;
+    handle._larkDrag = true;
+    handle.addEventListener("pointerdown", (event) => {
+      if (event.button != null && event.button !== 0) return;
+      if (event.target.closest("button, select, input, a")) return;
+      const rect = pad.getBoundingClientRect();
+      scratchDrag = {
+        id: event.pointerId,
+        ox: event.clientX - rect.left,
+        oy: event.clientY - rect.top,
+        w: rect.width,
+        h: rect.height
+      };
+      pad.classList.add("dragging");
+      pad.style.left = rect.left + "px";
+      pad.style.top = rect.top + "px";
+      pad.style.right = "auto";
+      pad.style.bottom = "auto";
+      try { handle.setPointerCapture(event.pointerId); } catch (e) {}
+      event.preventDefault();
+    });
+    handle.addEventListener("pointermove", (event) => {
+      if (!scratchDrag || scratchDrag.id !== event.pointerId) return;
+      const maxX = Math.max(0, window.innerWidth - scratchDrag.w);
+      const maxY = Math.max(0, window.innerHeight - scratchDrag.h);
+      const left = Math.min(maxX, Math.max(0, event.clientX - scratchDrag.ox));
+      const top = Math.min(maxY, Math.max(0, event.clientY - scratchDrag.oy));
+      pad.style.left = left + "px";
+      pad.style.top = top + "px";
+    });
+    const endDrag = (event) => {
+      if (!scratchDrag || (event && scratchDrag.id !== event.pointerId)) return;
+      scratchDrag = null;
+      pad.classList.remove("dragging");
+      saveScratchPos();
+    };
+    handle.addEventListener("pointerup", endDrag);
+    handle.addEventListener("pointercancel", endDrag);
+  }
+
+  function bindScratchResize() {
+    const pad = $("scratch-pad");
+    const handle = $("scratch-resize");
+    if (!pad || !handle || handle._larkResize) return;
+    handle._larkResize = true;
+    const minW = 280;
+    const minH = 220;
+    handle.addEventListener("pointerdown", (event) => {
+      if (event.button != null && event.button !== 0) return;
+      const rect = pad.getBoundingClientRect();
+      scratchResize = {
+        id: event.pointerId,
+        startX: event.clientX,
+        startY: event.clientY,
+        w: rect.width,
+        h: rect.height,
+        left: rect.left,
+        top: rect.top
+      };
+      pad.classList.add("resizing");
+      pad.style.left = rect.left + "px";
+      pad.style.top = rect.top + "px";
+      pad.style.right = "auto";
+      pad.style.bottom = "auto";
+      pad.style.width = rect.width + "px";
+      pad.style.height = rect.height + "px";
+      try { handle.setPointerCapture(event.pointerId); } catch (e) {}
+      event.preventDefault();
+      event.stopPropagation();
+    });
+    handle.addEventListener("pointermove", (event) => {
+      if (!scratchResize || scratchResize.id !== event.pointerId) return;
+      const maxW = Math.max(minW, window.innerWidth - scratchResize.left - 8);
+      const maxH = Math.max(minH, window.innerHeight - scratchResize.top - 8);
+      const w = Math.min(maxW, Math.max(minW, scratchResize.w + (event.clientX - scratchResize.startX)));
+      const h = Math.min(maxH, Math.max(minH, scratchResize.h + (event.clientY - scratchResize.startY)));
+      pad.style.width = w + "px";
+      pad.style.height = h + "px";
+      if (cmScratch) cmScratch.refresh();
+    });
+    const endResize = (event) => {
+      if (!scratchResize || (event && scratchResize.id !== event.pointerId)) return;
+      scratchResize = null;
+      pad.classList.remove("resizing");
+      saveScratchPos();
+      if (cmScratch) setTimeout(() => cmScratch.refresh(), 20);
+    };
+    handle.addEventListener("pointerup", endResize);
+    handle.addEventListener("pointercancel", endResize);
+  }
+
+  function openScratch() {
+    const pad = $("scratch-pad");
+    if (!pad) return;
+    pad.hidden = false;
+    document.body.classList.add("scratch-open");
+    restoreScratchPos();
+    bindScratchDrag();
+    bindScratchResize();
+    const editor = ensureScratchEditor();
+    if (editor) {
+      applyEditorPrefs(state.settings || {}, false);
+      if (cmScratch) {
+        cmScratch.setOption("lineNumbers", !(state.settings && state.settings.lineNumbers === false));
+        setTimeout(() => { cmScratch.refresh(); cmScratch.focus(); }, 40);
+      }
+    }
+  }
+
+  function closeScratch() {
+    const pad = $("scratch-pad");
+    if (pad) pad.hidden = true;
+    document.body.classList.remove("scratch-open");
+  }
+
+  function toggleScratch() {
+    if (scratchOpen()) closeScratch();
+    else openScratch();
+  }
+
+  function copyScratchAll() {
+    const editor = ensureScratchEditor();
+    if (!editor) return;
+    const text = editor.getValue();
+    const done = () => toast(text.trim() ? "Scratch copied." : "Scratch is empty.");
+    if (navigator.clipboard && navigator.clipboard.writeText) {
+      navigator.clipboard.writeText(text).then(done).catch(() => {
+        editor.execCommand("selectAll");
+        document.execCommand("copy");
+        done();
+      });
+    } else {
+      editor.execCommand("selectAll");
+      document.execCommand("copy");
+      done();
+    }
+  }
+
+  function clearScratch() {
+    const editor = ensureScratchEditor();
+    if (!editor) return;
+    editor.setValue("");
+    try { localStorage.setItem(SCRATCH_KEY, ""); } catch (e) {}
+    editor.focus();
+    toast("Scratch cleared.");
+  }
+
+  function closeExtras() {
+    const panel = $("extras-panel");
+    if (panel) panel.hidden = true;
+    if ($("extras-uml")) $("extras-uml").hidden = true;
+    if ($("extras-assign")) $("extras-assign").hidden = true;
+  }
+
+  function syncActiveIntoFiles() {
+    if (!cm || !state.active) return;
+    const file = fileByPath(state.active);
+    if (file) file.content = cm.getValue();
+  }
+
+  function copyText(text, okMsg) {
+    const done = () => toast(okMsg || "Copied.");
+    if (navigator.clipboard && navigator.clipboard.writeText) {
+      navigator.clipboard.writeText(text).then(done).catch(() => {
+        const ta = document.createElement("textarea");
+        ta.value = text;
+        document.body.appendChild(ta);
+        ta.select();
+        document.execCommand("copy");
+        ta.remove();
+        done();
+      });
+    } else {
+      toast("Clipboard unavailable.");
+    }
+  }
+
+  function refreshUml() {
+    const canvas = $("uml-canvas");
+    if (!canvas || !window.LarkExtras) return;
+    syncActiveIntoFiles();
+    const result = window.LarkExtras.buildUml(state.files || []);
+    canvas._plantuml = result.plantuml || "";
+    canvas._svg = result.svg || "";
+    if (result.empty) {
+      canvas.innerHTML = "<p class=\"uml-empty\">No classes found yet. Open a project with <code>.java</code> files, then Refresh.</p>";
+      return;
+    }
+    canvas.innerHTML = result.svg;
+  }
+
+  function openExtras(kind) {
+    const panel = $("extras-panel");
+    if (!panel) return;
+    panel.hidden = false;
+    if ($("extras-uml")) $("extras-uml").hidden = kind !== "uml";
+    if ($("extras-assign")) $("extras-assign").hidden = kind !== "assign";
+    if ($("extras-title")) {
+      $("extras-title").textContent = kind === "uml" ? "UML class diagram" : "Assignment helper";
+    }
+    if (kind === "uml") refreshUml();
+    if (kind === "assign" && $("assign-input")) {
+      setTimeout(() => $("assign-input").focus(), 40);
+    }
+  }
+
+  function runAssignAnalyze() {
+    const out = $("assign-out");
+    if (!out || !window.LarkExtras) return;
+    const text = ($("assign-input") && $("assign-input").value) || "";
+    const result = window.LarkExtras.analyzeAssignment(text);
+    if (result.error) {
+      assignSketch = "";
+      out.innerHTML = "<p class=\"muted\">" + result.error + "</p>";
+      return;
+    }
+    assignSketch = result.sketch || "";
+    out.innerHTML = (result.summaryHtml || "")
+      + "<h4>Starter sketch</h4><pre>" + String(assignSketch)
+        .replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;") + "</pre>";
+  }
+
+  function bindExtras() {
+    if ($("menu-extras")) {
+      $("menu-extras").addEventListener("click", (event) => {
+        const kind = event.target.dataset.extra;
+        if (!kind) return;
+        closePopovers();
+        openExtras(kind);
+      });
+    }
+    if ($("extras-close")) $("extras-close").addEventListener("click", () => closeExtras());
+    if ($("extras-panel")) {
+      $("extras-panel").addEventListener("click", (event) => {
+        if (event.target === $("extras-panel")) closeExtras();
+      });
+    }
+    if ($("uml-refresh")) $("uml-refresh").addEventListener("click", () => refreshUml());
+    if ($("uml-copy")) {
+      $("uml-copy").addEventListener("click", () => {
+        const canvas = $("uml-canvas");
+        const text = (canvas && canvas._plantuml) || "";
+        if (!text) return toast("Nothing to copy — generate a diagram first.");
+        copyText(text, "PlantUML copied.");
+      });
+    }
+    if ($("uml-svg")) {
+      $("uml-svg").addEventListener("click", () => {
+        const canvas = $("uml-canvas");
+        const text = (canvas && canvas._svg) || "";
+        if (!text) return toast("Nothing to copy — generate a diagram first.");
+        copyText(text, "SVG copied.");
+      });
+    }
+    if ($("assign-analyze")) $("assign-analyze").addEventListener("click", () => runAssignAnalyze());
+    if ($("assign-copy")) {
+      $("assign-copy").addEventListener("click", () => {
+        if (!assignSketch) return toast("Summarize the assignment first.");
+        copyText(assignSketch, "Class sketch copied.");
+      });
+    }
+    if ($("assign-insert")) {
+      $("assign-insert").addEventListener("click", () => {
+        if (!assignSketch) return toast("Summarize the assignment first.");
+        if (!state.project || !state.active) {
+          toast("Open a project file first, then insert.");
+          return;
+        }
+        insertAtCursor(assignSketch);
+        closeExtras();
+        toast("Sketch inserted.");
+      });
+    }
+  }
+
+  /**
+   * Turn pad text into a runnable compilation unit.
+   * Statements → wrapped in ScratchPad.main; imports kept at top.
+   * Full classes with main are left alone so advanced scratch still works.
+   */
+  function wrapScratchSource(raw) {
+    const text = (raw || "").replace(/\r\n/g, "\n");
+    if (!text.trim()) throw new Error("Scratch pad is empty.");
+    const hasMain = /\b(?:public\s+)?static\s+void\s+main\s*\(\s*String\s*/.test(text);
+    const classMatch = text.match(/\bpublic\s+class\s+(\w+)/) || text.match(/\bclass\s+(\w+)/);
+    if (hasMain && classMatch) {
+      return { source: text, mainClass: classMatch[1] };
+    }
+    const imports = [];
+    const rest = [];
+    text.split("\n").forEach((line) => {
+      if (/^\s*import\s+[\w.*]+\s*;\s*$/.test(line)) imports.push(line.trim());
+      else if (/^\s*package\s+/.test(line)) { /* default package */ }
+      else rest.push(line);
+    });
+    const body = rest.join("\n").replace(/^\n+/, "").replace(/\n+$/, "");
+    let source = imports.length ? imports.join("\n") + "\n\n" : "";
+    if (hasMain && !classMatch) {
+      source += "public class ScratchPad {\n";
+      body.split("\n").forEach((l) => { source += (l ? "  " + l : "") + "\n"; });
+      source += "}\n";
+      return { source: source, mainClass: "ScratchPad" };
+    }
+    source += "public class ScratchPad {\n";
+    source += "  public static void main(String[] args) {\n";
+    if (body) body.split("\n").forEach((l) => { source += "    " + l + "\n"; });
+    else source += "    // Write some Java here\n";
+    source += "  }\n}\n";
+    return { source: source, mainClass: "ScratchPad" };
+  }
+
+  async function runScratch() {
+    const editor = ensureScratchEditor();
+    if (!editor) return;
+    let wrapped;
+    try {
+      wrapped = wrapScratchSource(editor.getValue());
+    } catch (err) {
+      toast(err.message || "Scratch pad is empty.");
+      return;
+    }
+    if (state.job && !state.job.done) {
+      await api("POST", "/api/run/" + state.job.id + "/stop", {});
+    }
+    setRunning(true, false);
+    showConsoleTab("output");
+    renderConsole("— Scratch pad —\n");
+    try {
+      const data = await api("POST", "/api/scratch/run", {
+        source: wrapped.source,
+        mainClass: wrapped.mainClass,
+        args: ($("args") && $("args").value) || "",
+        stdin: ($("stdin") && $("stdin").value) || ""
+      });
+      poll(data.id);
+    } catch (err) {
+      setRunning(false);
+      toast(err.message);
     }
   }
 
@@ -228,6 +703,7 @@
     const ligatures = next.ligatures !== false;
     const indentWithTabs = !!next.indentWithTabs;
     const lineWrapping = !!next.lineWrapping;
+    const lineNumbers = next.lineNumbers !== false;
     const autoSave = next.autoSave !== false;
     const formatOnSave = !!next.formatOnSave;
 
@@ -236,6 +712,7 @@
     state.settings.indentSize = indentSize;
     state.settings.indentWithTabs = indentWithTabs;
     state.settings.lineWrapping = lineWrapping;
+    state.settings.lineNumbers = lineNumbers;
     state.settings.autoSave = autoSave;
     state.settings.autoSaveDelayMs = delay;
     state.settings.formatOnSave = formatOnSave;
@@ -250,6 +727,7 @@
     if ($("setting-indent-size")) $("setting-indent-size").value = String(indentSize);
     if ($("setting-indent-tabs")) $("setting-indent-tabs").checked = indentWithTabs;
     if ($("setting-line-wrap")) $("setting-line-wrap").checked = lineWrapping;
+    if ($("setting-line-numbers")) $("setting-line-numbers").checked = lineNumbers;
     if ($("setting-autosave")) $("setting-autosave").checked = autoSave;
     if ($("setting-autosave-delay")) $("setting-autosave-delay").value = String(delay);
     if ($("setting-autosave-delay")) $("setting-autosave-delay").disabled = !autoSave;
@@ -261,6 +739,7 @@
       cm.setOption("tabSize", indentSize);
       cm.setOption("indentWithTabs", indentWithTabs);
       cm.setOption("lineWrapping", lineWrapping);
+      cm.setOption("lineNumbers", lineNumbers);
       cm.setOption("extraKeys", Object.assign({}, cm.getOption("extraKeys"), {
         Tab: function (editor) {
           if (editor.somethingSelected()) editor.indentSelection("add");
@@ -273,9 +752,17 @@
       cmB.setOption("tabSize", indentSize);
       cmB.setOption("indentWithTabs", indentWithTabs);
       cmB.setOption("lineWrapping", lineWrapping);
+      cmB.setOption("lineNumbers", lineNumbers);
       cmB.setOption("extraKeys", editorExtraKeys());
     }
+    if (cmScratch) {
+      cmScratch.setOption("indentUnit", indentSize);
+      cmScratch.setOption("tabSize", indentSize);
+      cmScratch.setOption("indentWithTabs", indentWithTabs);
+      cmScratch.setOption("lineNumbers", lineNumbers);
+    }
     refreshAllEditors();
+    if (cmScratch) cmScratch.refresh();
 
     if (save) {
       api("PUT", "/api/settings", {
@@ -284,6 +771,7 @@
         indentSize: indentSize,
         indentWithTabs: indentWithTabs,
         lineWrapping: lineWrapping,
+        lineNumbers: lineNumbers,
         autoSave: autoSave,
         autoSaveDelayMs: delay,
         formatOnSave: formatOnSave
@@ -349,12 +837,12 @@
       value: "",
       mode: "text/x-java",
       theme: "lark",
-      lineNumbers: true,
+      lineNumbers: !(state.settings && state.settings.lineNumbers === false),
       gutters: ["CodeMirror-linenumbers", "breakpoints"],
       indentUnit: 4,
       tabSize: 4,
       indentWithTabs: false,
-      lineWrapping: false,
+      lineWrapping: !!(state.settings && state.settings.lineWrapping),
       matchBrackets: true,
       // Do not auto-pair /* */ — that fights IntelliJ-style /** Javadoc expansion.
       autoCloseBrackets: { pairs: "()[]{}''\"\"", explode: "[]{}" },
@@ -1189,7 +1677,7 @@
       value: "",
       mode: "text/x-java",
       theme: "lark",
-      lineNumbers: true,
+      lineNumbers: !(state.settings && state.settings.lineNumbers === false),
       gutters: ["CodeMirror-linenumbers", "breakpoints"],
       indentUnit: (state.settings && state.settings.indentSize) || 4,
       tabSize: (state.settings && state.settings.indentSize) || 4,
@@ -1792,12 +2280,131 @@
     const cur = cm.getCursor();
     const lineText = cm.getLine(cur.line) || "";
     const indent = (lineText.match(/^\s*/) || [""])[0];
-    const indented = code.split("\n").map((line, i) => (i === 0 ? line : indent + line)).join("\n");
+    let indented = code.split("\n").map((line, i) => (i === 0 ? line : indent + line)).join("\n");
+    if (!indented.endsWith("\n")) indented += "\n";
     suppress = true;
     cm.replaceRange(indented, cur);
     suppress = false;
     afterEdit();
     cm.focus();
+  }
+
+  async function insertHomeworkBlock(kind) {
+    if (!window.LarkJava || !window.LarkJava.generateHomeworkBlock) return null;
+    const snip = (window.LarkJava.snippets || []).find((s) => s.id === kind);
+    const label = snip ? snip.label : kind;
+    let options = {};
+    if (kind === "arrfill") {
+      const values = await formDialog({
+        title: "Fill + print array",
+        ok: "Insert",
+        note: "Reads ints from Scanner into an array, then prints them.",
+        fields: [
+          { name: "name", label: "Array variable name", value: "nums" },
+          { name: "size", label: "Length", value: "10" }
+        ]
+      });
+      if (!values) return null;
+      options = { name: values.name, size: values.size };
+    } else if (kind === "arrstats" || kind === "arrcopy" || kind === "arrrev") {
+      const values = await formDialog({
+        title: label,
+        ok: "Insert",
+        note: "Uses an existing int[] (or rename to match yours).",
+        fields: [{ name: "name", label: "Array variable name", value: "nums" }]
+      });
+      if (!values) return null;
+      options = { name: values.name };
+    } else if (kind === "linsearch") {
+      const values = await formDialog({
+        title: "Linear search",
+        ok: "Insert",
+        note: "Scans the array for a target value and reports the index.",
+        fields: [
+          { name: "name", label: "Array variable name", value: "nums" },
+          { name: "target", label: "Target variable name", value: "target" }
+        ]
+      });
+      if (!values) return null;
+      options = { name: values.name, target: values.target };
+    } else if (kind === "countocc") {
+      const values = await formDialog({
+        title: "Count occurrences",
+        ok: "Insert",
+        note: "Tally how many times a value appears in an array or a char in a String.",
+        fields: [
+          {
+            name: "mode",
+            label: "Count in",
+            type: "select",
+            value: "array of ints",
+            options: ["array of ints", "characters in a String"]
+          },
+          { name: "name", label: "Array or String name", value: "nums" }
+        ]
+      });
+      if (!values) return null;
+      options = {
+        mode: String(values.mode || "").indexOf("String") >= 0 ? "string" : "array",
+        name: values.name
+      };
+    } else if (kind === "sentinel") {
+      const values = await formDialog({
+        title: "Read until sentinel",
+        ok: "Insert",
+        note: "Keeps reading from Scanner until a stop value.",
+        fields: [{
+          name: "mode",
+          label: "Sentinel style",
+          type: "select",
+          value: "integers until -1",
+          options: ["integers until -1", "words until quit"]
+        }]
+      });
+      if (!values) return null;
+      options = {
+        mode: String(values.mode || "").indexOf("quit") >= 0 ? "string" : "int"
+      };
+    } else if (kind === "fileio") {
+      const values = await formDialog({
+        title: "File read / write",
+        ok: "Insert",
+        note: "try-with-resources using Scanner and/or PrintWriter.",
+        fields: [{
+          name: "mode",
+          label: "What to insert",
+          type: "select",
+          value: "read and write",
+          options: ["read and write", "read only", "write only"]
+        }]
+      });
+      if (!values) return null;
+      const m = String(values.mode || "");
+      options = {
+        mode: m.indexOf("read only") >= 0 ? "read" : m.indexOf("write only") >= 0 ? "write" : "both"
+      };
+    } else if (kind === "matfill") {
+      const values = await formDialog({
+        title: "2D array fill",
+        ok: "Insert",
+        note: "Nested loops that fill matrix[i][j] from Scanner. Pair with matrix print.",
+        fields: [
+          { name: "name", label: "Matrix variable name", value: "matrix" },
+          { name: "rows", label: "Rows", value: "3" },
+          { name: "cols", label: "Columns", value: "3" }
+        ]
+      });
+      if (!values) return null;
+      options = { name: values.name, rows: values.rows, cols: values.cols };
+    } else if (kind === "menu" || kind === "splitloop") {
+      // no options
+    } else {
+      return null;
+    }
+    const code = window.LarkJava.generateHomeworkBlock(kind, options);
+    if (!code) return null;
+    insertAtCursor(code);
+    return label;
   }
 
   function insertBeforeClassClose(code) {
@@ -1892,7 +2499,7 @@
           window.LarkJava.explain("extends") + "\n\n" +
           window.LarkJava.explain("implements") + "\n\n" +
           window.LarkJava.explain("super") + "\n\n" +
-          "Tip: press Ctrl+Space and type main, fori, matrix, sout, try, scanner, list… to autofill building blocks.",
+          "Tip: press Ctrl+Space and type main, fori, matrix, arrfill, menu, sentinel… to autofill building blocks.",
         fields: []
       });
       return;
@@ -1903,7 +2510,7 @@
       const values = await formDialog({
         title: "Insert building block",
         ok: "Insert",
-        note: "These also appear when you press Ctrl+Space and type the short name (main, fori, matrix, sout…).",
+        note: "These also appear when you press Ctrl+Space and type the short name (main, fori, matrix, arrfill…).",
         fields: [{
           name: "which",
           label: "Snippet",
@@ -1950,6 +2557,32 @@
       const code = window.LarkJava.generateMatrixPrint(values.name || "matrix", includeSample);
       insertAtCursor(code);
       toast("Inserted matrix print loops.");
+      return;
+    }
+    const homeworkIds = window.LarkJava.homeworkBlockIds || [];
+    if (act === "homework" || homeworkIds.indexOf(act) >= 0) {
+      if (!cm) return toast("Open a file first.");
+      let kind = act === "homework" ? "" : act;
+      if (!kind) {
+        const pick = await formDialog({
+          title: "Insert homework block",
+          ok: "Next",
+          note: "Common multi-line patterns for arrays, search, menus, and files. Also available via Ctrl+Space (arrfill, menu, sentinel…).",
+          fields: [{
+            name: "which",
+            label: "Pattern",
+            type: "select",
+            value: "arrfill — fill + print 1D array (Scanner)",
+            options: (window.LarkJava.snippets || [])
+              .filter((s) => homeworkIds.indexOf(s.id) >= 0)
+              .map((s) => s.id + " — " + s.label)
+          }]
+        });
+        if (!pick) return;
+        kind = String(pick.which || "").split(" — ")[0];
+      }
+      const inserted = await insertHomeworkBlock(kind);
+      if (inserted) toast("Inserted " + inserted + ".");
       return;
     }
     if (act === "fori" || act === "foreach" || act === "try" || act === "scanner") {
@@ -2452,7 +3085,8 @@
       renderTabs();
       if (job.done) {
         setRunning(false, false);
-        if (state.problems.some((problem) => problem.severity === "error")) {
+        const hasErr = state.problems.some((problem) => problem.severity === "error");
+        if (hasErr) {
           showConsoleTab("problems");
           const first = state.problems.find((problem) => problem.severity === "error");
           if (first) jumpTo(first.file, first.line, first.column || 1);
@@ -3809,8 +4443,23 @@
         api("POST", "/api/run/" + state.job.id + "/stop", {}).catch((err) => toast(err.message));
         return;
       }
-      run().catch((err) => toast(err.message));
+      if (scratchOpen()) runScratch().catch((err) => toast(err.message));
+      else run().catch((err) => toast(err.message));
     });
+    if ($("scratch")) $("scratch").addEventListener("click", () => toggleScratch());
+    if ($("scratch-run")) $("scratch-run").addEventListener("click", () => runScratch().catch((err) => toast(err.message)));
+    if ($("scratch-copy")) $("scratch-copy").addEventListener("click", () => copyScratchAll());
+    if ($("scratch-clear")) $("scratch-clear").addEventListener("click", () => clearScratch());
+    if ($("scratch-close")) $("scratch-close").addEventListener("click", () => closeScratch());
+    if ($("theme-nudge-apply")) {
+      $("theme-nudge-apply").addEventListener("click", () => dismissThemeNudge(true));
+    }
+    if ($("theme-nudge-dismiss")) {
+      $("theme-nudge-dismiss").addEventListener("click", () => dismissThemeNudge(false));
+    }
+    bindScratchDrag();
+    bindScratchResize();
+    bindExtras();
     if ($("debug")) $("debug").addEventListener("click", () => startDebug().catch((err) => toast(err.message)));
     if ($("split-editor")) $("split-editor").addEventListener("click", () => toggleSplit());
     if ($("close-split")) $("close-split").addEventListener("click", () => closeSplit());
@@ -3887,6 +4536,7 @@
     });
     $("project-menu").addEventListener("click", (event) => togglePopover(event.currentTarget));
     if ($("java-assist")) $("java-assist").addEventListener("click", (event) => togglePopover(event.currentTarget));
+    if ($("extras")) $("extras").addEventListener("click", (event) => togglePopover(event.currentTarget));
     $("theme").addEventListener("click", (event) => togglePopover(event.currentTarget));
     $("settings").addEventListener("click", (event) => togglePopover(event.currentTarget));
     $("help").addEventListener("click", (event) => togglePopover(event.currentTarget));
@@ -3928,6 +4578,7 @@
     bindPref("setting-indent-size", (el) => ({ indentSize: Number(el.value) }));
     bindPref("setting-indent-tabs", (el) => ({ indentWithTabs: el.checked }));
     bindPref("setting-line-wrap", (el) => ({ lineWrapping: el.checked }));
+    bindPref("setting-line-numbers", (el) => ({ lineNumbers: el.checked }));
     bindPref("setting-autosave", (el) => ({ autoSave: el.checked }));
     bindPref("setting-autosave-delay", (el) => ({ autoSaveDelayMs: Number(el.value) }));
     bindPref("setting-format-save", (el) => ({ formatOnSave: el.checked }));
@@ -4158,13 +4809,20 @@
       if (event.target.closest(".popover") || event.target.closest("[data-pop]") || event.target.closest("#context")) return;
       closePopovers();
     });
+    window.addEventListener("keyup", (event) => {
+      if (event.code === "Space" || event.key === " ") spaceHeld = false;
+    });
+    window.addEventListener("blur", () => { spaceHeld = false; });
     window.addEventListener("keydown", (event) => {
       const key = event.key.toLowerCase();
       if (event.key === "Escape") {
+        if ($("extras-panel") && !$("extras-panel").hidden) { closeExtras(); return; }
+        if (scratchOpen()) { closeScratch(); return; }
         if ($("search-panel") && !$("search-panel").hidden) { closeProjectSearch(); return; }
         if (!$("palette").hidden) { $("palette").hidden = true; return; }
         if (!$("modal").hidden) { closeModal(null); return; }
         if (!$("drawer").hidden) { closeDrawer(); return; }
+        if ($("theme-nudge") && !$("theme-nudge").hidden) { dismissThemeNudge(false); return; }
         closePopovers();
       }
       if ((event.ctrlKey || event.metaKey) && event.shiftKey && key === "f") {
@@ -4187,7 +4845,16 @@
       if ((event.ctrlKey || event.metaKey) && event.key === "Enter") {
         if (!$("modal").hidden || isDialogTyping()) return;
         event.preventDefault();
-        run().catch((err) => toast(err.message));
+        if (scratchOpen()) runScratch().catch((err) => toast(err.message));
+        else run().catch((err) => toast(err.message));
+        return;
+      }
+      if (event.code === "Space" || event.key === " ") spaceHeld = true;
+      if (spaceHeld && (event.key === "." || event.code === "Period")
+          && !event.ctrlKey && !event.metaKey && !event.altKey) {
+        if (!$("modal").hidden) return;
+        event.preventDefault();
+        toggleScratch();
         return;
       }
       if ((event.ctrlKey || event.metaKey) && key === "s") {
@@ -4419,6 +5086,7 @@
         indentSize: state.settings.indentSize || 4,
         indentWithTabs: !!state.settings.indentWithTabs,
         lineWrapping: !!state.settings.lineWrapping,
+        lineNumbers: state.settings.lineNumbers !== false,
         autoSave: state.settings.autoSave !== false,
         autoSaveDelayMs: state.settings.autoSaveDelayMs || 800,
         formatOnSave: !!state.settings.formatOnSave
@@ -4456,6 +5124,7 @@
         cm.focus();
       }
       checkUpdates(false).catch(() => {});
+      setTimeout(() => maybeShowThemeNudge(), 1600);
     } catch (err) {
       $("boot").textContent = err.message || "Lark couldn't open.";
     }

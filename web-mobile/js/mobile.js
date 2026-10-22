@@ -1,6 +1,8 @@
 (function () {
   const THEMES = [
     ["desk", "Desk"],
+    ["slate", "Slate"],
+    ["studio", "Studio"],
     ["daylight", "Daylight"],
     ["moss", "Moss"],
     ["cedar", "Cedar"],
@@ -73,34 +75,18 @@
     setTimeout(() => el.remove(), 3800);
   }
 
-  function matrixPrintBlock(varName) {
-    const name = String(varName || "matrix").replace(/[^\w$]/g, "") || "matrix";
-    return (
-      "int[][] " + name + " = {\n" +
-      "    {1, 2, 3},\n" +
-      "    {4, 5, 6},\n" +
-      "    {7, 8, 9}\n" +
-      "};\n" +
-      "for (int i = 0; i < " + name + ".length; i++) {\n" +
-      "    for (int j = 0; j < " + name + "[i].length; j++) {\n" +
-      "        System.out.print(" + name + "[i][j] + \" \");\n" +
-      "    }\n" +
-      "    System.out.println();\n" +
-      "}"
-    );
-  }
-
-  function insertAtCursor(code) {
+  function insertAtCursor(code, message) {
     const cm = ensureEditor();
     if (!cm || !code) return;
     if (!state.path) return toast("Open a file first.");
     const cur = cm.getCursor();
     const lineText = cm.getLine(cur.line) || "";
     const indent = (lineText.match(/^\s*/) || [""])[0];
-    const indented = code.split("\n").map((line, i) => (i === 0 ? line : indent + line)).join("\n");
+    let indented = code.split("\n").map((line, i) => (i === 0 ? line : indent + line)).join("\n");
+    if (!indented.endsWith("\n")) indented += "\n";
     cm.replaceRange(indented, cur);
     cm.focus();
-    toast("Inserted matrix print loops.");
+    toast(message || "Inserted code block.");
   }
 
   function insertMatrixPrint() {
@@ -111,7 +97,80 @@
     }
     const raw = window.prompt("Matrix variable name", "matrix");
     if (raw == null) return;
-    insertAtCursor(matrixPrintBlock(raw));
+    const code = window.LarkJava
+      ? window.LarkJava.generateMatrixPrint(raw, true)
+      : null;
+    if (!code) return toast("Java helpers failed to load.");
+    insertAtCursor(code, "Inserted matrix print loops.");
+    setView("edit");
+  }
+
+  function insertHomeworkBlock() {
+    if (!state.path) {
+      toast("Open a Java file in Edit first.");
+      setView("edit");
+      return;
+    }
+    if (!window.LarkJava || !window.LarkJava.generateHomeworkBlock) {
+      return toast("Java helpers failed to load.");
+    }
+    const ids = window.LarkJava.homeworkBlockIds || [];
+    const snips = (window.LarkJava.snippets || []).filter((s) => ids.indexOf(s.id) >= 0);
+    if (!snips.length) return toast("No homework blocks available.");
+    const list = snips.map((s, i) => (i + 1) + ") " + s.id + " — " + s.label).join("\n");
+    const pick = window.prompt("Homework block number or id:\n\n" + list, "arrfill");
+    if (pick == null) return;
+    const trimmed = String(pick).trim();
+    let kind = trimmed;
+    const asNum = parseInt(trimmed, 10);
+    if (Number.isFinite(asNum) && asNum >= 1 && asNum <= snips.length) {
+      kind = snips[asNum - 1].id;
+    } else if (trimmed.indexOf("—") >= 0 || trimmed.indexOf("-") >= 0) {
+      kind = trimmed.split(/—|-/)[0].trim();
+    }
+    const snip = snips.find((s) => s.id === kind);
+    if (!snip) return toast("Unknown block: " + trimmed);
+    let options = {};
+    if (kind === "arrfill") {
+      const name = window.prompt("Array variable name", "nums");
+      if (name == null) return;
+      const size = window.prompt("Length", "10");
+      if (size == null) return;
+      options = { name: name, size: size };
+    } else if (kind === "arrstats" || kind === "arrcopy" || kind === "arrrev") {
+      const name = window.prompt("Array variable name", "nums");
+      if (name == null) return;
+      options = { name: name };
+    } else if (kind === "linsearch") {
+      const name = window.prompt("Array variable name", "nums");
+      if (name == null) return;
+      options = { name: name, target: "target" };
+    } else if (kind === "countocc") {
+      const mode = window.prompt("Count in: array or string", "array");
+      if (mode == null) return;
+      const name = window.prompt("Array or String name", mode.indexOf("str") >= 0 ? "text" : "nums");
+      if (name == null) return;
+      options = { mode: mode, name: name };
+    } else if (kind === "sentinel") {
+      const mode = window.prompt("Sentinel: int (-1) or string (quit)", "int");
+      if (mode == null) return;
+      options = { mode: mode };
+    } else if (kind === "fileio") {
+      const mode = window.prompt("Mode: both, read, or write", "both");
+      if (mode == null) return;
+      options = { mode: mode };
+    } else if (kind === "matfill") {
+      const name = window.prompt("Matrix variable name", "matrix");
+      if (name == null) return;
+      const rows = window.prompt("Rows", "3");
+      if (rows == null) return;
+      const cols = window.prompt("Columns", "3");
+      if (cols == null) return;
+      options = { name: name, rows: rows, cols: cols };
+    }
+    const code = window.LarkJava.generateHomeworkBlock(kind, options);
+    if (!code) return toast("Could not build that block.");
+    insertAtCursor(code, "Inserted " + snip.label + ".");
     setView("edit");
   }
 
@@ -135,9 +194,10 @@
 
   function ensureEditor() {
     if (state.cm) return state.cm;
+    const showLines = !(state.settings && state.settings.lineNumbers === false);
     state.cm = CodeMirror($("editor-host"), {
       mode: "text/x-java",
-      lineNumbers: true,
+      lineNumbers: showLines,
       lineWrapping: true,
       indentUnit: 4,
       matchBrackets: true,
@@ -454,6 +514,8 @@
     $("btn-run").addEventListener("click", () => runProject().catch((e) => toast(e.message)));
     $("btn-run-top").addEventListener("click", () => runProject().catch((e) => toast(e.message)));
     $("btn-stop").addEventListener("click", () => stopRun().catch((e) => toast(e.message)));
+    $("btn-blocks").addEventListener("click", () => insertHomeworkBlock());
+    $("btn-blocks-more").addEventListener("click", () => insertHomeworkBlock());
     $("btn-matrix").addEventListener("click", () => insertMatrixPrint());
     $("btn-matrix-more").addEventListener("click", () => insertMatrixPrint());
     $("btn-check-update").addEventListener("click", () => checkUpdate().catch((e) => toast(e.message)));
@@ -470,6 +532,17 @@
       const fontSize = applyFont($("font-range").value);
       api("PUT", "/api/settings", { fontSize: fontSize }).catch(() => {});
     });
+    const lineToggle = $("line-numbers");
+    if (lineToggle) {
+      lineToggle.addEventListener("change", () => {
+        const on = !!lineToggle.checked;
+        if (state.settings) state.settings.lineNumbers = on;
+        const cm = ensureEditor();
+        cm.setOption("lineNumbers", on);
+        cm.refresh();
+        api("PUT", "/api/settings", { lineNumbers: on }).catch(() => {});
+      });
+    }
   }
 
   async function boot() {
@@ -491,6 +564,9 @@
       state.settings = await api("GET", "/api/settings");
       applyTheme(state.settings.theme || "desk");
       applyFont(Math.max(14, state.settings.fontSize || 16));
+      if ($("line-numbers")) {
+        $("line-numbers").checked = state.settings.lineNumbers !== false;
+      }
       await loadTemplates();
       await refreshProjects();
       await loadPairCard();

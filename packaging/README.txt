@@ -17,6 +17,13 @@ Windows
   3. Double-click "Start Lark.bat" (or "Start Lark.vbs" if the window flashes away).
   4. A black window STAYS OPEN. Your browser opens to Lark.
 
+  SmartScreen / antivirus: Lark is open-source Java. Start Lark.bat only runs the
+  bundled jdk\java.exe on lark.jar — it does not download payloads. If Windows says
+  "Windows protected your PC", click More info → Run anyway (unsigned portable apps
+  often trigger this until reputation builds). Prefer Lark School (Lark.exe) or
+  Lark Desktop install if your school blocks .bat files.
+  Right-click the zip → Properties → Unblock before Extract All if present.
+
 Cleanup
   - "Stop Lark and Clean Cache.bat" — closes Lark and clears the run cache
   - "Wipe Lark From This PC.bat" — deletes ALL Lark leftovers (cache, temp, .lark data)

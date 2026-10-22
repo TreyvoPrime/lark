@@ -64,6 +64,44 @@ https://github.com/TreyvoPrime/lark/releases/latest/download/lark-mobile-linux.z
 
 Do not open launchers from inside a zip preview / Temp folder.
 
+## What’s new in 3.3.0
+
+- **Extras** menu — homework helpers that stay on your machine
+  - **UML class diagram** — SVG from every `.java` file in the project (copy SVG or PlantUML)
+  - **Assignment helper** — paste the prompt; Lark lists fields, getters/setters, and a starter class sketch
+- **Scratch** — drag the corner to resize (size is remembered with position)
+- Desk Buddy pets removed
+
+## What’s new in 3.2.7
+
+- **Scratch** — drag anywhere; open with **Space+.** (was Ctrl+')
+- Age of History II mods moved to [age-of-history-mods](https://github.com/TreyvoPrime/age-of-history-mods)
+
+## What’s new in 3.2.6
+
+- **Scratch pad** — toolbar **Scratch**; write statements without a `main`; **Run**, **Copy all**, Clear
+- **Theme time-of-day nudge** — gentle once-a-day suggestion (Daylight / Desk / Hearth / Slate)
+
+## What’s new in 3.2.5
+
+- Fix line numbers painting under the gutter plate (restore CodeMirror gutter z-index)
+
+## What’s new in 3.2.4
+
+- Fix line-number gutter CSS; Settings control labeled clearly (`Aa` → title “Settings”)
+- Desk / Slate / Studio listed first in the theme menu
+- Stop leftover `dist/mobile.marker` from making portable runs load Mobile UI
+
+## What’s new in 3.2.3
+
+- **Security harden** — loopback-based API auth (not spoofable Host), stronger Mobile pair tokens, update URL allowlist + SHA-256 when present, HTTPS-only JDK fetch, CSP headers
+- **Line numbers** — visible gutter numbers (Settings → Show line numbers; on by default)
+- **Themes** — **Slate** and **Studio**, calm Desk-like production themes
+
+## What’s new in 3.2.2
+
+- **Homework code blocks** — fill/print array, sum/min/max, linear search, count occurrences, sentinel read, menu loop, file I/O, String split, 2D fill, copy/reverse array (Java menu + Ctrl+Space; Mobile Edit/More)
+
 ## What’s new in 3.2.1
 
 - **Matrix print auto-block** — Java → Insert matrix print loops (or Ctrl+Space `matrix` / `matblock`) inserts a sample `int[][]` and nested for-loops that print each row; same action on Lark Mobile (Edit / More)
@@ -110,8 +148,6 @@ Do not open launchers from inside a zip preview / Temp folder.
 
 `Ctrl+Enter` runs. `F5` debugs. `Ctrl+Shift+F` searches the project. `Ctrl+M` jumps braces. `Ctrl+P` opens a file or class.
 
-## Other files in this repository
-
-`CrownsOfTheAtlantic` and `DefinitiveNavy` are Age of History II mods — see [MODS.md](MODS.md).
-
 Editor: [CodeMirror 5](web/vendor/codemirror/LICENSE), MIT.
+
+Age of History II mods live in a separate repo: [age-of-history-mods](https://github.com/TreyvoPrime/age-of-history-mods).

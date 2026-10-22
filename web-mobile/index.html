@@ -71,6 +71,7 @@
           <p id="edit-status">Ready</p>
         </div>
         <div class="edit-tools">
+          <button type="button" id="btn-blocks" class="ghost wide">Insert homework block…</button>
           <button type="button" id="btn-matrix" class="ghost wide">Insert matrix print loops</button>
         </div>
         <div id="editor-host"></div>
@@ -100,6 +101,11 @@
             <span>Editor size</span>
             <input id="font-range" type="range" min="14" max="22" value="16">
           </label>
+          <label class="field check">
+            <span>Show line numbers</span>
+            <input id="line-numbers" type="checkbox" checked>
+          </label>
+          <button type="button" id="btn-blocks-more" class="ghost wide">Insert homework block…</button>
           <button type="button" id="btn-matrix-more" class="ghost wide">Insert matrix print loops</button>
           <button type="button" id="btn-check-update" class="ghost wide">Check for updates</button>
           <p id="update-msg" class="muted"></p>
@@ -158,6 +164,7 @@
   <script src="./vendor/codemirror/addon/edit/matchbrackets.min.js?v=__LARK_V__"></script>
   <script src="./vendor/codemirror/addon/edit/closebrackets.min.js?v=__LARK_V__"></script>
   <script src="./vendor/codemirror/addon/selection/active-line.min.js?v=__LARK_V__"></script>
+  <script src="./js/java.js?v=__LARK_V__"></script>
   <script src="./js/mobile.js?v=__LARK_V__"></script>
 </body>
 </html>

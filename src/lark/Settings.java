@@ -10,14 +10,14 @@ import java.util.Set;
 
 /** Preferences stored in the home folder. The GitHub token never leaves this machine except for GitHub. */
 public final class Settings {
-    public static final String VERSION = "3.2.1";
+    public static final String VERSION = "3.3.0";
     /** Default public update feed — always the latest GitHub release JSON companion. */
     public static final String DEFAULT_UPDATE_FEED =
             "https://github.com/TreyvoPrime/lark/releases/latest/download/update.json";
     /** Desktop-channel companion feed (same JSON; downloads.desktop-* keys preferred). */
     public static final String DEFAULT_DESKTOP_UPDATE_FEED = DEFAULT_UPDATE_FEED;
     public static final Set<String> THEMES = Set.of(
-            "desk", "daylight", "moss", "ember", "fog",
+            "desk", "slate", "studio", "daylight", "moss", "ember", "fog",
             "blossom", "candy", "midnight", "citrus", "harbor",
             "graphite", "navy", "terminal", "parchment", "ultraviolet", "forest", "monochrome", "amber",
             "lagoon", "rosewood", "nova", "atelier",
@@ -45,6 +45,8 @@ public final class Settings {
     public int indentSize = 4;
     public boolean indentWithTabs = false;
     public boolean lineWrapping = false;
+    /** Show CodeMirror line numbers in the gutter (default on). */
+    public boolean lineNumbers = true;
     public boolean autoSave = true;
     public int autoSaveDelayMs = 800;
     public boolean formatOnSave = false;
@@ -93,6 +95,7 @@ public final class Settings {
             settings.indentSize = indent == 2 || indent == 4 || indent == 8 ? indent : 4;
             if (obj.has("indentWithTabs")) settings.indentWithTabs = obj.bool("indentWithTabs");
             if (obj.has("lineWrapping")) settings.lineWrapping = obj.bool("lineWrapping");
+            if (obj.has("lineNumbers")) settings.lineNumbers = obj.bool("lineNumbers");
             if (obj.has("autoSave")) settings.autoSave = obj.bool("autoSave");
             int delay = (int) obj.longVal("autoSaveDelayMs");
             settings.autoSaveDelayMs = delay == 300 || delay == 800 || delay == 1500 ? delay : 800;
@@ -127,6 +130,7 @@ public final class Settings {
                     .put("indentSize", indentSize)
                     .put("indentWithTabs", indentWithTabs)
                     .put("lineWrapping", lineWrapping)
+                    .put("lineNumbers", lineNumbers)
                     .put("autoSave", autoSave)
                     .put("autoSaveDelayMs", autoSaveDelayMs)
                     .put("formatOnSave", formatOnSave)

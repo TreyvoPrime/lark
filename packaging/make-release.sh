@@ -37,6 +37,7 @@ rm -f release/lark-update.zip release/lark.zip
 cp release/lark-update.zip release/lark.zip
 rm -rf "$stage_update"
 
+# Placeholder feed — hashes filled after zips are built (see end of script).
 cat > release/update.json <<EOF
 {
   "version": "$version",
@@ -71,7 +72,8 @@ cat > release/update.json <<EOF
   },
   "school": {
     "windows": "$feed_base/lark-school-windows.zip"
-  }
+  },
+  "sha256": {}
 }
 EOF
 
@@ -136,6 +138,56 @@ LARK_SKIP_PACKAGE=1 LARK_UPDATE_BASE="$feed_base" LARK_UPDATE_NOTES="$notes" ./p
 # School Windows zip — Lark.exe, no .bat required.
 chmod +x packaging/make-school.sh
 LARK_SKIP_PACKAGE=1 LARK_UPDATE_BASE="$feed_base" LARK_UPDATE_NOTES="$notes" ./packaging/make-school.sh
+
+# Integrity hashes for in-app update verification.
+hash_file() {
+  f=$1
+  if [ -f "$f" ]; then
+    if command -v sha256sum >/dev/null 2>&1; then
+      sha256sum "$f" | awk '{print $1}'
+    else
+      shasum -a 256 "$f" | awk '{print $1}'
+    fi
+  fi
+}
+h_update=$(hash_file release/lark-update.zip)
+h_desktop=$(hash_file release/lark-desktop-update.zip)
+h_mobile=$(hash_file release/lark-mobile-update.zip)
+h_school=$(hash_file release/lark-school-update.zip)
+# Rebuild feed with sha256 map (channel keys + filenames).
+python3 - <<PY
+import json, pathlib
+p = pathlib.Path("release/update.json")
+data = json.loads(p.read_text())
+sha = {}
+pairs = [
+    ("any", """$h_update"""),
+    ("windows", """$h_update"""),
+    ("mac", """$h_update"""),
+    ("linux", """$h_update"""),
+    ("lark-update.zip", """$h_update"""),
+    ("desktop", """$h_desktop"""),
+    ("desktop-windows", """$h_desktop"""),
+    ("desktop-mac", """$h_desktop"""),
+    ("desktop-linux", """$h_desktop"""),
+    ("lark-desktop-update.zip", """$h_desktop"""),
+    ("mobile", """$h_mobile"""),
+    ("mobile-windows", """$h_mobile"""),
+    ("mobile-mac", """$h_mobile"""),
+    ("mobile-linux", """$h_mobile"""),
+    ("lark-mobile-update.zip", """$h_mobile"""),
+    ("school", """$h_school"""),
+    ("school-windows", """$h_school"""),
+    ("lark-school-update.zip", """$h_school"""),
+]
+for k, v in pairs:
+    v = (v or "").strip()
+    if v:
+        sha[k] = v
+data["sha256"] = sha
+p.write_text(json.dumps(data, indent=2) + "\n")
+print("Wrote sha256 entries:", len(sha))
+PY
 
 ls -lh release/*.zip release/update.json 2>/dev/null | head -40
 echo "Version $version"

@@ -145,9 +145,10 @@ public final class Mobile {
     }
 
     private static String newToken() {
-        byte[] bytes = new byte[6];
+        // 128-bit pair token (was 48-bit) — harder to guess on a school LAN.
+        byte[] bytes = new byte[16];
         new SecureRandom().nextBytes(bytes);
-        StringBuilder sb = new StringBuilder(12);
+        StringBuilder sb = new StringBuilder(32);
         for (byte b : bytes) sb.append(String.format(Locale.ROOT, "%02x", b));
         return sb.toString();
     }
