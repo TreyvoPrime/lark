@@ -1,0 +1,8 @@
+build/
+dist/
+release/
+*.class
+*.larktmp
+packaging/school/bin/
+packaging/enterprise/bin/
+packaging/enterprise/payload/
