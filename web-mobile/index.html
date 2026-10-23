@@ -1,0 +1,170 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+  <meta name="theme-color" content="#0f1c1a">
+  <title>Lark Mobile</title>
+  <link rel="icon" href="./favicon.svg">
+  <link rel="manifest" href="./manifest.webmanifest">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,600;9..144,700&family=Source+Sans+3:wght@400;500;600;700&family=IBM+Plex+Mono:wght@450;500&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="./vendor/codemirror/codemirror.min.css?v=__LARK_V__">
+  <link rel="stylesheet" href="./css/mobile.css?v=__LARK_V__">
+</head>
+<body>
+  <div id="app">
+    <header class="top">
+      <div class="brand" aria-label="Lark Mobile">
+        <svg class="mark" viewBox="0 0 24 24" aria-hidden="true">
+          <path d="M3 16c4.2-.7 6-6 9-11 2.8 5 4.8 10.2 9 11" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/>
+          <path d="M7 16.5h10" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/>
+        </svg>
+        <div class="brand-text">
+          <strong>Lark</strong>
+          <span>Mobile</span>
+        </div>
+      </div>
+      <div class="top-actions">
+        <button type="button" id="btn-save" class="ghost" hidden>Save</button>
+        <button type="button" id="btn-run-top" class="accent" hidden>Run</button>
+      </div>
+    </header>
+
+    <main id="stage">
+      <section id="view-home" class="view active" data-view="home">
+        <div class="hero-sheet">
+          <p class="eyebrow">Lark Mobile</p>
+          <h1>Code with your thumbs.</h1>
+          <p class="lede">A separate Mobile edition — big taps, one screen at a time. Run on this device, or pair a phone to the host on Wi‑Fi.</p>
+        </div>
+        <div class="pair-card" id="pair-card" hidden>
+          <p class="pair-label">Phone pair</p>
+          <p class="pair-url" id="pair-url"></p>
+          <p class="pair-hint">Same Wi‑Fi. Keep the host window open.</p>
+          <button type="button" id="btn-copy-pair" class="ghost wide">Copy phone link</button>
+        </div>
+        <div class="section-head">
+          <h2>Projects</h2>
+          <button type="button" id="btn-new" class="accent">New</button>
+        </div>
+        <div id="project-list" class="list"></div>
+        <p id="home-empty" class="empty" hidden>No projects yet. Tap New to start.</p>
+        <p id="home-error" class="error" hidden></p>
+      </section>
+
+      <section id="view-files" class="view" data-view="files" hidden>
+        <div class="section-head">
+          <h2 id="files-title">Files</h2>
+          <button type="button" id="btn-new-file" class="ghost">+ File</button>
+        </div>
+        <div id="file-list" class="list"></div>
+        <p id="files-empty" class="empty" hidden>Open a project first.</p>
+      </section>
+
+      <section id="view-edit" class="view" data-view="edit" hidden>
+        <div class="edit-meta">
+          <p id="edit-path">No file open</p>
+          <p id="edit-status">Ready</p>
+        </div>
+        <div class="edit-tools">
+          <button type="button" id="btn-blocks" class="ghost wide">Insert homework block…</button>
+          <button type="button" id="btn-matrix" class="ghost wide">Insert matrix print loops</button>
+        </div>
+        <div id="editor-host"></div>
+      </section>
+
+      <section id="view-run" class="view" data-view="run" hidden>
+        <div class="run-bar">
+          <button type="button" id="btn-run" class="accent">Run</button>
+          <button type="button" id="btn-stop" class="ghost">Stop</button>
+          <span id="run-state">Idle</span>
+        </div>
+        <label class="field">
+          <span>Program input</span>
+          <textarea id="run-stdin" rows="3" placeholder="Typed into System.in while the program runs"></textarea>
+        </label>
+        <pre id="run-out" class="console" aria-live="polite"></pre>
+      </section>
+
+      <section id="view-more" class="view" data-view="more" hidden>
+        <div class="section-head"><h2>More</h2></div>
+        <div class="stack">
+          <label class="field">
+            <span>Theme</span>
+            <select id="theme-select"></select>
+          </label>
+          <label class="field">
+            <span>Editor size</span>
+            <input id="font-range" type="range" min="14" max="22" value="16">
+          </label>
+          <label class="field check">
+            <span>Show line numbers</span>
+            <input id="line-numbers" type="checkbox" checked>
+          </label>
+          <button type="button" id="btn-blocks-more" class="ghost wide">Insert homework block…</button>
+          <button type="button" id="btn-matrix-more" class="ghost wide">Insert matrix print loops</button>
+          <button type="button" id="btn-check-update" class="ghost wide">Check for updates</button>
+          <p id="update-msg" class="muted"></p>
+          <button type="button" id="btn-install-update" class="accent wide" hidden>Install update</button>
+          <p class="muted" id="version-line"></p>
+        </div>
+      </section>
+    </main>
+
+    <nav class="tabbar" aria-label="Mobile tabs">
+      <button type="button" class="tab active" data-tab="home">
+        <span class="tab-ico" aria-hidden="true">⌂</span>
+        <span>Home</span>
+      </button>
+      <button type="button" class="tab" data-tab="files">
+        <span class="tab-ico" aria-hidden="true">☰</span>
+        <span>Files</span>
+      </button>
+      <button type="button" class="tab" data-tab="edit">
+        <span class="tab-ico" aria-hidden="true">{ }</span>
+        <span>Edit</span>
+      </button>
+      <button type="button" class="tab" data-tab="run">
+        <span class="tab-ico" aria-hidden="true">▶</span>
+        <span>Run</span>
+      </button>
+      <button type="button" class="tab" data-tab="more">
+        <span class="tab-ico" aria-hidden="true">···</span>
+        <span>More</span>
+      </button>
+    </nav>
+  </div>
+
+  <div id="sheet" class="sheet" hidden>
+    <div class="sheet-panel">
+      <h3 id="sheet-title">New project</h3>
+      <label class="field">
+        <span>Name</span>
+        <input id="sheet-name" autocomplete="off" enterkeyhint="done">
+      </label>
+      <label class="field">
+        <span>Preset</span>
+        <select id="sheet-template"></select>
+      </label>
+      <div class="sheet-actions">
+        <button type="button" id="sheet-cancel" class="ghost">Cancel</button>
+        <button type="button" id="sheet-ok" class="accent">Create</button>
+      </div>
+    </div>
+  </div>
+
+  <div id="toasts"></div>
+
+  <script src="./vendor/codemirror/codemirror.min.js?v=__LARK_V__"></script>
+  <script src="./vendor/codemirror/mode/clike/clike.min.js?v=__LARK_V__"></script>
+  <script src="./vendor/codemirror/addon/edit/matchbrackets.min.js?v=__LARK_V__"></script>
+  <script src="./vendor/codemirror/addon/edit/closebrackets.min.js?v=__LARK_V__"></script>
+  <script src="./vendor/codemirror/addon/selection/active-line.min.js?v=__LARK_V__"></script>
+  <script src="./js/java.js?v=__LARK_V__"></script>
+  <script src="./js/mobile.js?v=__LARK_V__"></script>
+</body>
+</html>

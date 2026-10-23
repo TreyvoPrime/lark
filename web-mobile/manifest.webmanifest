@@ -1,0 +1,17 @@
+{
+  "name": "Lark Mobile",
+  "short_name": "Lark",
+  "description": "Touch-first Java IDE — separate Mobile edition of Lark.",
+  "start_url": "./",
+  "display": "standalone",
+  "background_color": "#0f1c1a",
+  "theme_color": "#0f1c1a",
+  "icons": [
+    {
+      "src": "./favicon.svg",
+      "sizes": "any",
+      "type": "image/svg+xml",
+      "purpose": "any maskable"
+    }
+  ]
+}
