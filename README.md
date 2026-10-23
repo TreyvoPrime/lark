@@ -4,18 +4,18 @@ Lark is a focused Java IDE: multi-file projects, live compile feedback, brace gu
 
 ## Downloads (pick one)
 
-| | **Lark Desktop** (default) | **Lark Enterprise** | **Portable zip** | **Lark School** | **Lark Mobile** |
-| --- | --- | --- | --- | --- | --- |
-| **What it is** | Installed app | Setup wizard install | Unzip folder | Unzip folder, **no .bat** | Touch-first edition |
-| **GitHub file** | `lark-desktop-windows.zip` | `LarkEnterpriseSetup.exe` | `lark-windows.zip` | `lark-school-windows.zip` | `lark-mobile-windows.zip` |
-| **How to start** | Install script | **Setup.exe wizard** | **Start Lark.bat** | **Lark.exe** | **Start Lark Mobile** |
-| **UI** | Full desktop IDE | Full desktop IDE | Full desktop IDE | Full desktop IDE | Bottom-tab Mobile UI |
-| **Best for** | Home PC (default) | Real PC install + Start Menu | USB / portable | School PCs that block .bat | Tablet + phone pair |
+| | **Lark Desktop** (default) | **Lark Enterprise** | **Lark School** | **Lark Mobile** |
+| --- | --- | --- | --- | --- |
+| **What it is** | Main install (zip) | Setup wizard install | Unzip folder, **no .bat** | Touch-first edition |
+| **GitHub file** | `lark-desktop-windows.zip` (same as `lark-windows.zip`) | `LarkEnterpriseSetup.exe` | `lark-school-windows.zip` | `lark-mobile-windows.zip` |
+| **How to start** | **Start Lark Desktop** | **Setup.exe wizard** | **Lark.exe** | **Start Lark Mobile** |
+| **UI** | Full desktop IDE | Full desktop IDE | Full desktop IDE | Bottom-tab Mobile UI |
+| **Best for** | Everyone’s default | Start Menu + Add/Remove Programs | School PCs that block .bat | Tablet + phone pair |
 
 Download site: **[treyvoprime.github.io/lark-download](https://treyvoprime.github.io/lark-download/)**  
 Releases: **[github.com/TreyvoPrime/lark/releases/latest](https://github.com/TreyvoPrime/lark/releases/latest)**
 
-### Lark Desktop (default for PC)
+### Lark Desktop (default — was also “portable”)
 
 ```text
 https://github.com/TreyvoPrime/lark/releases/latest/download/lark-desktop-windows.zip
@@ -23,9 +23,16 @@ https://github.com/TreyvoPrime/lark/releases/latest/download/lark-desktop-mac.zi
 https://github.com/TreyvoPrime/lark/releases/latest/download/lark-desktop-linux.zip
 ```
 
-- **Windows:** Extract All → in PowerShell:  
-  `powershell -ExecutionPolicy Bypass -File ".\Install Lark Desktop.ps1"`
-- **Mac / Linux:** Extract → run `Install Lark Desktop.command`
+After **Extract All**, the folder stays simple:
+
+- `Start Lark Desktop.bat` / `.command`
+- `jdk\`
+- `app\` (runtime — jar + helpers)
+
+**Windows:** double-click **Start Lark Desktop.bat**. Optional Start Menu install: `app\Install Lark Desktop.ps1`  
+**Mac / Linux:** run **Start Lark Desktop.command** (or `./start-lark-desktop.sh`)
+
+`lark-windows.zip` / `lark-mac.zip` / `lark-linux.zip` are the **same** Desktop packages (legacy names).
 
 ### Lark Enterprise (Setup wizard — separate from Desktop)
 
@@ -38,18 +45,6 @@ https://github.com/TreyvoPrime/lark/releases/latest/download/LarkEnterpriseSetup
 - Start Menu + Desktop shortcuts with app icon; Add/Remove Programs entry
 - Own update channel; does **not** replace Lark Desktop
 - ~200 MB on disk (bundled JDK). Optional zip: `lark-enterprise-windows.zip`
-
-### Portable zip
-
-```text
-https://github.com/TreyvoPrime/lark/releases/latest/download/lark-windows.zip
-https://github.com/TreyvoPrime/lark/releases/latest/download/lark-mac.zip
-https://github.com/TreyvoPrime/lark/releases/latest/download/lark-linux.zip
-```
-
-- **Windows:** Extract All → `Start Lark.bat`
-- **Mac:** `Start Lark.command`
-- **Linux:** `./start-lark.sh`
 
 ### Lark School (Windows — no .bat)
 
@@ -75,6 +70,11 @@ https://github.com/TreyvoPrime/lark/releases/latest/download/lark-mobile-linux.z
 - Compile and run stay on the host; the phone is the editor
 
 Do not open launchers from inside a zip preview / Temp folder.
+
+## What’s new in 3.6.0
+
+- **Desktop = portable** — one primary zip; after extract you mainly see **Start Lark Desktop** + **jdk** + **app**
+- **Hardened local security** — bundled JDK only, jar path containment, stricter CSP/COOP, Origin checks on mutating APIs, remote updates require SHA-256
 
 ## What’s new in 3.5.0
 

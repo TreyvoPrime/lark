@@ -14,12 +14,15 @@ cp packaging/finish-update.bat build/lark/launch/finish-update.bat
 cp "packaging/Stop Lark and Clean Cache.bat" build/lark/launch/StopLarkClean.bat
 cp "packaging/Wipe Lark From This PC.bat" build/lark/launch/WipeLark.bat
 cp packaging/start-lark.sh build/lark/launch/start-lark.sh
-# Desktop (enterprise) launchers — refreshed into desktop installs on update.
-cp "packaging/desktop/Launch Lark Desktop.bat" build/lark/launch/LaunchDesktop.bat
-cp "packaging/desktop/Launch Lark Desktop.vbs" build/lark/launch/LaunchDesktop.vbs
+# Desktop launchers — top-level Start + app\ helpers refreshed on update.
+cp "packaging/desktop/Start Lark Desktop.bat" build/lark/launch/StartDesktop.bat
+cp "packaging/desktop/Start Lark Desktop.vbs" build/lark/launch/StartDesktop.vbs
 cp packaging/desktop/start-lark-desktop.sh build/lark/launch/start-lark-desktop.sh
 cp "packaging/desktop/Install Lark Desktop.ps1" build/lark/launch/InstallDesktop.ps1
 cp "packaging/desktop/Uninstall Lark Desktop.ps1" build/lark/launch/UninstallDesktop.ps1
+# Keep legacy names as copies so older installs still refresh.
+cp "packaging/desktop/Start Lark Desktop.bat" build/lark/launch/LaunchDesktop.bat
+cp "packaging/desktop/Start Lark Desktop.vbs" build/lark/launch/LaunchDesktop.vbs
 # Enterprise launchers (Setup-wizard edition — separate from Desktop).
 cp packaging/enterprise/start-lark-enterprise.sh build/lark/launch/start-lark-enterprise.sh
 # Mobile launchers (touch UI edition).

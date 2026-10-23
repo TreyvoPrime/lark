@@ -19,6 +19,7 @@ public final class Check {
         englishErrors();
         sampleCompiles();
         enterpriseUpdateStagesLockedExe();
+        desktopJarLivesUnderApp();
         System.out.println("check ok");
     }
 
@@ -130,6 +131,23 @@ public final class Check {
         if (runCode != 0) throw new AssertionError(output + new String(run.getErrorStream().readAllBytes()));
         if (!output.contains("Ada has Kindred")) throw new AssertionError(output);
         if (!output.contains("The Left Hand of Darkness")) throw new AssertionError(output);
+    }
+
+    /** Unified Desktop layout resolves the jar under app/. */
+    private static void desktopJarLivesUnderApp() throws Exception {
+        Path dir = Files.createTempDirectory("lark-desk-layout");
+        Path app = dir.resolve("app");
+        Files.createDirectories(app);
+        Files.writeString(app.resolve("lark.jar"), "jar");
+        Files.writeString(app.resolve("desktop.marker"), "desktop\n");
+        System.setProperty("lark.desktop", "true");
+        System.setProperty("lark.install", dir.toString());
+        Path jar = Updates.jarFile(Updates.installDir());
+        eq(jar.getFileName().toString(), "lark.jar");
+        eq(jar.getParent().getFileName().toString(), "app");
+        assertTrue(jar.startsWith(dir.toAbsolutePath().normalize()), jar.toString());
+        System.clearProperty("lark.desktop");
+        System.clearProperty("lark.install");
     }
 
     /** In-app Enterprise updates must stage Lark Enterprise.exe as .pending (running exe is locked). */

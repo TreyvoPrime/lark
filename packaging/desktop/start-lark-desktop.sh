@@ -1,11 +1,26 @@
 #!/bin/sh
-# Lark Desktop on macOS / Linux — opens an app window, uses the desktop channel.
+# Lark Desktop on macOS / Linux — top-level Start + jdk/; runtime in app/.
 set -eu
 ROOT=$(CDPATH= cd -- "$(dirname "$0")" && pwd)
 cd "$ROOT"
-JAR="$ROOT/lark.jar"
-PENDING="$ROOT/lark.jar.pending"
-printf 'desktop\n' > "$ROOT/desktop.marker"
+APP="$ROOT/app"
+mkdir -p "$APP"
+printf 'desktop\n' > "$APP/desktop.marker"
+
+JAR="$APP/lark.jar"
+PENDING="$APP/lark.jar.pending"
+if [ ! -f "$JAR" ] && [ -f "$ROOT/lark.jar" ]; then
+  JAR="$ROOT/lark.jar"
+  PENDING="$ROOT/lark.jar.pending"
+fi
+
+case "$JAR" in
+  "$ROOT"/*) ;;
+  *)
+    echo "Refusing to launch: lark.jar is outside the install folder."
+    exit 1
+    ;;
+esac
 
 apply_update() {
   echo "Applying Lark Desktop update..."
@@ -13,7 +28,7 @@ apply_update() {
   while [ -f "$PENDING" ]; do
     tries=$((tries + 1))
     if [ -f "$JAR" ]; then
-      mv -f "$JAR" "$ROOT/lark.jar.bak" 2>/dev/null || true
+      mv -f "$JAR" "${JAR}.bak" 2>/dev/null || true
     fi
     if [ -f "$JAR" ]; then
       if [ "$tries" -ge 20 ]; then
@@ -24,12 +39,12 @@ apply_update() {
       continue
     fi
     if mv -f "$PENDING" "$JAR"; then
-      rm -f "$ROOT/lark.jar.bak"
+      rm -f "${JAR}.bak"
       echo "Update applied."
       return 0
     fi
-    if [ -f "$ROOT/lark.jar.bak" ]; then
-      mv -f "$ROOT/lark.jar.bak" "$JAR" 2>/dev/null || true
+    if [ -f "${JAR}.bak" ]; then
+      mv -f "${JAR}.bak" "$JAR" 2>/dev/null || true
     fi
     if [ "$tries" -ge 20 ]; then
       echo "Could not apply the update."
@@ -44,26 +59,16 @@ if [ -f "$PENDING" ]; then
 fi
 
 if [ ! -f "$JAR" ]; then
-  echo "lark.jar is missing next to this script."
+  echo "app/lark.jar is missing. Keep the app/ folder next to this script."
   exit 1
 fi
 
-pick_java() {
-  if [ -x "$ROOT/jdk/bin/java" ]; then
-    printf '%s\n' "$ROOT/jdk/bin/java"
-    return 0
-  fi
-  if command -v java >/dev/null 2>&1; then
-    command -v java
-    return 0
-  fi
-  return 1
-}
-
-JAVA=$(pick_java) || {
-  echo "No Java found. Keep the bundled jdk/ folder next to this script."
+# Bundled JDK only — never fall back to PATH for Desktop (safer installs).
+if [ ! -x "$ROOT/jdk/bin/java" ]; then
+  echo "Bundled jdk/bin/java is missing. Re-extract the Lark Desktop zip."
   exit 1
-}
+fi
+JAVA="$ROOT/jdk/bin/java"
 
 export LARK_CHANNEL=desktop
 exec "$JAVA" \

@@ -6,7 +6,7 @@ cd "$(dirname "$0")/.."
 ./package.sh
 root=$(pwd)
 version=$(sed -n 's/.*VERSION = "\([^"]*\)".*/\1/p' src/lark/Settings.java | head -n 1)
-notes=${LARK_UPDATE_NOTES:-"Lark ${version}: Desktop install (update prompts, Start Menu) plus portable zips with a bundled JDK."}
+notes=${LARK_UPDATE_NOTES:-"Lark ${version}: Desktop is the main install (Start + jdk + app/). Same package as the former portable zip."}
 feed_base=${LARK_UPDATE_BASE:-}
 cache=${LARK_JDK_CACHE:-"$root/release/.jdk-cache"}
 mkdir -p "$cache" release
@@ -44,10 +44,10 @@ cat > release/update.json <<EOF
   "notes": "$notes",
   "page": "https://treyvoprime.github.io/lark-download/",
   "downloads": {
-    "windows": "$feed_base/lark-update.zip",
-    "mac": "$feed_base/lark-update.zip",
-    "linux": "$feed_base/lark-update.zip",
-    "any": "$feed_base/lark-update.zip",
+    "windows": "$feed_base/lark-desktop-update.zip",
+    "mac": "$feed_base/lark-desktop-update.zip",
+    "linux": "$feed_base/lark-desktop-update.zip",
+    "any": "$feed_base/lark-desktop-update.zip",
     "desktop": "$feed_base/lark-desktop-update.zip",
     "desktop-windows": "$feed_base/lark-desktop-update.zip",
     "desktop-mac": "$feed_base/lark-desktop-update.zip",
@@ -98,43 +98,8 @@ fetch_cached() {
   packaging/fetch-portable-jdk.sh "$os" "$arch" "$dest"
 }
 
-pack_platform() {
-  name=$1
-  os=$2
-  arch=$3
-  echo "Building $name (with bundled JDK)..."
-  fetch_cached "$os" "$arch"
-  stage=$(mktemp -d)
-  cp dist/lark.jar "$stage/lark.jar"
-  cp "packaging/Start Lark.bat" "$stage/Start Lark.bat"
-  cp "packaging/Start Lark.vbs" "$stage/Start Lark.vbs"
-  cp packaging/finish-update.bat "$stage/finish-update.bat"
-  cp "packaging/Stop Lark and Clean Cache.bat" "$stage/Stop Lark and Clean Cache.bat"
-  cp "packaging/Wipe Lark From This PC.bat" "$stage/Wipe Lark From This PC.bat"
-  cp packaging/start-lark.sh "$stage/start-lark.sh"
-  cp packaging/start-lark.sh "$stage/Start Lark.command"
-  cp packaging/README.txt "$stage/README.txt"
-  chmod 755 "$stage/start-lark.sh" "$stage/Start Lark.command"
-  printf '%s\n' "$github_latest/update.json" > "$stage/update-feed.url"
-  cp -a "$cache/${os}-${arch}/jdk" "$stage/jdk"
-  rm -f "release/$name"
-  (cd "$stage" && zip -X -r "$root/release/$name" .)
-  rm -rf "$stage"
-  ls -lh "release/$name"
-}
-
-# Detect host arch for linux/mac convenience zips when building on this machine.
-host_arch=$(uname -m)
-case "$host_arch" in
-  arm64|aarch64) host_arch=aarch64 ;;
-  *) host_arch=x64 ;;
-esac
-
-pack_platform lark-windows.zip windows x64
-pack_platform lark-linux.zip linux "$host_arch"
-pack_platform lark-mac.zip mac "$host_arch"
-
-# Enterprise desktop packages (installers + desktop update channel).
+# Desktop is the primary OS install (Start + jdk + app/). Portable zip names
+# are produced as aliases inside make-desktop.sh — no separate portable tree.
 chmod +x packaging/make-desktop.sh packaging/make-mobile.sh
 LARK_UPDATE_BASE="$feed_base" LARK_UPDATE_NOTES="$notes" ./packaging/make-desktop.sh
 
@@ -207,4 +172,4 @@ PY
 
 ls -lh release/*.zip release/update.json 2>/dev/null | head -40
 echo "Version $version"
-echo "Portable: Start Lark. Desktop: Install. Mobile: Start Lark Mobile. School: Lark.exe."
+echo "Desktop: Start Lark Desktop + jdk + app/. Mobile / School / Enterprise remain separate."

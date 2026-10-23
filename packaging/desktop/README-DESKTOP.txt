@@ -1,29 +1,28 @@
-Lark Desktop 2.2.0 — enterprise install
+Lark Desktop
+============
 
-This is Lark DESKTOP (file name has "desktop" in it), not the portable zip.
-  Desktop:  lark-desktop-windows.zip  ← you have this
-  Portable: lark-windows.zip          ← different download; uses Start Lark.bat
+After Extract All, you should see only:
 
-Same IDE either way. Desktop adds Start Menu / Applications + update prompts.
+  Start Lark Desktop.bat   (Windows)  — double-click to run
+  Start Lark Desktop.command (Mac) / start-lark-desktop.sh (Linux)
+  jdk\                     — bundled Java (required)
+  app\                     — Lark runtime (jar, helpers). Soft-hidden on Windows installs.
 
-Windows (no admin password)
-  1. Unzip lark-desktop-windows.zip to a temporary folder
-  2. Right-click "Install Lark Desktop.ps1" → Run with PowerShell
-     (or: powershell -ExecutionPolicy Bypass -File "Install Lark Desktop.ps1")
-  3. Lark installs under %LOCALAPPDATA%\Programs\Lark and opens itself
-  4. Use the Desktop / Start Menu shortcut next time
+Do not run from inside a zip preview or Temp folder.
 
-Mac / Linux
-  1. Unzip the desktop package for your OS
-  2. Double-click "Install Lark Desktop.command" (Mac) or run it from a terminal
-  3. Lark lives in ~/Applications/Lark Desktop
+Optional (inside app\):
+  Install Lark Desktop.ps1 — copies to %LOCALAPPDATA%\Programs\Lark + Start Menu
+  Uninstall Lark Desktop.ps1
+  Stop / Wipe helpers
+
+Security
+--------
+- Uses the bundled JDK only (never downloads a random java from PATH for Desktop).
+- Local IDE server listens on 127.0.0.1 only (not the public internet).
+- In-app updates require HTTPS on GitHub Releases and SHA-256 when the feed provides hashes.
+- Keep app\ intact — that is the trusted runtime.
 
 Updates
-  When a new release is published, Lark Desktop prompts you to update on launch.
-  Click Update now, then Restart Lark. Your projects stay in ~/.lark/projects.
-
-Uninstall
-  Windows: run "Uninstall Lark Desktop.ps1" in the install folder
-  Mac/Linux: delete ~/Applications/Lark Desktop (and the .desktop / .app shortcut)
-
-Portable zip users: keep using Start Lark.bat / start-lark.sh — nothing changes.
+-------
+Lark Desktop checks the public update feed and can install a new jar into app\
+while you are running, then asks you to restart.

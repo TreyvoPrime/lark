@@ -15,6 +15,7 @@ import java.security.MessageDigest;
 import java.time.Duration;
 import java.util.EnumSet;
 import java.util.HexFormat;
+import java.util.List;
 import java.util.Locale;
 import java.util.Set;
 import java.util.zip.ZipEntry;
@@ -278,16 +279,21 @@ public final class Updates {
         if (!allowedDownloadUrl(downloadUrl)) {
             throw new RequestFail(400, "Update downloads must use HTTPS on GitHub Releases (or localhost for packaging).");
         }
+        // Public releases must carry SHA-256 — refuse unsigned remote updates.
+        if (!isLocalhostUrl(downloadUrl) && (expectedSha == null || expectedSha.isBlank())) {
+            throw new RequestFail(400, "Update feed is missing SHA-256 hashes. Refusing to install.");
+        }
         Path installDir = installDir();
         if (installDir == null) {
             throw new RequestFail(500, "Lark couldn't find its install folder.");
         }
         Path zip = null;
-        Path extracted = installDir.resolve("lark.jar.extracted");
-        Path pending = installDir.resolve("lark.jar.pending");
-        Path target = installDir.resolve("lark.jar");
-        Path bak = installDir.resolve("lark.jar.bak");
+        Path target = jarFile(installDir);
+        Path extracted = target.resolveSibling("lark.jar.extracted");
+        Path pending = target.resolveSibling("lark.jar.pending");
+        Path bak = target.resolveSibling("lark.jar.bak");
         try {
+            Files.createDirectories(target.getParent());
             zip = Files.createTempFile("lark-update-", ".zip");
             downloadTo(downloadUrl, zip);
             if (expectedSha != null && !expectedSha.isBlank()) {
@@ -541,23 +547,36 @@ public final class Updates {
         chmodLaunchers(installDir, "start-lark-enterprise.sh", "Launch Lark Enterprise.command");
     }
 
-    /** Writes Lark Desktop launchers (hidden console / app-window entry). */
+    /** Writes Lark Desktop launchers — top-level Start + helpers in app/. */
     static void refreshDesktopLaunchers(Path installDir) {
         if (installDir == null || !Files.isDirectory(installDir)) return;
-        writeLaunchResource("lark/launch/LaunchDesktop.bat", installDir.resolve("Launch Lark Desktop.bat"));
-        writeLaunchResource("lark/launch/LaunchDesktop.vbs", installDir.resolve("Launch Lark Desktop.vbs"));
-        writeLaunchResource("lark/launch/start-lark-desktop.sh", installDir.resolve("start-lark-desktop.sh"));
-        writeLaunchResource("lark/launch/start-lark-desktop.sh", installDir.resolve("Launch Lark Desktop.command"));
-        writeLaunchResource("lark/launch/InstallDesktop.ps1", installDir.resolve("Install Lark Desktop.ps1"));
-        writeLaunchResource("lark/launch/UninstallDesktop.ps1", installDir.resolve("Uninstall Lark Desktop.ps1"));
+        Path app = appDir(installDir);
         try {
-            if (!Files.isRegularFile(installDir.resolve("desktop.marker"))) {
-                Files.writeString(installDir.resolve("desktop.marker"), "desktop\n");
+            Files.createDirectories(app);
+        } catch (IOException ignored) {
+            // Best-effort.
+        }
+        // Visible entrypoints only at install root.
+        writeLaunchResource("lark/launch/StartDesktop.bat", installDir.resolve("Start Lark Desktop.bat"));
+        writeLaunchResource("lark/launch/start-lark-desktop.sh", installDir.resolve("start-lark-desktop.sh"));
+        writeLaunchResource("lark/launch/start-lark-desktop.sh", installDir.resolve("Start Lark Desktop.command"));
+        // Runtime helpers stay under app/.
+        writeLaunchResource("lark/launch/StartDesktop.vbs", app.resolve("Start Lark Desktop.vbs"));
+        writeLaunchResource("lark/launch/InstallDesktop.ps1", app.resolve("Install Lark Desktop.ps1"));
+        writeLaunchResource("lark/launch/UninstallDesktop.ps1", app.resolve("Uninstall Lark Desktop.ps1"));
+        writeLaunchResource("lark/launch/finish-update.bat", app.resolve("finish-update.bat"));
+        writeLaunchResource("lark/launch/StopLarkClean.bat", app.resolve("Stop Lark and Clean Cache.bat"));
+        writeLaunchResource("lark/launch/WipeLark.bat", app.resolve("Wipe Lark From This PC.bat"));
+        // Legacy filenames for older shortcuts.
+        writeLaunchResource("lark/launch/StartDesktop.bat", installDir.resolve("Launch Lark Desktop.bat"));
+        try {
+            if (!Files.isRegularFile(app.resolve("desktop.marker"))) {
+                Files.writeString(app.resolve("desktop.marker"), "desktop\n");
             }
         } catch (IOException ignored) {
             // Best-effort channel marker.
         }
-        chmodLaunchers(installDir, "start-lark-desktop.sh", "Launch Lark Desktop.command");
+        chmodLaunchers(installDir, "start-lark-desktop.sh", "Start Lark Desktop.command");
     }
 
     /** Writes Lark Mobile launchers (touch UI + phone pair). */
@@ -623,13 +642,78 @@ public final class Updates {
             if (location != null) {
                 Path path = Path.of(location.toURI());
                 if (Files.isRegularFile(path) && path.getFileName().toString().endsWith(".jar")) {
-                    return path.getParent();
+                    Path parent = path.getParent();
+                    // Run copies live under %LOCALAPPDATA%\Lark\run — prefer -Dlark.install.
+                    if (parent != null && "app".equalsIgnoreCase(parent.getFileName().toString())
+                            && parent.getParent() != null) {
+                        return parent.getParent();
+                    }
+                    return parent;
                 }
             }
         } catch (Exception ignored) {
             // Fall through to the working directory.
         }
         return Path.of("").toAbsolutePath().normalize();
+    }
+
+    /** Desktop runtime folder (jar + helpers). Created on demand. */
+    static Path appDir(Path installDir) {
+        if (installDir == null) return Path.of("app");
+        return installDir.resolve("app");
+    }
+
+    /**
+     * Resolves the install jar. Prefers app/lark.jar (unified Desktop layout),
+     * then legacy root lark.jar. Always contained under installDir.
+     */
+    static Path jarFile(Path installDir) {
+        if (installDir == null) throw new RequestFail(500, "Lark couldn't find its install folder.");
+        Path root = installDir.toAbsolutePath().normalize();
+        Path appJar = root.resolve("app").resolve("lark.jar");
+        Path legacy = root.resolve("lark.jar");
+        Path chosen;
+        if (Desktop.isDesktop() || Files.isDirectory(root.resolve("app")) || Files.isRegularFile(appJar)) {
+            chosen = appJar;
+        } else if (Files.isRegularFile(legacy)) {
+            chosen = legacy;
+        } else {
+            chosen = Desktop.isDesktop() ? appJar : legacy;
+        }
+        return ensureInsideInstall(root, chosen);
+    }
+
+    static Path ensureInsideInstall(Path installDir, Path candidate) {
+        Path root = installDir.toAbsolutePath().normalize();
+        Path path = candidate.toAbsolutePath().normalize();
+        if (!path.startsWith(root)) {
+            throw new RequestFail(400, "Refusing a path outside the Lark install folder.");
+        }
+        try {
+            if (Files.exists(path) && Files.isSymbolicLink(path)) {
+                Path real = path.toRealPath();
+                Path rootReal = root.toRealPath();
+                if (!real.startsWith(rootReal)) {
+                    throw new RequestFail(400, "Refusing a jar symlink that escapes the install folder.");
+                }
+            }
+        } catch (RequestFail e) {
+            throw e;
+        } catch (IOException ignored) {
+            // Existence checks are best-effort before the file is created.
+        }
+        return path;
+    }
+
+    static boolean isLocalhostUrl(String url) {
+        if (url == null || url.isBlank()) return false;
+        try {
+            URI uri = URI.create(url.trim());
+            String host = uri.getHost() == null ? "" : uri.getHost().toLowerCase(Locale.ROOT);
+            return host.equals("127.0.0.1") || host.equals("localhost") || host.equals("[::1]");
+        } catch (Exception e) {
+            return false;
+        }
     }
 
     public Json.Obj skip(String version) {
@@ -650,8 +734,10 @@ public final class Updates {
         if (env != null && !env.isBlank()) return env.trim();
         Path beside = installDir();
         if (beside != null) {
-            Path file = beside.resolve("update-feed.url");
-            if (Files.isRegularFile(file)) {
+            for (Path file : List.of(
+                    beside.resolve("update-feed.url"),
+                    beside.resolve("app").resolve("update-feed.url"))) {
+                if (!Files.isRegularFile(file)) continue;
                 try {
                     String line = Files.readString(file).trim().lines().findFirst().orElse("").trim();
                     if (!line.isBlank()) {
@@ -660,7 +746,7 @@ public final class Updates {
                         return line;
                     }
                 } catch (IOException ignored) {
-                    // Fall through.
+                    // Try the next candidate.
                 }
             }
         }
@@ -764,24 +850,37 @@ public final class Updates {
         }
     }
 
-    /** Pulls lark.jar and refreshes portable launchers from a release zip. */
+    /** Pulls lark.jar and refreshes launchers from a release zip (Desktop app/ layout aware). */
     private void extractUpdate(Path zip, Path jarOut, Path installDir) throws IOException {
         Files.deleteIfExists(jarOut);
         boolean foundJar = false;
+        Path root = installDir.toAbsolutePath().normalize();
         try (ZipInputStream zin = new ZipInputStream(Files.newInputStream(zip))) {
             ZipEntry entry;
             while ((entry = zin.getNextEntry()) != null) {
                 if (entry.isDirectory()) continue;
                 String name = entry.getName().replace('\\', '/');
+                while (name.startsWith("./")) name = name.substring(2);
+                if (name.isBlank() || name.contains("..")) continue;
                 String base = name.contains("/") ? name.substring(name.lastIndexOf('/') + 1) : name;
                 if ("lark.jar".equals(base)) {
+                    Files.createDirectories(jarOut.getParent());
                     Files.copy(zin, jarOut, StandardCopyOption.REPLACE_EXISTING);
                     foundJar = true;
-                } else if ("Lark Enterprise.exe".equals(base) || "Lark.exe".equals(base)) {
+                    continue;
+                }
+                if ("Lark Enterprise.exe".equals(base) || "Lark.exe".equals(base)) {
                     // Windows launchers lock their own image while running. Stage beside
                     // the install; the native launcher renames .pending into place on boot.
-                    Files.copy(zin, installDir.resolve(base + ".pending"), StandardCopyOption.REPLACE_EXISTING);
-                } else if ("Start Lark.bat".equals(base) || "Start Lark.vbs".equals(base)
+                    Path staged = ensureInsideInstall(root, root.resolve(base + ".pending"));
+                    Files.copy(zin, staged, StandardCopyOption.REPLACE_EXISTING);
+                    continue;
+                }
+                boolean underApp = name.startsWith("app/");
+                boolean topLevel = !name.contains("/");
+                boolean allowed = "Start Lark.bat".equals(base) || "Start Lark.vbs".equals(base)
+                        || "Start Lark Desktop.bat".equals(base) || "Start Lark Desktop.vbs".equals(base)
+                        || "Start Lark Desktop.command".equals(base)
                         || "finish-update.bat".equals(base)
                         || "Stop Lark and Clean Cache.bat".equals(base)
                         || "Wipe Lark From This PC.bat".equals(base)
@@ -789,14 +888,35 @@ public final class Updates {
                         || "Launch Lark Desktop.bat".equals(base) || "Launch Lark Desktop.vbs".equals(base)
                         || "start-lark-desktop.sh".equals(base) || "Launch Lark Desktop.command".equals(base)
                         || "Install Lark Desktop.ps1".equals(base) || "Uninstall Lark Desktop.ps1".equals(base)
+                        || "Install Lark Desktop.command".equals(base)
                         || "desktop.marker".equals(base)
                         || "school.marker".equals(base)
                         || "enterprise.marker".equals(base)
                         || "start-lark-enterprise.sh".equals(base) || "Launch Lark Enterprise.command".equals(base)
                         || "lark-icon.ico".equals(base) || "lark-icon.png".equals(base)
-                        || "README.txt".equals(base) || "update-feed.url".equals(base)) {
-                    Files.copy(zin, installDir.resolve(base), StandardCopyOption.REPLACE_EXISTING);
+                        || "README.txt".equals(base) || "update-feed.url".equals(base);
+                if (!allowed) continue;
+                Path dest;
+                if (underApp) {
+                    dest = ensureInsideInstall(root, root.resolve(name));
+                } else if (topLevel && ("Start Lark Desktop.bat".equals(base)
+                        || "Start Lark Desktop.command".equals(base)
+                        || "start-lark-desktop.sh".equals(base)
+                        || "Launch Lark Desktop.bat".equals(base)
+                        || "Launch Lark Desktop.command".equals(base)
+                        || "Start Lark.bat".equals(base)
+                        || "Start Lark.command".equals(base)
+                        || "start-lark.sh".equals(base)
+                        || "README.txt".equals(base))) {
+                    dest = ensureInsideInstall(root, root.resolve(base));
+                } else if (Desktop.isDesktop()) {
+                    // Helpers belong in app/ for the unified Desktop layout.
+                    dest = ensureInsideInstall(root, appDir(root).resolve(base));
+                } else {
+                    dest = ensureInsideInstall(root, root.resolve(base));
                 }
+                if (dest.getParent() != null) Files.createDirectories(dest.getParent());
+                Files.copy(zin, dest, StandardCopyOption.REPLACE_EXISTING);
             }
         }
         if (!foundJar) {

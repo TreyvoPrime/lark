@@ -114,11 +114,16 @@ public final class Server {
                 sendDownload(exchange, method, downloadName(path));
             } else if ("/update.json".equals(path) && ("GET".equals(method) || "HEAD".equals(method))) {
                 sendUpdateFeed(exchange, method);
-            } else if (path.startsWith("/api/")) {
+            } else             if (path.startsWith("/api/")) {
                 if (!method.equals("GET") && !method.equals("HEAD")) {
                     String mark = exchange.getRequestHeaders().getFirst("X-Lark");
                     if (!"1".equals(mark)) {
                         sendJson(exchange, 400, new Json.Obj().put("ok", false).put("error", "Missing the Lark header."));
+                        return;
+                    }
+                    if (!mutationOriginOk(exchange)) {
+                        sendJson(exchange, 403, new Json.Obj().put("ok", false)
+                                .put("error", "Blocked cross-origin request to the local Lark server."));
                         return;
                     }
                 }
@@ -587,6 +592,27 @@ public final class Server {
         }
     }
 
+    /**
+     * Browser pages on other origins must not drive mutating API calls.
+     * Empty Origin (same-origin / non-browser) is allowed; loopback Origins are allowed;
+     * paired Mobile LAN clients may use their phone Origin when the pair token is valid.
+     */
+    private boolean mutationOriginOk(HttpExchange exchange) {
+        String origin = exchange.getRequestHeaders().getFirst("Origin");
+        if (origin == null || origin.isBlank()) return true;
+        try {
+            java.net.URI uri = java.net.URI.create(origin.trim());
+            String host = uri.getHost() == null ? "" : uri.getHost().toLowerCase(Locale.ROOT);
+            if (host.equals("127.0.0.1") || host.equals("localhost") || host.equals("[::1]") || host.equals("::1")) {
+                return true;
+            }
+            // Mobile LAN: only when already paired for this request.
+            return lan && Mobile.isMobile() && pairOk(exchange);
+        } catch (Exception e) {
+            return false;
+        }
+    }
+
     private boolean pairAttemptAllowed(HttpExchange exchange) {
         String key = peerKey(exchange);
         long[] slot = pairFails.get(key);
@@ -853,15 +879,19 @@ public final class Server {
         exchange.getResponseHeaders().set("Content-Type", type);
         exchange.getResponseHeaders().set("Cache-Control", "no-store");
         exchange.getResponseHeaders().set("X-Content-Type-Options", "nosniff");
-        exchange.getResponseHeaders().set("X-Frame-Options", "SAMEORIGIN");
+        exchange.getResponseHeaders().set("X-Frame-Options", "DENY");
         exchange.getResponseHeaders().set("Referrer-Policy", "no-referrer");
+        exchange.getResponseHeaders().set("Permissions-Policy", "camera=(), microphone=(), geolocation=()");
+        exchange.getResponseHeaders().set("Cross-Origin-Resource-Policy", "same-origin");
+        exchange.getResponseHeaders().set("Cross-Origin-Opener-Policy", "same-origin");
         // Local IDE UI — no third-party scripts; block inline eval and cross-origin framing.
         if (type != null && (type.startsWith("text/html") || type.startsWith("application/javascript")
                 || type.contains("text/css"))) {
             exchange.getResponseHeaders().set("Content-Security-Policy",
-                    "default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; "
-                            + "font-src 'self' https://fonts.gstatic.com data:; img-src 'self' data:; "
-                            + "connect-src 'self'; frame-ancestors 'none'; base-uri 'self'; form-action 'self'");
+                    "default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; "
+                            + "font-src 'self' data:; img-src 'self' data:; "
+                            + "connect-src 'self'; frame-ancestors 'none'; base-uri 'self'; form-action 'self'; "
+                            + "object-src 'none'; upgrade-insecure-requests");
         }
         exchange.sendResponseHeaders(status, data.length);
         exchange.getResponseBody().write(data);

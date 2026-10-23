@@ -5,7 +5,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>Lark 3 — Focused Java IDE</title>
   <link rel="icon" href="./favicon.svg">
-  <meta name="description" content="Lark 3: a focused Java IDE. Compile, run, debug, and refactor — without the bloat. Desktop or portable zip.">
+  <meta name="description" content="Lark 3: a focused Java IDE. Compile, run, debug, and refactor — without the bloat. One clean Desktop zip.">
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,500;9..144,700&family=IBM+Plex+Sans:wght@400;500;600&family=IBM+Plex+Mono:wght@500&display=swap" rel="stylesheet">
@@ -441,7 +441,7 @@
       <p class="lead">Lark is a focused IDE for real Java work — compile, run, debug, and refactor. Not a plugin marketplace. Not a month of setup. Just the tools you actually use.</p>
       <div class="cta">
         <a id="primary-dl" class="primary" href="https://github.com/TreyvoPrime/lark/releases/latest/download/lark-desktop-windows.zip">Download Lark Desktop</a>
-        <a id="portable-dl" class="ghost" href="https://github.com/TreyvoPrime/lark/releases/latest/download/lark-windows.zip">Download portable zip</a>
+        <a id="portable-dl" class="ghost" href="https://github.com/TreyvoPrime/lark/releases/latest/download/lark-desktop-windows.zip">Same zip · Mac / Linux builds</a>
       </div>
       <p id="status"></p>
     </section>
@@ -483,23 +483,23 @@
       </div>
     </section>
 
-    <section class="section" id="compare" aria-label="Desktop vs portable vs mobile">
+    <section class="section" id="compare" aria-label="Desktop vs school vs mobile">
       <h2>What’s the difference?</h2>
-      <p class="sub">Desktop is the default install. Portable is unzip-and-run. Lark Mobile is a completely different touch UI with its own zip.</p>
+      <p class="sub">Lark Desktop is the one main zip (Start + jdk + app). School and Mobile stay separate editions.</p>
       <div class="cta-pair">
         <div class="track-card featured">
           <p class="track-badge">Recommended</p>
           <h3>Lark Desktop</h3>
-          <p>Per-user install. Start Menu / Applications shortcut. Opens in its own window. Prompts you when an update is published.</p>
-          <p>File names: <code>lark-desktop-windows.zip</code>, <code>lark-desktop-mac.zip</code>, <code>lark-desktop-linux.zip</code></p>
+          <p>Extract All → run <code>Start Lark Desktop</code>. You mainly see the launcher, <code>jdk\</code>, and <code>app\</code>. Opens in its own window and prompts for updates. Optional Start Menu install lives in <code>app\</code>.</p>
+          <p>File names: <code>lark-desktop-windows.zip</code> (also published as <code>lark-windows.zip</code>)</p>
           <a id="compare-desktop" class="dl" href="https://github.com/TreyvoPrime/lark/releases/latest/download/lark-desktop-windows.zip">Get Lark Desktop</a>
         </div>
         <div class="track-card">
-          <p class="track-badge">Portable</p>
-          <h3>Lark zip</h3>
-          <p>No installer. Extract All, then run <code>Start Lark.bat</code> / <code>.command</code> / <code>start-lark.sh</code>. Keep the whole folder together.</p>
-          <p>File names: <code>lark-windows.zip</code>, <code>lark-mac.zip</code>, <code>lark-linux.zip</code></p>
-          <a id="compare-portable" class="dl ghost" href="https://github.com/TreyvoPrime/lark/releases/latest/download/lark-windows.zip">Get portable zip</a>
+          <p class="track-badge">Same package</p>
+          <h3>Legacy zip names</h3>
+          <p><code>lark-windows.zip</code> / mac / linux are <strong>aliases</strong> of Desktop — same files, same Start Lark Desktop entry.</p>
+          <p>Prefer the <code>lark-desktop-…</code> names going forward.</p>
+          <a id="compare-portable" class="dl ghost" href="https://github.com/TreyvoPrime/lark/releases/latest/download/lark-desktop-windows.zip">Get Lark Desktop</a>
         </div>
       </div>
       <div class="cta-pair" style="margin-top:16px">
@@ -520,13 +520,13 @@
       </div>
       <table class="compare" style="margin-top:28px">
         <thead>
-          <tr><th></th><th>Lark Desktop</th><th>Portable zip</th><th>Lark Mobile</th></tr>
+          <tr><th></th><th>Lark Desktop</th><th>Lark School</th><th>Lark Mobile</th></tr>
         </thead>
         <tbody>
-          <tr><td>Install</td><td class="yes">Run Install script → Programs folder</td><td>Unzip only</td><td>Unzip only</td></tr>
+          <tr><td>Install</td><td class="yes">Unzip · optional Install in app\</td><td>Unzip · Lark.exe</td><td>Unzip only</td></tr>
           <tr><td>UI</td><td>Full desktop IDE</td><td>Full desktop IDE</td><td class="yes">Touch Mobile UI</td></tr>
           <tr><td>Phone pair</td><td>—</td><td>—</td><td class="yes">Wi‑Fi URL + pair code</td></tr>
-          <tr><td>Updates</td><td class="yes">Prompts on launch</td><td>In-app check / banner</td><td class="yes">Mobile channel</td></tr>
+          <tr><td>Updates</td><td class="yes">Prompts on launch</td><td>In-app / school channel</td><td class="yes">Mobile channel</td></tr>
           <tr><td>Best for</td><td>Everyday machine, own window</td><td>USB, shared machines</td><td>Tablet + phone editing</td></tr>
         </tbody>
       </table>
@@ -569,46 +569,46 @@
     </section>
 
     <section class="section" id="desktop" aria-label="Desktop installs">
-      <p class="track-badge">Track 1</p>
+      <p class="track-badge">Main</p>
       <h2>Lark Desktop downloads</h2>
-      <p class="sub">Install package with JDK. After unzip, run the Install script — not Start Lark.</p>
+      <p class="sub">One clean zip: <code>Start Lark Desktop</code>, <code>jdk\</code>, and <code>app\</code>. Optional Start Menu install is inside <code>app\</code>.</p>
       <div class="grid">
         <article id="card-desktop-windows">
           <h3>Windows</h3>
-          <p>Unzip, run <code>Install Lark Desktop.ps1</code>. Lands in <code>%LOCALAPPDATA%\Programs\Lark</code>.</p>
+          <p>Extract All → <code>Start Lark Desktop.bat</code>. Optional: <code>app\Install Lark Desktop.ps1</code>.</p>
           <a class="dl" href="https://github.com/TreyvoPrime/lark/releases/latest/download/lark-desktop-windows.zip">lark-desktop-windows.zip</a>
         </article>
         <article id="card-desktop-mac">
           <h3>Mac</h3>
-          <p>Unzip, open <code>Install Lark Desktop.command</code>. Lives in <code>~/Applications/Lark Desktop</code>.</p>
+          <p>Extract → open <code>Start Lark Desktop.command</code>.</p>
           <a class="dl" href="https://github.com/TreyvoPrime/lark/releases/latest/download/lark-desktop-mac.zip">lark-desktop-mac.zip</a>
         </article>
         <article id="card-desktop-linux">
           <h3>Linux</h3>
-          <p>Unzip and run the install script, or use the app-image zip from Releases when available.</p>
+          <p>Extract → <code>./start-lark-desktop.sh</code> or <code>Start Lark Desktop.command</code>.</p>
           <a class="dl" href="https://github.com/TreyvoPrime/lark/releases/latest/download/lark-desktop-linux.zip">lark-desktop-linux.zip</a>
         </article>
       </div>
     </section>
 
-    <section class="section" id="portable" aria-label="Portable downloads">
-      <p class="track-badge">Track 2</p>
-      <h2>Portable zip downloads</h2>
-      <p class="sub">Not an install — unzip, then run Start Lark. Different files from Desktop (no <code>desktop</code> in the name).</p>
+    <section class="section" id="portable" aria-label="Legacy zip names">
+      <p class="track-badge">Aliases</p>
+      <h2>Legacy zip names</h2>
+      <p class="sub">Same Desktop package — kept so old links keep working.</p>
       <div class="grid">
         <article id="card-windows">
           <h3>Windows</h3>
-          <p>Unzip, then double-click <code>Start Lark.bat</code>.</p>
+          <p>Alias of Desktop. Still starts with <code>Start Lark Desktop.bat</code>.</p>
           <a class="dl ghost" href="https://github.com/TreyvoPrime/lark/releases/latest/download/lark-windows.zip">lark-windows.zip</a>
         </article>
         <article id="card-mac">
           <h3>Mac</h3>
-          <p>Unzip, then double-click <code>Start Lark.command</code>.</p>
+          <p>Alias of Desktop.</p>
           <a class="dl ghost" href="https://github.com/TreyvoPrime/lark/releases/latest/download/lark-mac.zip">lark-mac.zip</a>
         </article>
         <article id="card-linux">
           <h3>Linux</h3>
-          <p>Unzip and run <code>./start-lark.sh</code>.</p>
+          <p>Alias of Desktop.</p>
           <a class="dl ghost" href="https://github.com/TreyvoPrime/lark/releases/latest/download/lark-linux.zip">lark-linux.zip</a>
         </article>
       </div>
@@ -633,8 +633,8 @@
     </section>
 
     <ol class="steps">
-      <li>Choose <strong>Desktop</strong> (<code>lark-desktop-…zip</code>) or <strong>portable</strong> (<code>lark-windows.zip</code> / mac / linux).</li>
-      <li>Desktop: Extract All → run <code>Install Lark Desktop.ps1</code> (Windows) or the <code>.command</code> installer. Portable: Extract All → run Start Lark.</li>
+      <li>Download <strong>Lark Desktop</strong> (<code>lark-desktop-…zip</code>).</li>
+      <li>Extract All → run <code>Start Lark Desktop</code>. Optional Start Menu: <code>app\Install Lark Desktop.ps1</code>.</li>
       <li>Open a preset (try BigInteger factorial), Run with Ctrl+Enter, Search with Ctrl+Shift+F.</li>
       <li>Optional: connect GitHub with a classic token that has the <code>repo</code> scope.</li>
     </ol>
@@ -653,21 +653,21 @@
     const ua = navigator.userAgent || "";
     let key = "linux";
     let desktopFile = "lark-desktop-linux.zip";
-    let portableFile = "lark-linux.zip";
+    let portableFile = "lark-desktop-linux.zip";
     let deskLabel = "Download Lark Desktop (Linux)";
-    let portLabel = "Download portable zip (Linux)";
+    let portLabel = "Lark Desktop (Linux)";
     if (/Win/i.test(platform) || /Windows/i.test(ua)) {
       key = "windows";
       desktopFile = "lark-desktop-windows.zip";
-      portableFile = "lark-windows.zip";
+      portableFile = "lark-desktop-windows.zip";
       deskLabel = "Download Lark Desktop (Windows)";
-      portLabel = "Download portable zip (Windows)";
+      portLabel = "Lark Desktop (Windows)";
     } else if (/Mac/i.test(platform) || /Mac OS/i.test(ua)) {
       key = "mac";
       desktopFile = "lark-desktop-mac.zip";
-      portableFile = "lark-mac.zip";
+      portableFile = "lark-desktop-mac.zip";
       deskLabel = "Download Lark Desktop (Mac)";
-      portLabel = "Download portable zip (Mac)";
+      portLabel = "Lark Desktop (Mac)";
     }
     const deskCard = document.getElementById("card-desktop-" + key);
     if (deskCard) deskCard.classList.add("pick");
@@ -692,7 +692,7 @@
 
     document.getElementById("status").textContent =
       "Lark 3 · Detected " + (key === "windows" ? "Windows" : key === "mac" ? "Mac" : "Linux") +
-      " — Desktop (" + desktopFile + ") or portable (" + portableFile + ").";
+      " — Desktop (" + desktopFile + ").";
 
     const io = new IntersectionObserver((entries) => {
       entries.forEach((e) => {

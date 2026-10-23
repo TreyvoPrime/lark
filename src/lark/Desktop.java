@@ -62,7 +62,10 @@ public final class Desktop {
         if (env != null && CHANNEL.equalsIgnoreCase(env.trim())) return true;
         try {
             java.nio.file.Path dir = Updates.installDir();
-            if (dir != null && java.nio.file.Files.isRegularFile(dir.resolve("desktop.marker"))) return true;
+            if (dir != null) {
+                if (java.nio.file.Files.isRegularFile(dir.resolve("desktop.marker"))) return true;
+                if (java.nio.file.Files.isRegularFile(dir.resolve("app").resolve("desktop.marker"))) return true;
+            }
         } catch (Throwable ignored) {
             // Install dir may not be ready yet.
         }
