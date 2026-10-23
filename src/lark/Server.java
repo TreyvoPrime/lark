@@ -568,7 +568,9 @@ public final class Server {
 
     private boolean allowedClient(HttpExchange exchange, String host) {
         // Authorize by TCP peer, never by the spoofable Host header.
-        if (isLoopbackPeer(exchange)) return true;
+        // Loopback peers must also send a loopback Host for our port, which blocks
+        // DNS rebinding (a web page whose domain resolves to 127.0.0.1).
+        if (isLoopbackPeer(exchange)) return localHost(host) && hostPortOk(host);
         if (!lan || !Mobile.isMobile()) return false;
         if (!pairAttemptAllowed(exchange)) return false;
         boolean ok = pairOk(exchange);
@@ -825,6 +827,18 @@ public final class Server {
         if (!"GET".equals(method) && !"HEAD".equals(method)) return false;
         return downloadName(path) != null || "/update.json".equals(path)
                 || "/download.html".equals(path) || "/favicon.svg".equals(path);
+    }
+
+    private boolean hostPortOk(String host) {
+        String value = host.trim();
+        int bracket = value.lastIndexOf(']');
+        int colon = value.lastIndexOf(':');
+        if (colon < 0 || colon < bracket) return true; // no port given (browsers omit :80)
+        try {
+            return Integer.parseInt(value.substring(colon + 1)) == port;
+        } catch (NumberFormatException e) {
+            return false;
+        }
     }
 
     static boolean localHost(String host) {
