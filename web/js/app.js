@@ -55,6 +55,40 @@
     "lagoon", "rosewood", "nova", "atelier", "obsidian", "glacier",
     "cedar", "inkwell", "porcelain", "hearth", "canopy"
   ];
+  /** Preview chip colors for the theme overlay tiles. */
+  const THEME_SWATCHES = {
+    desk: { bg: "#2b2b2b", accent: "#cc7832" },
+    slate: { bg: "#2a2e33", accent: "#8aa4b8" },
+    studio: { bg: "#2c2926", accent: "#d19a66" },
+    daylight: { bg: "#f5f5f5", accent: "#0033b3" },
+    moss: { bg: "#1e2622", accent: "#e0a070" },
+    ember: { bg: "#241c18", accent: "#e89a5c" },
+    fog: { bg: "#eef1f4", accent: "#1750eb" },
+    blossom: { bg: "#fff0f6", accent: "#ff6b9d" },
+    candy: { bg: "#2a1520", accent: "#ff7eb3" },
+    midnight: { bg: "#0f1724", accent: "#5b9fd4" },
+    citrus: { bg: "#fff8e8", accent: "#e8a317" },
+    harbor: { bg: "#12262a", accent: "#3db8c5" },
+    graphite: { bg: "#171a1f", accent: "#36cfc9" },
+    navy: { bg: "#101827", accent: "#4d8dff" },
+    terminal: { bg: "#111311", accent: "#9fe870" },
+    parchment: { bg: "#f6f5f1", accent: "#4169a1" },
+    ultraviolet: { bg: "#191720", accent: "#a78bfa" },
+    forest: { bg: "#171d1a", accent: "#8fc9a3" },
+    monochrome: { bg: "#151515", accent: "#d4d4d4" },
+    amber: { bg: "#181512", accent: "#ffb454" },
+    lagoon: { bg: "#0f1f22", accent: "#2aa8a0" },
+    rosewood: { bg: "#24181c", accent: "#c45c6a" },
+    nova: { bg: "#12161c", accent: "#3de0d0" },
+    atelier: { bg: "#1a1c22", accent: "#3d5a80" },
+    obsidian: { bg: "#121212", accent: "#d4a45a" },
+    glacier: { bg: "#e8eef3", accent: "#4a7a9b" },
+    cedar: { bg: "#221c18", accent: "#c4784a" },
+    inkwell: { bg: "#1a1e24", accent: "#6b8cae" },
+    porcelain: { bg: "#f3f1ec", accent: "#5a7d9a" },
+    hearth: { bg: "#231c18", accent: "#c07048" },
+    canopy: { bg: "#171d19", accent: "#5f8f6a" }
+  };
   const FONT_STACKS = {
     jetbrains: '"JetBrains Mono", "Cascadia Mono", "Liberation Mono", ui-monospace, monospace',
     cascadia: '"Cascadia Code", "Cascadia Mono", "JetBrains Mono", ui-monospace, monospace',
@@ -151,15 +185,83 @@
     return THEME_NAMES[theme] || "Desk";
   }
 
+  function currentThemeId() {
+    const raw = document.documentElement.dataset.theme || "desk";
+    return THEME_CANON[raw] || raw;
+  }
+
   function applyTheme(theme, save) {
     theme = THEME_CANON[theme] || theme;
     if (!THEME_NAMES[theme] || !THEME_IDS.includes(theme)) theme = "desk";
     document.documentElement.dataset.theme = theme;
     try { localStorage.setItem("lark-theme", theme); } catch (e) {}
-    $("theme").textContent = themeName(theme);
+    if ($("theme")) $("theme").textContent = themeName(theme);
     if (save && state.settings) {
       api("PUT", "/api/settings", { theme: theme }).catch((err) => toast(err.message));
     }
+    syncThemeOverlaySelection();
+  }
+
+  function themeOverlayOpen() {
+    const panel = $("theme-overlay");
+    return !!(panel && !panel.hidden);
+  }
+
+  function renderThemeGrid() {
+    const grid = $("theme-grid");
+    if (!grid || grid.dataset.ready === "1") return;
+    grid.innerHTML = "";
+    THEME_IDS.forEach((id) => {
+      const sw = THEME_SWATCHES[id] || { bg: "#333", accent: "#6897bb" };
+      const btn = document.createElement("button");
+      btn.type = "button";
+      btn.className = "theme-tile";
+      btn.dataset.themeChoice = id;
+      btn.innerHTML =
+        '<span class="theme-tile-preview" style="--tile-bg:' + sw.bg + ";--tile-accent:" + sw.accent + '"></span>'
+        + '<span class="theme-tile-name">' + themeName(id) + "</span>"
+        + '<span class="theme-tile-meta">Click to preview</span>';
+      btn.addEventListener("click", () => {
+        applyTheme(id, true);
+        // Keep the overlay open so you can keep cycling through looks.
+      });
+      grid.appendChild(btn);
+    });
+    grid.dataset.ready = "1";
+  }
+
+  function syncThemeOverlaySelection() {
+    const grid = $("theme-grid");
+    if (!grid) return;
+    const active = currentThemeId();
+    grid.querySelectorAll(".theme-tile").forEach((tile) => {
+      const on = tile.dataset.themeChoice === active;
+      tile.classList.toggle("active", on);
+      const meta = tile.querySelector(".theme-tile-meta");
+      if (meta) meta.textContent = on ? "Active" : "Click to preview";
+    });
+  }
+
+  function openThemeOverlay() {
+    const panel = $("theme-overlay");
+    if (!panel) return;
+    closePopovers();
+    renderThemeGrid();
+    syncThemeOverlaySelection();
+    panel.hidden = false;
+  }
+
+  function closeThemeOverlay() {
+    const panel = $("theme-overlay");
+    if (panel) panel.hidden = true;
+  }
+
+  function cycleTheme(delta) {
+    const active = currentThemeId();
+    let idx = THEME_IDS.indexOf(active);
+    if (idx < 0) idx = 0;
+    const next = THEME_IDS[(idx + delta + THEME_IDS.length) % THEME_IDS.length];
+    applyTheme(next, true);
   }
 
   /** Time-of-day theme suggestion (once per local day, dismissible). */
@@ -4537,7 +4639,22 @@
     $("project-menu").addEventListener("click", (event) => togglePopover(event.currentTarget));
     if ($("java-assist")) $("java-assist").addEventListener("click", (event) => togglePopover(event.currentTarget));
     if ($("extras")) $("extras").addEventListener("click", (event) => togglePopover(event.currentTarget));
-    $("theme").addEventListener("click", (event) => togglePopover(event.currentTarget));
+    if ($("theme")) {
+      $("theme").addEventListener("click", () => {
+        if (themeOverlayOpen()) closeThemeOverlay();
+        else openThemeOverlay();
+      });
+    }
+    if ($("theme-overlay-close")) {
+      $("theme-overlay-close").addEventListener("click", () => closeThemeOverlay());
+    }
+    if ($("theme-prev")) $("theme-prev").addEventListener("click", () => cycleTheme(-1));
+    if ($("theme-next")) $("theme-next").addEventListener("click", () => cycleTheme(1));
+    if ($("theme-overlay")) {
+      $("theme-overlay").addEventListener("click", (event) => {
+        if (event.target === $("theme-overlay")) closeThemeOverlay();
+      });
+    }
     $("settings").addEventListener("click", (event) => togglePopover(event.currentTarget));
     $("help").addEventListener("click", (event) => togglePopover(event.currentTarget));
     $("setting-font").addEventListener("input", () => {
@@ -4651,12 +4768,7 @@
         else if (act === "github") $("github").click();
       });
     });
-    document.querySelectorAll("[data-theme-choice]").forEach((button) => {
-      button.addEventListener("click", () => {
-        applyTheme(button.dataset.themeChoice, true);
-        closePopovers();
-      });
-    });
+    // Theme tiles are bound inside renderThemeGrid (overlay stays open on apply).
     $("import-folder").addEventListener("change", (event) => {
       const files = [...event.target.files];
       event.target.value = "";
@@ -4817,6 +4929,7 @@
     window.addEventListener("keydown", (event) => {
       const key = event.key.toLowerCase();
       if (event.key === "Escape") {
+        if (themeOverlayOpen()) { closeThemeOverlay(); return; }
         if ($("extras-panel") && !$("extras-panel").hidden) { closeExtras(); return; }
         if (scratchOpen()) { closeScratch(); return; }
         if ($("search-panel") && !$("search-panel").hidden) { closeProjectSearch(); return; }
@@ -4825,6 +4938,18 @@
         if (!$("drawer").hidden) { closeDrawer(); return; }
         if ($("theme-nudge") && !$("theme-nudge").hidden) { dismissThemeNudge(false); return; }
         closePopovers();
+      }
+      if (themeOverlayOpen() && !event.ctrlKey && !event.metaKey && !event.altKey) {
+        if (event.key === "ArrowLeft") {
+          event.preventDefault();
+          cycleTheme(-1);
+          return;
+        }
+        if (event.key === "ArrowRight") {
+          event.preventDefault();
+          cycleTheme(1);
+          return;
+        }
       }
       if ((event.ctrlKey || event.metaKey) && event.shiftKey && key === "f") {
         event.preventDefault();
