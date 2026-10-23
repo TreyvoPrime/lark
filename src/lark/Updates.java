@@ -196,9 +196,12 @@ public final class Updates {
             } else if (name.contains("enterprise") && name.contains("update")) {
                 downloads.put("enterprise", url);
                 downloads.put("enterprise-windows", url);
-            } else if ((name.contains("enterprise") && name.contains("windows"))
-                    || name.equals("larkenterprisesetup.exe")
-                    || name.endsWith("larkenterprisesetup.exe")) {
+            } else if (name.equals("larkenterprisesetup.exe") || name.endsWith("larkenterprisesetup.exe")) {
+                // Setup wizard is for fresh installs — never the in-app update channel.
+                downloads.put("enterprise-setup", url);
+            } else if (name.contains("enterprise") && name.contains("windows") && name.endsWith(".zip")
+                    && !downloads.has("enterprise-windows")) {
+                // Full payload zip only if no slim update zip was already mapped.
                 downloads.put("enterprise-windows", url);
             } else if (name.contains("mobile") && name.contains("update")) {
                 downloads.put("mobile", url);
@@ -774,6 +777,10 @@ public final class Updates {
                 if ("lark.jar".equals(base)) {
                     Files.copy(zin, jarOut, StandardCopyOption.REPLACE_EXISTING);
                     foundJar = true;
+                } else if ("Lark Enterprise.exe".equals(base) || "Lark.exe".equals(base)) {
+                    // Windows launchers lock their own image while running. Stage beside
+                    // the install; the native launcher renames .pending into place on boot.
+                    Files.copy(zin, installDir.resolve(base + ".pending"), StandardCopyOption.REPLACE_EXISTING);
                 } else if ("Start Lark.bat".equals(base) || "Start Lark.vbs".equals(base)
                         || "finish-update.bat".equals(base)
                         || "Stop Lark and Clean Cache.bat".equals(base)
@@ -783,11 +790,11 @@ public final class Updates {
                         || "start-lark-desktop.sh".equals(base) || "Launch Lark Desktop.command".equals(base)
                         || "Install Lark Desktop.ps1".equals(base) || "Uninstall Lark Desktop.ps1".equals(base)
                         || "desktop.marker".equals(base)
-                        || "Lark.exe".equals(base) || "school.marker".equals(base)
-                        || "Lark Enterprise.exe".equals(base) || "enterprise.marker".equals(base)
+                        || "school.marker".equals(base)
+                        || "enterprise.marker".equals(base)
                         || "start-lark-enterprise.sh".equals(base) || "Launch Lark Enterprise.command".equals(base)
                         || "lark-icon.ico".equals(base) || "lark-icon.png".equals(base)
-                        || "README.txt".equals(base)) {
+                        || "README.txt".equals(base) || "update-feed.url".equals(base)) {
                     Files.copy(zin, installDir.resolve(base), StandardCopyOption.REPLACE_EXISTING);
                 }
             }

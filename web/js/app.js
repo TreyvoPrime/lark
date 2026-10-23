@@ -5111,9 +5111,17 @@
     if (desktop && $("update-modal")) {
       $("update-modal-title").textContent = title;
       $("update-modal-notes").textContent = notes;
+      const eyebrow = $("update-modal-eyebrow");
+      if (eyebrow) eyebrow.textContent = productName(edition);
       const nowBtn = $("update-modal-now");
+      const laterBtn = $("update-modal-later");
       const restartBtn = $("update-modal-restart");
-      if (nowBtn) nowBtn.hidden = false;
+      if (nowBtn) {
+        nowBtn.hidden = false;
+        nowBtn.disabled = false;
+        nowBtn.textContent = "Update now";
+      }
+      if (laterBtn) laterBtn.hidden = false;
       if (restartBtn) restartBtn.hidden = true;
       $("update-modal").hidden = false;
       if ($("update-banner")) $("update-banner").hidden = true;
@@ -5171,27 +5179,60 @@
   async function installUpdate() {
     const info = state.updateInfo || {};
     const desktop = isDesktopEdition(info);
+    const ed = (info && info.edition) || (state.settings && state.settings.edition) || "";
+    const nowBtn = $("update-modal-now");
+    const bannerNow = $("update-now");
+    if (nowBtn) {
+      nowBtn.disabled = true;
+      nowBtn.textContent = "Downloading…";
+    }
+    if (bannerNow) bannerNow.disabled = true;
+    if (desktop && $("update-modal")) {
+      $("update-modal").hidden = false;
+      $("update-modal-title").textContent = "Downloading update…";
+      $("update-modal-notes").textContent = "Fetching " + productName(ed) + ". Keep this window open.";
+    }
     toast("Downloading update…");
-    const result = await api("POST", "/api/update/install", { download: info.download || "" });
-    toast(result.message || "Update ready. Restart Lark.");
-    if (result.canRestart) {
-      if (desktop && $("update-modal")) {
-        $("update-modal").hidden = false;
-        $("update-modal-title").textContent = "Update installed";
-        const ed = (info && info.edition) || (state.settings && state.settings.edition) || "";
-        $("update-modal-notes").textContent = result.message || ("Restart " + productName(ed) + " to finish.");
-        if ($("update-modal-now")) $("update-modal-now").hidden = true;
-        if ($("update-modal-later")) $("update-modal-later").hidden = true;
-        if ($("update-modal-restart")) $("update-modal-restart").hidden = false;
-        return;
+    try {
+      const result = await api("POST", "/api/update/install", { download: info.download || "" });
+      toast(result.message || "Update ready. Restart Lark.");
+      if (result.canRestart) {
+        if (desktop && $("update-modal")) {
+          $("update-modal").hidden = false;
+          $("update-modal-title").textContent = "Update installed";
+          $("update-modal-notes").textContent = result.message || ("Restart " + productName(ed) + " to finish.");
+          if (nowBtn) {
+            nowBtn.hidden = true;
+            nowBtn.disabled = false;
+            nowBtn.textContent = "Update now";
+          }
+          if ($("update-modal-later")) $("update-modal-later").hidden = true;
+          if ($("update-modal-restart")) $("update-modal-restart").hidden = false;
+          return;
+        }
+        if ($("update-banner")) $("update-banner").hidden = false;
+        if ($("update-restart")) $("update-restart").hidden = false;
+        if (bannerNow) {
+          bannerNow.hidden = true;
+          bannerNow.disabled = false;
+        }
+        $("update-title").textContent = "Update ready";
+        $("update-notes").textContent = result.message || "Restart Lark to finish.";
+      } else {
+        hideUpdateBanner();
       }
-      if ($("update-banner")) $("update-banner").hidden = false;
-      if ($("update-restart")) $("update-restart").hidden = false;
-      if ($("update-now")) $("update-now").hidden = true;
-      $("update-title").textContent = "Update ready";
-      $("update-notes").textContent = result.message || "Restart Lark to finish.";
-    } else {
-      hideUpdateBanner();
+    } catch (err) {
+      if (nowBtn) {
+        nowBtn.disabled = false;
+        nowBtn.textContent = "Update now";
+        nowBtn.hidden = false;
+      }
+      if (bannerNow) bannerNow.disabled = false;
+      if (desktop && $("update-modal")) {
+        $("update-modal-title").textContent = productName(ed) + " " + (info.latest || "") + " is ready";
+        $("update-modal-notes").textContent = err.message || "Update failed. Try again.";
+      }
+      throw err;
     }
   }
 

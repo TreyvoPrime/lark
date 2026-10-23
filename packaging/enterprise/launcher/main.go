@@ -35,6 +35,9 @@ func main() {
 		return
 	}
 
+	exePath := filepath.Join(root, "Lark Enterprise.exe")
+	exePending := filepath.Join(root, "Lark Enterprise.exe.pending")
+	exeBak := filepath.Join(root, "Lark Enterprise.exe.bak")
 	jar := filepath.Join(root, "lark.jar")
 	pending := filepath.Join(root, "lark.jar.pending")
 	bak := filepath.Join(root, "lark.jar.bak")
@@ -43,6 +46,10 @@ func main() {
 	javac := filepath.Join(root, "jdk", "bin", "javac.exe")
 	jvmcfg := filepath.Join(root, "jdk", "lib", "jvm.cfg")
 
+	// Apply staged launcher first (rename works on Windows even while this process runs).
+	if err := applyPending(exePath, exePending, exeBak, logPath); err != nil {
+		logf(logPath, "exe pending: %v\n", err)
+	}
 	if err := applyPending(jar, pending, bak, logPath); err != nil {
 		logf(logPath, "pending: %v\n", err)
 	}

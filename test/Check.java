@@ -1,8 +1,13 @@
 package lark;
 
+import java.io.ByteArrayOutputStream;
+import java.lang.reflect.Method;
+import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.List;
+import java.util.zip.ZipEntry;
+import java.util.zip.ZipOutputStream;
 
 /** Plain assertions for the pieces that don't need a browser. */
 public final class Check {
@@ -13,6 +18,7 @@ public final class Check {
         diagnostics();
         englishErrors();
         sampleCompiles();
+        enterpriseUpdateStagesLockedExe();
         System.out.println("check ok");
     }
 
@@ -124,6 +130,38 @@ public final class Check {
         if (runCode != 0) throw new AssertionError(output + new String(run.getErrorStream().readAllBytes()));
         if (!output.contains("Ada has Kindred")) throw new AssertionError(output);
         if (!output.contains("The Left Hand of Darkness")) throw new AssertionError(output);
+    }
+
+    /** In-app Enterprise updates must stage Lark Enterprise.exe as .pending (running exe is locked). */
+    private static void enterpriseUpdateStagesLockedExe() throws Exception {
+        Path dir = Files.createTempDirectory("lark-ent-upd");
+        Path zip = dir.resolve("update.zip");
+        byte[] jarBytes = "fake-jar".getBytes(StandardCharsets.UTF_8);
+        byte[] exeBytes = "fake-exe".getBytes(StandardCharsets.UTF_8);
+        try (ZipOutputStream zout = new ZipOutputStream(Files.newOutputStream(zip))) {
+            zout.putNextEntry(new ZipEntry("lark.jar"));
+            zout.write(jarBytes);
+            zout.closeEntry();
+            zout.putNextEntry(new ZipEntry("Lark Enterprise.exe"));
+            zout.write(exeBytes);
+            zout.closeEntry();
+            zout.putNextEntry(new ZipEntry("enterprise.marker"));
+            zout.write("enterprise\n".getBytes(StandardCharsets.UTF_8));
+            zout.closeEntry();
+        }
+        Path jarOut = dir.resolve("lark.jar.extracted");
+        // Pretend the live launcher is already on disk (and would be locked on Windows).
+        Files.writeString(dir.resolve("Lark Enterprise.exe"), "old-exe");
+        Method extract = Updates.class.getDeclaredMethod("extractUpdate", Path.class, Path.class, Path.class);
+        extract.setAccessible(true);
+        extract.invoke(new Updates(Settings.load()), zip, jarOut, dir);
+        assertTrue(Files.isRegularFile(jarOut), "lark.jar.extracted missing");
+        eq(Files.readString(jarOut), "fake-jar");
+        assertTrue(Files.isRegularFile(dir.resolve("Lark Enterprise.exe.pending")), "exe.pending missing");
+        eq(Files.readString(dir.resolve("Lark Enterprise.exe.pending")), "fake-exe");
+        // Live exe must stay untouched so a locked Windows image doesn't abort the update.
+        eq(Files.readString(dir.resolve("Lark Enterprise.exe")), "old-exe");
+        assertTrue(Files.isRegularFile(dir.resolve("enterprise.marker")), "marker missing");
     }
 
     private static void eq(Object actual, Object expected) {
