@@ -1,0 +1,552 @@
+<!DOCTYPE html>
+<html lang="en" data-theme="desk">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Lark</title>
+  <link rel="icon" href="favicon.svg">
+  <link rel="stylesheet" href="vendor/codemirror/codemirror.min.css">
+  <link rel="stylesheet" href="vendor/codemirror/addon/dialog/dialog.css">
+  <link rel="stylesheet" href="vendor/codemirror/addon/hint/show-hint.css">
+  <link rel="stylesheet" href="css/fonts.css">
+  <link rel="stylesheet" href="css/app.css?v=__LARK_V__">
+  <script>
+    try {
+      var savedTheme = localStorage.getItem("lark-theme");
+      var aliases = { ink: "desk", paper: "daylight", tide: "moss", copper: "ember", chalk: "fog", kawaii: "blossom", pink: "blossom" };
+      if (savedTheme) document.documentElement.dataset.theme = aliases[savedTheme] || savedTheme;
+    } catch (e) {}
+  </script>
+</head>
+<body>
+  <div id="shell">
+    <header id="top">
+      <button type="button" class="brand" id="brand-home" title="Home" aria-label="Lark home">
+        <svg viewBox="0 0 24 24" aria-hidden="true">
+          <path d="M3 16c4.2-.7 6-6 9-11 2.8 5 4.8 10.2 9 11" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/>
+          <path d="M7 16.5h10" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/>
+        </svg>
+        <span class="word">Lark <em class="ver">3.0</em></span>
+      </button>
+      <button id="files-toggle" type="button" title="Toggle files (Ctrl+B)">Files</button>
+      <button id="project-search" type="button" title="Search in project (Ctrl+Shift+F)">Search</button>
+      <label class="project-pick">
+        <span class="sr">Project</span>
+        <select id="project"></select>
+      </label>
+      <button id="project-menu" type="button" data-pop="menu-project">Project</button>
+      <button id="java-assist" type="button" data-pop="menu-assist">Java</button>
+      <button id="extras" type="button" data-pop="menu-extras">Extras</button>
+      <div class="grow"></div>
+      <label class="main-pick">
+        <span>Main</span>
+        <select id="main-class"></select>
+      </label>
+      <button id="run-config" type="button" data-pop="menu-run-config" title="Run configurations">Config</button>
+      <button id="run" type="button" class="primary run-btn" title="Ctrl+Enter">Run</button>
+      <button id="debug" type="button" title="Start debugger (F5)">Debug</button>
+      <button id="split-editor" type="button" title="Split editor (Ctrl+\)">Split</button>
+      <button id="scratch" type="button" title="Scratch pad (Space+.)">Scratch</button>
+      <button id="github" type="button">GitHub</button>
+      <button id="theme" type="button" title="Themes">Desk</button>
+      <button id="beautify" type="button" title="Fix indentation (Shift+Alt+F)">Beautify</button>
+      <button id="settings" type="button" data-pop="menu-settings" title="Settings" aria-label="Settings">Aa</button>
+      <button id="help" type="button" data-pop="menu-help" aria-label="Keyboard shortcuts">?</button>
+    </header>
+
+    <div id="workspace">
+      <aside id="files">
+        <div class="splitter" data-split="files"></div>
+        <div class="pane-head tray-head">
+          <div class="tray-title">
+            <span class="tray-label">Explorer</span>
+            <strong id="tray-project">Project</strong>
+          </div>
+          <span class="pane-actions tray-actions">
+            <button type="button" id="new-class" title="New Java class">Class</button>
+            <button type="button" id="new-file" title="New file">File</button>
+            <button type="button" id="new-folder" title="New folder">Folder</button>
+          </span>
+        </div>
+        <div id="tree" class="file-tray"></div>
+        <div id="structure">
+          <div class="pane-head structure-head"><span>Outline</span></div>
+          <div id="structure-list"></div>
+        </div>
+      </aside>
+      <div id="center">
+        <div id="editor-pane">
+          <div id="editors-row">
+            <div class="editor-col" id="editor-col-a">
+              <div id="tabs"></div>
+              <div id="editor"></div>
+            </div>
+            <div class="editor-split-bar" id="editor-split-bar" hidden title="Drag to resize"></div>
+            <div class="editor-col" id="editor-col-b" hidden>
+              <div class="tabs-secondary-head">
+                <div id="tabs-b" class="tabs-secondary"></div>
+                <button type="button" id="close-split" class="close-split" title="Close split" aria-label="Close split">×</button>
+              </div>
+              <div id="editor-b"></div>
+            </div>
+          </div>
+          <div id="empty" hidden>
+            <h2>Pick a file</h2>
+            <p>Open something from the tree, or start a new class.</p>
+            <button type="button" id="empty-new" class="primary">New class</button>
+          </div>
+          <div id="welcome" hidden>
+            <div class="welcome-inner">
+              <div class="welcome-brand">
+                <svg viewBox="0 0 24 24" aria-hidden="true">
+                  <path d="M3 16c4.2-.7 6-6 9-11 2.8 5 4.8 10.2 9 11" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/>
+                  <path d="M7 16.5h10" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/>
+                </svg>
+                <h1>Lark</h1>
+              </div>
+              <p class="welcome-kicker">Lark 3.0</p>
+              <p class="welcome-lead">A focused Java IDE — compile, run, debug, and refactor without the weight of a full enterprise suite. Built for clear work and shipping small programs cleanly.</p>
+              <div class="welcome-grid">
+                <section>
+                  <h2>Start</h2>
+                  <button type="button" class="welcome-action" data-welcome="new-project">New project…</button>
+                  <button type="button" class="welcome-action" data-welcome="import-folder">Open folder…</button>
+                  <button type="button" class="welcome-action" data-welcome="import-zip">Open zip…</button>
+                  <button type="button" class="welcome-action" data-welcome="github">Clone from GitHub…</button>
+                </section>
+                <section>
+                  <h2>Recent</h2>
+                  <div id="welcome-recent" class="welcome-recent"></div>
+                </section>
+                <section>
+                  <h2>What’s new in 3.0</h2>
+                  <ul class="welcome-tips">
+                    <li><strong>Ctrl+M</strong> jump braces · block highlight while you nest.</li>
+                    <li>Live <strong>Compiles</strong> status while typing — no full Run needed.</li>
+                    <li><strong>Extract method</strong> / <strong>Introduce variable</strong> · <strong>Ctrl+Shift+F</strong> project search.</li>
+                    <li>Presets: BigInteger factorial, quiz, sorting, recursion, and more.</li>
+                  </ul>
+                </section>
+              </div>
+            </div>
+          </div>
+        </div>
+        <section id="console">
+          <div class="splitter" data-split="console"></div>
+          <div class="pane-head">
+            <div class="tabs-inline">
+              <button type="button" id="tab-output" class="on">Output</button>
+              <button type="button" id="tab-problems">Problems</button>
+              <button type="button" id="tab-debug">Debug</button>
+              <button type="button" id="tab-tests">Tests</button>
+              <button type="button" id="tab-terminal">Terminal</button>
+            </div>
+            <label class="args">Arguments <input id="args" type="text" placeholder="optional" spellcheck="false"></label>
+            <button type="button" id="clear-console">Clear</button>
+          </div>
+          <div id="debug-bar" class="debug-bar" hidden>
+            <button type="button" id="dbg-continue" title="Continue (F8)">Continue</button>
+            <button type="button" id="dbg-step" title="Step into (F7)">Step</button>
+            <button type="button" id="dbg-next" title="Step over (F8)">Next</button>
+            <button type="button" id="dbg-step-out" title="Step out">Out</button>
+            <button type="button" id="dbg-locals">Locals</button>
+            <button type="button" id="dbg-stop" class="danger">Stop</button>
+            <span id="dbg-status" class="debug-status">Not debugging</span>
+          </div>
+          <pre id="console-out">Run a class and the output shows up here.</pre>
+          <div id="problems" hidden></div>
+          <div id="debug-pane" hidden>
+            <div class="debug-layout">
+              <pre id="debug-out" class="debug-out">Click Debug (or F5). Click a line number gutter to set breakpoints. Click a stack line or local to jump.</pre>
+              <div class="debug-side">
+                <div class="debug-side-head">Locals</div>
+                <div id="debug-locals" class="debug-locals"></div>
+                <div class="debug-side-head">Stack</div>
+                <div id="debug-stack" class="debug-stack"></div>
+              </div>
+            </div>
+          </div>
+          <div id="tests-pane" hidden>
+            <div class="tests-toolbar">
+              <button type="button" id="tests-refresh">Refresh</button>
+              <button type="button" id="tests-run-all" class="primary">Run all tests</button>
+            </div>
+            <div id="tests-list"></div>
+            <pre id="tests-out">Open the Tests tab to discover JUnit methods in this project.</pre>
+          </div>
+          <div id="terminal-pane" hidden>
+            <pre id="terminal-out">Open the Terminal tab to start a shell in your project folder.</pre>
+            <div class="terminal-input-row">
+              <span class="terminal-prompt" id="terminal-prompt">›</span>
+              <input id="terminal-input" type="text" placeholder="Enter a command…" spellcheck="false" autocomplete="off">
+              <button type="button" id="terminal-send" class="primary">Run</button>
+              <button type="button" id="terminal-restart" title="Restart shell">Restart</button>
+            </div>
+          </div>
+          <div id="console-reply" class="console-reply" hidden>
+            <span class="console-reply-label">Waiting for input</span>
+            <input id="console-input" type="text" placeholder="Type a line, then Enter" spellcheck="false" autocomplete="off">
+            <button type="button" id="console-send" class="primary">Send</button>
+          </div>
+          <details id="stdin-wrap">
+            <summary>Starter input (optional — for answers you already know)</summary>
+            <textarea id="stdin" rows="2" spellcheck="false" placeholder="Lines sent when the program starts. While it runs, use the reply box above."></textarea>
+          </details>
+        </section>
+      </div>
+    </div>
+    <footer id="status">
+      <span id="status-path">Lark</span>
+      <span id="status-save"></span>
+      <span id="status-check" title="Live compile check"></span>
+      <span id="status-sig"></span>
+      <span class="grow"></span>
+      <span id="status-cursor">Ln 1, Col 1</span>
+      <span id="status-java"></span>
+    </footer>
+  </div>
+
+  <div id="menu-project" class="popover menu" hidden>
+    <button type="button" data-act="new-project">New project</button>
+    <button type="button" data-act="import-folder">Import folder</button>
+    <button type="button" data-act="import-zip">Import zip</button>
+    <button type="button" data-act="download">Download zip</button>
+    <button type="button" data-act="copy-path">Copy folder path</button>
+    <button type="button" data-act="show-welcome">Welcome page</button>
+    <button type="button" data-act="delete-project" class="danger">Delete project</button>
+    <p id="path-note" class="path-note"></p>
+  </div>
+  <div id="menu-extras" class="popover menu" hidden>
+    <button type="button" data-extra="uml">UML class diagram…</button>
+    <button type="button" data-extra="assign">Assignment helper…</button>
+    <p class="path-note">Homework helpers — diagrams and field plans from assignment text.</p>
+  </div>
+  <div id="menu-assist" class="popover menu" hidden>
+    <button type="button" data-assist="beautify">Beautify indentation</button>
+    <button type="button" data-assist="snippet">Insert building block…</button>
+    <button type="button" data-assist="main">Insert main method</button>
+    <button type="button" data-assist="fori">Insert for-i loop</button>
+    <button type="button" data-assist="matrix">Insert matrix print loops…</button>
+    <button type="button" data-assist="homework">Insert homework block…</button>
+    <button type="button" data-assist="arrfill">Insert fill + print array…</button>
+    <button type="button" data-assist="arrstats">Insert array sum / min / max…</button>
+    <button type="button" data-assist="linsearch">Insert linear search…</button>
+    <button type="button" data-assist="countocc">Insert count occurrences…</button>
+    <button type="button" data-assist="sentinel">Insert sentinel read loop…</button>
+    <button type="button" data-assist="menu">Insert menu loop</button>
+    <button type="button" data-assist="fileio">Insert file read / write…</button>
+    <button type="button" data-assist="splitloop">Insert String split + loop</button>
+    <button type="button" data-assist="matfill">Insert 2D array fill…</button>
+    <button type="button" data-assist="arrcopy">Insert copy array…</button>
+    <button type="button" data-assist="arrrev">Insert reverse array…</button>
+    <button type="button" data-assist="foreach">Insert for-each loop</button>
+    <button type="button" data-assist="try">Insert try / catch</button>
+    <button type="button" data-assist="scanner">Insert Scanner input</button>
+    <button type="button" data-assist="getters">Generate getters / setters…</button>
+    <button type="button" data-assist="ctor">Generate constructor…</button>
+    <button type="button" data-assist="tostring">Generate toString…</button>
+    <button type="button" data-assist="equals">Generate equals / hashCode…</button>
+    <button type="button" data-assist="summary">Show class members</button>
+    <button type="button" data-assist="explain">Explain Java keywords</button>
+    <button type="button" data-assist="import">Suggest import for word at cursor</button>
+    <button type="button" data-assist="fix">Quick fix: missing accessors</button>
+    <button type="button" data-assist="goto">Go to definition</button>
+    <button type="button" data-assist="usages">Find usages</button>
+    <button type="button" data-assist="rename">Rename symbol…</button>
+    <button type="button" data-assist="rename-file">Rename in file (multi-cursor)</button>
+    <hr class="settings-rule">
+    <button type="button" data-assist="extract">Extract method…</button>
+    <button type="button" data-assist="introduce">Introduce variable…</button>
+    <button type="button" data-assist="brace">Jump to matching brace</button>
+    <button type="button" data-assist="search">Search in project…</button>
+    <button type="button" data-assist="check">Compile check now</button>
+  </div>
+  <div id="menu-run-config" class="popover menu" hidden>
+    <button type="button" data-run-cfg="save">Save current as config…</button>
+    <button type="button" data-run-cfg="manage">Manage configs…</button>
+    <hr class="settings-rule">
+    <div id="run-config-list"></div>
+  </div>
+  <div id="theme-overlay" class="theme-overlay" hidden>
+    <div class="theme-overlay-card" role="dialog" aria-modal="true" aria-labelledby="theme-overlay-title">
+      <div class="theme-overlay-head">
+        <div>
+          <strong id="theme-overlay-title">Desk themes</strong>
+          <p class="path-note">Click a theme to try it — the panel stays open so you can keep browsing.</p>
+        </div>
+        <div class="theme-overlay-tools">
+          <button type="button" id="theme-prev" title="Previous theme">←</button>
+          <button type="button" id="theme-next" title="Next theme">→</button>
+          <button type="button" id="theme-overlay-close" aria-label="Close themes">×</button>
+        </div>
+      </div>
+      <div id="theme-grid" class="theme-grid"></div>
+    </div>
+  </div>
+  <div id="menu-settings" class="popover settings-pop" hidden>
+    <div class="settings-sticky">
+      <label class="settings-row">Font size
+        <input id="setting-font" type="range" min="11" max="24" step="1" value="14">
+        <output id="setting-font-out">14</output>
+      </label>
+      <label class="settings-row">Editor scale
+        <input id="setting-zoom" type="range" min="80" max="150" step="5" value="100">
+        <output id="setting-zoom-out">100%</output>
+      </label>
+      <div class="settings-actions">
+        <button type="button" id="setting-font-down" title="Smaller font">A−</button>
+        <button type="button" id="setting-font-up" title="Larger font">A+</button>
+        <button type="button" id="setting-zoom-reset">Reset scale</button>
+        <button type="button" id="setting-display-reset" class="primary">Reset size</button>
+      </div>
+      <p class="path-note">Scale changes only editor text — not trays or the top bar. Ctrl+= / Ctrl+- · Ctrl+0 resets.</p>
+    </div>
+    <hr class="settings-rule">
+    <label class="settings-row settings-stack">Editor font
+      <select id="setting-font-family">
+        <option value="jetbrains">JetBrains Mono</option>
+        <option value="cascadia">Cascadia Code</option>
+        <option value="fira">Fira Code</option>
+        <option value="consolas">Consolas / Menlo</option>
+        <option value="system">System mono</option>
+      </select>
+    </label>
+    <label class="settings-check"><input id="setting-ligatures" type="checkbox" checked> Font ligatures</label>
+    <label class="settings-row settings-stack">Indentation
+      <select id="setting-indent-size">
+        <option value="2">2 spaces</option>
+        <option value="4" selected>4 spaces</option>
+        <option value="8">8 spaces</option>
+      </select>
+    </label>
+    <label class="settings-check"><input id="setting-indent-tabs" type="checkbox"> Indent with tabs</label>
+    <label class="settings-check"><input id="setting-line-wrap" type="checkbox"> Line wrap</label>
+    <label class="settings-check"><input id="setting-line-numbers" type="checkbox" checked> Show line numbers</label>
+    <hr class="settings-rule">
+    <label class="settings-check"><input id="setting-autosave" type="checkbox" checked> Autosave as you type</label>
+    <label class="settings-row settings-stack">Autosave delay
+      <select id="setting-autosave-delay">
+        <option value="300">Fast (0.3s)</option>
+        <option value="800" selected>Normal (0.8s)</option>
+        <option value="1500">Relaxed (1.5s)</option>
+      </select>
+    </label>
+    <label class="settings-check"><input id="setting-format-save" type="checkbox"> Format on save (Beautify)</label>
+    <p class="path-note">With autosave off, use Ctrl+S. Ctrl+S always saves immediately.</p>
+    <hr class="settings-rule">
+    <label class="settings-row settings-stack">Update feed URL
+      <input id="setting-update-feed" type="url" spellcheck="false" placeholder="https://…/update.json">
+    </label>
+    <button type="button" id="setting-check-updates">Check for updates</button>
+    <p id="setting-update-status" class="path-note"></p>
+  </div>
+  <aside id="scratch-pad" class="scratch-pad" hidden>
+    <div class="scratch-head" id="scratch-drag" title="Drag to move">
+      <div class="scratch-title">
+        <strong>Scratch</strong>
+        <span>Drag anywhere · Space+. to toggle · auto-<code>main</code></span>
+      </div>
+      <div class="scratch-actions">
+        <button type="button" id="scratch-run" class="primary" title="Run scratch (Ctrl+Enter)">Run</button>
+        <button type="button" id="scratch-copy" title="Copy all scratch code">Copy all</button>
+        <button type="button" id="scratch-clear" title="Clear scratch">Clear</button>
+        <button type="button" id="scratch-close" class="close-split" title="Close scratch" aria-label="Close scratch">×</button>
+      </div>
+    </div>
+    <div id="scratch-editor"></div>
+    <div class="scratch-resize" id="scratch-resize" title="Drag to resize"></div>
+  </aside>
+  <div id="extras-panel" class="extras-panel" hidden>
+    <div class="extras-card">
+      <div class="extras-head">
+        <strong id="extras-title">Extras</strong>
+        <button type="button" id="extras-close" aria-label="Close">×</button>
+      </div>
+      <div id="extras-uml" class="extras-body" hidden>
+        <p class="path-note">Built from every <code>.java</code> file in the open project (fields − / methods +).</p>
+        <div class="extras-actions">
+          <button type="button" id="uml-refresh" class="primary">Refresh</button>
+          <button type="button" id="uml-copy">Copy PlantUML</button>
+          <button type="button" id="uml-svg">Copy SVG</button>
+        </div>
+        <div id="uml-canvas" class="uml-canvas" tabindex="0"></div>
+      </div>
+      <div id="extras-assign" class="extras-body" hidden>
+        <p class="path-note">Paste the assignment prompt. Lark lists fields, getters, setters, and a starter class sketch — no cloud AI.</p>
+        <label class="extras-label">Assignment text
+          <textarea id="assign-input" rows="8" spellcheck="true" placeholder="Example: Create a Book class with a title (String), page count (int), and whether it is checked out (boolean). Include a constructor, getters, and setters."></textarea>
+        </label>
+        <div class="extras-actions">
+          <button type="button" id="assign-analyze" class="primary">Summarize needs</button>
+          <button type="button" id="assign-insert">Insert sketch into editor</button>
+          <button type="button" id="assign-copy">Copy sketch</button>
+        </div>
+        <div id="assign-out" class="assign-out"></div>
+      </div>
+    </div>
+  </div>
+  <div id="theme-nudge" class="theme-nudge" hidden>
+    <div class="theme-nudge-copy">
+      <strong id="theme-nudge-title">Evening light</strong>
+      <p id="theme-nudge-body">Switch to Hearth for a warmer desk?</p>
+    </div>
+    <div class="theme-nudge-actions">
+      <button type="button" id="theme-nudge-dismiss">Not now</button>
+      <button type="button" id="theme-nudge-apply" class="primary">Try it</button>
+    </div>
+  </div>
+  <div id="update-banner" class="update-banner" hidden>
+    <div>
+      <strong id="update-title">Update available</strong>
+      <p id="update-notes"></p>
+    </div>
+    <div class="update-actions">
+      <button type="button" id="update-later">Later</button>
+      <button type="button" id="update-skip">Skip</button>
+      <button type="button" id="update-now" class="primary">Update now</button>
+      <button type="button" id="update-restart" class="primary" hidden>Restart Lark</button>
+    </div>
+  </div>
+  <div id="update-modal" class="update-modal" hidden>
+    <div class="update-modal-card" role="dialog" aria-modal="true" aria-labelledby="update-modal-title">
+      <p id="update-modal-eyebrow" class="update-modal-eyebrow">Lark</p>
+      <h2 id="update-modal-title">Update ready</h2>
+      <p id="update-modal-notes"></p>
+      <div class="update-modal-actions">
+        <button type="button" id="update-modal-later">Remind me later</button>
+        <button type="button" id="update-modal-now" class="primary">Update now</button>
+        <button type="button" id="update-modal-restart" class="primary" hidden>Restart Lark</button>
+      </div>
+    </div>
+  </div>
+  <div id="menu-help" class="popover" hidden>
+    <ul class="help-list">
+      <li><span>Run</span><kbd>Ctrl+Enter</kbd></li>
+      <li><span>Debug</span><kbd>F5</kbd></li>
+      <li><span>Go to definition</span><kbd>F12</kbd></li>
+      <li><span>Find usages</span><kbd>Shift+F12</kbd></li>
+      <li><span>Rename</span><kbd>F2</kbd></li>
+      <li><span>Matching brace</span><kbd>Ctrl+M</kbd></li>
+      <li><span>Project search</span><kbd>Ctrl+Shift+F</kbd></li>
+      <li><span>Extract method</span><kbd>Ctrl+Alt+M</kbd></li>
+      <li><span>Introduce variable</span><kbd>Ctrl+Alt+V</kbd></li>
+      <li><span>Save</span><kbd>Ctrl+S</kbd></li>
+      <li><span>Split / unsplit</span><kbd>Ctrl+\</kbd></li>
+      <li><span>Themes overlay</span><kbd>Theme button</kbd> <span class="path-note">(← → cycle · Esc closes)</span></li>
+      <li><span>Scratch pad</span><kbd>Space+.</kbd></li>
+      <li><span>Run scratch</span><kbd>Ctrl+Enter</kbd> <span class="path-note">(while Scratch is open)</span></li>
+      <li><span>Javadoc stub</span><kbd>/**</kbd></li>
+      <li><span>Beautify</span><kbd>Shift+Alt+F</kbd></li>
+      <li><span>Open file / class</span><kbd>Ctrl+P</kbd></li>
+      <li><span>Complete</span><kbd>Ctrl+Space</kbd></li>
+      <li><span>Find</span><kbd>Ctrl+F</kbd></li>
+      <li><span>Replace</span><kbd>Ctrl+H</kbd></li>
+      <li><span>Undo / Redo</span><kbd>Ctrl+Z / Ctrl+Y</kbd></li>
+      <li><span>Comment</span><kbd>Ctrl+/</kbd></li>
+      <li><span>Files</span><kbd>Ctrl+B</kbd></li>
+      <li><span>Editor scale</span><kbd>Ctrl+= / Ctrl+-</kbd></li>
+    </ul>
+    <p class="path-note">On a Mac, use Command instead of Ctrl. Click the line-number gutter to set breakpoints. Type /** above a method for Javadoc. Live compile status appears in the footer.</p>
+  </div>
+  <div id="search-panel" class="search-panel" hidden>
+    <div class="search-card">
+      <div class="search-head">
+        <strong>Search in project</strong>
+        <button type="button" id="search-close" aria-label="Close search">×</button>
+      </div>
+      <input id="search-input" type="text" placeholder="Find across files…" spellcheck="false" autocomplete="off">
+      <div id="search-results" class="search-results"></div>
+      <p class="path-note">Enter opens the selected hit · Esc closes</p>
+    </div>
+  </div>
+  <div id="context" hidden></div>
+
+  <div id="scrim" hidden></div>
+  <aside id="drawer" hidden>
+    <div class="drawer-head">
+      <h2>GitHub</h2>
+      <div class="grow"></div>
+      <button type="button" id="drawer-close">Close</button>
+    </div>
+    <div class="drawer-body">
+      <section id="gh-signed-out">
+        <p class="gh-lead">Connect once. Lark can then list your repositories, clone them, and push this project.</p>
+        <ol class="gh-steps">
+          <li>
+            <button type="button" id="gh-create-token" class="action primary">Create a GitHub token</button>
+            <span class="gh-hint">Opens GitHub with the <code>repo</code> scope already selected. Choose classic token, generate, then copy it.</span>
+          </li>
+          <li>
+            <label>Paste the token here
+              <input id="gh-token" type="password" autocomplete="off" spellcheck="false" placeholder="ghp_…">
+            </label>
+            <button type="button" id="gh-save" class="action primary">Connect</button>
+          </li>
+        </ol>
+        <p id="gh-wait" class="gh-wait"></p>
+        <details class="gh-alt">
+          <summary>Browser sign-in instead</summary>
+          <button type="button" id="gh-oauth" class="action">Sign in with browser</button>
+        </details>
+      </section>
+      <section id="gh-signed-in" hidden>
+        <div class="row gh-account">
+          <strong id="gh-status">Connected</strong>
+          <button type="button" id="gh-forget" class="action">Sign out</button>
+        </div>
+        <label>Your repositories
+          <input id="gh-filter" type="text" placeholder="Filter by name" spellcheck="false" autocomplete="off">
+        </label>
+        <div id="gh-repo-list" class="repo-list"></div>
+        <div class="block">
+          <h3>Push this project</h3>
+          <p id="gh-target">Choose a repository above, or create a new one.</p>
+          <label>Commit message <input id="gh-message" type="text" value="Update from Lark" spellcheck="false"></label>
+          <div class="row">
+            <button type="button" id="gh-push" class="action primary">Push</button>
+            <button type="button" id="gh-new-repo" class="action">New repository</button>
+          </div>
+          <p id="gh-result"></p>
+        </div>
+      </section>
+    </div>
+  </aside>
+
+  <div id="modal" hidden>
+    <form id="modal-form">
+      <h2 id="modal-title"></h2>
+      <p id="modal-note"></p>
+      <div id="modal-fields"></div>
+      <div class="modal-actions">
+        <button type="button" id="modal-cancel">Cancel</button>
+        <button type="submit" id="modal-ok" class="primary">OK</button>
+      </div>
+    </form>
+  </div>
+
+  <div id="palette" hidden>
+    <div class="palette-card">
+      <input id="palette-input" type="text" placeholder="Open a file or class…" spellcheck="false" autocomplete="off">
+      <div id="palette-list"></div>
+    </div>
+  </div>
+  <div id="toasts"></div>
+  <div id="boot">Opening your workspace…</div>
+  <input id="import-folder" type="file" webkitdirectory multiple hidden>
+  <input id="import-zip" type="file" accept=".zip,application/zip" hidden>
+
+  <script src="vendor/codemirror/codemirror.min.js"></script>
+  <script src="vendor/codemirror/mode/clike/clike.min.js"></script>
+  <script src="vendor/codemirror/addon/edit/closebrackets.min.js"></script>
+  <script src="vendor/codemirror/addon/edit/matchbrackets.min.js"></script>
+  <script src="vendor/codemirror/addon/selection/active-line.min.js"></script>
+  <script src="vendor/codemirror/addon/comment/comment.min.js"></script>
+  <script src="vendor/codemirror/addon/dialog/dialog.min.js"></script>
+  <script src="vendor/codemirror/addon/search/searchcursor.min.js"></script>
+  <script src="vendor/codemirror/addon/search/search.min.js"></script>
+  <script src="vendor/codemirror/addon/hint/show-hint.min.js"></script>
+  <script src="js/java.js?v=__LARK_V__"></script>
+  <script src="js/extras.js?v=__LARK_V__"></script>
+  <script src="js/app.js?v=__LARK_V__"></script>
+</body>
+</html>

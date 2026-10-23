@@ -1,0 +1,708 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Lark 3 — Focused Java IDE</title>
+  <link rel="icon" href="./favicon.svg">
+  <meta name="description" content="Lark 3: a focused Java IDE. Compile, run, debug, and refactor — without the bloat. Desktop or portable zip.">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,500;9..144,700&family=IBM+Plex+Sans:wght@400;500;600&family=IBM+Plex+Mono:wght@500&display=swap" rel="stylesheet">
+  <style>
+    :root {
+      --moss: #6f8f5c;
+      --moss-deep: #3d5234;
+      --ink: #122016;
+      --fog: #e8efe3;
+      --mist: #b7c6b0;
+      --panel: rgba(18, 32, 22, 0.72);
+      --line: rgba(232, 239, 227, 0.14);
+      --amber: #d4a35c;
+    }
+    * { box-sizing: border-box; }
+    html { scroll-behavior: smooth; }
+    body {
+      margin: 0;
+      min-height: 100vh;
+      color: var(--fog);
+      font-family: "IBM Plex Sans", "Segoe UI", sans-serif;
+      background:
+        radial-gradient(1200px 700px at 12% -10%, rgba(111, 143, 92, 0.28), transparent 55%),
+        radial-gradient(900px 500px at 100% 10%, rgba(61, 82, 52, 0.35), transparent 50%),
+        linear-gradient(165deg, #0c1510 0%, #152218 42%, #0e1812 100%);
+      overflow-x: hidden;
+    }
+    body::before {
+      content: "";
+      position: fixed;
+      inset: 0;
+      pointer-events: none;
+      background-image:
+        linear-gradient(rgba(232, 239, 227, 0.03) 1px, transparent 1px),
+        linear-gradient(90deg, rgba(232, 239, 227, 0.03) 1px, transparent 1px);
+      background-size: 48px 48px;
+      mask-image: radial-gradient(ellipse at 50% 20%, black 20%, transparent 70%);
+      animation: gridDrift 28s linear infinite;
+    }
+    @keyframes gridDrift {
+      from { transform: translateY(0); }
+      to { transform: translateY(48px); }
+    }
+    .wrap {
+      width: min(1080px, calc(100% - 32px));
+      margin: 0 auto;
+      padding: 28px 0 72px;
+      position: relative;
+      z-index: 1;
+    }
+    .hero {
+      min-height: min(88vh, 760px);
+      display: grid;
+      align-content: end;
+      padding: 24px 0 8px;
+      position: relative;
+    }
+    .hero-visual {
+      position: absolute;
+      inset: 8% 0 auto;
+      height: 58%;
+      background:
+        linear-gradient(120deg, rgba(111, 143, 92, 0.18), transparent 55%),
+        linear-gradient(180deg, rgba(12, 21, 16, 0.1), rgba(12, 21, 16, 0.85)),
+        repeating-linear-gradient(-12deg, rgba(232, 239, 227, 0.04) 0 2px, transparent 2px 14px);
+      border-bottom: 1px solid var(--line);
+      overflow: hidden;
+    }
+    .hero-visual::after {
+      content: "";
+      position: absolute;
+      width: 42%;
+      height: 70%;
+      right: 6%;
+      top: 18%;
+      border: 1px solid var(--line);
+      background:
+        linear-gradient(180deg, rgba(232, 239, 227, 0.06), transparent 40%),
+        rgba(18, 32, 22, 0.55);
+      box-shadow: 0 30px 80px rgba(0, 0, 0, 0.35);
+      transform: perspective(900px) rotateY(-8deg) rotateX(4deg);
+      animation: panelFloat 7s ease-in-out infinite;
+    }
+    .hero-visual .code-lines {
+      position: absolute;
+      right: 9%;
+      top: 26%;
+      width: 36%;
+      font-family: "IBM Plex Mono", ui-monospace, monospace;
+      font-size: clamp(10px, 1.2vw, 13px);
+      line-height: 1.7;
+      color: var(--mist);
+      opacity: 0;
+      animation: fadeUp 1s ease 0.6s forwards;
+    }
+    .hero-visual .code-lines span { display: block; white-space: nowrap; overflow: hidden; }
+    .hero-visual .code-lines span:nth-child(1) { animation: typeLine 0.8s steps(28) 0.9s forwards; width: 0; }
+    .hero-visual .code-lines span:nth-child(2) { animation: typeLine 0.7s steps(22) 1.5s forwards; width: 0; }
+    .hero-visual .code-lines span:nth-child(3) { animation: typeLine 0.9s steps(30) 2.1s forwards; width: 0; color: var(--moss); }
+    .hero-visual .code-lines span:nth-child(4) { animation: typeLine 0.6s steps(16) 2.9s forwards; width: 0; color: var(--amber); }
+    @keyframes typeLine { to { width: 100%; } }
+    @keyframes panelFloat {
+      0%, 100% { transform: perspective(900px) rotateY(-8deg) rotateX(4deg) translateY(0); }
+      50% { transform: perspective(900px) rotateY(-6deg) rotateX(2deg) translateY(-10px); }
+    }
+    .brand {
+      display: flex;
+      align-items: baseline;
+      gap: 14px;
+      margin: 0;
+      opacity: 0;
+      animation: fadeUp 0.9s ease 0.15s forwards;
+    }
+    .brand svg { width: clamp(36px, 5vw, 52px); height: auto; color: var(--moss); overflow: visible; }
+    .brand svg path {
+      stroke-dasharray: 80;
+      stroke-dashoffset: 80;
+      animation: drawBird 1.4s ease 0.2s forwards;
+    }
+    @keyframes drawBird { to { stroke-dashoffset: 0; } }
+    .brand-name {
+      font-family: Fraunces, Georgia, serif;
+      font-weight: 700;
+      font-size: clamp(64px, 14vw, 120px);
+      letter-spacing: -0.04em;
+      line-height: 0.9;
+      color: var(--fog);
+      margin: 0;
+    }
+    .brand-name span {
+      display: block;
+      font-size: 0.28em;
+      letter-spacing: 0.18em;
+      text-transform: uppercase;
+      font-weight: 500;
+      color: var(--amber);
+      margin-top: 10px;
+    }
+    .headline {
+      margin: 18px 0 0;
+      max-width: 22ch;
+      font-family: Fraunces, Georgia, serif;
+      font-weight: 500;
+      font-size: clamp(22px, 3.4vw, 34px);
+      line-height: 1.2;
+      letter-spacing: -0.02em;
+      opacity: 0;
+      animation: fadeUp 0.9s ease 0.35s forwards;
+    }
+    .lead {
+      margin: 12px 0 0;
+      max-width: 46ch;
+      color: var(--mist);
+      font-size: 17px;
+      line-height: 1.55;
+      opacity: 0;
+      animation: fadeUp 0.9s ease 0.5s forwards;
+    }
+    .cta {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 12px;
+      margin-top: 28px;
+      opacity: 0;
+      animation: fadeUp 0.9s ease 0.65s forwards;
+    }
+    .cta a {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      text-decoration: none;
+      padding: 14px 20px;
+      font-weight: 600;
+      font-size: 15px;
+      border-radius: 4px;
+      transition: transform 0.2s ease, background 0.2s ease, border-color 0.2s ease;
+    }
+    .cta a:hover { transform: translateY(-2px); }
+    .cta .primary { background: var(--moss); color: var(--ink); }
+    .cta .primary:hover { background: #82a56c; }
+    .cta .ghost {
+      border: 1px solid var(--line);
+      color: var(--fog);
+      background: transparent;
+    }
+    .cta .ghost:hover { border-color: var(--moss); }
+    #status {
+      margin-top: 14px;
+      min-height: 1.4em;
+      font-family: "IBM Plex Mono", ui-monospace, monospace;
+      font-size: 13px;
+      color: var(--moss);
+      opacity: 0;
+      animation: fadeUp 0.8s ease 0.9s forwards;
+    }
+    @keyframes fadeUp {
+      from { opacity: 0; transform: translateY(18px); }
+      to { opacity: 1; transform: translateY(0); }
+    }
+    .section { margin-top: 72px; padding-top: 8px; }
+    .section h2 {
+      margin: 0 0 8px;
+      font-family: Fraunces, Georgia, serif;
+      font-weight: 500;
+      font-size: clamp(26px, 3vw, 34px);
+      letter-spacing: -0.02em;
+    }
+    .section .sub { margin: 0 0 22px; color: var(--mist); max-width: 56ch; }
+    .benefits {
+      display: grid;
+      grid-template-columns: repeat(3, 1fr);
+      gap: 14px;
+    }
+    .benefit {
+      background: var(--panel);
+      border: 1px solid var(--line);
+      border-radius: 4px;
+      padding: 22px;
+      opacity: 0;
+      transform: translateY(24px);
+    }
+    .benefit.in {
+      opacity: 1;
+      transform: none;
+      transition: opacity 0.7s ease, transform 0.7s ease, border-color 0.25s ease;
+    }
+    .benefit:hover { border-color: rgba(111, 143, 92, 0.55); }
+    .benefit h3 {
+      margin: 0 0 8px;
+      font-family: Fraunces, Georgia, serif;
+      font-weight: 500;
+      font-size: 22px;
+      letter-spacing: -0.02em;
+    }
+    .benefit p { margin: 0; color: var(--mist); line-height: 1.5; font-size: 14px; }
+    .benefit .tag {
+      display: inline-block;
+      font-family: "IBM Plex Mono", ui-monospace, monospace;
+      font-size: 11px;
+      letter-spacing: 0.12em;
+      text-transform: uppercase;
+      color: var(--amber);
+      margin-bottom: 10px;
+    }
+    .grid {
+      display: grid;
+      grid-template-columns: repeat(3, 1fr);
+      gap: 14px;
+    }
+    article {
+      background: var(--panel);
+      border: 1px solid var(--line);
+      border-radius: 4px;
+      padding: 20px;
+      display: flex;
+      flex-direction: column;
+      gap: 10px;
+      min-height: 200px;
+      backdrop-filter: blur(10px);
+      transition: border-color 0.25s ease, transform 0.25s ease;
+      opacity: 0;
+      transform: translateY(24px);
+    }
+    article.in {
+      opacity: 1;
+      transform: translateY(0);
+      transition: opacity 0.7s ease, transform 0.7s ease, border-color 0.25s ease;
+    }
+    article:hover { border-color: rgba(111, 143, 92, 0.55); transform: translateY(-4px); }
+    article.pick {
+      border-color: var(--moss);
+      box-shadow: inset 0 0 0 1px rgba(111, 143, 92, 0.35);
+    }
+    article h3 { margin: 0; font-size: 18px; font-weight: 600; }
+    article p { margin: 0; color: var(--mist); line-height: 1.5; font-size: 14px; }
+    code {
+      font-family: "IBM Plex Mono", ui-monospace, monospace;
+      color: var(--fog);
+      font-size: 0.92em;
+    }
+    a.dl {
+      margin-top: auto;
+      display: inline-flex;
+      justify-content: center;
+      text-decoration: none;
+      background: var(--moss);
+      color: var(--ink);
+      font-weight: 600;
+      border-radius: 4px;
+      padding: 12px 14px;
+      transition: filter 0.2s ease;
+    }
+    a.dl:hover { filter: brightness(1.08); }
+    a.dl.ghost {
+      background: transparent;
+      border: 1px solid var(--line);
+      color: var(--fog);
+    }
+    .track-badge {
+      display: inline-block;
+      font-family: "IBM Plex Mono", ui-monospace, monospace;
+      font-size: 11px;
+      letter-spacing: 0.14em;
+      text-transform: uppercase;
+      color: var(--amber);
+      margin: 0 0 6px;
+    }
+    .compare {
+      width: 100%;
+      border-collapse: collapse;
+      font-size: 14px;
+      margin-top: 8px;
+    }
+    .compare th, .compare td {
+      text-align: left;
+      padding: 12px 14px;
+      border-bottom: 1px solid var(--line);
+      vertical-align: top;
+    }
+    .compare th {
+      font-family: Fraunces, Georgia, serif;
+      font-weight: 500;
+      font-size: 18px;
+      color: var(--fog);
+    }
+    .compare td { color: var(--mist); line-height: 1.45; }
+    .compare .yes { color: var(--moss); }
+    .cta-pair {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 14px;
+      margin-top: 8px;
+    }
+    @media (max-width: 800px) {
+      .cta-pair, .benefits, .grid { grid-template-columns: 1fr; }
+    }
+    .track-card {
+      background: var(--panel);
+      border: 1px solid var(--line);
+      border-radius: 4px;
+      padding: 22px;
+      display: flex;
+      flex-direction: column;
+      gap: 10px;
+    }
+    .track-card.featured { border-color: rgba(111, 143, 92, 0.55); }
+    .track-card h3 {
+      margin: 0;
+      font-family: Fraunces, Georgia, serif;
+      font-weight: 500;
+      font-size: 24px;
+      letter-spacing: -0.02em;
+    }
+    .track-card p { margin: 0; color: var(--mist); line-height: 1.5; font-size: 14px; }
+    .track-card .dl { margin-top: 8px; }
+    .steps {
+      margin: 56px 0 0;
+      padding: 28px 0 0;
+      border-top: 1px solid var(--line);
+      counter-reset: step;
+      list-style: none;
+      display: grid;
+      gap: 16px;
+    }
+    .steps li {
+      position: relative;
+      padding-left: 48px;
+      color: var(--mist);
+      line-height: 1.55;
+      opacity: 0;
+      transform: translateX(-12px);
+    }
+    .steps li.in {
+      opacity: 1;
+      transform: none;
+      transition: opacity 0.6s ease, transform 0.6s ease;
+    }
+    .steps li::before {
+      counter-increment: step;
+      content: counter(step);
+      position: absolute;
+      left: 0;
+      top: 0;
+      width: 32px;
+      height: 32px;
+      border-radius: 50%;
+      border: 1px solid var(--moss);
+      color: var(--moss);
+      font-family: "IBM Plex Mono", ui-monospace, monospace;
+      font-size: 13px;
+      display: grid;
+      place-items: center;
+    }
+    .foot {
+      margin-top: 40px;
+      color: var(--mist);
+      font-size: 14px;
+      line-height: 1.55;
+    }
+    a { color: #9bb58a; }
+    @media (max-width: 800px) {
+      .hero-visual::after, .hero-visual .code-lines { display: none; }
+      .hero { min-height: auto; padding-top: 40px; }
+      .hero-visual { position: relative; inset: auto; height: 160px; margin-bottom: 20px; }
+    }
+    @media (prefers-reduced-motion: reduce) {
+      *, *::before, *::after { animation: none !important; transition: none !important; }
+      article, .steps li, .benefit, .brand, .headline, .lead, .cta, #status, .hero-visual .code-lines {
+        opacity: 1 !important; transform: none !important; width: auto !important;
+      }
+    }
+  </style>
+</head>
+<body>
+  <div class="wrap">
+    <section class="hero" aria-label="Lark 3">
+      <div class="hero-visual" aria-hidden="true">
+        <div class="code-lines">
+          <span>BigInteger n = factorial(100);</span>
+          <span>&nbsp;&nbsp;// Compiles ✓ · Ctrl+M braces</span>
+          <span>&nbsp;&nbsp;System.out.println(n);</span>
+          <span>}</span>
+        </div>
+      </div>
+      <div class="brand">
+        <svg viewBox="0 0 24 24" aria-hidden="true">
+          <path d="M3 16c4.2-.7 6-6 9-11 2.8 5 4.8 10.2 9 11" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/>
+          <path d="M7 16.5h10" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/>
+        </svg>
+        <p class="brand-name">Lark<span>Version 3.0</span></p>
+      </div>
+      <h1 class="headline">Java without the weight.</h1>
+      <p class="lead">Lark is a focused IDE for real Java work — compile, run, debug, and refactor. Not a plugin marketplace. Not a month of setup. Just the tools you actually use.</p>
+      <div class="cta">
+        <a id="primary-dl" class="primary" href="https://github.com/TreyvoPrime/lark/releases/latest/download/lark-desktop-windows.zip">Download Lark Desktop</a>
+        <a id="portable-dl" class="ghost" href="https://github.com/TreyvoPrime/lark/releases/latest/download/lark-windows.zip">Download portable zip</a>
+      </div>
+      <p id="status"></p>
+    </section>
+
+    <section class="section" aria-label="Why Lark">
+      <h2>Why Lark stays small</h2>
+      <p class="sub">Prestige is clarity. Lark 3 ships the features that keep you in flow — and leaves the rest out.</p>
+      <div class="benefits">
+        <div class="benefit">
+          <p class="tag">Focus</p>
+          <h3>Not bloated</h3>
+          <p>No plugin zoo, no cluttered sidebars you never open. One window: explorer, editor, output, debug.</p>
+        </div>
+        <div class="benefit">
+          <p class="tag">Speed</p>
+          <h3>Live compile</h3>
+          <p>See “Compiles” in the footer while you type. Catch nesting and import mistakes before a full Run.</p>
+        </div>
+        <div class="benefit">
+          <p class="tag">Clarity</p>
+          <h3>Brace guide</h3>
+          <p>Jump matching braces with Ctrl+M and see the whole block highlighted — nesting stays readable.</p>
+        </div>
+        <div class="benefit">
+          <p class="tag">Craft</p>
+          <h3>Small refactors</h3>
+          <p>Extract method and introduce variable for the edits you make every day — not a 40-item refactor menu.</p>
+        </div>
+        <div class="benefit">
+          <p class="tag">Find</p>
+          <h3>Project search</h3>
+          <p>Ctrl+Shift+F across files. Presets like BigInteger factorial get you coding in one click.</p>
+        </div>
+        <div class="benefit">
+          <p class="tag">Mobile</p>
+          <h3>Separate Mobile edition</h3>
+          <p>Not a squeezed desktop. Lark Mobile is its own download — bottom tabs, big taps, phone Wi‑Fi pair.</p>
+        </div>
+      </div>
+    </section>
+
+    <section class="section" id="compare" aria-label="Desktop vs portable vs mobile">
+      <h2>What’s the difference?</h2>
+      <p class="sub">Desktop is the default install. Portable is unzip-and-run. Lark Mobile is a completely different touch UI with its own zip.</p>
+      <div class="cta-pair">
+        <div class="track-card featured">
+          <p class="track-badge">Recommended</p>
+          <h3>Lark Desktop</h3>
+          <p>Per-user install. Start Menu / Applications shortcut. Opens in its own window. Prompts you when an update is published.</p>
+          <p>File names: <code>lark-desktop-windows.zip</code>, <code>lark-desktop-mac.zip</code>, <code>lark-desktop-linux.zip</code></p>
+          <a id="compare-desktop" class="dl" href="https://github.com/TreyvoPrime/lark/releases/latest/download/lark-desktop-windows.zip">Get Lark Desktop</a>
+        </div>
+        <div class="track-card">
+          <p class="track-badge">Portable</p>
+          <h3>Lark zip</h3>
+          <p>No installer. Extract All, then run <code>Start Lark.bat</code> / <code>.command</code> / <code>start-lark.sh</code>. Keep the whole folder together.</p>
+          <p>File names: <code>lark-windows.zip</code>, <code>lark-mac.zip</code>, <code>lark-linux.zip</code></p>
+          <a id="compare-portable" class="dl ghost" href="https://github.com/TreyvoPrime/lark/releases/latest/download/lark-windows.zip">Get portable zip</a>
+        </div>
+      </div>
+      <div class="cta-pair" style="margin-top:16px">
+        <div class="track-card">
+          <p class="track-badge">School PCs</p>
+          <h3>Lark School</h3>
+          <p>Same Java IDE, but you double-click <code>Lark.exe</code> — no <code>.bat</code> file. Built for labs that block batch scripts.</p>
+          <p>File name: <code>lark-school-windows.zip</code></p>
+          <a id="compare-school" class="dl" href="https://github.com/TreyvoPrime/lark/releases/latest/download/lark-school-windows.zip">Get Lark School</a>
+        </div>
+        <div class="track-card">
+          <p class="track-badge">Mobile</p>
+          <h3>Lark Mobile</h3>
+          <p>Separate touch-first edition. Bottom tabs for Home, Files, Edit, Run, More. Pair a phone over Wi‑Fi to a host PC.</p>
+          <p>File names: <code>lark-mobile-windows.zip</code>, mac, linux</p>
+          <a id="compare-mobile" class="dl ghost" href="https://github.com/TreyvoPrime/lark/releases/latest/download/lark-mobile-windows.zip">Get Lark Mobile</a>
+        </div>
+      </div>
+      <table class="compare" style="margin-top:28px">
+        <thead>
+          <tr><th></th><th>Lark Desktop</th><th>Portable zip</th><th>Lark Mobile</th></tr>
+        </thead>
+        <tbody>
+          <tr><td>Install</td><td class="yes">Run Install script → Programs folder</td><td>Unzip only</td><td>Unzip only</td></tr>
+          <tr><td>UI</td><td>Full desktop IDE</td><td>Full desktop IDE</td><td class="yes">Touch Mobile UI</td></tr>
+          <tr><td>Phone pair</td><td>—</td><td>—</td><td class="yes">Wi‑Fi URL + pair code</td></tr>
+          <tr><td>Updates</td><td class="yes">Prompts on launch</td><td>In-app check / banner</td><td class="yes">Mobile channel</td></tr>
+          <tr><td>Best for</td><td>Everyday machine, own window</td><td>USB, shared machines</td><td>Tablet + phone editing</td></tr>
+        </tbody>
+      </table>
+    </section>
+
+    <section class="section" id="school" aria-label="School downloads">
+      <p class="track-badge">Track 3</p>
+      <h2>Lark School (no .bat)</h2>
+      <p class="sub">For Windows labs that block batch files. Extract All, then double-click <code>Lark.exe</code>. Keep <code>Lark.exe</code>, <code>lark.jar</code>, and <code>jdk\</code> together.</p>
+      <div class="grid">
+        <article id="card-school-windows">
+          <h3>Windows school zip</h3>
+          <p>No Start Lark.bat. Just <code>Lark.exe</code>.</p>
+          <a class="dl" href="https://github.com/TreyvoPrime/lark/releases/latest/download/lark-school-windows.zip">lark-school-windows.zip</a>
+        </article>
+      </div>
+    </section>
+
+    <section class="section" id="mobile" aria-label="Mobile downloads">
+      <p class="track-badge">Track 4</p>
+      <h2>Lark Mobile downloads</h2>
+      <p class="sub">Separate Mobile edition with bundled JDK. After unzip, run <code>Start Lark Mobile</code> — not the desktop Start Lark.</p>
+      <div class="grid">
+        <article id="card-mobile-windows">
+          <h3>Windows</h3>
+          <p>Unzip, run <code>Start Lark Mobile.bat</code>. Keep the window open for the Phone URL.</p>
+          <a class="dl" href="https://github.com/TreyvoPrime/lark/releases/latest/download/lark-mobile-windows.zip">lark-mobile-windows.zip</a>
+        </article>
+        <article id="card-mobile-mac">
+          <h3>Mac</h3>
+          <p>Unzip, run <code>Start Lark Mobile.command</code>.</p>
+          <a class="dl" href="https://github.com/TreyvoPrime/lark/releases/latest/download/lark-mobile-mac.zip">lark-mobile-mac.zip</a>
+        </article>
+        <article id="card-mobile-linux">
+          <h3>Linux</h3>
+          <p>Unzip, run <code>./start-lark-mobile.sh</code>.</p>
+          <a class="dl" href="https://github.com/TreyvoPrime/lark/releases/latest/download/lark-mobile-linux.zip">lark-mobile-linux.zip</a>
+        </article>
+      </div>
+    </section>
+
+    <section class="section" id="desktop" aria-label="Desktop installs">
+      <p class="track-badge">Track 1</p>
+      <h2>Lark Desktop downloads</h2>
+      <p class="sub">Install package with JDK. After unzip, run the Install script — not Start Lark.</p>
+      <div class="grid">
+        <article id="card-desktop-windows">
+          <h3>Windows</h3>
+          <p>Unzip, run <code>Install Lark Desktop.ps1</code>. Lands in <code>%LOCALAPPDATA%\Programs\Lark</code>.</p>
+          <a class="dl" href="https://github.com/TreyvoPrime/lark/releases/latest/download/lark-desktop-windows.zip">lark-desktop-windows.zip</a>
+        </article>
+        <article id="card-desktop-mac">
+          <h3>Mac</h3>
+          <p>Unzip, open <code>Install Lark Desktop.command</code>. Lives in <code>~/Applications/Lark Desktop</code>.</p>
+          <a class="dl" href="https://github.com/TreyvoPrime/lark/releases/latest/download/lark-desktop-mac.zip">lark-desktop-mac.zip</a>
+        </article>
+        <article id="card-desktop-linux">
+          <h3>Linux</h3>
+          <p>Unzip and run the install script, or use the app-image zip from Releases when available.</p>
+          <a class="dl" href="https://github.com/TreyvoPrime/lark/releases/latest/download/lark-desktop-linux.zip">lark-desktop-linux.zip</a>
+        </article>
+      </div>
+    </section>
+
+    <section class="section" id="portable" aria-label="Portable downloads">
+      <p class="track-badge">Track 2</p>
+      <h2>Portable zip downloads</h2>
+      <p class="sub">Not an install — unzip, then run Start Lark. Different files from Desktop (no <code>desktop</code> in the name).</p>
+      <div class="grid">
+        <article id="card-windows">
+          <h3>Windows</h3>
+          <p>Unzip, then double-click <code>Start Lark.bat</code>.</p>
+          <a class="dl ghost" href="https://github.com/TreyvoPrime/lark/releases/latest/download/lark-windows.zip">lark-windows.zip</a>
+        </article>
+        <article id="card-mac">
+          <h3>Mac</h3>
+          <p>Unzip, then double-click <code>Start Lark.command</code>.</p>
+          <a class="dl ghost" href="https://github.com/TreyvoPrime/lark/releases/latest/download/lark-mac.zip">lark-mac.zip</a>
+        </article>
+        <article id="card-linux">
+          <h3>Linux</h3>
+          <p>Unzip and run <code>./start-lark.sh</code>.</p>
+          <a class="dl ghost" href="https://github.com/TreyvoPrime/lark/releases/latest/download/lark-linux.zip">lark-linux.zip</a>
+        </article>
+      </div>
+    </section>
+
+    <section class="section" id="enterprise" aria-label="Enterprise downloads">
+      <p class="track-badge">Also available</p>
+      <h2>Lark Enterprise</h2>
+      <p class="sub">Optional Windows Setup wizard edition — separate from Lark Desktop (Desktop stays the default). Installs to <code>%LOCALAPPDATA%\Programs\Lark Enterprise</code> with Start Menu and Desktop shortcuts, and uses its own update channel. About 45&nbsp;MB download · ~200&nbsp;MB on disk with the bundled JDK.</p>
+      <div class="grid">
+        <article id="card-enterprise-setup">
+          <h3>Windows Setup</h3>
+          <p>Run <code>LarkEnterpriseSetup.exe</code> — welcome → folder → install → launch.</p>
+          <a id="enterprise-setup-link" class="dl" href="https://github.com/TreyvoPrime/lark/releases/latest/download/LarkEnterpriseSetup.exe">LarkEnterpriseSetup.exe</a>
+        </article>
+        <article id="card-enterprise-zip">
+          <h3>Windows zip (optional)</h3>
+          <p>Full payload folder if you want to inspect files before installing. Prefer the Setup wizard for a normal PC install.</p>
+          <a class="dl ghost" href="https://github.com/TreyvoPrime/lark/releases/latest/download/lark-enterprise-windows.zip">lark-enterprise-windows.zip</a>
+        </article>
+      </div>
+    </section>
+
+    <ol class="steps">
+      <li>Choose <strong>Desktop</strong> (<code>lark-desktop-…zip</code>) or <strong>portable</strong> (<code>lark-windows.zip</code> / mac / linux).</li>
+      <li>Desktop: Extract All → run <code>Install Lark Desktop.ps1</code> (Windows) or the <code>.command</code> installer. Portable: Extract All → run Start Lark.</li>
+      <li>Open a preset (try BigInteger factorial), Run with Ctrl+Enter, Search with Ctrl+Shift+F.</li>
+      <li>Optional: connect GitHub with a classic token that has the <code>repo</code> scope.</li>
+    </ol>
+
+    <p class="foot">
+      Always online at
+      <a href="https://treyvoprime.github.io/lark-download/">treyvoprime.github.io/lark-download</a>.
+      Releases:
+      <a href="https://github.com/TreyvoPrime/lark/releases/latest">GitHub</a>.
+    </p>
+  </div>
+  <script>
+    const REPO = "TreyvoPrime/lark";
+    const latest = (name) => "https://github.com/" + REPO + "/releases/latest/download/" + name;
+    const platform = (navigator.userAgentData && navigator.userAgentData.platform) || navigator.platform || "";
+    const ua = navigator.userAgent || "";
+    let key = "linux";
+    let desktopFile = "lark-desktop-linux.zip";
+    let portableFile = "lark-linux.zip";
+    let deskLabel = "Download Lark Desktop (Linux)";
+    let portLabel = "Download portable zip (Linux)";
+    if (/Win/i.test(platform) || /Windows/i.test(ua)) {
+      key = "windows";
+      desktopFile = "lark-desktop-windows.zip";
+      portableFile = "lark-windows.zip";
+      deskLabel = "Download Lark Desktop (Windows)";
+      portLabel = "Download portable zip (Windows)";
+    } else if (/Mac/i.test(platform) || /Mac OS/i.test(ua)) {
+      key = "mac";
+      desktopFile = "lark-desktop-mac.zip";
+      portableFile = "lark-mac.zip";
+      deskLabel = "Download Lark Desktop (Mac)";
+      portLabel = "Download portable zip (Mac)";
+    }
+    const deskCard = document.getElementById("card-desktop-" + key);
+    if (deskCard) deskCard.classList.add("pick");
+    const portableCard = document.getElementById("card-" + key);
+    if (portableCard) portableCard.classList.add("pick");
+    const primary = document.getElementById("primary-dl");
+    primary.href = latest(desktopFile);
+    primary.textContent = deskLabel;
+    const portable = document.getElementById("portable-dl");
+    portable.href = latest(portableFile);
+    portable.textContent = portLabel;
+    ["compare-desktop"].forEach((id) => {
+      const el = document.getElementById(id);
+      if (el) { el.href = latest(desktopFile); }
+    });
+    ["compare-portable"].forEach((id) => {
+      const el = document.getElementById(id);
+      if (el) { el.href = latest(portableFile); }
+    });
+    const enterpriseLink = document.getElementById("enterprise-setup-link");
+    if (enterpriseLink) enterpriseLink.href = latest("LarkEnterpriseSetup.exe");
+
+    document.getElementById("status").textContent =
+      "Lark 3 · Detected " + (key === "windows" ? "Windows" : key === "mac" ? "Mac" : "Linux") +
+      " — Desktop (" + desktopFile + ") or portable (" + portableFile + ").";
+
+    const io = new IntersectionObserver((entries) => {
+      entries.forEach((e) => {
+        if (e.isIntersecting) e.target.classList.add("in");
+      });
+    }, { threshold: 0.18 });
+    document.querySelectorAll("article, .steps li, .track-card, .benefit").forEach((el, i) => {
+      el.style.transitionDelay = (i % 3) * 90 + "ms";
+      io.observe(el);
+    });
+  </script>
+</body>
+</html>
