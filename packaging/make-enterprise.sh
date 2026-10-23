@@ -122,9 +122,13 @@ fi
 
 rm -rf "$payload"
 
-# Slim enterprise update (jar + exe + marker; JDK stays on disk).
+# Slim enterprise update (jar + scripts + marker; JDK stays on disk).
+# Omit Lark Enterprise.exe — older clients try to overwrite the running
+# launcher on Windows and abort the whole update. 3.4.2+ stages an exe
+# as .pending when present; Setup/full zip still ships the launcher.
 stage_u=$(mktemp -d)
 stage_enterprise "$stage_u"
+rm -f "$stage_u/Lark Enterprise.exe"
 rm -f release/lark-enterprise-update.zip
 (cd "$stage_u" && zip -X -r "$root/release/lark-enterprise-update.zip" .)
 rm -rf "$stage_u"
