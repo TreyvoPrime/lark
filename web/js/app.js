@@ -148,8 +148,10 @@
   let suppress = false;
   let paletteIndex = 0;
   let modalResolve = null;
-  const SCRATCH_KEY = "lark-scratch-source";
+  const SCRATCH_KEY = "lark-scratch-source"; // legacy single-pad key (migrated once)
+  const SCRATCH_DECK_KEY = "lark-scratch-deck-v1";
   const SCRATCH_POS_KEY = "lark-scratch-pos";
+  const SCRATCH_MAX = 12;
   const SCRATCH_STARTER =
     "// Scratch — no class or main needed.\n"
     + "// Imports stay at the top; everything else runs inside main.\n\n"
@@ -158,6 +160,8 @@
   let spaceHeld = false;
   let scratchDrag = null;
   let scratchResize = null;
+  let scratchDeck = null;
+  let scratchSwitching = false;
   let assignSketch = "";
 
   const $ = (id) => document.getElementById(id);
@@ -315,15 +319,340 @@
     return !!(pad && !pad.hidden);
   }
 
+  function scratchId() {
+    return "s" + Date.now().toString(36) + Math.random().toString(36).slice(2, 6);
+  }
+
+  function defaultScratchDeck() {
+    const id = scratchId();
+    return {
+      active: id,
+      order: [id],
+      items: {
+        [id]: { id: id, name: "bench", source: SCRATCH_STARTER, updatedAt: Date.now() }
+      }
+    };
+  }
+
+  function loadScratchDeck() {
+    if (scratchDeck) return scratchDeck;
+    try {
+      const raw = localStorage.getItem(SCRATCH_DECK_KEY);
+      if (raw) {
+        const parsed = JSON.parse(raw);
+        if (parsed && parsed.items && Array.isArray(parsed.order) && parsed.order.length) {
+          scratchDeck = parsed;
+          if (!scratchDeck.items[scratchDeck.active]) scratchDeck.active = scratchDeck.order[0];
+          return scratchDeck;
+        }
+      }
+    } catch (e) {}
+    // Migrate the old single-pad buffer once.
+    let legacy = null;
+    try {
+      legacy = localStorage.getItem(SCRATCH_KEY);
+    } catch (e) {}
+    const deck = defaultScratchDeck();
+    if (legacy != null && legacy !== "") {
+      const id = deck.active;
+      deck.items[id].source = legacy;
+      deck.items[id].name = "bench";
+    }
+    scratchDeck = deck;
+    persistScratchDeck();
+    return scratchDeck;
+  }
+
+  function persistScratchDeck() {
+    if (!scratchDeck) return;
+    try {
+      localStorage.setItem(SCRATCH_DECK_KEY, JSON.stringify(scratchDeck));
+    } catch (e) {}
+  }
+
+  function activeScratchItem() {
+    const deck = loadScratchDeck();
+    return deck.items[deck.active] || deck.items[deck.order[0]];
+  }
+
+  function syncEditorIntoActiveScratch() {
+    if (!cmScratch || !scratchDeck || scratchSwitching) return;
+    const item = scratchDeck.items[scratchDeck.active];
+    if (!item) return;
+    item.source = cmScratch.getValue();
+    item.updatedAt = Date.now();
+    persistScratchDeck();
+  }
+
+  function setScratchHeading() {
+    const el = $("scratch-heading");
+    const item = activeScratchItem();
+    if (el) el.textContent = item ? ("Scratch · " + item.name) : "Scratch";
+  }
+
+  function renderScratchDeck() {
+    const nav = $("scratch-deck");
+    if (!nav) return;
+    const deck = loadScratchDeck();
+    nav.replaceChildren();
+    deck.order.forEach((id) => {
+      const item = deck.items[id];
+      if (!item) return;
+      const btn = document.createElement("button");
+      btn.type = "button";
+      btn.className = "scratch-deck-item" + (id === deck.active ? " active" : "");
+      btn.textContent = item.name;
+      btn.title = item.name;
+      btn.dataset.scratchId = id;
+      btn.addEventListener("click", () => selectScratch(id));
+      btn.addEventListener("dblclick", () => renameScratch().catch((err) => toast(err.message)));
+      nav.appendChild(btn);
+    });
+    const add = document.createElement("button");
+    add.type = "button";
+    add.className = "scratch-deck-item scratch-deck-add";
+    add.textContent = "+";
+    add.title = "New scratch";
+    add.addEventListener("click", () => newScratch().catch((err) => toast(err.message)));
+    nav.appendChild(add);
+    setScratchHeading();
+  }
+
+  function selectScratch(id) {
+    const deck = loadScratchDeck();
+    if (!deck.items[id] || id === deck.active) return;
+    syncEditorIntoActiveScratch();
+    deck.active = id;
+    persistScratchDeck();
+    const editor = ensureScratchEditor();
+    if (editor) {
+      scratchSwitching = true;
+      editor.setValue(deck.items[id].source || "");
+      scratchSwitching = false;
+      editor.focus();
+    }
+    renderScratchDeck();
+    closeScratchMenu();
+  }
+
+  async function newScratch() {
+    const deck = loadScratchDeck();
+    if (deck.order.length >= SCRATCH_MAX) {
+      toast("Deck is full (" + SCRATCH_MAX + "). Delete one to make room.");
+      return;
+    }
+    const values = await formDialog({
+      title: "New scratch",
+      ok: "Create",
+      note: "A parallel pad — experiments don’t overwrite each other.",
+      fields: [{ name: "name", label: "Name", value: "spike" }]
+    });
+    if (!values) return;
+    const name = sanitizeScratchName(values.name);
+    syncEditorIntoActiveScratch();
+    const id = scratchId();
+    deck.items[id] = { id: id, name: name, source: SCRATCH_STARTER, updatedAt: Date.now() };
+    deck.order.push(id);
+    deck.active = id;
+    persistScratchDeck();
+    const editor = ensureScratchEditor();
+    if (editor) {
+      scratchSwitching = true;
+      editor.setValue(SCRATCH_STARTER);
+      scratchSwitching = false;
+      editor.focus();
+    }
+    renderScratchDeck();
+    closeScratchMenu();
+    toast("Scratch “" + name + "” ready.");
+  }
+
+  function sanitizeScratchName(raw) {
+    let name = String(raw || "").trim().replace(/\s+/g, " ");
+    if (!name) name = "scratch";
+    if (name.length > 24) name = name.slice(0, 24);
+    return name;
+  }
+
+  async function renameScratch() {
+    const item = activeScratchItem();
+    if (!item) return;
+    const values = await formDialog({
+      title: "Rename scratch",
+      ok: "Rename",
+      fields: [{ name: "name", label: "Name", value: item.name }]
+    });
+    if (!values) return;
+    item.name = sanitizeScratchName(values.name);
+    item.updatedAt = Date.now();
+    persistScratchDeck();
+    renderScratchDeck();
+    closeScratchMenu();
+  }
+
+  async function duplicateScratch() {
+    const deck = loadScratchDeck();
+    if (deck.order.length >= SCRATCH_MAX) {
+      toast("Deck is full (" + SCRATCH_MAX + "). Delete one to make room.");
+      return;
+    }
+    syncEditorIntoActiveScratch();
+    const src = activeScratchItem();
+    if (!src) return;
+    const id = scratchId();
+    const name = sanitizeScratchName(src.name + " copy");
+    deck.items[id] = { id: id, name: name, source: src.source || "", updatedAt: Date.now() };
+    const idx = deck.order.indexOf(src.id);
+    deck.order.splice(idx < 0 ? deck.order.length : idx + 1, 0, id);
+    deck.active = id;
+    persistScratchDeck();
+    const editor = ensureScratchEditor();
+    if (editor) {
+      scratchSwitching = true;
+      editor.setValue(deck.items[id].source);
+      scratchSwitching = false;
+      editor.focus();
+    }
+    renderScratchDeck();
+    closeScratchMenu();
+    toast("Duplicated as “" + name + "”.");
+  }
+
+  async function deleteScratch() {
+    const deck = loadScratchDeck();
+    if (deck.order.length <= 1) {
+      toast("Keep at least one scratch on the deck.");
+      return;
+    }
+    const item = activeScratchItem();
+    if (!item) return;
+    const yes = await formDialog({
+      title: "Delete “" + item.name + "”?",
+      ok: "Delete",
+      note: "This removes that scratch from the deck. It can’t be undone."
+    });
+    if (!yes) return;
+    const gone = item.id;
+    delete deck.items[gone];
+    deck.order = deck.order.filter((id) => id !== gone);
+    deck.active = deck.order[0];
+    persistScratchDeck();
+    const editor = ensureScratchEditor();
+    if (editor) {
+      scratchSwitching = true;
+      editor.setValue(deck.items[deck.active].source || "");
+      scratchSwitching = false;
+    }
+    renderScratchDeck();
+    closeScratchMenu();
+    toast("Scratch deleted.");
+  }
+
+  function classNameFromScratchName(name) {
+    const parts = String(name || "Scratch").replace(/[^a-zA-Z0-9]+/g, " ").trim().split(/\s+/);
+    let out = parts.map((p) => p.charAt(0).toUpperCase() + p.slice(1)).join("");
+    if (!out) out = "ScratchPad";
+    if (!/^[A-Za-z]/.test(out)) out = "Scratch" + out;
+    return out.slice(0, 48);
+  }
+
+  /** Wrap snippet as a named class for promote (full class+main left alone). */
+  function wrapScratchAsClass(raw, className) {
+    const text = (raw || "").replace(/\r\n/g, "\n");
+    if (!text.trim()) throw new Error("This scratch is empty.");
+    const hasMain = /\b(?:public\s+)?static\s+void\s+main\s*\(\s*String\s*/.test(text);
+    const classMatch = text.match(/\bpublic\s+class\s+(\w+)/) || text.match(/\bclass\s+(\w+)/);
+    if (hasMain && classMatch) {
+      return { source: text, mainClass: classMatch[1] };
+    }
+    const imports = [];
+    const rest = [];
+    text.split("\n").forEach((line) => {
+      if (/^\s*import\s+[\w.*]+\s*;\s*$/.test(line)) imports.push(line.trim());
+      else if (/^\s*package\s+/.test(line)) { /* default package */ }
+      else rest.push(line);
+    });
+    const body = rest.join("\n").replace(/^\n+/, "").replace(/\n+$/, "");
+    let source = imports.length ? imports.join("\n") + "\n\n" : "";
+    const cls = className || "ScratchPad";
+    if (hasMain && !classMatch) {
+      source += "public class " + cls + " {\n";
+      body.split("\n").forEach((l) => { source += (l ? "  " + l : "") + "\n"; });
+      source += "}\n";
+      return { source: source, mainClass: cls };
+    }
+    source += "public class " + cls + " {\n";
+    source += "  public static void main(String[] args) {\n";
+    if (body) body.split("\n").forEach((l) => { source += "    " + l + "\n"; });
+    else source += "    // Write some Java here\n";
+    source += "  }\n}\n";
+    return { source: source, mainClass: cls };
+  }
+
+  async function promoteScratch() {
+    if (!state.project) {
+      toast("Open a project first, then promote.");
+      return;
+    }
+    syncEditorIntoActiveScratch();
+    const item = activeScratchItem();
+    if (!item) return;
+    const className = classNameFromScratchName(item.name);
+    let wrapped;
+    try {
+      wrapped = wrapScratchAsClass(item.source, className);
+    } catch (err) {
+      toast(err.message || "This scratch is empty.");
+      return;
+    }
+    const dir = selectedDir() || "src";
+    const values = await formDialog({
+      title: "Promote to project",
+      ok: "Create file",
+      note: "Writes a real .java from this scratch. The pad stays on your deck.",
+      fields: [{
+        name: "path",
+        label: "Path",
+        value: (dir ? dir + "/" : "") + wrapped.mainClass + ".java"
+      }]
+    });
+    if (!values) return;
+    const path = values.path.trim().replace(/^\/+/, "");
+    if (!path.endsWith(".java")) {
+      toast("Promote path should end in .java.");
+      return;
+    }
+    if (fileByPath(path)) return toast("There's already a file at " + path + ".");
+    let content = wrapped.source;
+    const pkg = packageFor(parentDir(path));
+    if (pkg && !/^\s*package\s+/.test(content)) {
+      content = "package " + pkg + ";\n\n" + content;
+    }
+    await writeNewFile(path, content);
+    closeScratchMenu();
+    toast("Promoted to " + path + ".");
+  }
+
+  function closeScratchMenu() {
+    const menu = $("scratch-menu");
+    if (menu) menu.hidden = true;
+    if ($("scratch-more")) $("scratch-more").setAttribute("aria-expanded", "false");
+  }
+
+  function toggleScratchMenu() {
+    const menu = $("scratch-menu");
+    if (!menu) return;
+    const open = menu.hidden;
+    menu.hidden = !open;
+    if ($("scratch-more")) $("scratch-more").setAttribute("aria-expanded", open ? "true" : "false");
+  }
+
   function ensureScratchEditor() {
     if (cmScratch) return cmScratch;
     const host = $("scratch-editor");
     if (!host || typeof CodeMirror === "undefined") return null;
-    let saved = SCRATCH_STARTER;
-    try {
-      const raw = localStorage.getItem(SCRATCH_KEY);
-      if (raw != null && raw !== "") saved = raw;
-    } catch (e) {}
+    const item = activeScratchItem();
+    const saved = (item && item.source != null && item.source !== "") ? item.source : SCRATCH_STARTER;
     cmScratch = CodeMirror(host, {
       value: saved,
       mode: "text/x-java",
@@ -340,11 +669,12 @@
       extraKeys: {
         "Ctrl-Enter": () => { runScratch().catch((err) => toast(err.message)); },
         "Cmd-Enter": () => { runScratch().catch((err) => toast(err.message)); },
-        "Esc": () => closeScratch()
+        "Esc": () => { closeScratchMenu(); closeScratch(); }
       }
     });
     cmScratch.on("change", () => {
-      try { localStorage.setItem(SCRATCH_KEY, cmScratch.getValue()); } catch (e) {}
+      if (scratchSwitching) return;
+      syncEditorIntoActiveScratch();
     });
     return cmScratch;
   }
@@ -478,22 +808,32 @@
   function openScratch() {
     const pad = $("scratch-pad");
     if (!pad) return;
+    loadScratchDeck();
     pad.hidden = false;
     document.body.classList.add("scratch-open");
     restoreScratchPos();
     bindScratchDrag();
     bindScratchResize();
+    renderScratchDeck();
     const editor = ensureScratchEditor();
     if (editor) {
       applyEditorPrefs(state.settings || {}, false);
       if (cmScratch) {
         cmScratch.setOption("lineNumbers", !(state.settings && state.settings.lineNumbers === false));
+        const item = activeScratchItem();
+        if (item && cmScratch.getValue() !== (item.source || "")) {
+          scratchSwitching = true;
+          cmScratch.setValue(item.source || "");
+          scratchSwitching = false;
+        }
         setTimeout(() => { cmScratch.refresh(); cmScratch.focus(); }, 40);
       }
     }
   }
 
   function closeScratch() {
+    syncEditorIntoActiveScratch();
+    closeScratchMenu();
     const pad = $("scratch-pad");
     if (pad) pad.hidden = true;
     document.body.classList.remove("scratch-open");
@@ -508,7 +848,9 @@
     const editor = ensureScratchEditor();
     if (!editor) return;
     const text = editor.getValue();
-    const done = () => toast(text.trim() ? "Scratch copied." : "Scratch is empty.");
+    const item = activeScratchItem();
+    const label = item ? item.name : "Scratch";
+    const done = () => toast(text.trim() ? ("“" + label + "” copied.") : "Scratch is empty.");
     if (navigator.clipboard && navigator.clipboard.writeText) {
       navigator.clipboard.writeText(text).then(done).catch(() => {
         editor.execCommand("selectAll");
@@ -526,9 +868,19 @@
     const editor = ensureScratchEditor();
     if (!editor) return;
     editor.setValue("");
-    try { localStorage.setItem(SCRATCH_KEY, ""); } catch (e) {}
+    syncEditorIntoActiveScratch();
     editor.focus();
-    toast("Scratch cleared.");
+    closeScratchMenu();
+    toast("Cleared “" + (activeScratchItem() && activeScratchItem().name) + "”.");
+  }
+
+  async function scratchMenuAction(act) {
+    if (act === "new") return newScratch();
+    if (act === "rename") return renameScratch();
+    if (act === "duplicate") return duplicateScratch();
+    if (act === "promote") return promoteScratch();
+    if (act === "clear") return clearScratch();
+    if (act === "delete") return deleteScratch();
   }
 
   function closeExtras() {
@@ -4551,8 +4903,26 @@
     if ($("scratch")) $("scratch").addEventListener("click", () => toggleScratch());
     if ($("scratch-run")) $("scratch-run").addEventListener("click", () => runScratch().catch((err) => toast(err.message)));
     if ($("scratch-copy")) $("scratch-copy").addEventListener("click", () => copyScratchAll());
-    if ($("scratch-clear")) $("scratch-clear").addEventListener("click", () => clearScratch());
     if ($("scratch-close")) $("scratch-close").addEventListener("click", () => closeScratch());
+    if ($("scratch-more")) {
+      $("scratch-more").addEventListener("click", (event) => {
+        event.stopPropagation();
+        toggleScratchMenu();
+      });
+    }
+    if ($("scratch-menu")) {
+      $("scratch-menu").addEventListener("click", (event) => {
+        const act = event.target && event.target.dataset && event.target.dataset.scratchAct;
+        if (!act) return;
+        scratchMenuAction(act).catch((err) => toast(err.message));
+      });
+    }
+    document.addEventListener("click", (event) => {
+      const menu = $("scratch-menu");
+      if (!menu || menu.hidden) return;
+      if (event.target.closest("#scratch-menu, #scratch-more")) return;
+      closeScratchMenu();
+    });
     if ($("theme-nudge-apply")) {
       $("theme-nudge-apply").addEventListener("click", () => dismissThemeNudge(true));
     }

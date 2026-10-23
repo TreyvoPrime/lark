@@ -76,6 +76,10 @@ https://github.com/TreyvoPrime/lark/releases/latest/download/lark-mobile-linux.z
 
 Do not open launchers from inside a zip preview / Temp folder.
 
+## What’s new in 3.5.0
+
+- **Multi-scratch deck** — several named Scratch pads side by side (not one overwritten buffer). Switch from the deck rail, ⋯ for rename / duplicate / delete / **promote to project**
+
 ## What’s new in 3.4.1
 
 - **Theme overlay** — Desk button opens a full theme grid; click to try looks without closing; ← → cycle

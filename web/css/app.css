@@ -2360,6 +2360,9 @@ body.edition-desktop .brand .word .ver { display: none; }
   letter-spacing: 0.04em;
   text-transform: uppercase;
   color: var(--text);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 .scratch-title span {
   font-size: 11.5px;
@@ -2382,6 +2385,71 @@ body.edition-desktop .brand .word .ver { display: none; }
   font-size: 12px;
   padding: 5px 9px;
 }
+.scratch-body {
+  flex: 1;
+  min-height: 0;
+  display: flex;
+  flex-direction: row;
+}
+.scratch-deck {
+  flex: 0 0 92px;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  padding: 8px 6px;
+  border-right: 1px solid var(--line);
+  background: color-mix(in srgb, var(--bg-sunken) 55%, var(--bg-elev));
+  overflow-y: auto;
+  overflow-x: hidden;
+}
+.scratch-deck-item {
+  appearance: none;
+  border: 1px solid transparent;
+  background: transparent;
+  color: var(--muted);
+  font: inherit;
+  font-size: 11.5px;
+  font-weight: 550;
+  letter-spacing: 0.02em;
+  text-align: left;
+  padding: 7px 8px;
+  border-radius: 8px;
+  cursor: pointer;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  line-height: 1.25;
+}
+.scratch-deck-item:hover {
+  color: var(--text);
+  background: color-mix(in srgb, var(--bg-elev) 80%, transparent);
+}
+.scratch-deck-item.active {
+  color: var(--text);
+  border-color: color-mix(in srgb, var(--accent) 45%, var(--line));
+  background: color-mix(in srgb, var(--accent) 14%, var(--bg-elev));
+}
+.scratch-deck-add {
+  margin-top: 2px;
+  border-style: dashed;
+  border-color: var(--line);
+  color: var(--muted);
+  text-align: center;
+  font-size: 14px;
+  font-weight: 600;
+  padding: 6px 8px;
+}
+.scratch-deck-add:hover {
+  border-color: var(--accent);
+  color: var(--accent);
+}
+.scratch-main {
+  flex: 1;
+  min-width: 0;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+}
 #scratch-editor {
   flex: 1;
   min-height: 0;
@@ -2391,6 +2459,38 @@ body.edition-desktop .brand .word .ver { display: none; }
   border: 0;
   border-radius: 0;
 }
+.scratch-menu {
+  position: absolute;
+  top: 48px;
+  right: 12px;
+  z-index: 3;
+  min-width: 180px;
+  padding: 6px;
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  background: var(--bg-elev);
+  box-shadow: var(--shadow);
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+.scratch-menu[hidden] { display: none; }
+.scratch-menu button {
+  appearance: none;
+  border: 0;
+  background: transparent;
+  color: var(--text);
+  font: inherit;
+  font-size: 12.5px;
+  text-align: left;
+  padding: 8px 10px;
+  border-radius: 7px;
+  cursor: pointer;
+}
+.scratch-menu button:hover {
+  background: color-mix(in srgb, var(--accent) 12%, var(--bg-sunken));
+}
+.scratch-menu button.danger { color: var(--danger, #c45c5c); }
 body.scratch-open #scratch {
   color: var(--accent);
 }
@@ -2702,6 +2802,8 @@ body.scratch-open #scratch {
     top: 48px;
     height: min(70vh, calc(100vh - 96px));
   }
+  .scratch-deck { flex-basis: 76px; padding: 6px 4px; }
+  .scratch-deck-item { font-size: 11px; padding: 6px 6px; }
   .extras-panel { padding: 12px; }
   .extras-card { width: 100%; max-height: calc(100vh - 24px); }
   .theme-nudge {

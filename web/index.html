@@ -343,17 +343,30 @@
   <aside id="scratch-pad" class="scratch-pad" hidden>
     <div class="scratch-head" id="scratch-drag" title="Drag to move">
       <div class="scratch-title">
-        <strong>Scratch</strong>
-        <span>Drag anywhere · Space+. to toggle · auto-<code>main</code></span>
+        <strong id="scratch-heading">Scratch</strong>
+        <span>Deck of experiments · Space+. · auto-<code>main</code></span>
       </div>
       <div class="scratch-actions">
         <button type="button" id="scratch-run" class="primary" title="Run scratch (Ctrl+Enter)">Run</button>
-        <button type="button" id="scratch-copy" title="Copy all scratch code">Copy all</button>
-        <button type="button" id="scratch-clear" title="Clear scratch">Clear</button>
+        <button type="button" id="scratch-copy" title="Copy this scratch">Copy</button>
+        <button type="button" id="scratch-more" title="Scratch actions" aria-haspopup="menu" aria-expanded="false">⋯</button>
         <button type="button" id="scratch-close" class="close-split" title="Close scratch" aria-label="Close scratch">×</button>
       </div>
     </div>
-    <div id="scratch-editor"></div>
+    <div class="scratch-body">
+      <nav id="scratch-deck" class="scratch-deck" aria-label="Scratch deck"></nav>
+      <div class="scratch-main">
+        <div id="scratch-editor"></div>
+      </div>
+    </div>
+    <div id="scratch-menu" class="scratch-menu" hidden role="menu">
+      <button type="button" role="menuitem" data-scratch-act="new">New scratch…</button>
+      <button type="button" role="menuitem" data-scratch-act="rename">Rename…</button>
+      <button type="button" role="menuitem" data-scratch-act="duplicate">Duplicate</button>
+      <button type="button" role="menuitem" data-scratch-act="promote">Promote to project…</button>
+      <button type="button" role="menuitem" data-scratch-act="clear">Clear this</button>
+      <button type="button" role="menuitem" data-scratch-act="delete" class="danger">Delete…</button>
+    </div>
     <div class="scratch-resize" id="scratch-resize" title="Drag to resize"></div>
   </aside>
   <div id="extras-panel" class="extras-panel" hidden>
