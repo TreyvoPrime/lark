@@ -32,7 +32,7 @@ After **Extract All**, the folder stays simple:
 **Windows:** double-click **Start Lark Desktop.bat**. Optional Start Menu install: `app\Install Lark Desktop.ps1`  
 **Mac / Linux:** run **Start Lark Desktop.command** (or `./start-lark-desktop.sh`)
 
-`lark-windows.zip` / `lark-mac.zip` / `lark-linux.zip` are the **same** Desktop packages (legacy names).
+Prefer the `lark-desktop-…` download names on the site and in Releases.
 
 ### Lark Enterprise (Setup wizard — separate from Desktop)
 

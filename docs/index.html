@@ -449,7 +449,7 @@
       <p class="lead">Lark is a focused IDE for real Java work — compile, run, debug, and refactor. Not a plugin marketplace. Not a month of setup. Just the tools you actually use.</p>
       <div class="cta">
         <a id="primary-dl" class="primary" href="https://github.com/TreyvoPrime/lark/releases/latest/download/lark-desktop-windows.zip">Download Lark Desktop</a>
-        <a id="portable-dl" class="ghost" href="https://github.com/TreyvoPrime/lark/releases/latest/download/lark-desktop-windows.zip">Same zip · Mac / Linux builds</a>
+        <a id="secondary-dl" class="ghost" href="#desktop">All platforms</a>
       </div>
       <p id="status"></p>
     </section>
@@ -499,18 +499,9 @@
           <p class="track-badge">Recommended</p>
           <h3>Lark Desktop</h3>
           <p>Extract All → run <code>Start Lark Desktop</code>. You mainly see the launcher, <code>jdk\</code>, and <code>app\</code>. Opens in its own window and prompts for updates. Optional Start Menu install lives in <code>app\</code>.</p>
-          <p>File names: <code>lark-desktop-windows.zip</code> (also published as <code>lark-windows.zip</code>)</p>
+          <p>File names: <code>lark-desktop-windows.zip</code>, mac, linux</p>
           <a id="compare-desktop" class="dl" href="https://github.com/TreyvoPrime/lark/releases/latest/download/lark-desktop-windows.zip">Get Lark Desktop</a>
         </div>
-        <div class="track-card">
-          <p class="track-badge">Same package</p>
-          <h3>Legacy zip names</h3>
-          <p><code>lark-windows.zip</code> / mac / linux are <strong>aliases</strong> of Desktop — same files, same Start Lark Desktop entry.</p>
-          <p>Prefer the <code>lark-desktop-…</code> names going forward.</p>
-          <a id="compare-portable" class="dl ghost" href="https://github.com/TreyvoPrime/lark/releases/latest/download/lark-desktop-windows.zip">Get Lark Desktop</a>
-        </div>
-      </div>
-      <div class="cta-pair" style="margin-top:16px">
         <div class="track-card">
           <p class="track-badge">School PCs</p>
           <h3>Lark School</h3>
@@ -518,6 +509,8 @@
           <p>File name: <code>lark-school-windows.zip</code></p>
           <a id="compare-school" class="dl" href="https://github.com/TreyvoPrime/lark/releases/latest/download/lark-school-windows.zip">Get Lark School</a>
         </div>
+      </div>
+      <div class="cta-pair" style="margin-top:16px">
         <div class="track-card">
           <p class="track-badge">Mobile</p>
           <h3>Lark Mobile</h3>
@@ -599,43 +592,16 @@
       </div>
     </section>
 
-    <section class="section" id="portable" aria-label="Legacy zip names">
-      <p class="track-badge">Aliases</p>
-      <h2>Legacy zip names</h2>
-      <p class="sub">Same Desktop package — kept so old links keep working.</p>
-      <div class="grid">
-        <article id="card-windows">
-          <h3>Windows</h3>
-          <p>Alias of Desktop. Still starts with <code>Start Lark Desktop.bat</code>.</p>
-          <a class="dl ghost" href="https://github.com/TreyvoPrime/lark/releases/latest/download/lark-windows.zip">lark-windows.zip</a>
-        </article>
-        <article id="card-mac">
-          <h3>Mac</h3>
-          <p>Alias of Desktop.</p>
-          <a class="dl ghost" href="https://github.com/TreyvoPrime/lark/releases/latest/download/lark-mac.zip">lark-mac.zip</a>
-        </article>
-        <article id="card-linux">
-          <h3>Linux</h3>
-          <p>Alias of Desktop.</p>
-          <a class="dl ghost" href="https://github.com/TreyvoPrime/lark/releases/latest/download/lark-linux.zip">lark-linux.zip</a>
-        </article>
-      </div>
-    </section>
-
-    <section class="section" id="enterprise" aria-label="Enterprise downloads">
-      <p class="track-badge">Also available</p>
-      <h2>Lark Enterprise</h2>
-      <p class="sub">Optional Windows Setup wizard edition — separate from Lark Desktop (Desktop stays the default). Installs to <code>%LOCALAPPDATA%\Programs\Lark Enterprise</code> with Start Menu and Desktop shortcuts, and uses its own update channel. About 45&nbsp;MB download · ~200&nbsp;MB on disk with the bundled JDK.</p>
+    <section class="section" id="enterprise" aria-label="Optional Windows installer">
+      <p class="track-badge">Optional</p>
+      <h2>Optional Windows Installer</h2>
+      <p class="sub">Prefer a traditional Windows setup? Lark Enterprise offers a separate installer with Start Menu and Desktop shortcuts, its own update channel, and a dedicated install location. Lark Desktop remains the default download.</p>
+      <p class="sub"><strong>Lightweight by design:</strong> Around 45&nbsp;MB to download and 200&nbsp;MB installed, including the bundled JDK.</p>
       <div class="grid">
         <article id="card-enterprise-setup">
           <h3>Windows Setup</h3>
           <p>Run <code>LarkEnterpriseSetup.exe</code> — welcome → folder → install → launch.</p>
           <a id="enterprise-setup-link" class="dl" href="https://github.com/TreyvoPrime/lark/releases/latest/download/LarkEnterpriseSetup.exe">LarkEnterpriseSetup.exe</a>
-        </article>
-        <article id="card-enterprise-zip">
-          <h3>Windows zip (optional)</h3>
-          <p>Full payload folder if you want to inspect files before installing. Prefer the Setup wizard for a normal PC install.</p>
-          <a class="dl ghost" href="https://github.com/TreyvoPrime/lark/releases/latest/download/lark-enterprise-windows.zip">lark-enterprise-windows.zip</a>
         </article>
       </div>
     </section>
@@ -661,39 +627,24 @@
     const ua = navigator.userAgent || "";
     let key = "linux";
     let desktopFile = "lark-desktop-linux.zip";
-    let portableFile = "lark-desktop-linux.zip";
     let deskLabel = "Download Lark Desktop (Linux)";
-    let portLabel = "Lark Desktop (Linux)";
     if (/Win/i.test(platform) || /Windows/i.test(ua)) {
       key = "windows";
       desktopFile = "lark-desktop-windows.zip";
-      portableFile = "lark-desktop-windows.zip";
       deskLabel = "Download Lark Desktop (Windows)";
-      portLabel = "Lark Desktop (Windows)";
     } else if (/Mac/i.test(platform) || /Mac OS/i.test(ua)) {
       key = "mac";
       desktopFile = "lark-desktop-mac.zip";
-      portableFile = "lark-desktop-mac.zip";
       deskLabel = "Download Lark Desktop (Mac)";
-      portLabel = "Lark Desktop (Mac)";
     }
     const deskCard = document.getElementById("card-desktop-" + key);
     if (deskCard) deskCard.classList.add("pick");
-    const portableCard = document.getElementById("card-" + key);
-    if (portableCard) portableCard.classList.add("pick");
     const primary = document.getElementById("primary-dl");
     primary.href = latest(desktopFile);
     primary.textContent = deskLabel;
-    const portable = document.getElementById("portable-dl");
-    portable.href = latest(portableFile);
-    portable.textContent = portLabel;
     ["compare-desktop"].forEach((id) => {
       const el = document.getElementById(id);
       if (el) { el.href = latest(desktopFile); }
-    });
-    ["compare-portable"].forEach((id) => {
-      const el = document.getElementById(id);
-      if (el) { el.href = latest(portableFile); }
     });
     const enterpriseLink = document.getElementById("enterprise-setup-link");
     if (enterpriseLink) enterpriseLink.href = latest("LarkEnterpriseSetup.exe");

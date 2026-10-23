@@ -28,7 +28,7 @@ set "JAVA_CONSOLE=%ROOT%\jdk\bin\java.exe"
 set "JAVAC=%ROOT%\jdk\bin\javac.exe"
 set "JVMCFG=%ROOT%\jdk\lib\jvm.cfg"
 
-rem Prefer app\lark.jar; fall back to legacy root jar for older installs.
+rem Prefer app\lark.jar; fall back to root lark.jar for older installs.
 set "JAR=%APP%\lark.jar"
 set "PENDING=%APP%\lark.jar.pending"
 set "BAK=%APP%\lark.jar.bak"

@@ -148,7 +148,7 @@
   let suppress = false;
   let paletteIndex = 0;
   let modalResolve = null;
-  const SCRATCH_KEY = "lark-scratch-source"; // legacy single-pad key (migrated once)
+  const SCRATCH_KEY = "lark-scratch-source"; // prior single-pad key (migrated once)
   const SCRATCH_DECK_KEY = "lark-scratch-deck-v1";
   const SCRATCH_POS_KEY = "lark-scratch-pos";
   const SCRATCH_MAX = 12;
@@ -348,14 +348,14 @@
       }
     } catch (e) {}
     // Migrate the old single-pad buffer once.
-    let legacy = null;
+    let prior = null;
     try {
-      legacy = localStorage.getItem(SCRATCH_KEY);
+      prior = localStorage.getItem(SCRATCH_KEY);
     } catch (e) {}
     const deck = defaultScratchDeck();
-    if (legacy != null && legacy !== "") {
+    if (prior != null && prior !== "") {
       const id = deck.active;
-      deck.items[id].source = legacy;
+      deck.items[id].source = prior;
       deck.items[id].name = "bench";
     }
     scratchDeck = deck;

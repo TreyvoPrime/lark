@@ -567,7 +567,7 @@ public final class Updates {
         writeLaunchResource("lark/launch/finish-update.bat", app.resolve("finish-update.bat"));
         writeLaunchResource("lark/launch/StopLarkClean.bat", app.resolve("Stop Lark and Clean Cache.bat"));
         writeLaunchResource("lark/launch/WipeLark.bat", app.resolve("Wipe Lark From This PC.bat"));
-        // Legacy filenames for older shortcuts.
+        // Also refresh Launch Lark Desktop.bat for older Start Menu shortcuts.
         writeLaunchResource("lark/launch/StartDesktop.bat", installDir.resolve("Launch Lark Desktop.bat"));
         try {
             if (!Files.isRegularFile(app.resolve("desktop.marker"))) {
@@ -665,20 +665,20 @@ public final class Updates {
 
     /**
      * Resolves the install jar. Prefers app/lark.jar (unified Desktop layout),
-     * then legacy root lark.jar. Always contained under installDir.
+     * then root lark.jar for older trees. Always contained under installDir.
      */
     static Path jarFile(Path installDir) {
         if (installDir == null) throw new RequestFail(500, "Lark couldn't find its install folder.");
         Path root = installDir.toAbsolutePath().normalize();
         Path appJar = root.resolve("app").resolve("lark.jar");
-        Path legacy = root.resolve("lark.jar");
+        Path rootJar = root.resolve("lark.jar");
         Path chosen;
         if (Desktop.isDesktop() || Files.isDirectory(root.resolve("app")) || Files.isRegularFile(appJar)) {
             chosen = appJar;
-        } else if (Files.isRegularFile(legacy)) {
-            chosen = legacy;
+        } else if (Files.isRegularFile(rootJar)) {
+            chosen = rootJar;
         } else {
-            chosen = Desktop.isDesktop() ? appJar : legacy;
+            chosen = Desktop.isDesktop() ? appJar : rootJar;
         }
         return ensureInsideInstall(root, chosen);
     }

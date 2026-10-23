@@ -32,8 +32,8 @@ Write-Host "  From: $PackageRoot"
 Write-Host "  To:   $InstallRoot"
 
 $jarApp = Join-Path $PackageRoot "app\lark.jar"
-$jarLegacy = Join-Path $PackageRoot "lark.jar"
-$jarOk = (Test-Path -LiteralPath $jarApp) -or (Test-Path -LiteralPath $jarLegacy)
+$jarRoot = Join-Path $PackageRoot "lark.jar"
+$jarOk = (Test-Path -LiteralPath $jarApp) -or (Test-Path -LiteralPath $jarRoot)
 $required = @(
   @{ Path = (Join-Path $PackageRoot "jdk\bin\java.exe"); Name = "jdk\bin\java.exe" },
   @{ Path = (Join-Path $PackageRoot "jdk\bin\javac.exe"); Name = "jdk\bin\javac.exe" },
