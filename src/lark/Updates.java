@@ -747,19 +747,20 @@ public final class Updates {
     static int compareVersions(String a, String b) {
         int[] left = parts(a);
         int[] right = parts(b);
-        for (int i = 0; i < 3; i++) {
+        // Four-part versions (3.9.7.1) stay under 4.0 without burning through 3.x minors.
+        for (int i = 0; i < 4; i++) {
             if (left[i] != right[i]) return Integer.compare(left[i], right[i]);
         }
         return 0;
     }
 
     private static int[] parts(String version) {
-        int[] out = new int[3];
+        int[] out = new int[4];
         if (version == null) return out;
         String clean = version.trim();
         if (clean.startsWith("v") || clean.startsWith("V")) clean = clean.substring(1);
         String[] bits = clean.split("[^0-9]+");
-        for (int i = 0; i < Math.min(3, bits.length); i++) {
+        for (int i = 0; i < Math.min(4, bits.length); i++) {
             if (bits[i].isBlank()) continue;
             try {
                 out[i] = Integer.parseInt(bits[i]);
