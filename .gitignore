@@ -3,9 +3,8 @@ dist/
 release/
 *.class
 *.larktmp
-packaging/school/bin/
-packaging/enterprise/bin/
-packaging/enterprise/payload/
+.android-sdk/
+apk/
 packaging/desktop/bin/
 packaging/desktop/payload/
 packaging/executable/bin/
