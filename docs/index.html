@@ -161,7 +161,7 @@
     }
     .hero-code {
       width: 100%;
-      min-height: 520px;
+      min-height: 420px;
       border: 1px solid var(--line-strong);
       border-radius: 14px;
       background:
@@ -184,10 +184,10 @@
       border-bottom: 1px solid var(--line);
     }
     .code-lines {
-      padding: 0.95rem 1.15rem 1.2rem;
+      padding: 1.1rem 1.2rem 1.35rem;
       font-family: "IBM Plex Mono", ui-monospace, monospace;
-      font-size: clamp(11px, 1.1vw, 13.5px);
-      line-height: 1.65;
+      font-size: clamp(12px, 1.2vw, 14px);
+      line-height: 1.7;
       color: var(--mist-dim);
     }
     .code-lines span {
@@ -196,27 +196,15 @@
       overflow: hidden;
       width: 0;
     }
-    .code-lines span:nth-child(1)  { animation: typeLine 0.55s steps(22) 0.25s forwards; color: var(--mist-dim); }
-    .code-lines span:nth-child(2)  { animation: typeLine 0.65s steps(28) 0.7s forwards; color: var(--mist-dim); }
-    .code-lines span:nth-child(3)  { animation: typeLine 0.35s steps(8) 1.25s forwards; }
-    .code-lines span:nth-child(4)  { animation: typeLine 0.7s steps(30) 1.5s forwards; color: var(--mist); }
-    .code-lines span:nth-child(5)  { animation: typeLine 0.85s steps(40) 2.1s forwards; }
-    .code-lines span:nth-child(6)  { animation: typeLine 0.4s steps(10) 2.85s forwards; }
-    .code-lines span:nth-child(7)  { animation: typeLine 0.75s steps(32) 3.15s forwards; color: var(--orange); }
-    .code-lines span:nth-child(8)  { animation: typeLine 0.7s steps(28) 3.8s forwards; }
-    .code-lines span:nth-child(9)  { animation: typeLine 0.8s steps(34) 4.4s forwards; color: var(--orange-bright); }
-    .code-lines span:nth-child(10) { animation: typeLine 0.55s steps(18) 5.1s forwards; color: var(--mist); }
-    .code-lines span:nth-child(11) { animation: typeLine 0.35s steps(8) 5.55s forwards; }
-    .code-lines span:nth-child(12) { animation: typeLine 0.8s steps(36) 5.8s forwards; color: var(--orange); }
-    .code-lines span:nth-child(13) { animation: typeLine 0.75s steps(30) 6.5s forwards; }
-    .code-lines span:nth-child(14) { animation: typeLine 0.7s steps(28) 7.15s forwards; color: var(--orange-bright); }
-    .code-lines span:nth-child(15) { animation: typeLine 0.55s steps(16) 7.75s forwards; color: var(--mist); }
-    .code-lines span:nth-child(16) { animation: typeLine 0.35s steps(8) 8.2s forwards; }
-    .code-lines span:nth-child(17) { animation: typeLine 0.7s steps(26) 8.45s forwards; color: var(--orange); }
-    .code-lines span:nth-child(18) { animation: typeLine 0.65s steps(24) 9.05s forwards; }
-    .code-lines span:nth-child(19) { animation: typeLine 0.55s steps(18) 9.6s forwards; color: var(--mist); }
-    .code-lines span:nth-child(20) { animation: typeLine 0.45s steps(12) 10.05s forwards; color: var(--orange); }
-    .code-lines span:nth-child(20)::after {
+    .code-lines span:nth-child(1) { animation: typeLine 0.7s steps(28) 0.35s forwards; color: var(--mist); }
+    .code-lines span:nth-child(2) { animation: typeLine 0.85s steps(36) 0.95s forwards; }
+    .code-lines span:nth-child(3) { animation: typeLine 0.55s steps(18) 1.7s forwards; color: var(--mist); }
+    .code-lines span:nth-child(4) { animation: typeLine 0.9s steps(40) 2.2s forwards; color: var(--orange); }
+    .code-lines span:nth-child(5) { animation: typeLine 0.75s steps(30) 3s forwards; }
+    .code-lines span:nth-child(6) { animation: typeLine 0.8s steps(34) 3.65s forwards; color: var(--orange-bright); }
+    .code-lines span:nth-child(7) { animation: typeLine 0.65s steps(24) 4.35s forwards; color: var(--mist); }
+    .code-lines span:nth-child(8) { animation: typeLine 0.5s steps(12) 4.95s forwards; color: var(--orange); }
+    .code-lines span:nth-child(8)::after {
       content: "";
       display: inline-block;
       width: 0.55ch;
@@ -335,7 +323,7 @@
       }
       .hero-code {
         order: -1;
-        min-height: 340px;
+        min-height: 260px;
         transform: none;
         animation: none;
       }
@@ -352,7 +340,7 @@
         width: 100% !important;
         animation: none !important;
       }
-      .code-lines span:nth-child(20)::after { display: none; }
+      .code-lines span:nth-child(8)::after { display: none; }
     }
 
     /* —— Sections —— */
@@ -773,25 +761,12 @@
         </div>
         <div class="hero-code reveal d2" aria-hidden="true">
           <div class="code-lines">
-            <span>import java.util.ArrayList;</span>
-            <span>import java.util.Collections;</span>
-            <span>import java.util.List;</span>
-            <span>&nbsp;</span>
             <span>public class StudentRoster {</span>
             <span>&nbsp;&nbsp;private final List&lt;String&gt; names = new ArrayList&lt;&gt;();</span>
-            <span>&nbsp;</span>
+            <span>&nbsp;&nbsp;</span>
             <span>&nbsp;&nbsp;public void add(String name) {</span>
-            <span>&nbsp;&nbsp;&nbsp;&nbsp;if (name == null || name.isBlank()) return;</span>
             <span>&nbsp;&nbsp;&nbsp;&nbsp;names.add(name.trim());&nbsp;&nbsp;// live compile ✓</span>
             <span>&nbsp;&nbsp;&nbsp;&nbsp;Collections.sort(names);</span>
-            <span>&nbsp;&nbsp;}</span>
-            <span>&nbsp;</span>
-            <span>&nbsp;&nbsp;public boolean contains(String name) {</span>
-            <span>&nbsp;&nbsp;&nbsp;&nbsp;return names.contains(name.trim());</span>
-            <span>&nbsp;&nbsp;}</span>
-            <span>&nbsp;</span>
-            <span>&nbsp;&nbsp;public int size() {</span>
-            <span>&nbsp;&nbsp;&nbsp;&nbsp;return names.size();</span>
             <span>&nbsp;&nbsp;}</span>
             <span>}</span>
           </div>
