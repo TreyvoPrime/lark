@@ -1,4 +1,10 @@
 # Lark download site
 
-This folder is published as GitHub Pages after `./packaging/publish-github.sh` runs.
-Direct zip downloads also appear on the repository Releases page.
+Static site for GitHub Pages (`treyvoprime.github.io/lark-download`).
+
+```bash
+# from repo root
+python3 -m http.server 43127 --directory docs
+```
+
+Open http://127.0.0.1:43127/
