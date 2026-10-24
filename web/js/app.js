@@ -1844,6 +1844,8 @@
 
   function renderNode(node, depth) {
     const wrap = document.createElement("div");
+    const line = document.createElement("div");
+    line.className = "tree-line" + (node.dir ? " folder" : " file");
     const row = document.createElement("button");
     row.type = "button";
     row.className = "tree-row" + (node.path === state.active ? " active" : "") + (node.path === state.selected ? " selected" : "") + (node.path.endsWith(".java") ? " java" : "") + (node.dir ? " folder" : " file");
@@ -1861,10 +1863,12 @@
       event.dataTransfer.setData("text/plain", node.path);
       event.dataTransfer.effectAllowed = "move";
       row.classList.add("dragging");
+      line.classList.add("dragging");
       state.dragPath = node.path;
     });
     row.addEventListener("dragend", () => {
       row.classList.remove("dragging");
+      line.classList.remove("dragging");
       state.dragPath = null;
       document.querySelectorAll(".tree-row.drop-target").forEach((el) => el.classList.remove("drop-target"));
     });
@@ -1908,7 +1912,23 @@
         removePath(node.path);
       }
     });
-    wrap.appendChild(row);
+    line.appendChild(row);
+    if (node.dir) {
+      const add = document.createElement("button");
+      add.type = "button";
+      add.className = "tree-add";
+      add.title = "New class or file in " + (node.path || node.name);
+      add.setAttribute("aria-label", "Add to " + node.name);
+      add.textContent = "+";
+      add.addEventListener("click", (event) => {
+        event.preventDefault();
+        event.stopPropagation();
+        state.selected = node.path;
+        openFolderAddMenu(add, node.path);
+      });
+      line.appendChild(add);
+    }
+    wrap.appendChild(line);
     if (node.dir && !state.collapsed.has(node.path)) {
       node.children.forEach((child) => wrap.appendChild(renderNode(child, depth + 1)));
     }
@@ -3184,10 +3204,12 @@
 
   async function createFile() {
     if (!state.project) return toast("Create a project first.");
+    const dir = (selectedDir() || "src").replace(/\/+$/, "") || "src";
     const values = await formDialog({
       title: "New file",
       ok: "Create",
-      fields: [{ name: "path", label: "Path", value: selectedDir() ? selectedDir() + "/" : "src/" }]
+      note: "Creates under: " + dir + "/",
+      fields: [{ name: "path", label: "Path", value: dir + "/" }]
     });
     if (!values) return;
     const path = values.path.trim().replace(/^\/+/, "");
@@ -3362,6 +3384,40 @@
     menu.hidden = false;
     menu.style.left = Math.min(x, window.innerWidth - 200) + "px";
     menu.style.top = Math.min(y, window.innerHeight - 180) + "px";
+  }
+
+  function openFolderAddMenu(anchor, folderPath) {
+    closePopovers();
+    const menu = $("context");
+    menu.replaceChildren();
+    const head = document.createElement("p");
+    head.className = "path-note";
+    head.style.margin = "4px 8px 6px";
+    head.textContent = "New in " + (folderPath || "folder");
+    menu.appendChild(head);
+    [
+      ["+ Class", () => { state.selected = folderPath; createClass(); }],
+      ["+ File", () => { state.selected = folderPath; createFile(); }]
+    ].forEach(([label, action]) => {
+      const btn = document.createElement("button");
+      btn.type = "button";
+      btn.textContent = label;
+      btn.addEventListener("click", () => {
+        menu.hidden = true;
+        Promise.resolve(action()).catch((err) => toast(err.message));
+      });
+      menu.appendChild(btn);
+    });
+    menu.hidden = false;
+    const rect = anchor.getBoundingClientRect();
+    const width = 168;
+    let left = rect.right - 8;
+    let top = rect.bottom + 4;
+    if (left + width > window.innerWidth - 8) left = Math.max(8, rect.left - width + 8);
+    if (top + 120 > window.innerHeight - 8) top = Math.max(8, rect.top - 120);
+    menu.style.left = left + "px";
+    menu.style.top = top + "px";
+    menu.style.minWidth = width + "px";
   }
 
   function formDialog({ title, ok, note, fields }) {

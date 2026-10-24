@@ -1348,15 +1348,24 @@ select:focus, input:focus, textarea:focus, button:focus-visible {
   color: var(--text);
   transition: background 120ms ease, color 120ms ease;
 }
+.tree-line {
+  display: flex;
+  align-items: center;
+  gap: 2px;
+  max-width: 100%;
+  animation: tray-row-in 160ms ease both;
+}
+.tree-line.dragging { opacity: 0.45; }
 .tree-row {
   display: flex;
   align-items: center;
   gap: 7px;
+  flex: 1 1 auto;
+  min-width: 0;
   height: 28px;
-  padding-right: 6px;
+  padding-right: 4px;
   max-width: 100%;
   overflow: hidden;
-  animation: tray-row-in 160ms ease both;
 }
 .tree-row .chev { display: none; }
 .tree-row .name {
@@ -1366,6 +1375,33 @@ select:focus, input:focus, textarea:focus, button:focus-visible {
   text-overflow: ellipsis;
   white-space: nowrap;
   font-size: 12.5px;
+}
+.tree-add {
+  flex: none;
+  width: 22px;
+  height: 22px;
+  margin-right: 4px;
+  padding: 0 !important;
+  border: 1px solid transparent !important;
+  border-radius: 5px !important;
+  background: transparent !important;
+  color: var(--muted);
+  font-size: 15px;
+  font-weight: 700;
+  line-height: 1;
+  cursor: pointer;
+  opacity: 0.45;
+}
+.tree-line:hover .tree-add,
+.tree-line:focus-within .tree-add,
+.tree-row.selected ~ .tree-add {
+  opacity: 1;
+}
+.tree-add:hover {
+  color: var(--accent-ink, #fff);
+  background: var(--accent) !important;
+  border-color: transparent !important;
+  opacity: 1;
 }
 /* Kind tags crowded the narrow tray — icons already show type */
 .tree-row .kind { display: none; }
