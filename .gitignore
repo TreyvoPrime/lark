@@ -9,3 +9,11 @@ packaging/enterprise/payload/
 packaging/desktop/bin/
 packaging/desktop/payload/
 packaging/executable/bin/
+
+.android-sdk/
+apk/node_modules/
+apk/www/
+apk/android/local.properties
+apk/android/.gradle/
+apk/android/**/build/
+release/*.apk

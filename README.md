@@ -40,19 +40,27 @@ https://github.com/TreyvoPrime/lark/releases/latest/download/LarkDesktopSetup.ex
 
 Mac / Linux payload zips ship `start-lark-desktop.sh` with the same buried `app/` + `jdk/` layout.
 
-### Lark Mobile (separate edition)
+### Lark Mobile (phone IDE)
 
 ```text
+https://github.com/TreyvoPrime/lark/releases/latest/download/LarkMobile-debug.apk
 https://github.com/TreyvoPrime/lark/releases/latest/download/lark-mobile-windows.zip
 https://github.com/TreyvoPrime/lark/releases/latest/download/lark-mobile-mac.zip
 https://github.com/TreyvoPrime/lark/releases/latest/download/lark-mobile-linux.zip
 ```
 
-- Extract → run **Start Lark Mobile**
-- Keep the console open — it prints a **Phone URL** with a pair code
-- On your phone (same Wi‑Fi), open that URL for the Mobile UI
+- Install the **APK** on Android (or open Mobile UI in the phone browser)
+- On a PC: extract the Mobile zip → run **Start Lark Mobile** (host engine + pair code)
+- In the APK: paste host URL + pair code → Connect — then write, check, run, and debug from the phone
+- Build the APK yourself: see [`apk/README.md`](apk/README.md)
 
 Do not open launchers from inside a zip preview / Temp folder.
+
+## What’s new in 3.9.0
+
+- **Lark Mobile overhaul** — phone IDE UI with the same Desk themes as Desktop/Executable
+- **Android APK** — Capacitor shell (`apk/`, `LarkMobile-debug.apk`) connects to a Mobile host with pair code
+- **Near-desktop power on phone** — projects, editor, check, run, debug, search, GitHub token, updates
 
 ## What’s new in 3.8.0
 

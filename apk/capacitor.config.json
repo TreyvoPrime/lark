@@ -1,0 +1,11 @@
+{
+  "appId": "app.lark.mobile",
+  "appName": "Lark Mobile",
+  "webDir": "www",
+  "server": {
+    "androidScheme": "https"
+  },
+  "android": {
+    "allowMixedContent": true
+  }
+}

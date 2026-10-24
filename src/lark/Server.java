@@ -605,6 +605,12 @@ public final class Server {
             if (host.equals("127.0.0.1") || host.equals("localhost") || host.equals("[::1]") || host.equals("::1")) {
                 return true;
             }
+            // Capacitor / Ionic Android WebView origins when talking to a paired host.
+            String scheme = uri.getScheme() == null ? "" : uri.getScheme().toLowerCase(Locale.ROOT);
+            if ((scheme.equals("capacitor") || scheme.equals("ionic") || scheme.equals("https") || scheme.equals("http"))
+                    && (host.equals("localhost") || host.endsWith(".localhost"))) {
+                return true;
+            }
             // Mobile LAN: only when already paired for this request.
             return lan && Mobile.isMobile() && pairOk(exchange);
         } catch (Exception e) {

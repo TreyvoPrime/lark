@@ -7,7 +7,7 @@ if [ "${LARK_SKIP_PACKAGE:-}" != "1" ] || [ ! -f dist/lark.jar ]; then
 fi
 root=$(pwd)
 version=$(sed -n 's/.*VERSION = "\([^"]*\)".*/\1/p' src/lark/Settings.java | head -n 1)
-notes=${LARK_UPDATE_NOTES:-"Lark Mobile ${version}: touch-first UI and phone Wi‑Fi pairing."}
+notes=${LARK_UPDATE_NOTES:-"Lark Mobile ${version}: phone IDE UI, Desk themes, Android APK + host pairing."}
 feed_base=${LARK_UPDATE_BASE:-}
 cache=${LARK_JDK_CACHE:-"$root/release/.jdk-cache"}
 mkdir -p "$cache" release
@@ -109,5 +109,13 @@ print("Updated release/update.json with mobile keys")
 PY
 fi
 
-ls -lh release/lark-mobile*.zip 2>/dev/null | head -20
+# Optional Android APK (built separately via apk/README.md).
+if [ -f apk/android/app/build/outputs/apk/debug/app-debug.apk ]; then
+  cp -f apk/android/app/build/outputs/apk/debug/app-debug.apk release/LarkMobile-debug.apk
+  echo "Copied release/LarkMobile-debug.apk"
+elif [ -f release/LarkMobile-debug.apk ]; then
+  echo "Using existing release/LarkMobile-debug.apk"
+fi
+
+ls -lh release/lark-mobile*.zip release/LarkMobile-debug.apk 2>/dev/null | head -20
 echo "Lark Mobile packages ready for $version"

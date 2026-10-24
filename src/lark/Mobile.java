@@ -12,10 +12,10 @@ import java.util.Locale;
 import java.util.concurrent.CountDownLatch;
 
 /**
- * Lark Mobile — a separate touch-first edition with its own UI and download.
- * Runs the Java engine on this machine (or tablet) and serves a phone-friendly
- * editor. With LAN pairing enabled (default), a phone on the same Wi‑Fi can
- * open the Mobile UI while compile/run stay on the host.
+ * Lark Mobile — phone IDE edition. This process is the Java engine/host:
+ * projects, compile, run, and debug. The overhauled Mobile UI (and Android APK)
+ * connects over Wi‑Fi with a pair code so you can write and run Java from your
+ * phone while the JDK stays on the host.
  */
 public final class Mobile {
     static final String CHANNEL = "mobile";
