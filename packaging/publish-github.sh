@@ -50,7 +50,9 @@ fi
 printf '%s\n' "${LARK_UPDATE_BASE}/update.json" > packaging/default-update-feed.url
 
 # Keep a copy of update.json that points at GitHub Releases asset URLs.
-git add -A
+git add packaging/default-update-feed.url docs/index.html release/update.json 2>/dev/null || true
+# Never stage local Android/APK trees (oversized caches).
+git reset -q -- .android-sdk apk 2>/dev/null || true
 if ! git diff --cached --quiet; then
   git commit -m "Prepare Lark ${VERSION} GitHub release assets metadata." || true
   git push github HEAD:main || true
