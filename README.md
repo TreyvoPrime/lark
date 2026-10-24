@@ -43,7 +43,7 @@ Mac / Linux payload zips ship `start-lark-desktop.sh` with the same buried `app/
 ### Lark Mobile (phone IDE)
 
 ```text
-https://github.com/TreyvoPrime/lark/releases/latest/download/LarkMobile-debug.apk
+https://github.com/TreyvoPrime/lark/releases/download/v3.9.2-mobile/LarkMobile-debug.apk
 https://github.com/TreyvoPrime/lark/releases/latest/download/lark-mobile-windows.zip
 https://github.com/TreyvoPrime/lark/releases/latest/download/lark-mobile-mac.zip
 https://github.com/TreyvoPrime/lark/releases/latest/download/lark-mobile-linux.zip
