@@ -1,18 +1,16 @@
 #!/bin/sh
-# Build Lark Desktop packages — unified primary install (replaces separate "portable" UX).
-# Layout after extract: Start Lark Desktop.* + jdk/ + app/ (runtime).
+# Build Lark Desktop — default installed edition (Setup wizard + buried app/jdk).
 set -eu
 cd "$(dirname "$0")/.."
-./package.sh
+if [ "${LARK_SKIP_PACKAGE:-}" != "1" ] || [ ! -f dist/lark.jar ]; then
+  ./package.sh
+fi
 root=$(pwd)
 version=$(sed -n 's/.*VERSION = "\([^"]*\)".*/\1/p' src/lark/Settings.java | head -n 1)
-notes=${LARK_UPDATE_NOTES:-"Lark Desktop ${version}: one clean install — Start + jdk + app runtime."}
 feed_base=${LARK_UPDATE_BASE:-}
 cache=${LARK_JDK_CACHE:-"$root/release/.jdk-cache"}
-mkdir -p "$cache" release
-chmod +x packaging/fetch-portable-jdk.sh packaging/make-desktop.sh
-chmod 755 packaging/desktop/start-lark-desktop.sh packaging/desktop/Install\ Lark\ Desktop.command 2>/dev/null || true
-chmod 755 "packaging/desktop/Start Lark Desktop.bat" 2>/dev/null || true
+mkdir -p "$cache" release packaging/desktop/bin
+chmod +x packaging/fetch-portable-jdk.sh packaging/desktop/start-lark-desktop.sh
 
 github_latest="https://github.com/TreyvoPrime/lark/releases/latest/download"
 if [ -n "$feed_base" ]; then
@@ -20,6 +18,42 @@ if [ -n "$feed_base" ]; then
 else
   feed_base="$github_latest"
 fi
+
+echo "Building Lark Desktop.exe (Windows, no console)..."
+if ! command -v go >/dev/null 2>&1; then
+  echo "Go is required to build the Desktop launcher." >&2
+  exit 1
+fi
+(
+  cd packaging/desktop/launcher
+  GOOS=windows GOARCH=amd64 CGO_ENABLED=0 go build \
+    -trimpath \
+    -ldflags="-s -w -H windowsgui" \
+    -o ../bin/LarkDesktop.exe \
+    .
+)
+cp packaging/desktop/bin/LarkDesktop.exe "packaging/desktop/bin/Lark Desktop.exe"
+ls -lh packaging/desktop/bin/LarkDesktop.exe
+
+echo "Building Desktop icon (.ico)..."
+python3 - <<'PY'
+from pathlib import Path
+try:
+    from PIL import Image, ImageDraw
+except ImportError:
+    raise SystemExit("Pillow required to build lark-icon.ico")
+src = Path("packaging/desktop/lark-icon.png")
+out = Path("packaging/desktop/lark-icon.ico")
+if src.is_file():
+    im = Image.open(src).convert("RGBA")
+else:
+    im = Image.new("RGBA", (256, 256), (27, 25, 22, 255))
+    d = ImageDraw.Draw(im)
+    d.rounded_rectangle((16, 16, 240, 240), radius=48, fill=(27, 25, 22, 255))
+    d.arc((40, 60, 216, 220), 200, 340, fill=(227, 164, 90, 255), width=18)
+im.save(out, sizes=[(16, 16), (32, 32), (48, 48), (64, 64), (128, 128), (256, 256)])
+print("Wrote", out)
+PY
 
 fetch_cached() {
   os=$1
@@ -36,48 +70,86 @@ fetch_cached() {
   packaging/fetch-portable-jdk.sh "$os" "$arch" "$dest"
 }
 
-stage_desktop_common() {
+stage_desktop() {
   stage=$1
   mkdir -p "$stage/app"
+  cp "packaging/desktop/bin/Lark Desktop.exe" "$stage/Lark Desktop.exe"
   cp dist/lark.jar "$stage/app/lark.jar"
-  # Top-level only: launcher scripts users actually click.
-  cp "packaging/desktop/Start Lark Desktop.bat" "$stage/Start Lark Desktop.bat"
-  cp packaging/desktop/start-lark-desktop.sh "$stage/start-lark-desktop.sh"
-  cp packaging/desktop/start-lark-desktop.sh "$stage/Start Lark Desktop.command"
   cp packaging/desktop/README-DESKTOP.txt "$stage/README.txt"
-  # Runtime + helpers tucked in app/
-  cp "packaging/desktop/Start Lark Desktop.vbs" "$stage/app/Start Lark Desktop.vbs"
-  cp "packaging/desktop/Install Lark Desktop.ps1" "$stage/app/Install Lark Desktop.ps1"
-  cp "packaging/desktop/Uninstall Lark Desktop.ps1" "$stage/app/Uninstall Lark Desktop.ps1"
-  cp "packaging/desktop/Install Lark Desktop.command" "$stage/app/Install Lark Desktop.command" 2>/dev/null || true
-  cp packaging/finish-update.bat "$stage/app/finish-update.bat" 2>/dev/null || true
-  cp "packaging/Stop Lark and Clean Cache.bat" "$stage/app/Stop Lark and Clean Cache.bat" 2>/dev/null || true
-  cp "packaging/Wipe Lark From This PC.bat" "$stage/app/Wipe Lark From This PC.bat" 2>/dev/null || true
+  cp packaging/desktop/start-lark-desktop.sh "$stage/start-lark-desktop.sh"
+  cp packaging/desktop/start-lark-desktop.sh "$stage/Launch Lark Desktop.command"
+  cp packaging/desktop/lark-icon.ico "$stage/app/lark-icon.ico"
   if [ -f packaging/desktop/lark-icon.png ]; then
     cp packaging/desktop/lark-icon.png "$stage/app/lark-icon.png"
   fi
   printf 'desktop\n' > "$stage/app/desktop.marker"
   printf '%s\n' "$github_latest/update.json" > "$stage/app/update-feed.url"
-  chmod 755 "$stage/start-lark-desktop.sh" "$stage/Start Lark Desktop.command"
-  chmod 755 "$stage/app/Install Lark Desktop.command" 2>/dev/null || true
+  chmod 755 "$stage/start-lark-desktop.sh" "$stage/Launch Lark Desktop.command"
 }
 
-# Slim desktop update (jar + top-level launchers + app helpers) — in-app updates.
-stage_update=$(mktemp -d)
-stage_desktop_common "$stage_update"
+echo "Staging Lark Desktop Windows payload (buried app/ + jdk/)..."
+fetch_cached windows x64
+payload=$(mktemp -d)
+stage_desktop "$payload"
+cp -a "$cache/windows-x64/jdk" "$payload/jdk"
+
+rm -f release/lark-desktop-windows.zip
+(cd "$payload" && zip -X -r "$root/release/lark-desktop-windows.zip" .)
+ls -lh release/lark-desktop-windows.zip
+
+# NSIS Setup wizard — primary Desktop download.
+if ! command -v makensis >/dev/null 2>&1; then
+  echo "makensis not found — skipping LarkDesktopSetup.exe (install nsis)." >&2
+else
+  echo "Building LarkDesktopSetup.exe (NSIS wizard)..."
+  nsi_dir="packaging/desktop"
+  rm -rf "$nsi_dir/payload"
+  mkdir -p "$nsi_dir/payload"
+  cp -a "$payload"/. "$nsi_dir/payload/"
+  makensis \
+    -D"LARK_VERSION=$version" \
+    -D"LARK_PAYLOAD=payload" \
+    -D"LARK_OUT=$root/release/LarkDesktopSetup.exe" \
+    "$nsi_dir/lark-desktop.nsi"
+  ls -lh release/LarkDesktopSetup.exe
+  # Alias for older Enterprise download links.
+  cp -f release/LarkDesktopSetup.exe release/LarkEnterpriseSetup.exe
+  rm -rf "$nsi_dir/payload"
+fi
+
+rm -rf "$payload"
+
+# Slim desktop update (jar + marker + scripts; omit running exe).
+stage_u=$(mktemp -d)
+stage_desktop "$stage_u"
+rm -f "$stage_u/Lark Desktop.exe"
 rm -f release/lark-desktop-update.zip
-(cd "$stage_update" && zip -X -r "$root/release/lark-desktop-update.zip" .)
-rm -rf "$stage_update"
+(cd "$stage_u" && zip -X -r "$root/release/lark-desktop-update.zip" .)
+rm -rf "$stage_u"
 ls -lh release/lark-desktop-update.zip
 
-pack_desktop() {
+# Compat aliases for older Enterprise / portable names.
+cp -f release/lark-desktop-windows.zip release/lark-enterprise-windows.zip
+cp -f release/lark-desktop-update.zip release/lark-enterprise-update.zip
+cp -f release/lark-desktop-update.zip release/lark-update.zip
+cp -f release/lark-desktop-update.zip release/lark.zip
+
+# Mac/Linux Desktop payload zips (exe-less; shell launcher + buried app/jdk).
+pack_unix() {
   name=$1
   os=$2
   arch=$3
-  echo "Building $name (Desktop + bundled JDK, slim top-level)..."
+  echo "Building $name (Desktop unix payload)..."
   fetch_cached "$os" "$arch"
   stage=$(mktemp -d)
-  stage_desktop_common "$stage"
+  mkdir -p "$stage/app"
+  cp dist/lark.jar "$stage/app/lark.jar"
+  cp packaging/desktop/README-DESKTOP.txt "$stage/README.txt"
+  cp packaging/desktop/start-lark-desktop.sh "$stage/start-lark-desktop.sh"
+  cp packaging/desktop/start-lark-desktop.sh "$stage/Launch Lark Desktop.command"
+  printf 'desktop\n' > "$stage/app/desktop.marker"
+  printf '%s\n' "$github_latest/update.json" > "$stage/app/update-feed.url"
+  chmod 755 "$stage/start-lark-desktop.sh" "$stage/Launch Lark Desktop.command"
   cp -a "$cache/${os}-${arch}/jdk" "$stage/jdk"
   rm -f "release/$name"
   (cd "$stage" && zip -X -r "$root/release/$name" .)
@@ -90,82 +162,53 @@ case "$host_arch" in
   arm64|aarch64) host_arch=aarch64 ;;
   *) host_arch=x64 ;;
 esac
-
-pack_desktop lark-desktop-windows.zip windows x64
-pack_desktop lark-desktop-linux.zip linux "$host_arch"
-pack_desktop lark-desktop-mac.zip mac "$host_arch"
-
-# Unified product: portable zip names are aliases of Desktop packages.
-cp -f release/lark-desktop-windows.zip release/lark-windows.zip
+pack_unix lark-desktop-mac.zip mac "$host_arch"
+pack_unix lark-desktop-linux.zip linux "$host_arch"
 cp -f release/lark-desktop-mac.zip release/lark-mac.zip
 cp -f release/lark-desktop-linux.zip release/lark-linux.zip
-cp -f release/lark-desktop-update.zip release/lark-update.zip
-cp -f release/lark-desktop-update.zip release/lark.zip
-ls -lh release/lark-windows.zip release/lark-update.zip
-
-# Linux native packages via jpackage when available.
-if command -v jpackage >/dev/null 2>&1; then
-  echo "Building Linux app-image with jpackage..."
-  jp_in=$(mktemp -d)
-  mkdir -p "$jp_in"
-  cp dist/lark.jar "$jp_in/lark.jar"
-  icon_args=
-  if [ -f packaging/desktop/lark-icon.png ]; then
-    icon_args="--icon packaging/desktop/lark-icon.png"
-  fi
-  rm -rf release/Lark release/lark-desktop-linux-appimage
-  # shellcheck disable=SC2086
-  jpackage \
-    --type app-image \
-    --name Lark \
-    --app-version "$version" \
-    --description "Lark Desktop — focused Java IDE" \
-    --vendor "Lark" \
-    --input "$jp_in" \
-    --main-jar lark.jar \
-    --main-class lark.Desktop \
-    --dest release \
-    --java-options "-Dlark.desktop=true" \
-    --java-options "-Dlark.channel=desktop" \
-    --java-options "-Dlark.ui=jar" \
-    $icon_args \
-    || echo "jpackage app-image skipped/failed (non-fatal)"
-  if [ -d release/Lark ]; then
-    if [ -d release/Lark/lib/app ]; then
-      printf 'desktop\n' > release/Lark/lib/app/desktop.marker
-      printf '%s\n' "$github_latest/update.json" > release/Lark/lib/app/update-feed.url
-    fi
-    rm -f release/lark-desktop-linux-appimage.zip
-    (cd release && zip -X -r lark-desktop-linux-appimage.zip Lark)
-    ls -lh release/lark-desktop-linux-appimage.zip
-  fi
-  rm -rf "$jp_in"
-else
-  echo "jpackage not found — skipping native Linux app-image"
-fi
+cp -f release/lark-desktop-windows.zip release/lark-windows.zip
 
 if [ -f release/update.json ]; then
   python3 - <<PY
-import json, pathlib
+import json, pathlib, hashlib
 p = pathlib.Path("release/update.json")
 data = json.loads(p.read_text())
 base = "$feed_base"
 data["version"] = "$version"
-data["notes"] = """$notes"""
 data.setdefault("downloads", {})
-# Desktop is the primary channel; portable keys alias the same artifacts.
-for key in ("desktop", "desktop-windows", "desktop-mac", "desktop-linux",
-            "windows", "mac", "linux", "any"):
-    data["downloads"][key] = f"{base}/lark-desktop-update.zip"
+for k in ("desktop", "desktop-windows", "desktop-mac", "desktop-linux",
+          "enterprise", "enterprise-windows", "windows", "mac", "linux", "any"):
+    data["downloads"][k] = f"{base}/lark-desktop-update.zip"
 data["desktop"] = {
-  "windows": f"{base}/lark-desktop-windows.zip",
+  "windows": f"{base}/LarkDesktopSetup.exe",
+  "windows-zip": f"{base}/lark-desktop-windows.zip",
   "mac": f"{base}/lark-desktop-mac.zip",
   "linux": f"{base}/lark-desktop-linux.zip",
 }
+data["enterprise"] = {
+  "windows": f"{base}/LarkDesktopSetup.exe",
+  "windows-zip": f"{base}/lark-desktop-windows.zip",
+}
+sha = data.setdefault("sha256", {})
+def h(path):
+    f = pathlib.Path(path)
+    return hashlib.sha256(f.read_bytes()).hexdigest() if f.is_file() else ""
+hu = h("release/lark-desktop-update.zip")
+if hu:
+    for k in ("desktop", "desktop-windows", "desktop-mac", "desktop-linux",
+              "enterprise", "enterprise-windows", "lark-desktop-update.zip",
+              "lark-enterprise-update.zip", "lark-update.zip", "any", "windows", "mac", "linux"):
+        sha[k] = hu
+hs = h("release/LarkDesktopSetup.exe")
+if hs:
+    sha["LarkDesktopSetup.exe"] = hs
+    sha["LarkEnterpriseSetup.exe"] = hs
 p.write_text(json.dumps(data, indent=2) + "\n")
-print("Updated release/update.json with unified desktop keys")
+print("Updated release/update.json with desktop keys")
 PY
 fi
 
-ls -lh release/lark-desktop-*.zip release/update.json 2>/dev/null || true
-echo "Desktop packages ready for Lark $version (portable aliases included)"
+echo "Lark Desktop packages ready for $version"
+echo "Primary: release/LarkDesktopSetup.exe"
+echo "Also:    release/lark-desktop-windows.zip (payload)"
+echo "Update:  release/lark-desktop-update.zip"

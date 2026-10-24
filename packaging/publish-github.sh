@@ -8,7 +8,7 @@ REPO_NAME="${LARK_GITHUB_REPO:-lark}"
 VISIBILITY="${LARK_GITHUB_VISIBILITY:-public}"
 VERSION=$(sed -n 's/.*VERSION = "\([^"]*\)".*/\1/p' src/lark/Settings.java | head -n 1)
 TAG="v${VERSION}"
-NOTES="${LARK_UPDATE_NOTES:-Lark ${VERSION}: Desktop install (Start Menu, update prompts) plus portable zips for Windows, Mac, and Linux — no admin password.}"
+NOTES="${LARK_UPDATE_NOTES:-Lark ${VERSION}: Desktop (Setup install), Executable (Lark.exe zip), and Mobile. Hardened launchers, buried runtime, SHA-256 updates.}"
 
 if ! gh auth status >/dev/null 2>&1; then
   echo "Sign in first: gh auth login"
@@ -57,15 +57,13 @@ if ! git diff --cached --quiet; then
 fi
 
 assets=(
-  release/lark-windows.zip
-  release/lark-mac.zip
-  release/lark-linux.zip
-  release/lark.zip
-  release/lark-update.zip
+  release/LarkDesktopSetup.exe
   release/lark-desktop-windows.zip
   release/lark-desktop-mac.zip
   release/lark-desktop-linux.zip
   release/lark-desktop-update.zip
+  release/lark-executable-windows.zip
+  release/lark-executable-update.zip
   release/lark-mobile.zip
   release/lark-mobile-update.zip
   release/lark-mobile-windows.zip
@@ -76,6 +74,11 @@ assets=(
   release/LarkEnterpriseSetup.exe
   release/lark-enterprise-windows.zip
   release/lark-enterprise-update.zip
+  release/lark-windows.zip
+  release/lark-mac.zip
+  release/lark-linux.zip
+  release/lark.zip
+  release/lark-update.zip
   release/update.json
 )
 # Optional Linux app-image zip from jpackage.

@@ -40,9 +40,9 @@ fi
 jar --create --file dist/lark.jar --main-class lark.Lark -C build . -C . web -C . web-mobile
 # Never leave edition markers beside dist/lark.jar — they make portable runs
 # mis-detect as Mobile/Desktop (installDir is the jar's parent).
-rm -f dist/mobile.marker dist/desktop.marker dist/school.marker dist/enterprise.marker
+rm -f dist/mobile.marker dist/desktop.marker dist/school.marker dist/enterprise.marker dist/executable.marker
 echo "Wrote dist/lark.jar"
-echo "Run portable:    java -jar dist/lark.jar"
-echo "Run desktop:     java -cp dist/lark.jar lark.Desktop"
-echo "Run enterprise:  java -cp dist/lark.jar lark.Enterprise"
-echo "Run mobile:      java -cp dist/lark.jar lark.Mobile"
+echo "Run portable:     java -jar dist/lark.jar"
+echo "Run desktop:      java -cp dist/lark.jar lark.Desktop"
+echo "Run executable:   java -cp dist/lark.jar lark.Executable"
+echo "Run mobile:       java -cp dist/lark.jar lark.Mobile"

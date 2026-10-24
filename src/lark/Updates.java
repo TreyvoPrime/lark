@@ -46,16 +46,16 @@ public final class Updates {
 
     public Json.Obj check() {
         String feed = resolveFeed();
-        boolean enterprise = Enterprise.isEnterprise();
-        boolean desktop = Desktop.isDesktop() && !enterprise;
-        String edition = enterprise ? "enterprise" : desktop ? "desktop" : "portable";
+        boolean desktop = Desktop.isDesktop() || Enterprise.isEnterprise();
+        boolean executable = Executable.isExecutable() && !desktop;
+        String edition = desktop ? "desktop" : executable ? "executable" : Mobile.isMobile() ? "mobile" : "portable";
         Json.Obj result = new Json.Obj()
                 .put("ok", true)
                 .put("current", Settings.VERSION)
                 .put("feed", feed == null ? "" : feed)
                 .put("available", false)
                 .put("edition", edition)
-                .put("prompt", desktop || enterprise);
+                .put("prompt", desktop || executable);
         if (feed == null || feed.isBlank()) {
             return result.put("message", "No update feed is set.");
         }
@@ -69,8 +69,8 @@ public final class Updates {
             String notes = info.notes;
             String skipped = settings.skippedUpdate == null ? "" : settings.skippedUpdate;
             boolean newer = compareVersions(latest, Settings.VERSION) > 0;
-            // Desktop / Enterprise prompt every launch until updated; skip only soft-dismisses once.
-            boolean skippedThis = newer && latest.equals(skipped) && !desktop && !enterprise;
+            // Desktop prompts every launch until updated; Executable soft-skips once.
+            boolean skippedThis = newer && latest.equals(skipped) && !desktop;
             String download = info.download;
             result.put("available", newer && !skippedThis)
                     .put("latest", latest)
@@ -79,11 +79,11 @@ public final class Updates {
                     .put("sha256", info.sha256 == null ? "" : info.sha256)
                     .put("skipped", skippedThis)
                     .put("page", info.page == null ? "" : info.page)
-                    .put("required", (desktop || enterprise) && newer);
+                    .put("required", desktop && newer);
             if (!newer) result.put("message", "You're on the latest Lark (" + Settings.VERSION + ").");
             else if (skippedThis) result.put("message", "Update " + latest + " is available, but you skipped it.");
-            else if (enterprise) result.put("message", "Lark Enterprise " + latest + " is ready — update to keep your install current.");
             else if (desktop) result.put("message", "Lark Desktop " + latest + " is ready — update to keep your install current.");
+            else if (executable) result.put("message", "Lark Executable " + latest + " is available.");
             else result.put("message", "Lark " + latest + " is available.");
             settings.lastUpdateCheck = System.currentTimeMillis();
             settings.save();
@@ -304,11 +304,13 @@ public final class Updates {
             }
             // Seed launchers from the running jar first, then let the update zip
             // overwrite them. Never refresh AFTER extract — that would clobber the
-            // new Start Lark.bat with the old one still loaded in memory.
-            refreshLaunchers(installDir);
-            if (Enterprise.isEnterprise()) refreshEnterpriseLaunchers(installDir);
-            else if (Desktop.isDesktop()) refreshDesktopLaunchers(installDir);
-            if (Mobile.isMobile()) refreshMobileLaunchers(installDir);
+            // new launchers with the old ones still loaded in memory.
+            boolean desktop = Desktop.isDesktop() || Enterprise.isEnterprise();
+            boolean executable = Executable.isExecutable() && !desktop;
+            if (desktop) refreshDesktopLaunchers(installDir);
+            else if (executable) refreshExecutableMarkers(installDir);
+            else if (Mobile.isMobile()) refreshMobileLaunchers(installDir);
+            else refreshLaunchers(installDir);
             extractUpdate(zip, extracted, installDir);
             try {
                 Files.move(extracted, pending, StandardCopyOption.REPLACE_EXISTING, StandardCopyOption.ATOMIC_MOVE);
@@ -367,65 +369,33 @@ public final class Updates {
         }
     }
 
-    /** Spawns the portable or desktop launcher, then exits so Windows can finish any jar swap. */
+    /** Spawns the native or script launcher, then exits so Windows can finish any jar swap. */
     public Json.Obj restart() {
         Path dir = installDir();
         if (dir == null) throw new RequestFail(500, "Lark couldn't find its install folder.");
         boolean windows = System.getProperty("os.name", "").toLowerCase(Locale.ROOT).contains("win");
-        boolean enterprise = Enterprise.isEnterprise();
-        boolean desktop = Desktop.isDesktop() && !enterprise;
+        boolean desktop = Desktop.isDesktop() || Enterprise.isEnterprise();
+        boolean executable = Executable.isExecutable() && !desktop;
         boolean mobile = Mobile.isMobile();
-        boolean school = School.isSchool();
         try {
-            refreshLaunchers(dir);
-            if (enterprise) refreshEnterpriseLaunchers(dir);
             if (desktop) refreshDesktopLaunchers(dir);
+            if (executable) refreshExecutableMarkers(dir);
             if (mobile) refreshMobileLaunchers(dir);
             if (windows) {
+                Path desktopExe = dir.resolve("Lark Desktop.exe");
+                Path enterpriseExe = dir.resolve("Lark Enterprise.exe");
+                Path executableExe = dir.resolve("Lark.exe");
+                if (desktop && Files.isRegularFile(desktopExe)) {
+                    return restartNativeExe(desktopExe, dir, "Restarting Lark Desktop…");
+                }
+                if (desktop && Files.isRegularFile(enterpriseExe)) {
+                    return restartNativeExe(enterpriseExe, dir, "Restarting Lark Desktop…");
+                }
+                if (executable && Files.isRegularFile(executableExe)) {
+                    return restartNativeExe(executableExe, dir, "Restarting Lark Executable…");
+                }
                 Path script;
-                if (enterprise) {
-                    Path exe = dir.resolve("Lark Enterprise.exe");
-                    if (!Files.isRegularFile(exe)) {
-                        throw new RequestFail(500, "Lark Enterprise.exe is missing. Re-run LarkEnterpriseSetup.exe.");
-                    }
-                    new ProcessBuilder(exe.toAbsolutePath().toString())
-                            .directory(dir.toFile())
-                            .start();
-                    Thread stopper = new Thread(() -> {
-                        try {
-                            Thread.sleep(1500);
-                        } catch (InterruptedException ignored) {
-                            Thread.currentThread().interrupt();
-                        }
-                        System.exit(0);
-                    }, "lark-restart");
-                    stopper.setDaemon(true);
-                    stopper.start();
-                    return new Json.Obj()
-                            .put("ok", true)
-                            .put("message", "Restarting Lark Enterprise…");
-                } else if (school) {
-                    Path exe = dir.resolve("Lark.exe");
-                    if (!Files.isRegularFile(exe)) {
-                        throw new RequestFail(500, "Lark.exe is missing. Re-download lark-school-windows.zip.");
-                    }
-                    new ProcessBuilder(exe.toAbsolutePath().toString())
-                            .directory(dir.toFile())
-                            .start();
-                    Thread stopper = new Thread(() -> {
-                        try {
-                            Thread.sleep(1500);
-                        } catch (InterruptedException ignored) {
-                            Thread.currentThread().interrupt();
-                        }
-                        System.exit(0);
-                    }, "lark-restart");
-                    stopper.setDaemon(true);
-                    stopper.start();
-                    return new Json.Obj()
-                            .put("ok", true)
-                            .put("message", "Restarting Lark School…");
-                } else if (mobile) {
+                if (mobile) {
                     Path vbs = dir.resolve("Start Lark Mobile.vbs");
                     Path bat = dir.resolve("Start Lark Mobile.bat");
                     Path finish = dir.resolve("finish-update.bat");
@@ -433,12 +403,11 @@ public final class Updates {
                     else if (Files.isRegularFile(bat)) script = bat;
                     else script = Files.isRegularFile(finish) ? finish : dir.resolve("Start Lark.bat");
                 } else if (desktop) {
-                    Path vbs = dir.resolve("Launch Lark Desktop.vbs");
-                    Path bat = dir.resolve("Launch Lark Desktop.bat");
-                    Path finish = dir.resolve("finish-update.bat");
-                    if (Files.isRegularFile(vbs)) script = vbs;
+                    Path appVbs = appDir(dir).resolve("Start Lark Desktop.vbs");
+                    Path bat = dir.resolve("Start Lark Desktop.bat");
+                    if (Files.isRegularFile(appVbs)) script = appVbs;
                     else if (Files.isRegularFile(bat)) script = bat;
-                    else script = Files.isRegularFile(finish) ? finish : dir.resolve("Start Lark.bat");
+                    else script = dir.resolve("Launch Lark Desktop.bat");
                 } else {
                     Path finish = dir.resolve("finish-update.bat");
                     Path start = dir.resolve("Start Lark.bat");
@@ -455,9 +424,6 @@ public final class Updates {
                 if (mobile) {
                     start = dir.resolve("start-lark-mobile.sh");
                     if (!Files.isRegularFile(start)) start = dir.resolve("Start Lark Mobile.command");
-                } else if (enterprise) {
-                    start = dir.resolve("start-lark-enterprise.sh");
-                    if (!Files.isRegularFile(start)) start = dir.resolve("Launch Lark Enterprise.command");
                 } else if (desktop) {
                     start = dir.resolve("start-lark-desktop.sh");
                     if (!Files.isRegularFile(start)) start = dir.resolve("Launch Lark Desktop.command");
@@ -477,7 +443,6 @@ public final class Updates {
         } catch (Exception e) {
             throw new RequestFail(500, e.getMessage() == null ? "Couldn't restart Lark." : e.getMessage());
         }
-        // Give finish-update.bat time to start before this JVM exits and unlocks files.
         Thread stopper = new Thread(() -> {
             try {
                 Thread.sleep(1500);
@@ -489,12 +454,29 @@ public final class Updates {
         stopper.setDaemon(true);
         stopper.start();
         String msg = mobile ? "Restarting Lark Mobile…"
-                : enterprise ? "Restarting Lark Enterprise…"
                 : desktop ? "Restarting Lark Desktop…"
+                : executable ? "Restarting Lark Executable…"
                 : "Restarting Lark…";
         return new Json.Obj()
                 .put("ok", true)
                 .put("message", msg);
+    }
+
+    private static Json.Obj restartNativeExe(Path exe, Path dir, String message) throws IOException {
+        new ProcessBuilder(exe.toAbsolutePath().toString())
+                .directory(dir.toFile())
+                .start();
+        Thread stopper = new Thread(() -> {
+            try {
+                Thread.sleep(1500);
+            } catch (InterruptedException ignored) {
+                Thread.currentThread().interrupt();
+            }
+            System.exit(0);
+        }, "lark-restart");
+        stopper.setDaemon(true);
+        stopper.start();
+        return new Json.Obj().put("ok", true).put("message", message);
     }
 
     private static boolean tryApplyPending(Path pending, Path target, Path bak) {
@@ -532,8 +514,9 @@ public final class Updates {
         chmodLaunchers(installDir, "start-lark.sh", "Start Lark.command");
     }
 
-    /** Ensures Enterprise channel marker stays next to the install (exe comes from update zip). */
+    /** Older Enterprise installs — keep shell helpers + marker for update compatibility. */
     static void refreshEnterpriseLaunchers(Path installDir) {
+        refreshDesktopLaunchers(installDir);
         if (installDir == null || !Files.isDirectory(installDir)) return;
         try {
             if (!Files.isRegularFile(installDir.resolve("enterprise.marker"))) {
@@ -542,12 +525,9 @@ public final class Updates {
         } catch (IOException ignored) {
             // Best-effort channel marker.
         }
-        writeLaunchResource("lark/launch/start-lark-enterprise.sh", installDir.resolve("start-lark-enterprise.sh"));
-        writeLaunchResource("lark/launch/start-lark-enterprise.sh", installDir.resolve("Launch Lark Enterprise.command"));
-        chmodLaunchers(installDir, "start-lark-enterprise.sh", "Launch Lark Enterprise.command");
     }
 
-    /** Writes Lark Desktop launchers — top-level Start + helpers in app/. */
+    /** Ensures Desktop channel marker under app/; shell helpers for unix payloads. */
     static void refreshDesktopLaunchers(Path installDir) {
         if (installDir == null || !Files.isDirectory(installDir)) return;
         Path app = appDir(installDir);
@@ -556,19 +536,15 @@ public final class Updates {
         } catch (IOException ignored) {
             // Best-effort.
         }
-        // Visible entrypoints only at install root.
-        writeLaunchResource("lark/launch/StartDesktop.bat", installDir.resolve("Start Lark Desktop.bat"));
+        boolean setupInstall = Files.isRegularFile(installDir.resolve("Lark Desktop.exe"))
+                || Files.isRegularFile(installDir.resolve("Lark Enterprise.exe"));
+        // Setup installs: only refresh unix helpers + marker — do not scatter .bat at root.
         writeLaunchResource("lark/launch/start-lark-desktop.sh", installDir.resolve("start-lark-desktop.sh"));
-        writeLaunchResource("lark/launch/start-lark-desktop.sh", installDir.resolve("Start Lark Desktop.command"));
-        // Runtime helpers stay under app/.
-        writeLaunchResource("lark/launch/StartDesktop.vbs", app.resolve("Start Lark Desktop.vbs"));
-        writeLaunchResource("lark/launch/InstallDesktop.ps1", app.resolve("Install Lark Desktop.ps1"));
-        writeLaunchResource("lark/launch/UninstallDesktop.ps1", app.resolve("Uninstall Lark Desktop.ps1"));
-        writeLaunchResource("lark/launch/finish-update.bat", app.resolve("finish-update.bat"));
-        writeLaunchResource("lark/launch/StopLarkClean.bat", app.resolve("Stop Lark and Clean Cache.bat"));
-        writeLaunchResource("lark/launch/WipeLark.bat", app.resolve("Wipe Lark From This PC.bat"));
-        // Also refresh Launch Lark Desktop.bat for older Start Menu shortcuts.
-        writeLaunchResource("lark/launch/StartDesktop.bat", installDir.resolve("Launch Lark Desktop.bat"));
+        writeLaunchResource("lark/launch/start-lark-desktop.sh", installDir.resolve("Launch Lark Desktop.command"));
+        if (!setupInstall) {
+            writeLaunchResource("lark/launch/StartDesktop.bat", installDir.resolve("Start Lark Desktop.bat"));
+            writeLaunchResource("lark/launch/StartDesktop.vbs", app.resolve("Start Lark Desktop.vbs"));
+        }
         try {
             if (!Files.isRegularFile(app.resolve("desktop.marker"))) {
                 Files.writeString(app.resolve("desktop.marker"), "desktop\n");
@@ -576,7 +552,21 @@ public final class Updates {
         } catch (IOException ignored) {
             // Best-effort channel marker.
         }
-        chmodLaunchers(installDir, "start-lark-desktop.sh", "Start Lark Desktop.command");
+        chmodLaunchers(installDir, "start-lark-desktop.sh", "Launch Lark Desktop.command", "Start Lark Desktop.command");
+    }
+
+    /** Keeps Executable / School channel markers under app/. */
+    static void refreshExecutableMarkers(Path installDir) {
+        if (installDir == null || !Files.isDirectory(installDir)) return;
+        Path app = appDir(installDir);
+        try {
+            Files.createDirectories(app);
+            if (!Files.isRegularFile(app.resolve("executable.marker"))) {
+                Files.writeString(app.resolve("executable.marker"), "executable\n");
+            }
+        } catch (IOException ignored) {
+            // Best-effort.
+        }
     }
 
     /** Writes Lark Mobile launchers (touch UI + phone pair). */
@@ -787,18 +777,19 @@ public final class Updates {
         if (os.contains("win")) key = "windows";
         else if (os.contains("mac")) key = "mac";
         String url = "";
-        if (School.isSchool()) {
-            url = downloads.str("school-" + key, "");
-            if (url.isBlank()) url = downloads.str("school", "");
-        } else if (Mobile.isMobile()) {
+        if (Mobile.isMobile()) {
             url = downloads.str("mobile-" + key, "");
             if (url.isBlank()) url = downloads.str("mobile", "");
-        } else if (Enterprise.isEnterprise()) {
-            url = downloads.str("enterprise-" + key, "");
-            if (url.isBlank()) url = downloads.str("enterprise", "");
-        } else if (Desktop.isDesktop()) {
+        } else if (Desktop.isDesktop() || Enterprise.isEnterprise()) {
             url = downloads.str("desktop-" + key, "");
             if (url.isBlank()) url = downloads.str("desktop", "");
+            if (url.isBlank()) url = downloads.str("enterprise-" + key, "");
+            if (url.isBlank()) url = downloads.str("enterprise", "");
+        } else if (Executable.isExecutable()) {
+            url = downloads.str("executable-" + key, "");
+            if (url.isBlank()) url = downloads.str("executable", "");
+            if (url.isBlank()) url = downloads.str("school-" + key, "");
+            if (url.isBlank()) url = downloads.str("school", "");
         }
         if (url.isBlank()) url = downloads.str(key, "");
         if (url.isBlank()) url = downloads.str("any", "");
@@ -869,7 +860,7 @@ public final class Updates {
                     foundJar = true;
                     continue;
                 }
-                if ("Lark Enterprise.exe".equals(base) || "Lark.exe".equals(base)) {
+                if ("Lark Desktop.exe".equals(base) || "Lark Enterprise.exe".equals(base) || "Lark.exe".equals(base)) {
                     // Windows launchers lock their own image while running. Stage beside
                     // the install; the native launcher renames .pending into place on boot.
                     Path staged = ensureInsideInstall(root, root.resolve(base + ".pending"));
@@ -890,6 +881,7 @@ public final class Updates {
                         || "Install Lark Desktop.ps1".equals(base) || "Uninstall Lark Desktop.ps1".equals(base)
                         || "Install Lark Desktop.command".equals(base)
                         || "desktop.marker".equals(base)
+                        || "executable.marker".equals(base)
                         || "school.marker".equals(base)
                         || "enterprise.marker".equals(base)
                         || "start-lark-enterprise.sh".equals(base) || "Launch Lark Enterprise.command".equals(base)
@@ -897,6 +889,7 @@ public final class Updates {
                         || "README.txt".equals(base) || "update-feed.url".equals(base);
                 if (!allowed) continue;
                 Path dest;
+                boolean buryRuntime = Desktop.isDesktop() || Enterprise.isEnterprise() || Executable.isExecutable();
                 if (underApp) {
                     dest = ensureInsideInstall(root, root.resolve(name));
                 } else if (topLevel && ("Start Lark Desktop.bat".equals(base)
@@ -907,10 +900,12 @@ public final class Updates {
                         || "Start Lark.bat".equals(base)
                         || "Start Lark.command".equals(base)
                         || "start-lark.sh".equals(base)
-                        || "README.txt".equals(base))) {
+                        || "README.txt".equals(base)
+                        || "Lark Desktop.exe".equals(base)
+                        || "Lark.exe".equals(base))) {
                     dest = ensureInsideInstall(root, root.resolve(base));
-                } else if (Desktop.isDesktop()) {
-                    // Helpers belong in app/ for the unified Desktop layout.
+                } else if (buryRuntime) {
+                    // Markers, icons, feed URL belong under app/ for slim installs.
                     dest = ensureInsideInstall(root, appDir(root).resolve(base));
                 } else {
                     dest = ensureInsideInstall(root, root.resolve(base));

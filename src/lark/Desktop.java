@@ -17,9 +17,9 @@ import java.io.IOException;
 import java.util.concurrent.CountDownLatch;
 
 /**
- * Lark Desktop — enterprise install that opens in its own app window
- * (Chrome/Edge --app mode), keeps a system tray exit control, and uses
- * the desktop update channel.
+ * Lark Desktop — default installed edition (Setup wizard). Opens in its own
+ * app window (Chrome/Edge --app mode), keeps a system tray exit control, and
+ * uses the desktop update channel. Runtime lives under {@code app/} + {@code jdk/}.
  */
 public final class Desktop {
     static final String CHANNEL = "desktop";
@@ -106,7 +106,6 @@ public final class Desktop {
 
         Settings settings = Settings.load();
         try {
-            Updates.refreshLaunchers(Updates.installDir());
             Updates.refreshDesktopLaunchers(Updates.installDir());
         } catch (Throwable t) {
             System.out.println("Note: could not refresh launchers (" + t.getMessage() + ")");
@@ -136,13 +135,13 @@ public final class Desktop {
 
     private static void help() {
         System.out.println("""
-                Lark Desktop — enterprise Java IDE
+                Lark Desktop — default installed Java IDE (Setup wizard)
 
                 Usage:
                   java -cp lark.jar lark.Desktop [--port 43123] [--no-browser]
 
-                Installs live under %LOCALAPPDATA%\\Programs\\Lark (Windows)
-                or ~/Applications/Lark Desktop (Mac/Linux). Updates prompt in-app.
+                Installs under %LOCALAPPDATA%\\Programs\\Lark (Windows) via
+                LarkDesktopSetup.exe. Updates prompt in-app and require SHA-256.
                 """);
     }
 

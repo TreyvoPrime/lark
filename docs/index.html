@@ -448,8 +448,8 @@
       <h1 class="headline">Java without the weight.</h1>
       <p class="lead">Lark is a focused IDE for real Java work — compile, run, debug, and refactor. Not a plugin marketplace. Not a month of setup. Just the tools you actually use.</p>
       <div class="cta">
-        <a id="primary-dl" class="primary" href="https://github.com/TreyvoPrime/lark/releases/latest/download/lark-desktop-windows.zip">Download Lark Desktop</a>
-        <a id="secondary-dl" class="ghost" href="#desktop">All platforms</a>
+        <a id="primary-dl" class="primary" href="https://github.com/TreyvoPrime/lark/releases/latest/download/LarkDesktopSetup.exe">Download Lark Desktop</a>
+        <a id="secondary-dl" class="ghost" href="#compare">Executable &amp; Mobile</a>
       </div>
       <p id="status"></p>
     </section>
@@ -491,23 +491,23 @@
       </div>
     </section>
 
-    <section class="section" id="compare" aria-label="Desktop vs school vs mobile">
+    <section class="section" id="compare" aria-label="Desktop vs executable vs mobile">
       <h2>What’s the difference?</h2>
-      <p class="sub">Lark Desktop is the one main zip (Start + jdk + app). School and Mobile stay separate editions.</p>
+      <p class="sub">Three tracks. Desktop is the default Setup install. Executable is unzip-and-run. Mobile is touch-first.</p>
       <div class="cta-pair">
         <div class="track-card featured">
           <p class="track-badge">Recommended</p>
           <h3>Lark Desktop</h3>
-          <p>Extract All → run <code>Start Lark Desktop</code>. You mainly see the launcher, <code>jdk\</code>, and <code>app\</code>. Opens in its own window and prompts for updates. Optional Start Menu install lives in <code>app\</code>.</p>
-          <p>File names: <code>lark-desktop-windows.zip</code>, mac, linux</p>
-          <a id="compare-desktop" class="dl" href="https://github.com/TreyvoPrime/lark/releases/latest/download/lark-desktop-windows.zip">Get Lark Desktop</a>
+          <p>Run <code>LarkDesktopSetup.exe</code>. Start Menu + Desktop shortcuts. After install you mainly see <code>Lark Desktop.exe</code> — runtime stays buried under hidden <code>app\</code> and <code>jdk\</code>.</p>
+          <p>File: <code>LarkDesktopSetup.exe</code></p>
+          <a id="compare-desktop" class="dl" href="https://github.com/TreyvoPrime/lark/releases/latest/download/LarkDesktopSetup.exe">Get Lark Desktop</a>
         </div>
         <div class="track-card">
-          <p class="track-badge">School PCs</p>
-          <h3>Lark School</h3>
-          <p>Same Java IDE, but you double-click <code>Lark.exe</code> — no <code>.bat</code> file. Built for labs that block batch scripts.</p>
-          <p>File name: <code>lark-school-windows.zip</code></p>
-          <a id="compare-school" class="dl" href="https://github.com/TreyvoPrime/lark/releases/latest/download/lark-school-windows.zip">Get Lark School</a>
+          <p class="track-badge">No installer</p>
+          <h3>Lark Executable</h3>
+          <p>Extract All → double-click <code>Lark.exe</code>. No <code>.bat</code>. Built for labs and USB drives. Same buried runtime as Desktop.</p>
+          <p>File: <code>lark-executable-windows.zip</code></p>
+          <a id="compare-executable" class="dl" href="https://github.com/TreyvoPrime/lark/releases/latest/download/lark-executable-windows.zip">Get Lark Executable</a>
         </div>
       </div>
       <div class="cta-pair" style="margin-top:16px">
@@ -521,35 +521,58 @@
       </div>
       <table class="compare" style="margin-top:28px">
         <thead>
-          <tr><th></th><th>Lark Desktop</th><th>Lark School</th><th>Lark Mobile</th></tr>
+          <tr><th></th><th>Lark Desktop</th><th>Lark Executable</th><th>Lark Mobile</th></tr>
         </thead>
         <tbody>
-          <tr><td>Install</td><td class="yes">Unzip · optional Install in app\</td><td>Unzip · Lark.exe</td><td>Unzip only</td></tr>
+          <tr><td>Install</td><td class="yes">Setup wizard · Start Menu</td><td>Unzip · Lark.exe</td><td>Unzip only</td></tr>
           <tr><td>UI</td><td>Full desktop IDE</td><td>Full desktop IDE</td><td class="yes">Touch Mobile UI</td></tr>
           <tr><td>Phone pair</td><td>—</td><td>—</td><td class="yes">Wi‑Fi URL + pair code</td></tr>
-          <tr><td>Updates</td><td class="yes">Prompts on launch</td><td>In-app / school channel</td><td class="yes">Mobile channel</td></tr>
-          <tr><td>Best for</td><td>Everyday machine, own window</td><td>USB, shared machines</td><td>Tablet + phone editing</td></tr>
+          <tr><td>Updates</td><td class="yes">Prompts on launch</td><td class="yes">Executable channel</td><td class="yes">Mobile channel</td></tr>
+          <tr><td>Best for</td><td>Everyday machine</td><td>Labs, USB, no scripts</td><td>Tablet + phone editing</td></tr>
         </tbody>
       </table>
     </section>
 
-    <section class="section" id="school" aria-label="School downloads">
-      <p class="track-badge">Track 3</p>
-      <h2>Lark School (no .bat)</h2>
-      <p class="sub">For Windows labs that block batch files. Extract All, then double-click <code>Lark.exe</code>. Keep <code>Lark.exe</code>, <code>lark.jar</code>, and <code>jdk\</code> together.</p>
+    <section class="section" id="desktop" aria-label="Desktop installs">
+      <p class="track-badge">Main</p>
+      <h2>Lark Desktop</h2>
+      <p class="sub">Default install. Windows Setup wizard with Start Menu shortcuts. Lightweight: about 45&nbsp;MB to download, ~200&nbsp;MB on disk with the bundled JDK.</p>
       <div class="grid">
-        <article id="card-school-windows">
-          <h3>Windows school zip</h3>
-          <p>No Start Lark.bat. Just <code>Lark.exe</code>.</p>
-          <a class="dl" href="https://github.com/TreyvoPrime/lark/releases/latest/download/lark-school-windows.zip">lark-school-windows.zip</a>
+        <article id="card-desktop-windows">
+          <h3>Windows Setup</h3>
+          <p>Run <code>LarkDesktopSetup.exe</code> — welcome → folder → install → launch.</p>
+          <a id="desktop-setup-link" class="dl" href="https://github.com/TreyvoPrime/lark/releases/latest/download/LarkDesktopSetup.exe">LarkDesktopSetup.exe</a>
+        </article>
+        <article id="card-desktop-mac">
+          <h3>Mac payload</h3>
+          <p>Extract → run <code>Launch Lark Desktop.command</code> (keep <code>app/</code> and <code>jdk/</code>).</p>
+          <a class="dl" href="https://github.com/TreyvoPrime/lark/releases/latest/download/lark-desktop-mac.zip">lark-desktop-mac.zip</a>
+        </article>
+        <article id="card-desktop-linux">
+          <h3>Linux payload</h3>
+          <p>Extract → <code>./start-lark-desktop.sh</code>.</p>
+          <a class="dl" href="https://github.com/TreyvoPrime/lark/releases/latest/download/lark-desktop-linux.zip">lark-desktop-linux.zip</a>
+        </article>
+      </div>
+    </section>
+
+    <section class="section" id="executable" aria-label="Executable downloads">
+      <p class="track-badge">No installer</p>
+      <h2>Lark Executable</h2>
+      <p class="sub">Extract All, then double-click <code>Lark.exe</code>. No batch files. Runtime folders stay hidden beside the exe.</p>
+      <div class="grid">
+        <article id="card-executable-windows">
+          <h3>Windows</h3>
+          <p>Just <code>Lark.exe</code> at the top of the folder.</p>
+          <a class="dl" href="https://github.com/TreyvoPrime/lark/releases/latest/download/lark-executable-windows.zip">lark-executable-windows.zip</a>
         </article>
       </div>
     </section>
 
     <section class="section" id="mobile" aria-label="Mobile downloads">
-      <p class="track-badge">Track 4</p>
+      <p class="track-badge">Mobile</p>
       <h2>Lark Mobile downloads</h2>
-      <p class="sub">Separate Mobile edition with bundled JDK. After unzip, run <code>Start Lark Mobile</code> — not the desktop Start Lark.</p>
+      <p class="sub">Separate Mobile edition with bundled JDK. After unzip, run <code>Start Lark Mobile</code>.</p>
       <div class="grid">
         <article id="card-mobile-windows">
           <h3>Windows</h3>
@@ -569,46 +592,9 @@
       </div>
     </section>
 
-    <section class="section" id="desktop" aria-label="Desktop installs">
-      <p class="track-badge">Main</p>
-      <h2>Lark Desktop downloads</h2>
-      <p class="sub">One clean zip: <code>Start Lark Desktop</code>, <code>jdk\</code>, and <code>app\</code>. Optional Start Menu install is inside <code>app\</code>.</p>
-      <div class="grid">
-        <article id="card-desktop-windows">
-          <h3>Windows</h3>
-          <p>Extract All → <code>Start Lark Desktop.bat</code>. Optional: <code>app\Install Lark Desktop.ps1</code>.</p>
-          <a class="dl" href="https://github.com/TreyvoPrime/lark/releases/latest/download/lark-desktop-windows.zip">lark-desktop-windows.zip</a>
-        </article>
-        <article id="card-desktop-mac">
-          <h3>Mac</h3>
-          <p>Extract → open <code>Start Lark Desktop.command</code>.</p>
-          <a class="dl" href="https://github.com/TreyvoPrime/lark/releases/latest/download/lark-desktop-mac.zip">lark-desktop-mac.zip</a>
-        </article>
-        <article id="card-desktop-linux">
-          <h3>Linux</h3>
-          <p>Extract → <code>./start-lark-desktop.sh</code> or <code>Start Lark Desktop.command</code>.</p>
-          <a class="dl" href="https://github.com/TreyvoPrime/lark/releases/latest/download/lark-desktop-linux.zip">lark-desktop-linux.zip</a>
-        </article>
-      </div>
-    </section>
-
-    <section class="section" id="enterprise" aria-label="Optional Windows installer">
-      <p class="track-badge">Optional</p>
-      <h2>Optional Windows Installer</h2>
-      <p class="sub">Prefer a traditional Windows setup? Lark Enterprise offers a separate installer with Start Menu and Desktop shortcuts, its own update channel, and a dedicated install location. Lark Desktop remains the default download.</p>
-      <p class="sub"><strong>Lightweight by design:</strong> Around 45&nbsp;MB to download and 200&nbsp;MB installed, including the bundled JDK.</p>
-      <div class="grid">
-        <article id="card-enterprise-setup">
-          <h3>Windows Setup</h3>
-          <p>Run <code>LarkEnterpriseSetup.exe</code> — welcome → folder → install → launch.</p>
-          <a id="enterprise-setup-link" class="dl" href="https://github.com/TreyvoPrime/lark/releases/latest/download/LarkEnterpriseSetup.exe">LarkEnterpriseSetup.exe</a>
-        </article>
-      </div>
-    </section>
-
     <ol class="steps">
-      <li>Download <strong>Lark Desktop</strong> (<code>lark-desktop-…zip</code>).</li>
-      <li>Extract All → run <code>Start Lark Desktop</code>. Optional Start Menu: <code>app\Install Lark Desktop.ps1</code>.</li>
+      <li>Download <strong>Lark Desktop</strong> (<code>LarkDesktopSetup.exe</code>) — or <strong>Executable</strong> if you need unzip-only.</li>
+      <li>Finish Setup (or Extract All → <code>Lark.exe</code>).</li>
       <li>Open a preset (try BigInteger factorial), Run with Ctrl+Enter, Search with Ctrl+Shift+F.</li>
       <li>Optional: connect GitHub with a classic token that has the <code>repo</code> scope.</li>
     </ol>
@@ -630,7 +616,7 @@
     let deskLabel = "Download Lark Desktop (Linux)";
     if (/Win/i.test(platform) || /Windows/i.test(ua)) {
       key = "windows";
-      desktopFile = "lark-desktop-windows.zip";
+      desktopFile = "LarkDesktopSetup.exe";
       deskLabel = "Download Lark Desktop (Windows)";
     } else if (/Mac/i.test(platform) || /Mac OS/i.test(ua)) {
       key = "mac";
@@ -642,15 +628,13 @@
     const primary = document.getElementById("primary-dl");
     primary.href = latest(desktopFile);
     primary.textContent = deskLabel;
-    ["compare-desktop"].forEach((id) => {
-      const el = document.getElementById(id);
-      if (el) { el.href = latest(desktopFile); }
-    });
-    const enterpriseLink = document.getElementById("enterprise-setup-link");
-    if (enterpriseLink) enterpriseLink.href = latest("LarkEnterpriseSetup.exe");
+    const compareDesk = document.getElementById("compare-desktop");
+    if (compareDesk) compareDesk.href = latest(key === "windows" ? "LarkDesktopSetup.exe" : desktopFile);
+    const setupLink = document.getElementById("desktop-setup-link");
+    if (setupLink) setupLink.href = latest("LarkDesktopSetup.exe");
 
     document.getElementById("status").textContent =
-      "Lark 3 · Detected " + (key === "windows" ? "Windows" : key === "mac" ? "Mac" : "Linux") +
+      "Lark 3.7 · Detected " + (key === "windows" ? "Windows" : key === "mac" ? "Mac" : "Linux") +
       " — Desktop (" + desktopFile + ").";
 
     const io = new IntersectionObserver((entries) => {

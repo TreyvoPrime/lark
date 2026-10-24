@@ -1,79 +1,46 @@
-#!/bin/sh
-# Lark Desktop on macOS / Linux — top-level Start + jdk/; runtime in app/.
-set -eu
-ROOT=$(CDPATH= cd -- "$(dirname "$0")" && pwd)
-cd "$ROOT"
-APP="$ROOT/app"
-mkdir -p "$APP"
-printf 'desktop\n' > "$APP/desktop.marker"
-
-JAR="$APP/lark.jar"
-PENDING="$APP/lark.jar.pending"
-if [ ! -f "$JAR" ] && [ -f "$ROOT/lark.jar" ]; then
-  JAR="$ROOT/lark.jar"
-  PENDING="$ROOT/lark.jar.pending"
-fi
-
-case "$JAR" in
-  "$ROOT"/*) ;;
-  *)
-    echo "Refusing to launch: lark.jar is outside the install folder."
+#!/usr/bin/env bash
+# Lark Desktop — Mac/Linux helper for the Setup-style payload layout.
+set -euo pipefail
+ROOT="$(cd "$(dirname "$0")" && pwd)"
+case "$ROOT" in
+  */Temp/*|*/tmp/*|*.zip*|*/Temporary*\ Items/*)
+    echo "Do not run Lark from a Temp or zip preview folder. Extract All first." >&2
     exit 1
     ;;
 esac
 
-apply_update() {
-  echo "Applying Lark Desktop update..."
-  tries=0
-  while [ -f "$PENDING" ]; do
-    tries=$((tries + 1))
-    if [ -f "$JAR" ]; then
-      mv -f "$JAR" "${JAR}.bak" 2>/dev/null || true
-    fi
-    if [ -f "$JAR" ]; then
-      if [ "$tries" -ge 20 ]; then
-        echo "Could not replace lark.jar. Close every Lark window and try again."
-        return 1
-      fi
-      sleep 1
-      continue
-    fi
-    if mv -f "$PENDING" "$JAR"; then
-      rm -f "${JAR}.bak"
-      echo "Update applied."
-      return 0
-    fi
-    if [ -f "${JAR}.bak" ]; then
-      mv -f "${JAR}.bak" "$JAR" 2>/dev/null || true
-    fi
-    if [ "$tries" -ge 20 ]; then
-      echo "Could not apply the update."
-      return 1
-    fi
-    sleep 1
-  done
-}
-
-if [ -f "$PENDING" ]; then
-  apply_update
+JAR="$ROOT/app/lark.jar"
+if [[ ! -f "$JAR" ]]; then
+  JAR="$ROOT/lark.jar"
 fi
-
-if [ ! -f "$JAR" ]; then
-  echo "app/lark.jar is missing. Keep the app/ folder next to this script."
+if [[ ! -f "$JAR" ]]; then
+  echo "lark.jar missing under app/. Re-download Lark Desktop." >&2
   exit 1
 fi
 
-# Bundled JDK only — never fall back to PATH for Desktop (safer installs).
-if [ ! -x "$ROOT/jdk/bin/java" ]; then
-  echo "Bundled jdk/bin/java is missing. Re-extract the Lark Desktop zip."
-  exit 1
-fi
 JAVA="$ROOT/jdk/bin/java"
+JAVAC="$ROOT/jdk/bin/javac"
+JVMCFG="$ROOT/jdk/lib/jvm.cfg"
+if [[ ! -x "$JAVA" || ! -x "$JAVAC" || ! -f "$JVMCFG" ]]; then
+  echo "Bundled JDK missing. Re-download Lark Desktop." >&2
+  exit 1
+fi
 
-export LARK_CHANNEL=desktop
+# Refuse to follow a jar symlink out of the install tree.
+REAL_JAR="$(python3 -c 'import os,sys; print(os.path.realpath(sys.argv[1]))' "$JAR" 2>/dev/null || echo "$JAR")"
+case "$REAL_JAR" in
+  "$ROOT"|"$ROOT"/*) ;;
+  *)
+    echo "lark.jar must stay inside the Lark folder." >&2
+    exit 1
+    ;;
+esac
+
 exec "$JAVA" \
   "-Dlark.install=$ROOT" \
-  "-Dlark.ui=jar" \
-  "-Dlark.desktop=true" \
-  "-Dlark.channel=desktop" \
-  -cp "$JAR" lark.Desktop "$@"
+  -Dlark.desktop=true \
+  -Dlark.channel=desktop \
+  -Dlark.ui=jar \
+  -cp "$JAR" \
+  lark.Desktop \
+  "$@"

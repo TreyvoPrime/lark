@@ -1,28 +1,22 @@
 Lark Desktop
 ============
 
-After Extract All, you should see only:
+This is the default installed edition.
 
-  Start Lark Desktop.bat   (Windows)  — double-click to run
-  Start Lark Desktop.command (Mac) / start-lark-desktop.sh (Linux)
-  jdk\                     — bundled Java (required)
-  app\                     — Lark runtime (jar, helpers). Soft-hidden on Windows installs.
+Windows (recommended):
+  Run LarkDesktopSetup.exe — welcome → folder → install → launch.
+  Opens from the Start Menu as "Lark Desktop".
+  Installs under %LOCALAPPDATA%\Programs\Lark (no admin password).
 
-Do not run from inside a zip preview or Temp folder.
+After install you mainly see Lark Desktop.exe. The app\ and jdk\ folders
+are hidden runtime files — leave them alone.
 
-Optional (inside app\):
-  Install Lark Desktop.ps1 — copies to %LOCALAPPDATA%\Programs\Lark + Start Menu
-  Uninstall Lark Desktop.ps1
-  Stop / Wipe helpers
+Security:
+  - Bundled JDK only (never PATH java)
+  - Jar must stay inside the install folder
+  - In-app updates require HTTPS allowlisted hosts + SHA-256
+  - Local HTTP API is loopback-only with Origin / X-Lark checks
 
-Security
---------
-- Uses the bundled JDK only (never downloads a random java from PATH for Desktop).
-- Local IDE server listens on 127.0.0.1 only (not the public internet).
-- In-app updates require HTTPS on GitHub Releases and SHA-256 when the feed provides hashes.
-- Keep app\ intact — that is the trusted runtime.
-
-Updates
--------
-Lark Desktop checks the public update feed and can install a new jar into app\
-while you are running, then asks you to restart.
+Mac / Linux payload zip (if present):
+  Run start-lark-desktop.sh or Launch Lark Desktop.command from the
+  extracted folder (keep jdk/ and app/ beside it).
