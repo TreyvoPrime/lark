@@ -383,8 +383,34 @@
       border-radius: 14px;
       overflow: hidden;
     }
-    @media (min-width: 800px) {
+    @media (min-width: 900px) {
+      .dl-split.tracks-3 { grid-template-columns: repeat(3, 1fr); }
+    }
+    @media (min-width: 800px) and (max-width: 899px) {
       .dl-split { grid-template-columns: 1fr 1fr; }
+    }
+    .track-tabs {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 0.5rem;
+      margin: 0 0 1.5rem;
+    }
+    .track-tabs a {
+      font-family: "IBM Plex Mono", monospace;
+      font-size: 0.78rem;
+      letter-spacing: 0.04em;
+      padding: 0.45rem 0.75rem;
+      border: 1px solid var(--line-strong);
+      border-radius: 8px;
+      color: var(--mist-dim);
+    }
+    .track-tabs a:hover { color: var(--mist); border-color: var(--mist-dim); }
+    .how-block { margin-top: 2.5rem; }
+    .how-block h3 {
+      font-family: Fraunces, Georgia, serif;
+      font-size: 1.25rem;
+      letter-spacing: -0.02em;
+      margin: 0 0 1rem;
     }
     .dl-pane {
       background: var(--slate);
@@ -738,8 +764,8 @@
       <ul class="nav-links" id="nav-menu">
         <li><a href="#overview">Overview</a></li>
         <li><a href="#downloads">Downloads</a></li>
+        <li><a href="#start">Get started</a></li>
         <li><a href="#team">Team</a></li>
-        <li><a href="#versions">Other versions</a></li>
         <li><a href="#open-source">GitHub</a></li>
         <li><a class="nav-cta" href="#downloads">Get Lark</a></li>
       </ul>
@@ -780,60 +806,115 @@
     <section id="downloads" aria-label="Download Lark">
       <div class="wrap">
         <p class="section-kicker">Downloads</p>
-        <h2 class="section-title">Two ways to run Lark</h2>
+        <h2 class="section-title">Three tracks. Same IDE.</h2>
         <p class="section-sub">
-          Same IDE. Different packaging. <strong>Executable is the default</strong> — unzip and run, which avoids Windows Setup / SmartScreen fights. Desktop Setup is still available if you want Start Menu shortcuts.
+          Pick how you want to install. <strong>Executable</strong> for Windows PCs, <strong>Desktop</strong> for Setup / Mac / Linux, <strong>Mobile</strong> for Android phones.
         </p>
+        <nav class="track-tabs" aria-label="Jump to a track">
+          <a href="#track-executable">1 · Executable</a>
+          <a href="#track-desktop">2 · Desktop</a>
+          <a href="#track-mobile">3 · Mobile</a>
+        </nav>
 
-        <div class="dl-split">
-          <article class="dl-pane featured">
-            <p class="dl-label">Recommended</p>
-            <h3>Lark Executable</h3>
+        <div class="dl-split tracks-3">
+          <article class="dl-pane featured" id="track-executable">
+            <p class="dl-label">PC · Recommended</p>
+            <h3>Executable</h3>
             <p>
-              Extract All, then double-click <code>Lark.exe</code>. No installer, no batch files — the path that Windows is least likely to block. Runtime stays buried under <code>app\</code> and <code>jdk\</code>.
+              Unzip and run <code>Lark.exe</code>. No installer, no batch files — the Windows path least likely to hit SmartScreen.
             </p>
             <ul class="dl-facts">
               <li>Windows · zip</li>
               <li>~72&nbsp;MB</li>
-              <li>No .bat required</li>
-              <li>Own update channel</li>
+              <li>No .bat</li>
             </ul>
-            <a class="btn btn-primary" id="dl-executable" href="https://github.com/TreyvoPrime/lark/releases/latest/download/lark-executable-windows.zip">Download lark-executable-windows.zip</a>
-            <p class="meta-line" style="margin:0">Do not run from inside a zip preview or Temp folder.</p>
+            <a class="btn btn-primary" id="dl-executable" href="https://github.com/TreyvoPrime/lark/releases/latest/download/lark-executable-windows.zip">Download Executable</a>
+            <p class="meta-line" style="margin:0">Extract All to a real folder — not Temp.</p>
           </article>
-          <article class="dl-pane">
-            <p class="dl-label">Optional Setup</p>
-            <h3>Lark Desktop</h3>
+
+          <article class="dl-pane" id="track-desktop">
+            <p class="dl-label">PC · Setup</p>
+            <h3>Desktop</h3>
             <p>
-              Windows Setup wizard with Start Menu and desktop shortcuts. Installs under your user folder. Some PCs block unsigned Setup downloads — if SmartScreen fights you, use Executable instead.
+              Windows Setup with Start Menu shortcuts, or Mac / Linux payload zips with the same buried <code>app/</code> + <code>jdk/</code> layout.
             </p>
             <ul class="dl-facts">
-              <li>Windows · Setup.exe</li>
-              <li>~45&nbsp;MB download</li>
-              <li>~200&nbsp;MB with JDK</li>
+              <li>Windows Setup</li>
+              <li>Mac zip</li>
+              <li>Linux zip</li>
             </ul>
-            <a class="btn btn-ghost" id="dl-desktop" href="https://github.com/TreyvoPrime/lark/releases/latest/download/LarkDesktopSetup.exe">Download LarkDesktopSetup.exe</a>
+            <a class="btn btn-ghost" id="dl-desktop" href="https://github.com/TreyvoPrime/lark/releases/latest/download/LarkDesktopSetup.exe">Download Desktop Setup</a>
             <p class="meta-line" style="margin:0">
-              Mac / Linux:
-              <a href="https://github.com/TreyvoPrime/lark/releases/latest/download/lark-desktop-mac.zip">mac.zip</a>
+              <a href="https://github.com/TreyvoPrime/lark/releases/latest/download/lark-desktop-mac.zip">Mac</a>
               ·
-              <a href="https://github.com/TreyvoPrime/lark/releases/latest/download/lark-desktop-linux.zip">linux.zip</a>
+              <a href="https://github.com/TreyvoPrime/lark/releases/latest/download/lark-desktop-linux.zip">Linux</a>
+            </p>
+          </article>
+
+          <article class="dl-pane" id="track-mobile">
+            <p class="dl-label">Phone · Android</p>
+            <h3>Mobile</h3>
+            <p>
+              Install the APK and run Java on the phone. Same Desk themes and engine APIs — no PC required. Wi‑Fi host pairing is the fallback.
+            </p>
+            <ul class="dl-facts">
+              <li>Android APK</li>
+              <li>~57&nbsp;MB</li>
+              <li>On-device JRE</li>
+            </ul>
+            <a class="btn btn-primary" id="dl-mobile-apk" href="https://github.com/TreyvoPrime/lark/releases/latest/download/LarkMobile-debug.apk">Download Mobile APK</a>
+            <p class="meta-line" style="margin:0">
+              PC host (optional):
+              <a href="https://github.com/TreyvoPrime/lark/releases/latest/download/lark-mobile-windows.zip">Windows</a>
+              ·
+              <a href="https://github.com/TreyvoPrime/lark/releases/latest/download/lark-mobile-mac.zip">Mac</a>
+              ·
+              <a href="https://github.com/TreyvoPrime/lark/releases/latest/download/lark-mobile-linux.zip">Linux</a>
             </p>
           </article>
         </div>
+      </div>
+    </section>
 
-        <div class="how" aria-label="Getting started">
-          <div class="how-step">
-            <strong>1. Extract the zip</strong>
-            <p>Download Lark Executable, then Right-click → Extract All to a real folder (not Temp).</p>
+    <section id="start" aria-label="Get started">
+      <div class="wrap">
+        <p class="section-kicker">Setup</p>
+        <h2 class="section-title">Get started</h2>
+        <p class="section-sub">Short paths for PC and Android. Same IDE either way.</p>
+
+        <div class="how-block">
+          <h3>On a PC</h3>
+          <div class="how" aria-label="PC getting started">
+            <div class="how-step">
+              <strong>1. Download</strong>
+              <p>Get <strong>Executable</strong> (Windows) or <strong>Desktop</strong> (Setup / Mac / Linux) from Downloads above.</p>
+            </div>
+            <div class="how-step">
+              <strong>2. Open Lark</strong>
+              <p>Extract the zip → double-click <code>Lark.exe</code>, or finish Desktop Setup and launch from the Start Menu.</p>
+            </div>
+            <div class="how-step">
+              <strong>3. Write Java</strong>
+              <p>Open a project, use live compile feedback, Run with Ctrl+Enter, search with Ctrl+Shift+F.</p>
+            </div>
           </div>
-          <div class="how-step">
-            <strong>2. Open Lark</strong>
-            <p>Double-click <code>Lark.exe</code>. Optional: Desktop Setup still adds Start Menu shortcuts if you prefer that path.</p>
-          </div>
-          <div class="how-step">
-            <strong>3. Write Java</strong>
-            <p>Open a project, use live compile feedback, Run with Ctrl+Enter, search with Ctrl+Shift+F.</p>
+        </div>
+
+        <div class="how-block">
+          <h3>On Android</h3>
+          <div class="how" aria-label="Android getting started">
+            <div class="how-step">
+              <strong>1. Install the APK</strong>
+              <p>Download <strong>Lark Mobile APK</strong>, allow install from that source, then open the app.</p>
+            </div>
+            <div class="how-step">
+              <strong>2. Start on this phone</strong>
+              <p>Tap Start (or wait for auto-start). First launch unpacks the bundled Android JRE once.</p>
+            </div>
+            <div class="how-step">
+              <strong>3. Code and Run</strong>
+              <p>Create a project and run Java on the device. If Start fails, pair a PC host over Wi‑Fi instead.</p>
+            </div>
           </div>
         </div>
       </div>
@@ -894,38 +975,6 @@
       </div>
     </section>
 
-    <section id="versions" aria-label="Other Lark versions">
-      <div class="wrap">
-        <p class="section-kicker">Ecosystem</p>
-        <h2 class="section-title">Other Lark versions</h2>
-        <p class="section-sub">
-          Executable and Desktop are the PC tracks. <strong>Lark Mobile</strong> is the phone IDE — Android APK plus a host engine for compile/run.
-        </p>
-        <div class="version-list">
-          <div class="version-row">
-            <h3>Lark Mobile</h3>
-            <p>Phone-first IDE with the same Desk themes as Desktop. The Android APK runs Java on the device — write, check, run, and debug with no PC required (Wi‑Fi host pairing stays as fallback).</p>
-            <span class="status live">APK runs on-device · v3.9.2</span>
-          </div>
-          <div class="version-row">
-            <h3>Mac / Linux Desktop payload</h3>
-            <p>Zip payloads with <code>start-lark-desktop.sh</code> and the same buried <code>app/</code> + <code>jdk/</code> layout. Windows Setup remains the primary Desktop path.</p>
-            <span class="status live">Released</span>
-          </div>
-          <div class="version-row">
-            <h3>Experimental builds</h3>
-            <p>No separate experimental channels are published beyond the tracks above. Watch GitHub Releases for anything new.</p>
-            <span class="status">Not announced</span>
-          </div>
-        </div>
-        <div class="cta-row" style="margin-top:1.75rem">
-          <a class="btn btn-ghost" href="https://github.com/TreyvoPrime/lark/releases/latest/download/lark-mobile-windows.zip">Get Lark Mobile (Windows)</a>
-          <a class="btn btn-ghost" href="https://github.com/TreyvoPrime/lark/releases/latest/download/LarkMobile-debug.apk">Get Lark Mobile APK</a>
-          <a class="btn btn-ghost" href="https://github.com/TreyvoPrime/lark/releases/latest">All releases</a>
-        </div>
-      </div>
-    </section>
-
     <section id="open-source" aria-label="Open source">
       <div class="wrap oss">
         <div>
@@ -959,9 +1008,10 @@
       </div>
       <ul class="footer-links">
         <li><a href="#downloads">Downloads</a></li>
+        <li><a href="#start">Get started</a></li>
         <li><a href="#team">Team</a></li>
-        <li><a href="#versions">Versions</a></li>
         <li><a href="https://github.com/TreyvoPrime/lark" rel="noopener">GitHub</a></li>
+        <li><a href="https://github.com/TreyvoPrime/lark/releases" rel="noopener">Releases</a></li>
       </ul>
       <p style="margin:0">© 2026 Lark contributors</p>
     </div>
@@ -1010,7 +1060,7 @@
         hero.textContent = "Download Lark Mobile APK";
         if (meta) meta.textContent = "Android · arm64 · runs Java on the phone · ~57 MB";
       } else if (ios) {
-        hero.href = "#versions";
+        hero.href = "#track-mobile";
         hero.textContent = "See Lark Mobile";
         if (meta) meta.textContent = "Android APK is available now · iOS is not shipped yet";
       } else if (win) {
