@@ -23,7 +23,7 @@
       --ease: cubic-bezier(0.22, 1, 0.36, 1);
       --ease-out: cubic-bezier(0.16, 1, 0.3, 1);
       --radius: 10px;
-      --max: 1120px;
+      --max: 1040px;
       --nav-h: 64px;
     }
 
@@ -754,10 +754,10 @@
             A focused Java environment for compiling, running, debugging, and everyday refactoring — without a month of plugins and setup.
           </p>
           <div class="cta-row reveal d3">
-            <a class="btn btn-primary" id="hero-desktop" href="https://github.com/TreyvoPrime/lark/releases/latest/download/LarkDesktopSetup.exe">Download Desktop</a>
+            <a class="btn btn-primary" id="hero-download" href="https://github.com/TreyvoPrime/lark/releases/latest/download/lark-executable-windows.zip">Download Lark</a>
             <a class="btn btn-ghost" href="#downloads">Compare installs</a>
           </div>
-          <p class="meta-line reveal d3">Windows Setup · ~45&nbsp;MB</p>
+          <p class="meta-line reveal d3">Windows zip · Extract All → Lark.exe · ~72&nbsp;MB</p>
         </div>
         <div class="hero-code reveal d2" aria-hidden="true">
           <div class="code-lines">
@@ -779,34 +779,15 @@
         <p class="section-kicker">Downloads</p>
         <h2 class="section-title">Two ways to run Lark</h2>
         <p class="section-sub">
-          Same IDE. Different packaging. Pick Desktop if you want Start Menu shortcuts and guided setup. Pick Executable if you need a folder you can unzip and run — no installer, no batch files.
+          Same IDE. Different packaging. <strong>Executable is the default</strong> — unzip and run, which avoids Windows Setup / SmartScreen fights. Desktop Setup is still available if you want Start Menu shortcuts.
         </p>
 
         <div class="dl-split">
           <article class="dl-pane featured">
             <p class="dl-label">Recommended</p>
-            <h3>Lark Desktop</h3>
-            <p>
-              Windows Setup wizard with Start Menu and desktop shortcuts. Installs under your user folder. Runtime stays buried beside <code>Lark Desktop.exe</code>. Prompts for updates on launch.
-            </p>
-            <ul class="dl-facts">
-              <li>Windows · Setup.exe</li>
-              <li>~45&nbsp;MB download</li>
-              <li>~200&nbsp;MB with JDK</li>
-            </ul>
-            <a class="btn btn-primary" id="dl-desktop" href="https://github.com/TreyvoPrime/lark/releases/latest/download/LarkDesktopSetup.exe">Download LarkDesktopSetup.exe</a>
-            <p class="meta-line" style="margin:0">
-              Mac / Linux:
-              <a href="https://github.com/TreyvoPrime/lark/releases/latest/download/lark-desktop-mac.zip">mac.zip</a>
-              ·
-              <a href="https://github.com/TreyvoPrime/lark/releases/latest/download/lark-desktop-linux.zip">linux.zip</a>
-            </p>
-          </article>
-          <article class="dl-pane">
-            <p class="dl-label">No installer</p>
             <h3>Lark Executable</h3>
             <p>
-              Extract All, then double-click <code>Lark.exe</code>. Built for labs and USB drives that block scripts. Same buried <code>app\</code> and <code>jdk\</code> layout — you mainly see the executable.
+              Extract All, then double-click <code>Lark.exe</code>. No installer, no batch files — the path that Windows is least likely to block. Runtime stays buried under <code>app\</code> and <code>jdk\</code>.
             </p>
             <ul class="dl-facts">
               <li>Windows · zip</li>
@@ -814,19 +795,38 @@
               <li>No .bat required</li>
               <li>Own update channel</li>
             </ul>
-            <a class="btn btn-ghost" id="dl-executable" href="https://github.com/TreyvoPrime/lark/releases/latest/download/lark-executable-windows.zip">Download lark-executable-windows.zip</a>
+            <a class="btn btn-primary" id="dl-executable" href="https://github.com/TreyvoPrime/lark/releases/latest/download/lark-executable-windows.zip">Download lark-executable-windows.zip</a>
             <p class="meta-line" style="margin:0">Do not run from inside a zip preview or Temp folder.</p>
+          </article>
+          <article class="dl-pane">
+            <p class="dl-label">Optional Setup</p>
+            <h3>Lark Desktop</h3>
+            <p>
+              Windows Setup wizard with Start Menu and desktop shortcuts. Installs under your user folder. Some PCs block unsigned Setup downloads — if SmartScreen fights you, use Executable instead.
+            </p>
+            <ul class="dl-facts">
+              <li>Windows · Setup.exe</li>
+              <li>~45&nbsp;MB download</li>
+              <li>~200&nbsp;MB with JDK</li>
+            </ul>
+            <a class="btn btn-ghost" id="dl-desktop" href="https://github.com/TreyvoPrime/lark/releases/latest/download/LarkDesktopSetup.exe">Download LarkDesktopSetup.exe</a>
+            <p class="meta-line" style="margin:0">
+              Mac / Linux:
+              <a href="https://github.com/TreyvoPrime/lark/releases/latest/download/lark-desktop-mac.zip">mac.zip</a>
+              ·
+              <a href="https://github.com/TreyvoPrime/lark/releases/latest/download/lark-desktop-linux.zip">linux.zip</a>
+            </p>
           </article>
         </div>
 
         <div class="how" aria-label="Getting started">
           <div class="how-step">
-            <strong>1. Install or extract</strong>
-            <p>Run the Setup wizard, or Extract All the Executable zip to a real folder.</p>
+            <strong>1. Extract the zip</strong>
+            <p>Download Lark Executable, then Right-click → Extract All to a real folder (not Temp).</p>
           </div>
           <div class="how-step">
             <strong>2. Open Lark</strong>
-            <p>Start Menu → Lark Desktop, or double-click <code>Lark.exe</code>.</p>
+            <p>Double-click <code>Lark.exe</code>. Optional: Desktop Setup still adds Start Menu shortcuts if you prefer that path.</p>
           </div>
           <div class="how-step">
             <strong>3. Write Java</strong>
@@ -991,19 +991,19 @@
       }, { threshold: 0.16 });
       document.querySelectorAll(".reveal, .member").forEach((el) => io.observe(el));
 
-      // Hero CTA follows the visitor OS; Desktop pane stays the Windows Setup story.
+      // Hero CTA: Executable is the default on Windows (avoids SmartScreen on Setup.exe).
       const latest = (name) =>
         "https://github.com/TreyvoPrime/lark/releases/latest/download/" + name;
       const platform = (navigator.userAgentData && navigator.userAgentData.platform) || navigator.platform || "";
       const ua = navigator.userAgent || "";
       const win = /Win/i.test(platform) || /Windows/i.test(ua);
       const mac = /Mac/i.test(platform) || /Mac OS/i.test(ua);
-      const hero = document.getElementById("hero-desktop");
+      const hero = document.getElementById("hero-download");
       const meta = document.querySelector(".hero .meta-line");
       if (win) {
-        hero.href = latest("LarkDesktopSetup.exe");
-        hero.textContent = "Download Desktop";
-        if (meta) meta.textContent = "Windows Setup · ~45 MB";
+        hero.href = latest("lark-executable-windows.zip");
+        hero.textContent = "Download Lark";
+        if (meta) meta.textContent = "Windows zip · Extract All → Lark.exe · ~72 MB";
       } else if (mac) {
         hero.href = latest("lark-desktop-mac.zip");
         hero.textContent = "Download Desktop (Mac)";
