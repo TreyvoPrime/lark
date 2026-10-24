@@ -2504,30 +2504,39 @@
       event.preventDefault();
       bar.setPointerCapture(event.pointerId);
       document.body.classList.add("dragging", "dragging-split");
+      const pointerId = event.pointerId;
       const rowRect = () => row.getBoundingClientRect();
-      const move = (ev) => {
-        if (!bar.hasPointerCapture(ev.pointerId)) return;
+      let raf = 0;
+      let latest = null;
+      const apply = () => {
+        raf = 0;
+        if (!latest) return;
         const rect = rowRect();
-        const x = Math.min(rect.right - 4, Math.max(rect.left + 4, ev.clientX));
-        let left = x - rect.left;
-        const total = rect.width;
-        // Leave room for the bar itself.
-        left = Math.min(total - 6, Math.max(0, left));
-        const right = Math.max(0, total - left - 6);
+        const x = Math.min(rect.right - 4, Math.max(rect.left + 4, latest.clientX));
+        let left = Math.min(rect.width - 6, Math.max(0, x - rect.left));
+        const right = Math.max(0, rect.width - left - 6);
         colA.style.flex = "0 0 auto";
         colB.style.flex = "0 0 auto";
         colA.style.width = left + "px";
         colB.style.width = right + "px";
-        if (cm) cm.refresh();
-        if (cmB) cmB.refresh();
+      };
+      const move = (ev) => {
+        if (ev.pointerId !== pointerId) return;
+        latest = ev;
+        if (!raf) raf = requestAnimationFrame(apply);
       };
       const up = (ev) => {
-        try { bar.releasePointerCapture(ev.pointerId); } catch (e) {}
+        if (ev && ev.pointerId !== pointerId) return;
+        if (raf) cancelAnimationFrame(raf);
+        if (latest) apply();
+        try { bar.releasePointerCapture(pointerId); } catch (e) {}
         bar.removeEventListener("pointermove", move);
         bar.removeEventListener("pointerup", up);
         bar.removeEventListener("pointercancel", up);
+        window.removeEventListener("pointermove", move);
+        window.removeEventListener("pointerup", up);
+        window.removeEventListener("pointercancel", up);
         document.body.classList.remove("dragging", "dragging-split");
-        const rect = rowRect();
         const aW = colA.getBoundingClientRect().width;
         const bW = colB.getBoundingClientRect().width;
         // Drag divider all the way left → close left, keep right as the editor.
@@ -2548,12 +2557,14 @@
         colB.style.flex = "1 1 " + Math.round((bW / total) * 100) + "%";
         colA.style.width = "";
         colB.style.width = "";
-        if (cm) cm.refresh();
-        if (cmB) cmB.refresh();
+        refreshAllEditors();
       };
       bar.addEventListener("pointermove", move);
       bar.addEventListener("pointerup", up);
       bar.addEventListener("pointercancel", up);
+      window.addEventListener("pointermove", move);
+      window.addEventListener("pointerup", up);
+      window.addEventListener("pointercancel", up);
       move(event);
     });
     bar.addEventListener("dblclick", () => {
@@ -4400,8 +4411,20 @@
 
   function clampPanel(value, min, max, fallback) {
     const n = parseFloat(value);
-    if (!Number.isFinite(n) || n < min || n > max) return fallback;
-    return Math.round(n);
+    if (!Number.isFinite(n)) return fallback;
+    // True clamp — never snap back to the default when dragging past an edge.
+    return Math.round(Math.min(max, Math.max(min, n)));
+  }
+
+  function filesPanelMax() {
+    const workspace = $("workspace");
+    const width = workspace ? workspace.getBoundingClientRect().width : window.innerWidth;
+    return Math.max(280, Math.min(720, Math.floor(width * 0.55)));
+  }
+
+  function consolePanelMax(centerH) {
+    const h = Number.isFinite(centerH) ? centerH : ($("center") ? $("center").getBoundingClientRect().height : 480);
+    return Math.max(160, Math.floor(h - 80));
   }
 
   function savePanels() {
@@ -4409,23 +4432,23 @@
       // Keep the last expanded width; collapse is a class, not a stored 0 width.
       const consoleH = clampPanel(
         getComputedStyle(document.documentElement).getPropertyValue("--console-h"),
-        72, 640, 188
+        72, consolePanelMax(), 188
       );
       let filesW = 260;
       try {
         const prev = JSON.parse(localStorage.getItem("lark-panels") || "null");
-        filesW = clampPanel(prev && prev.files, 160, 420, 260);
+        filesW = clampPanel(prev && prev.files, 160, filesPanelMax(), 260);
       } catch (e) {}
       localStorage.setItem("lark-panels", JSON.stringify({ files: filesW + "px", console: consoleH + "px" }));
       return;
     }
     const filesW = clampPanel(
       getComputedStyle(document.documentElement).getPropertyValue("--files-w"),
-      160, 420, 260
+      160, filesPanelMax(), 260
     );
     const consoleH = clampPanel(
       getComputedStyle(document.documentElement).getPropertyValue("--console-h"),
-      72, 640, 188
+      72, consolePanelMax(), 188
     );
     localStorage.setItem("lark-panels", JSON.stringify({
       files: filesW + "px",
@@ -4437,8 +4460,8 @@
     const style = document.documentElement.style;
     let saved = null;
     try { saved = JSON.parse(localStorage.getItem("lark-panels") || "null"); } catch (e) { saved = null; }
-    const filesW = clampPanel(saved && saved.files, 160, 420, 260);
-    const consoleH = clampPanel(saved && saved.console, 72, 640, 188);
+    const filesW = clampPanel(saved && saved.files, 160, filesPanelMax(), 260);
+    const consoleH = clampPanel(saved && saved.console, 72, consolePanelMax(), 188);
     style.setProperty("--files-w", filesW + "px");
     style.setProperty("--console-h", consoleH + "px");
     // Rewrite sanitized values so a prior zoomed session cannot keep poisoning widths.
@@ -4448,46 +4471,79 @@
   function bindSplitters() {
     const style = document.documentElement.style;
     restorePanels();
+
     function drag(handle, kind, onMove) {
       if (!handle) return;
       handle.addEventListener("pointerdown", (event) => {
         if (event.button !== 0) return;
         event.preventDefault();
+        event.stopPropagation();
         handle.setPointerCapture(event.pointerId);
         document.body.classList.add(kind === "row" ? "dragging" : "dragging-col");
+        handle.classList.add("on");
         const start = {
           x: event.clientX,
           y: event.clientY,
-          files: clampPanel($("files").getBoundingClientRect().width, 160, 420, 260),
-          console: clampPanel($("console").getBoundingClientRect().height, 72, 640, 188),
-          center: $("center").getBoundingClientRect().height
+          files: clampPanel($("files").getBoundingClientRect().width, 160, filesPanelMax(), 260),
+          console: clampPanel($("console").getBoundingClientRect().height, 72, consolePanelMax(), 188),
+          center: $("center").getBoundingClientRect().height,
+          pointerId: event.pointerId
+        };
+        let raf = 0;
+        let latest = null;
+        const apply = () => {
+          raf = 0;
+          if (!latest) return;
+          onMove(latest, start);
         };
         const move = (ev) => {
-          if (!handle.hasPointerCapture(ev.pointerId)) return;
-          onMove(ev, start);
+          if (ev.pointerId !== start.pointerId) return;
+          latest = ev;
+          if (!raf) raf = requestAnimationFrame(apply);
         };
         const up = (ev) => {
-          try { handle.releasePointerCapture(ev.pointerId); } catch (e) {}
+          if (ev && ev.pointerId !== start.pointerId) return;
+          if (raf) cancelAnimationFrame(raf);
+          if (latest) onMove(latest, start);
+          try { handle.releasePointerCapture(start.pointerId); } catch (e) {}
           handle.removeEventListener("pointermove", move);
           handle.removeEventListener("pointerup", up);
           handle.removeEventListener("pointercancel", up);
+          window.removeEventListener("pointermove", move);
+          window.removeEventListener("pointerup", up);
+          window.removeEventListener("pointercancel", up);
           document.body.classList.remove("dragging", "dragging-col");
+          handle.classList.remove("on");
           savePanels();
           refreshAllEditors();
         };
+        // Capture on the handle, plus window listeners so the drag never stalls.
         handle.addEventListener("pointermove", move);
         handle.addEventListener("pointerup", up);
         handle.addEventListener("pointercancel", up);
+        window.addEventListener("pointermove", move);
+        window.addEventListener("pointerup", up);
+        window.addEventListener("pointercancel", up);
       });
     }
-    drag(document.querySelector("[data-split=files]"), "col", (ev, start) => {
-      const next = clampPanel(start.files + ev.clientX - start.x, 160, 420, 260);
+
+    const filesSplit = document.querySelector("[data-split=files]");
+    drag(filesSplit, "col", (ev, start) => {
+      const next = clampPanel(start.files + (ev.clientX - start.x), 160, filesPanelMax(), 260);
       style.setProperty("--files-w", next + "px");
     });
+    if (filesSplit) {
+      filesSplit.addEventListener("dblclick", () => {
+        style.setProperty("--files-w", "260px");
+        savePanels();
+        refreshAllEditors();
+      });
+    }
+
     const consoleSplit = document.querySelector("[data-split=console]");
     drag(consoleSplit, "row", (ev, start) => {
-      const max = Math.max(140, start.center - 96);
-      const next = Math.min(max, clampPanel(start.console - (ev.clientY - start.y), 72, 640, 188));
+      const max = consolePanelMax(start.center);
+      const next = clampPanel(start.console - (ev.clientY - start.y), 72, max, 188);
       style.setProperty("--console-h", next + "px");
     });
     if (consoleSplit) {
