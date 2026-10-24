@@ -145,9 +145,9 @@
       width: min(100% - 2.5rem, var(--max));
       margin-inline: auto;
       display: grid;
-      grid-template-columns: minmax(0, 1fr) minmax(0, 1.15fr);
-      gap: 2.5rem 3rem;
-      align-items: center;
+      grid-template-columns: minmax(0, 1.05fr) minmax(0, 1.1fr);
+      gap: 2rem 2.75rem;
+      align-items: end;
       min-height: min(72vh, 580px);
     }
     .hero-stage {
@@ -228,49 +228,78 @@
       z-index: 2;
       text-align: left;
       justify-self: start;
-      max-width: 28rem;
+      align-self: end;
+      max-width: none;
+      padding-bottom: 0.25rem;
     }
-    .eyebrow {
-      display: inline-flex;
-      align-items: center;
-      gap: 0.5rem;
-      font-family: "IBM Plex Mono", monospace;
-      font-size: 0.78rem;
-      letter-spacing: 0.08em;
-      text-transform: uppercase;
+    .hero-brand {
+      margin: 0 0 0.85rem;
+      font-family: Fraunces, Georgia, serif;
+      font-weight: 700;
+      font-size: clamp(1.15rem, 2vw, 1.45rem);
+      letter-spacing: -0.02em;
+      color: var(--mist);
+    }
+    .hero-brand em {
+      font-style: normal;
       color: var(--orange);
-      margin: 0 0 1.1rem;
-    }
-    .eyebrow::before {
-      content: "";
-      width: 1.4rem;
-      height: 1px;
-      background: var(--orange);
+      font-family: "IBM Plex Mono", monospace;
+      font-size: 0.62em;
+      font-weight: 500;
+      letter-spacing: 0.12em;
+      margin-left: 0.65rem;
+      text-transform: uppercase;
+      vertical-align: 0.15em;
     }
     .hero h1 {
       font-family: Fraunces, Georgia, serif;
       font-weight: 700;
-      font-size: clamp(2.5rem, 5.5vw, 3.85rem);
-      line-height: 1.05;
-      letter-spacing: -0.03em;
-      margin: 0 0 1.05rem;
-      max-width: 14ch;
+      font-size: clamp(3.4rem, 8vw, 5.6rem);
+      line-height: 0.92;
+      letter-spacing: -0.045em;
+      margin: 0 0 1.6rem;
+      max-width: 8ch;
     }
     .hero h1 span {
+      display: block;
       color: var(--orange);
       font-weight: 500;
-    }
-    .hero-lead {
-      margin: 0 0 1.75rem;
-      max-width: 38ch;
-      color: var(--mist-dim);
-      font-size: 1.08rem;
     }
     .cta-row {
       display: flex;
       flex-wrap: wrap;
-      gap: 0.75rem;
+      gap: 0.65rem;
       align-items: center;
+    }
+    .hero-foot {
+      position: relative;
+      z-index: 2;
+      width: min(100% - 2.5rem, var(--max));
+      margin: 1.75rem auto 0;
+      padding-top: 1.25rem;
+      border-top: 1px solid var(--line);
+      display: grid;
+      grid-template-columns: auto 1fr;
+      gap: 1.25rem 2rem;
+      align-items: start;
+    }
+    .hero-foot .mark {
+      width: 2px;
+      height: 100%;
+      min-height: 2.75rem;
+      background: var(--orange);
+      border-radius: 2px;
+    }
+    .hero-lead {
+      margin: 0;
+      max-width: 52ch;
+      color: var(--mist-dim);
+      font-size: 1rem;
+      line-height: 1.45;
+    }
+    .hero-lead strong {
+      color: var(--mist);
+      font-weight: 500;
     }
     .btn {
       display: inline-flex;
@@ -317,12 +346,13 @@
     @media (max-width: 960px) {
       .hero-inner {
         grid-template-columns: 1fr;
-        gap: 1.75rem;
+        gap: 1.5rem;
         min-height: 0;
+        align-items: start;
       }
       .hero-code {
         order: -1;
-        min-height: 280px;
+        min-height: 260px;
         transform: none;
         animation: none;
       }
@@ -331,7 +361,12 @@
         padding-top: 2rem;
       }
       .hero-stage { opacity: 0.55; }
-      .hero-copy { max-width: none; }
+      .hero h1 { max-width: none; font-size: clamp(3rem, 14vw, 4.4rem); }
+      .hero-foot {
+        grid-template-columns: 2px 1fr;
+        gap: 0.9rem;
+        margin-top: 1.35rem;
+      }
     }
     @media (prefers-reduced-motion: reduce) {
       .hero-code { animation: none; transform: none; }
@@ -747,18 +782,15 @@
       <div class="hero-stage" aria-hidden="true"></div>
       <div class="hero-inner">
         <div class="hero-copy">
-          <p class="eyebrow reveal">Java IDE · v3.7.0</p>
-          <h1 class="reveal d1">Less IDE,<br /><span>more work.</span></h1>
-          <p class="hero-lead reveal d2">
-            A focused Java environment for compiling, running, debugging, and everyday refactoring — without a month of plugins and setup.
-          </p>
-          <div class="cta-row reveal d3">
+          <p class="hero-brand reveal">Lark<em>v3.7</em></p>
+          <h1 class="reveal d1">Less IDE,<span>more work.</span></h1>
+          <div class="cta-row reveal d2">
             <a class="btn btn-primary" id="hero-desktop" href="https://github.com/TreyvoPrime/lark/releases/latest/download/LarkDesktopSetup.exe">Download Desktop</a>
             <a class="btn btn-ghost" href="#downloads">Compare installs</a>
           </div>
-          <p class="meta-line reveal d3">Windows Setup · ~45&nbsp;MB</p>
+          <p class="meta-line reveal d2">Windows Setup · ~45&nbsp;MB</p>
         </div>
-        <div class="hero-code reveal d2" aria-hidden="true">
+        <div class="hero-code reveal d1" aria-hidden="true">
           <div class="code-lines">
             <span>public class StudentRoster {</span>
             <span>&nbsp;&nbsp;private final List&lt;String&gt; names = new ArrayList&lt;&gt;();</span>
@@ -770,6 +802,12 @@
             <span>}</span>
           </div>
         </div>
+      </div>
+      <div class="hero-foot reveal d3">
+        <span class="mark" aria-hidden="true"></span>
+        <p class="hero-lead">
+          <strong>Compile, run, debug, refactor</strong> — a focused Java environment without a month of plugins and setup.
+        </p>
       </div>
     </section>
 
