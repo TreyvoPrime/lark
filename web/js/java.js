@@ -453,7 +453,7 @@
       if (depth < 0) depth = 0;
       while (stack.length && depth <= stack[stack.length - 1].depth) stack.pop();
     }
-    // Do not nag about missing getters/setters in the editor — use Java → Quick fix instead.
+    // Do not nag about missing getters/setters in the editor — use Assist → Quick fix instead.
     const warnings = braceWarnings(source)
       .concat(styleWarnings(source))
       .concat(unusedImportWarnings(source, imports, clean))
