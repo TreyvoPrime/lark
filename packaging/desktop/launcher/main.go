@@ -44,9 +44,9 @@ func main() {
 		logf(logPath, "exe pending: %v\n", err)
 	}
 	// Older Enterprise installs used a different exe name.
-	legacyExe := filepath.Join(root, "Lark Enterprise.exe")
-	if err := applyPending(legacyExe, legacyExe+".pending", legacyExe+".bak", logPath); err != nil {
-		logf(logPath, "legacy exe pending: %v\n", err)
+	oldExe := filepath.Join(root, "Lark Enterprise.exe")
+	if err := applyPending(oldExe, oldExe+".pending", oldExe+".bak", logPath); err != nil {
+		logf(logPath, "prior exe pending: %v\n", err)
 	}
 
 	jar, err := resolveJar(root)
