@@ -145,7 +145,7 @@ public final class Mobile {
     }
 
     private static String newToken() {
-        // 128-bit pair token (was 48-bit) — harder to guess on a school LAN.
+        // 128-bit pair token (was 48-bit) — harder to guess on a shared LAN.
         byte[] bytes = new byte[16];
         new SecureRandom().nextBytes(bytes);
         StringBuilder sb = new StringBuilder(32);

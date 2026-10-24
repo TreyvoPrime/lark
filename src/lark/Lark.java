@@ -103,7 +103,7 @@ public final class Lark {
 
                 Usage:
                   ./lark.sh [--port 43123] [--no-browser]
-                  ./lark.sh --desktop          # Lark Desktop (enterprise window)
+                  ./lark.sh --desktop          # Lark Desktop (app window)
                   ./lark.sh --mobile           # Lark Mobile (touch UI + phone pair)
 
                 Projects are stored in ~/.lark/projects.

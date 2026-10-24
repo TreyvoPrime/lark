@@ -46,7 +46,7 @@ public final class Updates {
 
     public Json.Obj check() {
         String feed = resolveFeed();
-        boolean desktop = Desktop.isDesktop() || Enterprise.isEnterprise();
+        boolean desktop = Desktop.isDesktop();
         boolean executable = Executable.isExecutable() && !desktop;
         String edition = desktop ? "desktop" : executable ? "executable" : Mobile.isMobile() ? "mobile" : "portable";
         Json.Obj result = new Json.Obj()
@@ -127,8 +127,8 @@ public final class Updates {
         Json.Obj downloads = feed.has("downloads") ? feed.obj("downloads") : null;
         for (String key : new String[]{
                 "any", "windows", "mac", "linux", "desktop", "desktop-windows", "desktop-mac", "desktop-linux",
-                "enterprise", "enterprise-windows",
-                "mobile", "mobile-windows", "mobile-mac", "mobile-linux", "school", "school-windows"
+                "mobile", "mobile-windows", "mobile-mac", "mobile-linux",
+                "executable", "executable-windows"
         }) {
             String url = downloads == null ? "" : downloads.str(key, "");
             if (!url.isBlank() && (downloadUrl.equals(url) || downloadUrl.endsWith("/" + base))) {
@@ -189,22 +189,7 @@ public final class Updates {
             String name = asset.str("name", "").toLowerCase(Locale.ROOT);
             String url = asset.str("browser_download_url", "");
             if (url.isBlank()) continue;
-            if (name.contains("school") && name.contains("update")) {
-                downloads.put("school", url);
-                downloads.put("school-windows", url);
-            } else if (name.contains("school") && name.contains("windows")) {
-                downloads.put("school-windows", url);
-            } else if (name.contains("enterprise") && name.contains("update")) {
-                downloads.put("enterprise", url);
-                downloads.put("enterprise-windows", url);
-            } else if (name.equals("larkenterprisesetup.exe") || name.endsWith("larkenterprisesetup.exe")) {
-                // Setup wizard is for fresh installs — never the in-app update channel.
-                downloads.put("enterprise-setup", url);
-            } else if (name.contains("enterprise") && name.contains("windows") && name.endsWith(".zip")
-                    && !downloads.has("enterprise-windows")) {
-                // Full payload zip only if no slim update zip was already mapped.
-                downloads.put("enterprise-windows", url);
-            } else if (name.contains("mobile") && name.contains("update")) {
+            if (name.contains("mobile") && name.contains("update")) {
                 downloads.put("mobile", url);
                 if (name.contains("windows")) downloads.put("mobile-windows", url);
                 else if (name.contains("mac") || name.contains("darwin")) downloads.put("mobile-mac", url);
@@ -305,7 +290,7 @@ public final class Updates {
             // Seed launchers from the running jar first, then let the update zip
             // overwrite them. Never refresh AFTER extract — that would clobber the
             // new launchers with the old ones still loaded in memory.
-            boolean desktop = Desktop.isDesktop() || Enterprise.isEnterprise();
+            boolean desktop = Desktop.isDesktop();
             boolean executable = Executable.isExecutable() && !desktop;
             if (desktop) refreshDesktopLaunchers(installDir);
             else if (executable) refreshExecutableMarkers(installDir);
@@ -374,7 +359,7 @@ public final class Updates {
         Path dir = installDir();
         if (dir == null) throw new RequestFail(500, "Lark couldn't find its install folder.");
         boolean windows = System.getProperty("os.name", "").toLowerCase(Locale.ROOT).contains("win");
-        boolean desktop = Desktop.isDesktop() || Enterprise.isEnterprise();
+        boolean desktop = Desktop.isDesktop();
         boolean executable = Executable.isExecutable() && !desktop;
         boolean mobile = Mobile.isMobile();
         try {
@@ -383,13 +368,9 @@ public final class Updates {
             if (mobile) refreshMobileLaunchers(dir);
             if (windows) {
                 Path desktopExe = dir.resolve("Lark Desktop.exe");
-                Path enterpriseExe = dir.resolve("Lark Enterprise.exe");
                 Path executableExe = dir.resolve("Lark.exe");
                 if (desktop && Files.isRegularFile(desktopExe)) {
                     return restartNativeExe(desktopExe, dir, "Restarting Lark Desktop…");
-                }
-                if (desktop && Files.isRegularFile(enterpriseExe)) {
-                    return restartNativeExe(enterpriseExe, dir, "Restarting Lark Desktop…");
                 }
                 if (executable && Files.isRegularFile(executableExe)) {
                     return restartNativeExe(executableExe, dir, "Restarting Lark Executable…");
@@ -514,19 +495,6 @@ public final class Updates {
         chmodLaunchers(installDir, "start-lark.sh", "Start Lark.command");
     }
 
-    /** Older Enterprise installs — keep shell helpers + marker for update compatibility. */
-    static void refreshEnterpriseLaunchers(Path installDir) {
-        refreshDesktopLaunchers(installDir);
-        if (installDir == null || !Files.isDirectory(installDir)) return;
-        try {
-            if (!Files.isRegularFile(installDir.resolve("enterprise.marker"))) {
-                Files.writeString(installDir.resolve("enterprise.marker"), "enterprise\n");
-            }
-        } catch (IOException ignored) {
-            // Best-effort channel marker.
-        }
-    }
-
     /** Ensures Desktop channel marker under app/; shell helpers for unix payloads. */
     static void refreshDesktopLaunchers(Path installDir) {
         if (installDir == null || !Files.isDirectory(installDir)) return;
@@ -536,8 +504,7 @@ public final class Updates {
         } catch (IOException ignored) {
             // Best-effort.
         }
-        boolean setupInstall = Files.isRegularFile(installDir.resolve("Lark Desktop.exe"))
-                || Files.isRegularFile(installDir.resolve("Lark Enterprise.exe"));
+        boolean setupInstall = Files.isRegularFile(installDir.resolve("Lark Desktop.exe"));
         // Setup installs: only refresh unix helpers + marker — do not scatter .bat at root.
         writeLaunchResource("lark/launch/start-lark-desktop.sh", installDir.resolve("start-lark-desktop.sh"));
         writeLaunchResource("lark/launch/start-lark-desktop.sh", installDir.resolve("Launch Lark Desktop.command"));
@@ -555,7 +522,7 @@ public final class Updates {
         chmodLaunchers(installDir, "start-lark-desktop.sh", "Launch Lark Desktop.command", "Start Lark Desktop.command");
     }
 
-    /** Keeps Executable / School channel markers under app/. */
+    /** Keeps Executable channel markers under app/. */
     static void refreshExecutableMarkers(Path installDir) {
         if (installDir == null || !Files.isDirectory(installDir)) return;
         Path app = appDir(installDir);
@@ -781,16 +748,12 @@ public final class Updates {
         if (Mobile.isMobile()) {
             url = downloads.str("mobile-" + key, "");
             if (url.isBlank()) url = downloads.str("mobile", "");
-        } else if (Desktop.isDesktop() || Enterprise.isEnterprise()) {
+        } else if (Desktop.isDesktop()) {
             url = downloads.str("desktop-" + key, "");
             if (url.isBlank()) url = downloads.str("desktop", "");
-            if (url.isBlank()) url = downloads.str("enterprise-" + key, "");
-            if (url.isBlank()) url = downloads.str("enterprise", "");
         } else if (Executable.isExecutable()) {
             url = downloads.str("executable-" + key, "");
             if (url.isBlank()) url = downloads.str("executable", "");
-            if (url.isBlank()) url = downloads.str("school-" + key, "");
-            if (url.isBlank()) url = downloads.str("school", "");
         }
         if (url.isBlank()) url = downloads.str(key, "");
         if (url.isBlank()) url = downloads.str("any", "");
@@ -861,7 +824,7 @@ public final class Updates {
                     foundJar = true;
                     continue;
                 }
-                if ("Lark Desktop.exe".equals(base) || "Lark Enterprise.exe".equals(base) || "Lark.exe".equals(base)) {
+                if ("Lark Desktop.exe".equals(base) || "Lark.exe".equals(base)) {
                     // Windows launchers lock their own image while running. Stage beside
                     // the install; the native launcher renames .pending into place on boot.
                     Path staged = ensureInsideInstall(root, root.resolve(base + ".pending"));
@@ -883,14 +846,11 @@ public final class Updates {
                         || "Install Lark Desktop.command".equals(base)
                         || "desktop.marker".equals(base)
                         || "executable.marker".equals(base)
-                        || "school.marker".equals(base)
-                        || "enterprise.marker".equals(base)
-                        || "start-lark-enterprise.sh".equals(base) || "Launch Lark Enterprise.command".equals(base)
                         || "lark-icon.ico".equals(base) || "lark-icon.png".equals(base)
                         || "README.txt".equals(base) || "update-feed.url".equals(base);
                 if (!allowed) continue;
                 Path dest;
-                boolean buryRuntime = Desktop.isDesktop() || Enterprise.isEnterprise() || Executable.isExecutable();
+                boolean buryRuntime = Desktop.isDesktop() || Executable.isExecutable();
                 if (underApp) {
                     dest = ensureInsideInstall(root, root.resolve(name));
                 } else if (topLevel && ("Start Lark Desktop.bat".equals(base)

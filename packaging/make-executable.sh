@@ -77,10 +77,6 @@ rm -f release/lark-executable-update.zip
 rm -rf "$stage_u"
 ls -lh release/lark-executable-update.zip
 
-# School aliases — same package, old download names.
-cp -f release/lark-executable-windows.zip release/lark-school-windows.zip
-cp -f release/lark-executable-update.zip release/lark-school-update.zip
-
 if [ -f release/update.json ]; then
   python3 - <<PY
 import json, pathlib, hashlib
@@ -91,23 +87,24 @@ data["version"] = "$version"
 data.setdefault("downloads", {})
 data["downloads"]["executable"] = f"{base}/lark-executable-update.zip"
 data["downloads"]["executable-windows"] = f"{base}/lark-executable-update.zip"
-data["downloads"]["school"] = f"{base}/lark-executable-update.zip"
-data["downloads"]["school-windows"] = f"{base}/lark-executable-update.zip"
 data["executable"] = {"windows": f"{base}/lark-executable-windows.zip"}
-data["school"] = {"windows": f"{base}/lark-executable-windows.zip"}
+data.pop("school", None)
 sha = data.setdefault("sha256", {})
 def h(path):
     f = pathlib.Path(path)
     return hashlib.sha256(f.read_bytes()).hexdigest() if f.is_file() else ""
 hu = h("release/lark-executable-update.zip")
 if hu:
-    for k in ("executable", "executable-windows", "school", "school-windows",
-              "lark-executable-update.zip", "lark-school-update.zip"):
+    for k in ("executable", "executable-windows", "lark-executable-update.zip"):
         sha[k] = hu
+# Drop retired School keys from sha map if present.
+for k in list(sha):
+    if "school" in k:
+        sha.pop(k, None)
 p.write_text(json.dumps(data, indent=2) + "\n")
 print("Updated release/update.json with executable keys")
 PY
 fi
 
 echo "Lark Executable packages ready for $version"
-echo "Students / labs: Extract All → double-click Lark.exe (no .bat)."
+echo "Extract All → double-click Lark.exe (no .bat)."

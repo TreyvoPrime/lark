@@ -112,8 +112,6 @@ else
     -D"LARK_OUT=$root/release/LarkDesktopSetup.exe" \
     "$nsi_dir/lark-desktop.nsi"
   ls -lh release/LarkDesktopSetup.exe
-  # Alias for older Enterprise download links.
-  cp -f release/LarkDesktopSetup.exe release/LarkEnterpriseSetup.exe
   rm -rf "$nsi_dir/payload"
 fi
 
@@ -128,9 +126,7 @@ rm -f release/lark-desktop-update.zip
 rm -rf "$stage_u"
 ls -lh release/lark-desktop-update.zip
 
-# Compat aliases for older Enterprise / portable names.
-cp -f release/lark-desktop-windows.zip release/lark-enterprise-windows.zip
-cp -f release/lark-desktop-update.zip release/lark-enterprise-update.zip
+# Portable aliases (same Desktop update payload).
 cp -f release/lark-desktop-update.zip release/lark-update.zip
 cp -f release/lark-desktop-update.zip release/lark.zip
 
@@ -177,7 +173,7 @@ base = "$feed_base"
 data["version"] = "$version"
 data.setdefault("downloads", {})
 for k in ("desktop", "desktop-windows", "desktop-mac", "desktop-linux",
-          "enterprise", "enterprise-windows", "windows", "mac", "linux", "any"):
+          "windows", "mac", "linux", "any"):
     data["downloads"][k] = f"{base}/lark-desktop-update.zip"
 data["desktop"] = {
   "windows": f"{base}/LarkDesktopSetup.exe",
@@ -185,10 +181,11 @@ data["desktop"] = {
   "mac": f"{base}/lark-desktop-mac.zip",
   "linux": f"{base}/lark-desktop-linux.zip",
 }
-data["enterprise"] = {
-  "windows": f"{base}/LarkDesktopSetup.exe",
-  "windows-zip": f"{base}/lark-desktop-windows.zip",
-}
+data.pop("enterprise", None)
+data.pop("school", None)
+for k in list(data.get("downloads", {})):
+    if "enterprise" in k or "school" in k:
+        data["downloads"].pop(k, None)
 sha = data.setdefault("sha256", {})
 def h(path):
     f = pathlib.Path(path)
@@ -196,13 +193,14 @@ def h(path):
 hu = h("release/lark-desktop-update.zip")
 if hu:
     for k in ("desktop", "desktop-windows", "desktop-mac", "desktop-linux",
-              "enterprise", "enterprise-windows", "lark-desktop-update.zip",
-              "lark-enterprise-update.zip", "lark-update.zip", "any", "windows", "mac", "linux"):
+              "lark-desktop-update.zip", "lark-update.zip", "any", "windows", "mac", "linux"):
         sha[k] = hu
 hs = h("release/LarkDesktopSetup.exe")
 if hs:
     sha["LarkDesktopSetup.exe"] = hs
-    sha["LarkEnterpriseSetup.exe"] = hs
+for k in list(sha):
+    if "enterprise" in k or "school" in k:
+        sha.pop(k, None)
 p.write_text(json.dumps(data, indent=2) + "\n")
 print("Updated release/update.json with desktop keys")
 PY

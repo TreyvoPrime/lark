@@ -2487,7 +2487,8 @@ body.dragging #console .splitter::after,
 #modal {
   position: fixed;
   inset: 0;
-  z-index: 50;
+  /* Above .scratch-pad (55) so New/Rename scratch dialogs stay usable over an open pad. */
+  z-index: 68;
   background: rgba(0, 0, 0, 0.45);
   display: grid;
   place-items: center;
@@ -2558,8 +2559,8 @@ body.dragging #console .splitter::after,
   top: 52px;
   left: auto;
   right: 12px;
-  width: min(440px, calc(100vw - 24px));
-  height: min(520px, calc(100vh - 100px));
+  width: min(480px, calc(100vw - 24px));
+  height: min(620px, calc(100vh - 80px));
   z-index: 55;
   display: flex;
   flex-direction: column;
@@ -2693,13 +2694,77 @@ body.dragging #console .splitter::after,
   flex-direction: column;
 }
 #scratch-editor {
-  flex: 1;
-  min-height: 0;
+  flex: 1 1 55%;
+  min-height: 120px;
 }
 #scratch-editor .CodeMirror {
   height: 100%;
   border: 0;
   border-radius: 0;
+}
+.scratch-out-pane {
+  flex: 0 0 38%;
+  min-height: 110px;
+  max-height: 48%;
+  display: flex;
+  flex-direction: column;
+  border-top: 1px solid var(--line);
+  background: var(--bg-sunken);
+}
+.scratch-out-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  padding: 5px 10px;
+  border-bottom: 1px solid var(--line);
+  background: color-mix(in srgb, var(--bg-elev) 70%, var(--bg-sunken));
+  flex-shrink: 0;
+}
+.scratch-out-head strong {
+  font-size: 11px;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--muted);
+  font-weight: 650;
+}
+.scratch-out-head button {
+  font-size: 11px;
+  padding: 2px 8px;
+}
+#scratch-out {
+  margin: 0;
+  flex: 1;
+  min-height: 0;
+  overflow: auto;
+  padding: 8px 10px;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+  font-family: var(--mono);
+  font-size: calc(var(--editor-font-size, 14px) - 2px);
+  line-height: 1.45;
+  color: var(--text);
+}
+.scratch-reply {
+  display: flex;
+  gap: 6px;
+  align-items: center;
+  padding: 6px 8px;
+  border-top: 1px solid var(--line);
+  background: color-mix(in srgb, var(--bg-elev) 55%, var(--bg-sunken));
+  flex-shrink: 0;
+}
+.scratch-reply[hidden] { display: none !important; }
+.scratch-reply input {
+  flex: 1;
+  min-width: 0;
+  padding: 5px 8px;
+  font-size: 12px;
+}
+.scratch-reply button {
+  font-size: 12px;
+  padding: 5px 10px;
+  flex-shrink: 0;
 }
 .scratch-menu {
   position: absolute;

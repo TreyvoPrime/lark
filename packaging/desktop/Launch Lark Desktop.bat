@@ -1,6 +1,6 @@
 @echo off
 rem ============================================================================
-rem  Lark Desktop for Windows — hidden-friendly enterprise launcher
+rem  Lark Desktop for Windows — hidden-friendly desktop launcher
 rem  Installs under %%LOCALAPPDATA%%\Programs\Lark when used with the installer.
 rem  Runs a COPY of lark.jar so updates can replace the install jar.
 rem ============================================================================

@@ -23,8 +23,6 @@ cp "packaging/desktop/Uninstall Lark Desktop.ps1" build/lark/launch/UninstallDes
 # Also embed under LaunchDesktop.* so existing installs still refresh launchers.
 cp "packaging/desktop/Start Lark Desktop.bat" build/lark/launch/LaunchDesktop.bat
 cp "packaging/desktop/Start Lark Desktop.vbs" build/lark/launch/LaunchDesktop.vbs
-# Enterprise launchers (Setup-wizard edition — separate from Desktop).
-cp packaging/enterprise/start-lark-enterprise.sh build/lark/launch/start-lark-enterprise.sh
 # Mobile launchers (touch UI edition).
 cp "packaging/mobile/Start Lark Mobile.bat" build/lark/launch/StartMobile.bat
 cp "packaging/mobile/Start Lark Mobile.vbs" build/lark/launch/StartMobile.vbs
@@ -40,7 +38,7 @@ fi
 jar --create --file dist/lark.jar --main-class lark.Lark -C build . -C . web -C . web-mobile
 # Never leave edition markers beside dist/lark.jar — they make portable runs
 # mis-detect as Mobile/Desktop (installDir is the jar's parent).
-rm -f dist/mobile.marker dist/desktop.marker dist/school.marker dist/enterprise.marker dist/executable.marker
+rm -f dist/mobile.marker dist/desktop.marker dist/executable.marker
 echo "Wrote dist/lark.jar"
 echo "Run portable:     java -jar dist/lark.jar"
 echo "Run desktop:      java -cp dist/lark.jar lark.Desktop"

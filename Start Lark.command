@@ -229,11 +229,11 @@ unpack_local_zip() {
   return 1
 }
 
-school_help() {
+jdk_help() {
   cat <<EOF
 
 ==============================
-School / locked-PC help
+Locked-PC / JDK help
 ==============================
 Lark needs a complete Java 17+ JDK. Partial downloads leave errors like
 "could not open .../lib/jvm.cfg".
@@ -280,19 +280,19 @@ fetch_java() {
   if ! curl -fL --retry 3 --retry-delay 2 -o "$tmp" "$url"; then
     rm -f "$tmp"
     echo "Could not download Java over HTTPS. Use a Lark zip that includes jdk/, or fix the network proxy."
-    school_help
+    jdk_help
     return 1
   fi
   if ! zip_ok "$tmp"; then
     rm -f "$tmp"
-    school_help
+    jdk_help
     return 1
   fi
   unpack_zip_to_home "$tmp"
   status=$?
   rm -f "$tmp"
   [ "$status" -eq 0 ] || {
-    school_help
+    jdk_help
     return 1
   }
   private_java
@@ -306,7 +306,7 @@ LOG="$ROOT/lark-boot.log"
   echo "ROOT=$ROOT"
 } >"$LOG"
 
-# Prefer the JDK shipped inside the Lark zip so school/offline PCs just work.
+# Prefer the JDK shipped inside the Lark zip so offline PCs just work.
 JAVA_BIN=$(beside_java || true)
 if [ -n "$JAVA_BIN" ]; then
   echo "Using the Java that came with Lark: $JAVA_BIN"
@@ -333,7 +333,7 @@ if [ -z "$JAVA_BIN" ]; then
 fi
 if [ -z "$JAVA_BIN" ]; then
   echo "Lark could not find a complete Java 17 or newer." | tee -a "$LOG"
-  school_help
+  jdk_help
   exit 1
 fi
 

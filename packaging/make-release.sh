@@ -1,5 +1,5 @@
 #!/bin/sh
-# Build lark.jar and all public release assets.
+# Build lark.jar and all public release assets (Desktop · Executable · Mobile).
 set -eu
 cd "$(dirname "$0")/.."
 ./package.sh
@@ -32,12 +32,8 @@ cat > release/update.json <<EOF
     "desktop-windows": "$feed_base/lark-desktop-update.zip",
     "desktop-mac": "$feed_base/lark-desktop-update.zip",
     "desktop-linux": "$feed_base/lark-desktop-update.zip",
-    "enterprise": "$feed_base/lark-desktop-update.zip",
-    "enterprise-windows": "$feed_base/lark-desktop-update.zip",
     "executable": "$feed_base/lark-executable-update.zip",
     "executable-windows": "$feed_base/lark-executable-update.zip",
-    "school": "$feed_base/lark-executable-update.zip",
-    "school-windows": "$feed_base/lark-executable-update.zip",
     "mobile": "$feed_base/lark-mobile-update.zip",
     "mobile-windows": "$feed_base/lark-mobile-update.zip",
     "mobile-mac": "$feed_base/lark-mobile-update.zip",
@@ -49,14 +45,7 @@ cat > release/update.json <<EOF
     "mac": "$feed_base/lark-desktop-mac.zip",
     "linux": "$feed_base/lark-desktop-linux.zip"
   },
-  "enterprise": {
-    "windows": "$feed_base/LarkDesktopSetup.exe",
-    "windows-zip": "$feed_base/lark-desktop-windows.zip"
-  },
   "executable": {
-    "windows": "$feed_base/lark-executable-windows.zip"
-  },
-  "school": {
     "windows": "$feed_base/lark-executable-windows.zip"
   },
   "mobile": {
@@ -74,7 +63,7 @@ chmod +x packaging/make-desktop.sh packaging/make-executable.sh packaging/make-m
 # Desktop = Setup wizard (default install).
 LARK_UPDATE_BASE="$feed_base" LARK_UPDATE_NOTES="$notes" ./packaging/make-desktop.sh
 
-# Executable = Lark.exe zip (replaces School + old bat Desktop).
+# Executable = Lark.exe zip.
 LARK_SKIP_PACKAGE=1 LARK_UPDATE_BASE="$feed_base" LARK_UPDATE_NOTES="$notes" ./packaging/make-executable.sh
 
 # Mobile stays its own edition.
@@ -109,24 +98,17 @@ pairs = [
     ("desktop-windows", """$h_desktop"""),
     ("desktop-mac", """$h_desktop"""),
     ("desktop-linux", """$h_desktop"""),
-    ("enterprise", """$h_desktop"""),
-    ("enterprise-windows", """$h_desktop"""),
     ("lark-desktop-update.zip", """$h_desktop"""),
-    ("lark-enterprise-update.zip", """$h_desktop"""),
     ("lark-update.zip", """$h_desktop"""),
     ("executable", """$h_executable"""),
     ("executable-windows", """$h_executable"""),
-    ("school", """$h_executable"""),
-    ("school-windows", """$h_executable"""),
     ("lark-executable-update.zip", """$h_executable"""),
-    ("lark-school-update.zip", """$h_executable"""),
     ("mobile", """$h_mobile"""),
     ("mobile-windows", """$h_mobile"""),
     ("mobile-mac", """$h_mobile"""),
     ("mobile-linux", """$h_mobile"""),
     ("lark-mobile-update.zip", """$h_mobile"""),
     ("LarkDesktopSetup.exe", """$h_setup"""),
-    ("LarkEnterpriseSetup.exe", """$h_setup"""),
 ]
 for k, v in pairs:
     v = (v or "").strip()

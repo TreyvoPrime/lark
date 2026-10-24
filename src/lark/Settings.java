@@ -11,14 +11,12 @@ import java.util.Set;
 /** Preferences stored in the home folder. The GitHub token never leaves this machine except for GitHub. */
 public final class Settings {
     /** Four-part build (3.9.7.1) — stay on 3.x until an intentional Lark 4.0. */
-    public static final String VERSION = "3.9.7.2";
+    public static final String VERSION = "3.9.7.3";
     /** Default public update feed — always the latest GitHub release JSON companion. */
     public static final String DEFAULT_UPDATE_FEED =
             "https://github.com/TreyvoPrime/lark/releases/latest/download/update.json";
     /** Desktop-channel companion feed (same JSON; downloads.desktop-* keys preferred). */
     public static final String DEFAULT_DESKTOP_UPDATE_FEED = DEFAULT_UPDATE_FEED;
-    /** Enterprise-channel companion feed (same JSON; downloads.enterprise-* keys preferred). */
-    public static final String DEFAULT_ENTERPRISE_UPDATE_FEED = DEFAULT_UPDATE_FEED;
     public static final Set<String> THEMES = Set.of(
             "desk", "slate", "studio", "daylight", "moss", "ember", "fog",
             "blossom", "candy", "midnight", "citrus", "harbor",

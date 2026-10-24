@@ -6,7 +6,7 @@ import java.util.regex.Pattern;
 
 /**
  * Turns javac and common runtime messages into plain English plus a fix hint
- * so school programmers can act on the error instead of guessing.
+ * so programmers can act on the error instead of guessing.
  */
 public final class Errors {
     private Errors() {}

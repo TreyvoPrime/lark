@@ -18,7 +18,7 @@ public final class Check {
         diagnostics();
         englishErrors();
         sampleCompiles();
-        enterpriseUpdateStagesLockedExe();
+        desktopUpdateStagesLockedExe();
         desktopJarLivesUnderApp();
         System.out.println("check ok");
     }
@@ -151,7 +151,7 @@ public final class Check {
     }
 
     /** In-app Desktop updates must stage Lark Desktop.exe as .pending (running exe is locked). */
-    private static void enterpriseUpdateStagesLockedExe() throws Exception {
+    private static void desktopUpdateStagesLockedExe() throws Exception {
         Path dir = Files.createTempDirectory("lark-desk-upd");
         Path zip = dir.resolve("update.zip");
         byte[] jarBytes = "fake-jar".getBytes(StandardCharsets.UTF_8);

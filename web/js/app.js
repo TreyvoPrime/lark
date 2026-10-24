@@ -111,6 +111,8 @@
     localProblems: [],
     job: null,
     poll: null,
+    scratchJob: null,
+    scratchPoll: null,
     dirty: new Set(),
     timers: new Map(),
     terminal: null,
@@ -834,6 +836,7 @@
   function closeScratch() {
     syncEditorIntoActiveScratch();
     closeScratchMenu();
+    stopScratch().catch(() => {});
     const pad = $("scratch-pad");
     if (pad) pad.hidden = true;
     document.body.classList.remove("scratch-open");
@@ -1048,9 +1051,86 @@
     return { source: source, mainClass: "ScratchPad" };
   }
 
+  function renderScratchOut(text) {
+    const pre = $("scratch-out");
+    if (!pre) return;
+    const stick = pre.scrollHeight - pre.scrollTop - pre.clientHeight < 40;
+    if (!text) {
+      pre.textContent = "Run this scratch — output stays here.";
+      return;
+    }
+    pre.textContent = text;
+    if (stick) pre.scrollTop = pre.scrollHeight;
+  }
+
+  function setScratchRunning(running, acceptsInput) {
+    const btn = $("scratch-run");
+    if (btn) btn.textContent = running ? "Stop" : "Run";
+    const reply = $("scratch-reply");
+    if (!reply) return;
+    const show = !!(running && acceptsInput);
+    reply.hidden = !show;
+    if (show) {
+      const input = $("scratch-input");
+      if (input) setTimeout(() => { try { input.focus({ preventScroll: true }); } catch (e) { input.focus(); } }, 40);
+    }
+  }
+
+  async function sendScratchInput() {
+    if (!state.scratchJob || state.scratchJob.done) return toast("Run this scratch first.");
+    const input = $("scratch-input");
+    if (!input) return;
+    const text = input.value;
+    input.value = "";
+    try {
+      await api("POST", "/api/run/" + state.scratchJob.id + "/input", { text: text });
+      try { input.focus({ preventScroll: true }); } catch (e) { input.focus(); }
+    } catch (err) {
+      toast(err.message);
+    }
+  }
+
+  async function pollScratch(id) {
+    try {
+      const job = await api("GET", "/api/run/" + id);
+      state.scratchJob = job;
+      renderScratchOut(job.output || "");
+      if (job.done) {
+        setScratchRunning(false, false);
+        state.scratchPoll = null;
+        return;
+      }
+      setScratchRunning(true, job.acceptsInput !== false && job.phase === "run");
+      state.scratchPoll = setTimeout(() => pollScratch(id), 200);
+    } catch (err) {
+      setScratchRunning(false, false);
+      state.scratchPoll = null;
+      toast(err.message);
+    }
+  }
+
+  async function stopScratch() {
+    if (state.scratchPoll) {
+      clearTimeout(state.scratchPoll);
+      state.scratchPoll = null;
+    }
+    if (state.scratchJob && !state.scratchJob.done) {
+      try {
+        await api("POST", "/api/run/" + state.scratchJob.id + "/stop", {});
+      } catch (err) {
+        /* best-effort */
+      }
+    }
+    setScratchRunning(false, false);
+  }
+
   async function runScratch() {
     const editor = ensureScratchEditor();
     if (!editor) return;
+    if (state.scratchJob && !state.scratchJob.done) {
+      await stopScratch();
+      return;
+    }
     let wrapped;
     try {
       wrapped = wrapScratchSource(editor.getValue());
@@ -1058,22 +1138,23 @@
       toast(err.message || "Scratch pad is empty.");
       return;
     }
-    if (state.job && !state.job.done) {
-      await api("POST", "/api/run/" + state.job.id + "/stop", {});
+    if (state.scratchPoll) {
+      clearTimeout(state.scratchPoll);
+      state.scratchPoll = null;
     }
-    setRunning(true, false);
-    showConsoleTab("output");
-    renderConsole("— Scratch pad —\n");
+    setScratchRunning(true, false);
+    renderScratchOut("— Scratch —\n");
     try {
       const data = await api("POST", "/api/scratch/run", {
         source: wrapped.source,
         mainClass: wrapped.mainClass,
         args: ($("args") && $("args").value) || "",
-        stdin: ($("stdin") && $("stdin").value) || ""
+        stdin: ""
       });
-      poll(data.id);
+      state.scratchJob = { id: data.id, done: false };
+      pollScratch(data.id);
     } catch (err) {
-      setRunning(false);
+      setScratchRunning(false, false);
       toast(err.message);
     }
   }
@@ -5031,13 +5112,27 @@
         api("POST", "/api/run/" + state.job.id + "/stop", {}).catch((err) => toast(err.message));
         return;
       }
-      if (scratchOpen()) runScratch().catch((err) => toast(err.message));
-      else run().catch((err) => toast(err.message));
+      // Scratch has its own Run / output pane — keep the main console for project runs.
+      run().catch((err) => toast(err.message));
     });
     if ($("scratch")) $("scratch").addEventListener("click", () => toggleScratch());
     if ($("scratch-run")) $("scratch-run").addEventListener("click", () => runScratch().catch((err) => toast(err.message)));
     if ($("scratch-copy")) $("scratch-copy").addEventListener("click", () => copyScratchAll());
     if ($("scratch-close")) $("scratch-close").addEventListener("click", () => closeScratch());
+    if ($("scratch-out-clear")) {
+      $("scratch-out-clear").addEventListener("click", () => renderScratchOut(""));
+    }
+    if ($("scratch-send")) {
+      $("scratch-send").addEventListener("click", () => sendScratchInput().catch((err) => toast(err.message)));
+    }
+    if ($("scratch-input")) {
+      $("scratch-input").addEventListener("keydown", (event) => {
+        if (event.key === "Enter") {
+          event.preventDefault();
+          sendScratchInput().catch((err) => toast(err.message));
+        }
+      });
+    }
     if ($("scratch-more")) {
       $("scratch-more").addEventListener("click", (event) => {
         event.stopPropagation();
@@ -5586,17 +5681,15 @@
   }
 
   function productName(edition) {
-    if (edition === "enterprise") return "Lark Enterprise";
     if (edition === "desktop") return "Lark Desktop";
     if (edition === "mobile") return "Lark Mobile";
-    if (edition === "school") return "Lark School";
+    if (edition === "executable") return "Lark Executable";
     return "Lark";
   }
 
   function isDesktopEdition(info) {
     const edition = (info && info.edition) || (state.settings && state.settings.edition) || "";
-    // Enterprise uses the same “prompt every launch” update UX as Desktop.
-    return edition === "desktop" || edition === "enterprise" || !!(info && (info.prompt || info.required));
+    return edition === "desktop" || !!(info && (info.prompt || info.required));
   }
 
   function hideUpdateBanner() {
@@ -5672,7 +5765,7 @@
     const info = state.updateInfo;
     if (!info || !info.latest) return hideUpdateBanner();
     if (isDesktopEdition(info)) {
-      // Desktop / Enterprise: Later only hides for this session; next launch prompts again.
+      // Desktop: Later only hides for this session; next launch prompts again.
       hideUpdateBanner();
       const ed = (info && info.edition) || (state.settings && state.settings.edition) || "";
       toast("You'll be prompted again next time you open " + productName(ed) + ".");
@@ -5760,9 +5853,8 @@
       state.settings = await api("GET", "/api/settings");
       const edition = state.settings.edition || "portable";
       document.body.classList.toggle("edition-desktop", edition === "desktop");
-      document.body.classList.toggle("edition-enterprise", edition === "enterprise");
-      const brandVer = document.querySelector("#brand-home .ver");
-      if (brandVer && edition === "enterprise") brandVer.textContent = "Ent";
+      document.body.classList.toggle("edition-executable", edition === "executable");
+      document.body.classList.toggle("edition-mobile", edition === "mobile");
       applyTheme(state.settings.theme, false);
       applyDisplay({
         fontSize: state.settings.fontSize || 14,

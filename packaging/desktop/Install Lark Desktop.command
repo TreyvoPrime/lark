@@ -47,7 +47,7 @@ elif command -v xdg-desktop-menu >/dev/null 2>&1 || [ -d "$HOME/.local/share/app
 [Desktop Entry]
 Type=Application
 Name=Lark Desktop
-Comment=Enterprise Java IDE
+Comment=Lark Desktop Java IDE
 Exec="$DEST/start-lark-desktop.sh"
 Path=$DEST
 Icon=$DEST/lark-icon.png

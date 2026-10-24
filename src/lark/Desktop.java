@@ -53,18 +53,25 @@ public final class Desktop {
         }
     }
 
-    /** True when this JVM is the desktop edition. */
+    /** True when this JVM is the desktop edition (also recognizes retired enterprise markers). */
     public static boolean isDesktop() {
         if (Boolean.parseBoolean(System.getProperty("lark.desktop", "false"))) return true;
+        if (Boolean.parseBoolean(System.getProperty("lark.enterprise", "false"))) return true;
         String channel = System.getProperty("lark.channel", "");
-        if (CHANNEL.equalsIgnoreCase(channel)) return true;
+        if (CHANNEL.equalsIgnoreCase(channel) || "enterprise".equalsIgnoreCase(channel)) return true;
         String env = System.getenv("LARK_CHANNEL");
-        if (env != null && CHANNEL.equalsIgnoreCase(env.trim())) return true;
+        if (env != null) {
+            String e = env.trim();
+            if (CHANNEL.equalsIgnoreCase(e) || "enterprise".equalsIgnoreCase(e)) return true;
+        }
         try {
             java.nio.file.Path dir = Updates.installDir();
             if (dir != null) {
                 if (java.nio.file.Files.isRegularFile(dir.resolve("desktop.marker"))) return true;
                 if (java.nio.file.Files.isRegularFile(dir.resolve("app").resolve("desktop.marker"))) return true;
+                // Retired Enterprise installs upgrade on the Desktop channel.
+                if (java.nio.file.Files.isRegularFile(dir.resolve("enterprise.marker"))) return true;
+                if (java.nio.file.Files.isRegularFile(dir.resolve("app").resolve("enterprise.marker"))) return true;
             }
         } catch (Throwable ignored) {
             // Install dir may not be ready yet.

@@ -69,11 +69,6 @@ assets=(
   release/lark-mobile-windows.zip
   release/lark-mobile-mac.zip
   release/lark-mobile-linux.zip
-  release/lark-school-windows.zip
-  release/lark-school-update.zip
-  release/LarkEnterpriseSetup.exe
-  release/lark-enterprise-windows.zip
-  release/lark-enterprise-update.zip
   release/lark-windows.zip
   release/lark-mac.zip
   release/lark-linux.zip

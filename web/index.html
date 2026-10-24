@@ -465,6 +465,17 @@
       <nav id="scratch-deck" class="scratch-deck" aria-label="Scratch deck"></nav>
       <div class="scratch-main">
         <div id="scratch-editor"></div>
+        <div class="scratch-out-pane" aria-label="Scratch output">
+          <div class="scratch-out-head">
+            <strong>Output</strong>
+            <button type="button" id="scratch-out-clear" title="Clear scratch output">Clear</button>
+          </div>
+          <pre id="scratch-out">Run this scratch — output stays here.</pre>
+          <div id="scratch-reply" class="scratch-reply" hidden>
+            <input id="scratch-input" type="text" placeholder="Type a line, then Enter" spellcheck="false" autocomplete="off">
+            <button type="button" id="scratch-send" class="primary">Send</button>
+          </div>
+        </div>
       </div>
     </div>
     <div id="scratch-menu" class="scratch-menu menu-panel menu-panel-sm" hidden role="menu">

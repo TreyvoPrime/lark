@@ -29,7 +29,7 @@ https://github.com/TreyvoPrime/lark/releases/latest/download/LarkDesktopSetup.ex
 
 Mac / Linux payload zips ship `start-lark-desktop.sh` with the same buried `app/` + `jdk/` layout.
 
-### Lark Executable (replaces School + old bat Desktop)
+### Lark Executable
 
 ```text
 https://github.com/TreyvoPrime/lark/releases/latest/download/lark-executable-windows.zip
@@ -38,7 +38,7 @@ https://github.com/TreyvoPrime/lark/releases/latest/download/lark-executable-win
 - Extract All → double-click **Lark.exe**
 - No `.bat` / `.ps1` required
 - `app\` (jar) and `jdk\` stay beside the exe and are soft-hidden on Windows
-- Same IDE as Desktop; own update channel (`executable`, with `school` aliases)
+- Same IDE as Desktop; own update channel (`executable`)
 
 ### Lark Mobile (separate edition)
 
@@ -54,16 +54,11 @@ https://github.com/TreyvoPrime/lark/releases/latest/download/lark-mobile-linux.z
 
 Do not open launchers from inside a zip preview / Temp folder.
 
-## What’s new in 3.7.0
+## What’s new in 3.9.7.3
 
-- **Three tracks** — Desktop (Setup), Executable (`Lark.exe`), Mobile
-- **Desktop = former Enterprise** — default installed product with Start Menu
-- **Executable = former School + bat Desktop** — one exe, buried runtime
-- **Hardened launchers** — path containment, JAR magic check, hidden `app/`+`jdk/`, SHA-256 updates
-
-## What’s new in 3.6.0
-
-- Unified slim Desktop layout and local security hardening (bundled JDK only, CSP/COOP, Origin checks)
+- **Core tracks only** — Desktop, Executable, and Mobile. School and Enterprise packaging removed.
+- **Scratch output** — Scratch runs print into a pad-attached output terminal (not the main console).
+- **Scratch create above pad** — New/rename dialogs appear over the open scratch pad.
 
 ## Build from source
 

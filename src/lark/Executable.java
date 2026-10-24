@@ -4,9 +4,9 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 
 /**
- * Lark Executable — unzip and double-click {@code Lark.exe}. Replaces the old
- * School zip and the old bat-driven Desktop zip. Runtime lives under {@code app/}
- * and {@code jdk/} (soft-hidden on Windows).
+ * Lark Executable — unzip and double-click {@code Lark.exe} (labs / USB).
+ * Runtime lives under {@code app/} and {@code jdk/} (soft-hidden on Windows).
+ * Older School-channel markers still resolve here so upgrades stay on this track.
  */
 public final class Executable {
     static final String CHANNEL = "executable";

@@ -557,14 +557,14 @@ public final class Server {
 
     private static String editionName() {
         if (Mobile.isMobile()) return "mobile";
-        if (Desktop.isDesktop() || Enterprise.isEnterprise()) return "desktop";
+        if (Desktop.isDesktop()) return "desktop";
         if (Executable.isExecutable()) return "executable";
         return "portable";
     }
 
     private static String channelName() {
         if (Mobile.isMobile()) return Mobile.CHANNEL;
-        if (Desktop.isDesktop() || Enterprise.isEnterprise()) return Desktop.CHANNEL;
+        if (Desktop.isDesktop()) return Desktop.CHANNEL;
         if (Executable.isExecutable()) return Executable.CHANNEL;
         return "portable";
     }
