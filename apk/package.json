@@ -1,12 +1,13 @@
 {
   "name": "lark-mobile-apk",
-  "version": "3.9.0",
+  "version": "3.9.2",
   "private": true,
   "description": "Lark Mobile Android shell (Capacitor)",
   "scripts": {
+    "prepare-jre": "bash scripts/prepare-jni-jre.sh",
     "sync-www": "rm -rf www && mkdir -p www && cp -a ../web-mobile/. www/ && node scripts/stamp-version.js",
     "cap:sync": "npm run sync-www && npx cap sync android",
-    "build:apk": "npm run cap:sync && cd android && ./gradlew assembleDebug"
+    "build:apk": "npm run prepare-jre && npm run cap:sync && cd android && ./gradlew assembleDebug"
   },
   "dependencies": {
     "@capacitor/android": "^8.5.3",

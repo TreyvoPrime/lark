@@ -49,12 +49,17 @@ https://github.com/TreyvoPrime/lark/releases/latest/download/lark-mobile-mac.zip
 https://github.com/TreyvoPrime/lark/releases/latest/download/lark-mobile-linux.zip
 ```
 
-- Install the **APK** on Android (or open Mobile UI in the phone browser)
-- On a PC: extract the Mobile zip → run **Start Lark Mobile** (host engine + pair code)
-- In the APK: paste host URL + pair code → Connect — then write, check, run, and debug from the phone
+- Install the **APK** on Android — it **runs Java on the phone** (bundled Android JRE)
+- Open the app → **Start on this phone** (auto-starts when the engine is ready)
+- Optional: pair a PC on Wi‑Fi if a device blocks local Java — extract the Mobile zip → **Start Lark Mobile** → paste host URL + pair code
 - Build the APK yourself: see [`apk/README.md`](apk/README.md)
 
 Do not open launchers from inside a zip preview / Temp folder.
+
+## What’s new in 3.9.2
+
+- **Lark Mobile actually runs on-device** — APK embeds Android OpenJDK natives (`liblarkjava.so` in jniLibs) so Java can start on Android 10+; first launch unpacks the bundled JRE and serves the IDE on the phone
+- **Auto-start** — Capacitor APK starts the local engine when bundled; host pairing is the fallback only
 
 ## What’s new in 3.9.1
 

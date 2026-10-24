@@ -733,28 +733,40 @@
     box.hidden = false;
     try {
       const st = await eng.status();
-      $("engine-native-status").textContent = st.installed
-        ? ("On-device JRE ready (" + (st.abi || "?") + ")" + (st.running ? " · running" : ""))
-        : ("On-device engine can download an Android JRE for " + (st.abi || "this phone") + " (~40 MB).");
+      if (st.running) {
+        $("engine-native-status").textContent = "Running on this phone (" + (st.abi || "?") + ") · port " + (st.port || 43127);
+      } else if (st.installed || st.bundled) {
+        $("engine-native-status").textContent = st.bundled
+          ? ("Bundled Android JRE ready for " + (st.abi || "this phone") + ". Tap Start — no PC needed.")
+          : ("On-device JRE ready (" + (st.abi || "?") + "). Tap Start to run locally.");
+      } else {
+        $("engine-native-status").textContent =
+          "First start unpacks the bundled Android JRE for " + (st.abi || "this phone") + ", then runs Lark here.";
+      }
       $("btn-engine-start").disabled = false;
     } catch (e) {
       $("engine-native-status").textContent = "Engine plugin error: " + e.message;
     }
   }
 
+  function bindEngineProgress(eng) {
+    if (!eng || !eng.addListener || bindEngineProgress._done) return;
+    bindEngineProgress._done = true;
+    eng.addListener("engineProgress", (ev) => {
+      $("engine-progress").textContent =
+        (ev.message || "") + (ev.percent != null ? " (" + ev.percent + "%)" : "");
+    });
+  }
+
   async function installNativeEngine() {
     const eng = nativeEngine();
     if (!eng) return toast("On-device engine only works inside the Lark Mobile APK.");
-    $("engine-progress").textContent = "Starting download…";
+    bindEngineProgress(eng);
+    $("engine-progress").textContent = "Installing engine…";
     try {
-      if (eng.addListener) {
-        eng.addListener("engineProgress", (ev) => {
-          $("engine-progress").textContent = (ev.message || "") + (ev.percent != null ? " (" + ev.percent + "%)" : "");
-        });
-      }
       await eng.install();
       $("engine-progress").textContent = "Installed.";
-      toast("On-device JDK installed.");
+      toast("On-device engine installed.");
       await refreshNativeEngineUi();
     } catch (e) {
       $("engine-progress").textContent = e.message || String(e);
@@ -765,23 +777,51 @@
   async function startNativeEngine() {
     const eng = nativeEngine();
     if (!eng) return toast("On-device engine only works inside the Lark Mobile APK.");
-    $("engine-progress").textContent = "Starting local Lark…";
+    bindEngineProgress(eng);
+    $("engine-progress").textContent = "Starting Lark on this phone…";
+    $("btn-engine-start").disabled = true;
     try {
-      const st = await eng.status();
-      if (!st.installed) await eng.install();
       const res = await eng.start();
       const url = (res && res.url) || "http://127.0.0.1:43127/";
       $("api-base").value = url.replace(/\/$/, "");
       $("pair-input").value = "";
       saveConnection();
-      $("engine-progress").textContent = "Local engine on " + url;
+      $("engine-progress").textContent = "Running on " + url;
       if (await probeConnection()) {
-        toast("On-device engine running.");
+        toast("Lark is running on this phone.");
         await afterConnect();
       }
     } catch (e) {
       $("engine-progress").textContent = e.message || String(e);
       toast(e.message || "Could not start on-device engine");
+    } finally {
+      $("btn-engine-start").disabled = false;
+      await refreshNativeEngineUi();
+    }
+  }
+
+  async function autoStartNativeEngine() {
+    const eng = nativeEngine();
+    if (!eng) return;
+    try {
+      if (await probeConnection()) {
+        await afterConnect();
+        return;
+      }
+      const st = await eng.status();
+      if (st.running) {
+        $("api-base").value = (st.url || "http://127.0.0.1:43127/").replace(/\/$/, "");
+        saveConnection();
+        if (await probeConnection()) await afterConnect();
+        return;
+      }
+      // Bundled JRE: start automatically so the phone IDE works out of the box.
+      if (st.bundled || st.installed) {
+        await startNativeEngine();
+      }
+    } catch (e) {
+      // Leave UI available for manual Start / host pairing.
+      console.warn("autoStartNativeEngine", e);
     }
   }
 
@@ -789,9 +829,10 @@
   async function boot() {
     loadConnection();
     renderThemeGrid();
-    refreshNativeEngineUi().catch(() => {});
+    await refreshNativeEngineUi().catch(() => {});
     if ($("btn-engine-install")) $("btn-engine-install").addEventListener("click", () => installNativeEngine());
     if ($("btn-engine-start")) $("btn-engine-start").addEventListener("click", () => startNativeEngine());
+    autoStartNativeEngine().catch(() => {});
     document.querySelectorAll(".tab").forEach((tab) => {
       tab.addEventListener("click", () => setView(tab.dataset.tab));
     });
