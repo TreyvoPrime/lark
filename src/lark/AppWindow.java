@@ -6,9 +6,16 @@ import java.io.IOException;
 import java.net.URI;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.util.ArrayList;
+import java.util.List;
 import java.util.Locale;
 
-/** Opens Lark in a dedicated browser app window (Chrome/Edge --app) when possible. */
+/**
+ * Opens Lark in a dedicated app window (Chrome/Edge {@code --app}) when possible.
+ * Uses an isolated profile and strips browser chrome as much as Chromium allows.
+ * On Windows Desktop/Executable installs the Go host prefers WebView2 instead;
+ * this path remains the Mac/Linux opener and the Windows fallback.
+ */
 public final class AppWindow {
     private AppWindow() {}
 
@@ -39,7 +46,7 @@ public final class AppWindow {
                     "microsoft-edge", "microsoft-edge-stable"
             };
             for (String bin : browsers) {
-                if (onPath(bin) && start(bin, "--app=" + url)) return;
+                if (onPath(bin) && start(bin, appArgs(url))) return;
             }
         }
         try {
@@ -61,7 +68,13 @@ public final class AppWindow {
 
     private static boolean macApp(String name, String url) {
         try {
-            Process process = new ProcessBuilder("open", "-na", name, "--args", "--app=" + url).start();
+            List<String> cmd = new ArrayList<>();
+            cmd.add("open");
+            cmd.add("-na");
+            cmd.add(name);
+            cmd.add("--args");
+            cmd.addAll(appArgs(url));
+            Process process = new ProcessBuilder(cmd).start();
             return process.waitFor() == 0;
         } catch (Exception ignored) {
             return false;
@@ -72,7 +85,44 @@ public final class AppWindow {
         if (root == null || root.isBlank()) return false;
         Path path = Path.of(root, rest);
         if (!Files.isRegularFile(path)) return false;
-        return start(path.toString(), "--app=" + url);
+        List<String> cmd = new ArrayList<>();
+        cmd.add(path.toString());
+        cmd.addAll(appArgs(url));
+        return start(cmd.toArray(String[]::new));
+    }
+
+    /** Hardened --app flags: private profile, no extensions, no first-run clutter. */
+    private static List<String> appArgs(String url) {
+        List<String> args = new ArrayList<>();
+        args.add("--app=" + url);
+        args.add("--user-data-dir=" + profileDir());
+        args.add("--no-first-run");
+        args.add("--no-default-browser-check");
+        args.add("--disable-extensions");
+        args.add("--disable-default-apps");
+        args.add("--disable-sync");
+        args.add("--disable-translate");
+        args.add("--disable-background-networking");
+        args.add("--disable-features=TranslateUI,MediaRouter");
+        args.add("--window-size=1280,800");
+        args.add("--class=Lark");
+        return args;
+    }
+
+    private static String profileDir() {
+        String local = System.getenv("LOCALAPPDATA");
+        if (local != null && !local.isBlank()) {
+            return Path.of(local, "Lark", "shell-profile").toString();
+        }
+        String home = System.getProperty("user.home", ".");
+        return Path.of(home, ".lark", "shell-profile").toString();
+    }
+
+    private static boolean start(String bin, List<String> args) {
+        List<String> cmd = new ArrayList<>();
+        cmd.add(bin);
+        cmd.addAll(args);
+        return start(cmd.toArray(String[]::new));
     }
 
     private static boolean start(String... command) {

@@ -17,9 +17,10 @@ import java.io.IOException;
 import java.util.concurrent.CountDownLatch;
 
 /**
- * Lark Desktop — default installed edition (Setup wizard). Opens in its own
- * app window (Chrome/Edge --app mode), keeps a system tray exit control, and
- * uses the desktop update channel. Runtime lives under {@code app/} + {@code jdk/}.
+ * Lark Desktop — default installed edition (Setup wizard). On Windows the
+ * native host opens a WebView2 shell (DevTools off); otherwise uses a hardened
+ * Chrome/Edge {@code --app} window + tray quit. Desktop update channel.
+ * Runtime lives under {@code app/} + {@code jdk/}.
  */
 public final class Desktop {
     static final String CHANNEL = "desktop";
@@ -116,19 +117,27 @@ public final class Desktop {
         Server server = Server.start(port, projects, new Runner(), new GitHub(settings), settings);
         Runtime.getRuntime().addShutdownHook(new Thread(server::stop));
         String url = "http://127.0.0.1:" + server.port();
+        RunDir.writePort(server.port());
         System.out.println();
         System.out.println("====================================");
         System.out.println("  Lark Desktop is running");
         System.out.println("  " + url);
-        System.out.println("  Close from the tray icon to quit.");
+        if (RunDir.shellMode()) {
+            System.out.println("  Native shell owns the window — close it to quit.");
+        } else {
+            System.out.println("  Close from the tray icon to quit.");
+        }
         System.out.println("====================================");
         System.out.flush();
 
-        installTray(url);
-        if (browser) {
-            System.out.println("Opening Lark Desktop window...");
-            System.out.flush();
-            AppWindow.open(url);
+        // When the Windows WebView2 host owns the UI, skip tray + browser open.
+        if (!RunDir.shellMode()) {
+            installTray(url);
+            if (browser) {
+                System.out.println("Opening Lark Desktop window...");
+                System.out.flush();
+                AppWindow.open(url);
+            }
         }
         new CountDownLatch(1).await();
     }

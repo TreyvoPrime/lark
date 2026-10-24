@@ -1,5 +1,6 @@
 // Lark Executable launcher for Windows — double-click Lark.exe only.
-// Runtime is buried under app\ and jdk\ (soft-hidden). No .bat required.
+// Starts Java, then a native WebView2 shell (DevTools off). Falls back to
+// Edge/Chrome --app if WebView2 is missing. Runtime under app\ and jdk\.
 // Build: GOOS=windows GOARCH=amd64 go build -ldflags="-s -w -H windowsgui"
 package main
 
@@ -12,6 +13,8 @@ import (
 	"syscall"
 	"time"
 	"unsafe"
+
+	"lark/winhost"
 )
 
 func main() {
@@ -91,6 +94,9 @@ func main() {
 		fail("Lark", "Could not create run folder:\n"+runDir+"\n\n"+err.Error())
 		return
 	}
+	portFile := filepath.Join(runDir, "port")
+	_ = os.Remove(portFile)
+
 	runJar := filepath.Join(runDir, "lark.jar")
 	_ = os.Remove(runJar)
 	if err := copyFile(jar, runJar); err != nil {
@@ -100,14 +106,17 @@ func main() {
 		defer func() { _ = os.Remove(runJar) }()
 	}
 
-	logf(logPath, "Launching %s -cp %s lark.Executable\n", launcher, runJar)
+	logf(logPath, "Launching %s -cp %s lark.Executable --no-browser\n", launcher, runJar)
 	cmd := exec.Command(launcher,
 		"-Dlark.install="+root,
 		"-Dlark.executable=true",
 		"-Dlark.channel=executable",
 		"-Dlark.ui=jar",
+		"-Dlark.shell=true",
+		"-Dlark.run.dir="+runDir,
 		"-cp", runJar,
 		"lark.Executable",
+		"--no-browser",
 	)
 	cmd.Dir = root
 	cmd.SysProcAttr = &syscall.SysProcAttr{HideWindow: true}
@@ -117,13 +126,35 @@ func main() {
 		fail("Lark", "Could not start Java:\n"+err.Error()+"\n\nSee the boot log under %LOCALAPPDATA%\\Lark\\logs.")
 		return
 	}
-	err = cmd.Wait()
+
+	url, err := winhost.WaitReady(portFile, 43123, 45*time.Second)
 	if err != nil {
-		logf(logPath, "java exit: %v\n", err)
-		if exitErr, ok := err.(*exec.ExitError); ok && exitErr.ExitCode() != 0 {
-			fail("Lark", fmt.Sprintf("Lark stopped with error code %d.\n\nSee %%LOCALAPPDATA%%\\Lark\\logs\\executable-boot.log", exitErr.ExitCode()))
-		}
+		_ = cmd.Process.Kill()
+		fail("Lark", "Lark started but the window could not connect.\n\n"+err.Error()+
+			"\n\nSee %%LOCALAPPDATA%%\\Lark\\logs\\executable-boot.log")
+		return
 	}
+	logf(logPath, "Ready at %s\n", url)
+
+	dataPath := winhost.ShellDataPath("executable")
+	if err := winhost.OpenNativeShell("Lark", url, dataPath); err != nil {
+		logf(logPath, "WebView2 unavailable (%v) — Edge/Chrome app fallback\n", err)
+		profile := filepath.Join(os.Getenv("LOCALAPPDATA"), "Lark", "shell-profile-executable")
+		proc, ferr := winhost.OpenAppFallback(url, profile, "Lark")
+		if ferr != nil {
+			_ = cmd.Process.Kill()
+			fail("Lark", "Could not open the Lark window.\n\n"+ferr.Error()+
+				"\n\nInstall Microsoft Edge WebView2, or Edge/Chrome.")
+			return
+		}
+		_, _ = proc.Wait()
+	}
+
+	if cmd.Process != nil {
+		_ = cmd.Process.Kill()
+		_, _ = cmd.Process.Wait()
+	}
+	logf(logPath, "Shell closed — Java stopped\n")
 }
 
 func resolveJar(root string) (string, error) {
@@ -190,9 +221,8 @@ func verifyJarMagic(path string) error {
 	if _, err := f.Read(magic[:]); err != nil {
 		return err
 	}
-	// ZIP / JAR local file header
 	if magic[0] != 'P' || magic[1] != 'K' || magic[2] != 3 || magic[3] != 4 {
-		if magic[0] != 'P' || magic[1] != 'K' { // also allow empty jar / directory zip variants PK\x05\x06
+		if magic[0] != 'P' || magic[1] != 'K' {
 			return fmt.Errorf("bad jar magic")
 		}
 	}

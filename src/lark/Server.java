@@ -159,6 +159,7 @@ public final class Server {
                     .put("version", Settings.VERSION)
                     .put("edition", editionName())
                     .put("channel", channelName())
+                    .put("shell", RunDir.shellMode())
                     .put("mobile", Mobile.isMobile())
                     .put("lan", lan));
             return;

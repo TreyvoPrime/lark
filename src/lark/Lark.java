@@ -80,16 +80,22 @@ public final class Lark {
         Server server = Server.start(port, projects, new Runner(), new GitHub(settings), settings);
         Runtime.getRuntime().addShutdownHook(new Thread(server::stop));
         String url = "http://127.0.0.1:" + server.port();
+        RunDir.writePort(server.port());
         System.out.println();
         System.out.println("====================================");
         System.out.println("  Lark is running");
         System.out.println("  " + url);
-        System.out.println("  Leave this window open.");
+        if (RunDir.shellMode()) {
+            System.out.println("  Native shell owns the window — close it to quit.");
+        } else {
+            System.out.println("  Leave this window open.");
+        }
         System.out.println("====================================");
         System.out.println("Projects: " + settings.projectsDir());
         System.out.flush();
-        if (browser) {
-            System.out.println("Opening your browser...");
+        // Windows Executable host opens WebView2; only open a browser when asked.
+        if (browser && !RunDir.shellMode()) {
+            System.out.println("Opening Lark window...");
             System.out.flush();
             AppWindow.open(url);
         }

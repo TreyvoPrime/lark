@@ -9,7 +9,7 @@ Lark is a focused Java IDE: multi-file projects, live compile feedback, brace gu
 | **What it is** | Setup wizard install | Unzip → double-click **Lark.exe** | Touch-first edition |
 | **GitHub file** | `LarkDesktopSetup.exe` | `lark-executable-windows.zip` | `lark-mobile-windows.zip` |
 | **How to start** | Start Menu → **Lark Desktop** | **Lark.exe** only | **Start Lark Mobile** |
-| **UI** | Full desktop IDE (app window) | Full desktop IDE | Bottom-tab Mobile UI |
+| **UI** | Native WebView2 shell (DevTools off) | Native WebView2 shell (DevTools off) | Bottom-tab Mobile UI |
 | **Best for** | Everyday PC, Start Menu | Labs / USB / no `.bat` | Tablet + phone pair |
 
 Download site: **[treyvoprime.github.io/lark-download](https://treyvoprime.github.io/lark-download/)**  
@@ -53,6 +53,12 @@ https://github.com/TreyvoPrime/lark/releases/latest/download/lark-mobile-linux.z
 - On your phone (same Wi‑Fi), open that URL for the Mobile UI
 
 Do not open launchers from inside a zip preview / Temp folder.
+
+## What’s new in 3.8.0
+
+- **Native shell (middle ground)** — Windows Desktop & Executable open in WebView2, not a full Chrome window
+- **DevTools off** — no Inspect Element / browser chrome; closing the window stops Lark
+- **Fallback** — if WebView2 is missing, hardened Edge/Chrome `--app` with a private profile
 
 ## What’s new in 3.7.0
 

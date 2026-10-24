@@ -1,6 +1,6 @@
 // Lark Desktop launcher for Windows — installed via LarkDesktopSetup.exe.
-// Runtime is buried under app\ and jdk\ (soft-hidden). Double-click
-// "Lark Desktop.exe" or use the Start Menu shortcut.
+// Starts the Java backend, then opens a native WebView2 shell (DevTools off).
+// Falls back to Edge/Chrome --app if WebView2 is unavailable.
 // Build: GOOS=windows GOARCH=amd64 go build -ldflags="-s -w -H windowsgui"
 package main
 
@@ -13,6 +13,8 @@ import (
 	"syscall"
 	"time"
 	"unsafe"
+
+	"lark/winhost"
 )
 
 func main() {
@@ -43,7 +45,6 @@ func main() {
 	if err := applyPending(exePath, exePath+".pending", exePath+".bak", logPath); err != nil {
 		logf(logPath, "exe pending: %v\n", err)
 	}
-	// Older Enterprise installs used a different exe name.
 	oldExe := filepath.Join(root, "Lark Enterprise.exe")
 	if err := applyPending(oldExe, oldExe+".pending", oldExe+".bak", logPath); err != nil {
 		logf(logPath, "prior exe pending: %v\n", err)
@@ -93,6 +94,9 @@ func main() {
 		fail("Lark Desktop", "Could not create run folder:\n"+runDir+"\n\n"+err.Error())
 		return
 	}
+	portFile := filepath.Join(runDir, "port")
+	_ = os.Remove(portFile)
+
 	runJar := filepath.Join(runDir, "lark.jar")
 	_ = os.Remove(runJar)
 	if err := copyFile(jar, runJar); err != nil {
@@ -102,14 +106,17 @@ func main() {
 		defer func() { _ = os.Remove(runJar) }()
 	}
 
-	logf(logPath, "Launching %s -cp %s lark.Desktop\n", launcher, runJar)
+	logf(logPath, "Launching %s -cp %s lark.Desktop --no-browser\n", launcher, runJar)
 	cmd := exec.Command(launcher,
 		"-Dlark.install="+root,
 		"-Dlark.desktop=true",
 		"-Dlark.channel=desktop",
 		"-Dlark.ui=jar",
+		"-Dlark.shell=true",
+		"-Dlark.run.dir="+runDir,
 		"-cp", runJar,
 		"lark.Desktop",
+		"--no-browser",
 	)
 	cmd.Dir = root
 	cmd.SysProcAttr = &syscall.SysProcAttr{HideWindow: true}
@@ -119,15 +126,35 @@ func main() {
 		fail("Lark Desktop", "Could not start Java:\n"+err.Error()+"\n\nSee %%LOCALAPPDATA%%\\Lark\\logs\\desktop-boot.log")
 		return
 	}
-	err = cmd.Wait()
+
+	url, err := winhost.WaitReady(portFile, 43123, 45*time.Second)
 	if err != nil {
-		logf(logPath, "java exit: %v\n", err)
-		if exitErr, ok := err.(*exec.ExitError); ok && exitErr.ExitCode() != 0 {
-			fail("Lark Desktop", fmt.Sprintf(
-				"Lark Desktop stopped with error code %d.\n\nSee %%LOCALAPPDATA%%\\Lark\\logs\\desktop-boot.log",
-				exitErr.ExitCode()))
-		}
+		_ = cmd.Process.Kill()
+		fail("Lark Desktop", "Lark Desktop started but the window could not connect.\n\n"+err.Error()+
+			"\n\nSee %%LOCALAPPDATA%%\\Lark\\logs\\desktop-boot.log")
+		return
 	}
+	logf(logPath, "Ready at %s\n", url)
+
+	dataPath := winhost.ShellDataPath("desktop")
+	if err := winhost.OpenNativeShell("Lark Desktop", url, dataPath); err != nil {
+		logf(logPath, "WebView2 unavailable (%v) — Edge/Chrome app fallback\n", err)
+		profile := filepath.Join(os.Getenv("LOCALAPPDATA"), "Lark", "shell-profile-desktop")
+		proc, ferr := winhost.OpenAppFallback(url, profile, "Lark Desktop")
+		if ferr != nil {
+			_ = cmd.Process.Kill()
+			fail("Lark Desktop", "Could not open the Lark window.\n\n"+ferr.Error()+
+				"\n\nInstall Microsoft Edge WebView2, or Edge/Chrome.")
+			return
+		}
+		_, _ = proc.Wait()
+	}
+
+	if cmd.Process != nil {
+		_ = cmd.Process.Kill()
+		_, _ = cmd.Process.Wait()
+	}
+	logf(logPath, "Shell closed — Java stopped\n")
 }
 
 func resolveJar(root string) (string, error) {
