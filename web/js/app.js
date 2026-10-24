@@ -3366,8 +3366,8 @@
     const menu = $("context");
     menu.replaceChildren();
     const items = [
-      ["New class", () => { state.selected = node.dir ? node.path : parentDir(node.path); createClass(); }],
-      ["New file", () => { state.selected = node.dir ? node.path : parentDir(node.path); createFile(); }],
+      ["New Class", () => { state.selected = node.dir ? node.path : parentDir(node.path); createClass(); }],
+      ["New File", () => { state.selected = node.dir ? node.path : parentDir(node.path); createFile(); }],
       ["Rename", () => renamePath(node.path)],
       ["Delete", () => removePath(node.path)]
     ];
@@ -3396,8 +3396,8 @@
     head.textContent = "New in " + (folderPath || "folder");
     menu.appendChild(head);
     [
-      ["+ Class", () => { state.selected = folderPath; createClass(); }],
-      ["+ File", () => { state.selected = folderPath; createFile(); }]
+      ["New Class", () => { state.selected = folderPath; createClass(); }],
+      ["New File", () => { state.selected = folderPath; createFile(); }]
     ].forEach(([label, action]) => {
       const btn = document.createElement("button");
       btn.type = "button";
