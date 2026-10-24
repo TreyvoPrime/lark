@@ -2942,7 +2942,7 @@
     if (!parsed && act !== "explain" && act !== "snippet") return toast("Open a Java class first.");
     if (act === "explain") {
       await formDialog({
-        title: "Java helpers",
+        title: "Assist",
         ok: "Got it",
         note:
           window.LarkJava.explain("private") + "\n\n" +

@@ -287,7 +287,7 @@
           column: 1,
           message: "Private field '" + field.name + "' has no getter or setter. Other classes cannot read or change it.",
           plain: "`" + field.name + "` is private, so other classes cannot reach it yet.",
-          hint: "Use Java → Generate getters / setters, or Java → Quick fix: missing accessors.",
+          hint: "Use Assist → Generate getters / setters, or Assist → Quick fix: missing accessors.",
           code: "missing-accessors",
           field: field.name
         });
@@ -298,7 +298,7 @@
           column: 1,
           message: "Private field '" + field.name + "' has no getter (" + info.getter + ").",
           plain: "`" + field.name + "` is private and has no getter method.",
-          hint: "Add `" + info.getter + "()` via Java → Generate getters / setters.",
+          hint: "Add `" + info.getter + "()` via Assist → Generate getters / setters.",
           code: "missing-getter",
           field: field.name
         });
