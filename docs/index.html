@@ -23,7 +23,7 @@
       --ease: cubic-bezier(0.22, 1, 0.36, 1);
       --ease-out: cubic-bezier(0.16, 1, 0.3, 1);
       --radius: 10px;
-      --max: 1040px;
+      --max: 1280px;
       --nav-h: 64px;
     }
 
@@ -47,7 +47,7 @@
         var(--graphite);
       color: var(--mist);
       font-family: "IBM Plex Sans", "Segoe UI", sans-serif;
-      font-size: 17px;
+      font-size: 19px;
       line-height: 1.55;
       -webkit-font-smoothing: antialiased;
     }
@@ -62,7 +62,7 @@
     }
 
     .wrap {
-      width: min(100% - 2.5rem, var(--max));
+      width: min(100% - 1.5rem, var(--max));
       margin-inline: auto;
     }
 
@@ -89,7 +89,7 @@
       gap: 0.65rem;
       font-family: Fraunces, Georgia, serif;
       font-weight: 700;
-      font-size: 1.2rem;
+      font-size: 1.28rem;
       letter-spacing: -0.02em;
     }
     .brand svg { width: 28px; height: 28px; color: var(--orange); }
@@ -136,19 +136,19 @@
     .hero {
       position: relative;
       overflow: hidden;
-      padding: 3.25rem 0 3.75rem;
-      min-height: min(86vh, 720px);
+      padding: 2.25rem 0 2.75rem;
+      min-height: min(90vh, 780px);
     }
     .hero-inner {
       position: relative;
       z-index: 2;
-      width: min(100% - 2.5rem, var(--max));
+      width: min(100% - 1.25rem, var(--max));
       margin-inline: auto;
       display: grid;
-      grid-template-columns: minmax(0, 1fr) minmax(0, 1.15fr);
-      gap: 2.5rem 3rem;
+      grid-template-columns: minmax(0, 1fr) minmax(0, 1.2fr);
+      gap: 1.5rem 1.75rem;
       align-items: center;
-      min-height: min(72vh, 580px);
+      min-height: min(76vh, 640px);
     }
     .hero-stage {
       position: absolute;
@@ -161,7 +161,7 @@
     }
     .hero-code {
       width: 100%;
-      min-height: 420px;
+      min-height: 520px;
       border: 1px solid var(--line-strong);
       border-radius: 14px;
       background:
@@ -184,10 +184,10 @@
       border-bottom: 1px solid var(--line);
     }
     .code-lines {
-      padding: 1.1rem 1.2rem 1.35rem;
+      padding: 1.25rem 1.35rem 1.5rem;
       font-family: "IBM Plex Mono", ui-monospace, monospace;
-      font-size: clamp(12px, 1.2vw, 14px);
-      line-height: 1.7;
+      font-size: clamp(14px, 1.45vw, 17px);
+      line-height: 1.75;
       color: var(--mist-dim);
     }
     .code-lines span {
@@ -228,14 +228,14 @@
       z-index: 2;
       text-align: left;
       justify-self: start;
-      max-width: 28rem;
+      max-width: 34rem;
     }
     .eyebrow {
       display: inline-flex;
       align-items: center;
       gap: 0.5rem;
       font-family: "IBM Plex Mono", monospace;
-      font-size: 0.78rem;
+      font-size: 0.82rem;
       letter-spacing: 0.08em;
       text-transform: uppercase;
       color: var(--orange);
@@ -250,10 +250,10 @@
     .hero h1 {
       font-family: Fraunces, Georgia, serif;
       font-weight: 700;
-      font-size: clamp(2.5rem, 5.5vw, 3.85rem);
-      line-height: 1.05;
+      font-size: clamp(3.1rem, 7vw, 5rem);
+      line-height: 1.02;
       letter-spacing: -0.03em;
-      margin: 0 0 1.05rem;
+      margin: 0 0 1.1rem;
       max-width: 14ch;
     }
     .hero h1 span {
@@ -261,10 +261,10 @@
       font-weight: 500;
     }
     .hero-lead {
-      margin: 0 0 1.75rem;
-      max-width: 38ch;
+      margin: 0 0 1.85rem;
+      max-width: 40ch;
       color: var(--mist-dim);
-      font-size: 1.08rem;
+      font-size: 1.16rem;
     }
     .cta-row {
       display: flex;
@@ -277,8 +277,8 @@
       align-items: center;
       justify-content: center;
       gap: 0.45rem;
-      min-height: 2.85rem;
-      padding: 0.7rem 1.15rem;
+      min-height: 3.05rem;
+      padding: 0.8rem 1.3rem;
       border-radius: 8px;
       font-weight: 600;
       font-size: 0.95rem;
@@ -359,7 +359,7 @@
     .section-title {
       font-family: Fraunces, Georgia, serif;
       font-weight: 700;
-      font-size: clamp(1.8rem, 3.5vw, 2.6rem);
+      font-size: clamp(2rem, 3.8vw, 2.85rem);
       letter-spacing: -0.035em;
       line-height: 1.1;
       margin: 0 0 0.85rem;
