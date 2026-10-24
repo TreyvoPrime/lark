@@ -992,16 +992,28 @@
       }, { threshold: 0.16 });
       document.querySelectorAll(".reveal, .member").forEach((el) => io.observe(el));
 
-      // Hero CTA: Executable is the default on Windows (avoids SmartScreen on Setup.exe).
+      // Hero CTA: phones get the APK; Windows gets Executable; Mac/Linux get Desktop.
       const latest = (name) =>
         "https://github.com/TreyvoPrime/lark/releases/latest/download/" + name;
+      const mobileApk =
+        "https://github.com/TreyvoPrime/lark/releases/download/v3.9.2-mobile/LarkMobile-debug.apk";
       const platform = (navigator.userAgentData && navigator.userAgentData.platform) || navigator.platform || "";
       const ua = navigator.userAgent || "";
+      const android = /Android/i.test(ua);
+      const ios = /iPhone|iPad|iPod/i.test(ua) || (/Mac/i.test(platform) && navigator.maxTouchPoints > 1);
       const win = /Win/i.test(platform) || /Windows/i.test(ua);
-      const mac = /Mac/i.test(platform) || /Mac OS/i.test(ua);
+      const mac = !ios && (/Mac/i.test(platform) || /Mac OS/i.test(ua));
       const hero = document.getElementById("hero-download");
       const meta = document.querySelector(".hero .meta-line");
-      if (win) {
+      if (android) {
+        hero.href = mobileApk;
+        hero.textContent = "Download Lark Mobile APK";
+        if (meta) meta.textContent = "Android · arm64 · runs Java on the phone · ~57 MB";
+      } else if (ios) {
+        hero.href = "#versions";
+        hero.textContent = "See Lark Mobile";
+        if (meta) meta.textContent = "Android APK is available now · iOS is not shipped yet";
+      } else if (win) {
         hero.href = latest("lark-executable-windows.zip");
         hero.textContent = "Download Lark";
         if (meta) meta.textContent = "Windows zip · Extract All → Lark.exe · ~72 MB";
