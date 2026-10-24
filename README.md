@@ -56,6 +56,10 @@ https://github.com/TreyvoPrime/lark/releases/latest/download/lark-mobile-linux.z
 
 Do not open launchers from inside a zip preview / Temp folder.
 
+## What’s new in 3.9.1
+
+- **On-device Android engine** — APK can download an Android JRE and start Lark locally (ECJ compile when `javac` is missing); Wi‑Fi host pairing remains the fallback on locked-down Android builds
+
 ## What’s new in 3.9.0
 
 - **Lark Mobile overhaul** — phone IDE UI with the same Desk themes as Desktop/Executable

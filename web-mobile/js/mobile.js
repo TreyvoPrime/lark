@@ -717,9 +717,81 @@
     }
   }
 
+
+  function nativeEngine() {
+    try {
+      return window.Capacitor && window.Capacitor.Plugins && window.Capacitor.Plugins.LarkEngine;
+    } catch (e) {
+      return null;
+    }
+  }
+
+  async function refreshNativeEngineUi() {
+    const box = $("engine-native");
+    const eng = nativeEngine();
+    if (!box || !eng) return;
+    box.hidden = false;
+    try {
+      const st = await eng.status();
+      $("engine-native-status").textContent = st.installed
+        ? ("On-device JRE ready (" + (st.abi || "?") + ")" + (st.running ? " · running" : ""))
+        : ("On-device engine can download an Android JRE for " + (st.abi || "this phone") + " (~40 MB).");
+      $("btn-engine-start").disabled = false;
+    } catch (e) {
+      $("engine-native-status").textContent = "Engine plugin error: " + e.message;
+    }
+  }
+
+  async function installNativeEngine() {
+    const eng = nativeEngine();
+    if (!eng) return toast("On-device engine only works inside the Lark Mobile APK.");
+    $("engine-progress").textContent = "Starting download…";
+    try {
+      if (eng.addListener) {
+        eng.addListener("engineProgress", (ev) => {
+          $("engine-progress").textContent = (ev.message || "") + (ev.percent != null ? " (" + ev.percent + "%)" : "");
+        });
+      }
+      await eng.install();
+      $("engine-progress").textContent = "Installed.";
+      toast("On-device JDK installed.");
+      await refreshNativeEngineUi();
+    } catch (e) {
+      $("engine-progress").textContent = e.message || String(e);
+      toast(e.message || "Install failed");
+    }
+  }
+
+  async function startNativeEngine() {
+    const eng = nativeEngine();
+    if (!eng) return toast("On-device engine only works inside the Lark Mobile APK.");
+    $("engine-progress").textContent = "Starting local Lark…";
+    try {
+      const st = await eng.status();
+      if (!st.installed) await eng.install();
+      const res = await eng.start();
+      const url = (res && res.url) || "http://127.0.0.1:43127/";
+      $("api-base").value = url.replace(/\/$/, "");
+      $("pair-input").value = "";
+      saveConnection();
+      $("engine-progress").textContent = "Local engine on " + url;
+      if (await probeConnection()) {
+        toast("On-device engine running.");
+        await afterConnect();
+      }
+    } catch (e) {
+      $("engine-progress").textContent = e.message || String(e);
+      toast(e.message || "Could not start on-device engine");
+    }
+  }
+
+
   async function boot() {
     loadConnection();
     renderThemeGrid();
+    refreshNativeEngineUi().catch(() => {});
+    if ($("btn-engine-install")) $("btn-engine-install").addEventListener("click", () => installNativeEngine());
+    if ($("btn-engine-start")) $("btn-engine-start").addEventListener("click", () => startNativeEngine());
     document.querySelectorAll(".tab").forEach((tab) => {
       tab.addEventListener("click", () => setView(tab.dataset.tab));
     });

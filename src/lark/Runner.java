@@ -164,23 +164,7 @@ public final class Runner {
             });
         }
 
-        List<String> compile = new ArrayList<>();
-        compile.add(tool("javac").toString());
-        compile.add("--release");
-        compile.add("17");
-        compile.add("-encoding");
-        compile.add("UTF-8");
-        if (haveJunit) {
-            compile.add("-cp");
-            compile.add(junit.toString());
-        }
-        compile.add("-d");
-        compile.add(".lark-out");
-        compile.add("-Xmaxerrs");
-        compile.add("40");
-        for (Path source : sources) {
-            compile.add(project.relativize(source).toString().replace('\\', '/'));
-        }
+        List<String> compile = compileCommand(project, sources, haveJunit ? junit : null);
 
         job.phase = "compile";
         job.append(format(compile) + "\n");
@@ -405,6 +389,71 @@ public final class Runner {
             if (Files.isExecutable(alt)) return alt;
         }
         return Path.of(name);
+    }
+
+    /** Prefer real javac; on Android JRE-only engines fall back to Eclipse ECJ. */
+    static boolean hasJavac() {
+        Path javac = tool("javac");
+        return javac.isAbsolute() && Files.isExecutable(javac);
+    }
+
+    static Path ecjJar() {
+        String prop = System.getProperty("lark.ecj", "");
+        if (prop != null && !prop.isBlank()) {
+            Path p = Path.of(prop);
+            if (Files.isRegularFile(p)) return p;
+        }
+        Path home = Path.of(System.getProperty("java.home"));
+        for (Path c : List.of(
+                home.resolve("lib").resolve("ecj.jar"),
+                home.resolve("ecj.jar"),
+                home.getParent() == null ? null : home.getParent().resolve("ecj.jar"))) {
+            if (c != null && Files.isRegularFile(c)) return c;
+        }
+        return null;
+    }
+
+    static List<String> compileCommand(Path project, List<Path> sources, Path junit) {
+        List<String> compile = new ArrayList<>();
+        Path ecj = ecjJar();
+        boolean useEcj = !hasJavac() && ecj != null;
+        if (useEcj) {
+            compile.add(tool("java").toString());
+            compile.add("-jar");
+            compile.add(ecj.toString());
+            compile.add("-source");
+            compile.add("17");
+            compile.add("-target");
+            compile.add("17");
+            compile.add("-encoding");
+            compile.add("UTF-8");
+            if (junit != null) {
+                compile.add("-classpath");
+                compile.add(junit.toString());
+            }
+            compile.add("-d");
+            compile.add(".lark-out");
+            compile.add("-maxProblems");
+            compile.add("40");
+        } else {
+            compile.add(tool("javac").toString());
+            compile.add("--release");
+            compile.add("17");
+            compile.add("-encoding");
+            compile.add("UTF-8");
+            if (junit != null) {
+                compile.add("-cp");
+                compile.add(junit.toString());
+            }
+            compile.add("-d");
+            compile.add(".lark-out");
+            compile.add("-Xmaxerrs");
+            compile.add("40");
+        }
+        for (Path source : sources) {
+            compile.add(project.relativize(source).toString().replace('\\', '/'));
+        }
+        return compile;
     }
 
     static String format(List<String> cmd) {

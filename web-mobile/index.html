@@ -55,16 +55,24 @@
         <div class="connect-card" id="connect-card">
           <p class="panel-label">Engine connection</p>
           <p class="muted" id="connect-status">Checking…</p>
+          <div id="engine-native" class="stack" hidden>
+            <p class="muted" id="engine-native-status">On-device engine available in this APK.</p>
+            <div class="tool-row">
+              <button type="button" id="btn-engine-install" class="ghost">Install JDK on phone</button>
+              <button type="button" id="btn-engine-start" class="accent">Start on-device</button>
+            </div>
+            <p class="muted" id="engine-progress"></p>
+          </div>
           <label class="field">
-            <span>Host URL (APK / remote)</span>
-            <input id="api-base" type="url" inputmode="url" autocomplete="off" placeholder="http://192.168.1.20:43123">
+            <span>Host URL (Wi‑Fi PC / remote)</span>
+            <input id="api-base" type="url" inputmode="url" autocomplete="off" placeholder="http://192.168.1.20:43125">
           </label>
           <label class="field">
             <span>Pair code (from host)</span>
             <input id="pair-input" type="text" autocomplete="off" placeholder="Paste pair token">
           </label>
           <div class="tool-row">
-            <button type="button" id="btn-connect" class="accent">Connect</button>
+            <button type="button" id="btn-connect" class="accent">Connect to host</button>
             <button type="button" id="btn-use-local" class="ghost">This page’s host</button>
           </div>
         </div>

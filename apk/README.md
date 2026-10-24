@@ -6,9 +6,17 @@ Android shell for the overhauled Lark Mobile IDE (Capacitor + WebView).
 
 - Native APK wrapper around `web-mobile/`
 - Same Desk themes and engine APIs as Desktop / Executable
-- Connects to a **Lark Mobile host** on your Wi‑Fi (pair code) so the phone can write, compile, run, and debug Java
+- **On-device engine:** downloads an Android OpenJDK JRE (~40 MB), ships ECJ for compile, runs `lark.Mobile` on `127.0.0.1`
+- **Fallback:** Wi‑Fi host pairing when Android blocks executing a downloaded JDK (common on Android 10+)
 
-> Compile/run still need a JDK. The phone UI is the IDE; the host PC (or a future on-device engine) is the compiler.
+### First-run (on-device)
+
+1. Install the APK  
+2. Tap **Install JDK on phone** (one-time download)  
+3. Tap **Start on-device**  
+4. Code as usual  
+
+If start fails with a permission error, use host pairing instead.
 
 ## Build a debug APK
 
