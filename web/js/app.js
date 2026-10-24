@@ -961,7 +961,8 @@
   function bindExtras() {
     if ($("menu-extras")) {
       $("menu-extras").addEventListener("click", (event) => {
-        const kind = event.target.dataset.extra;
+        const btn = event.target.closest("[data-extra]");
+        const kind = btn && btn.dataset.extra;
         if (!kind) return;
         closePopovers();
         openExtras(kind);
@@ -3863,11 +3864,17 @@
     if (!pop || !button) return;
     const pad = 8;
     const rect = button.getBoundingClientRect();
-    // Measure after show; clamp so font/zoom controls never leave the viewport.
-    const width = Math.min(pop.offsetWidth || 280, window.innerWidth - pad * 2);
-    const height = Math.min(pop.offsetHeight || 320, window.innerHeight - pad * 2);
-    pop.style.maxWidth = (window.innerWidth - pad * 2) + "px";
-    pop.style.maxHeight = (window.innerHeight - pad * 2) + "px";
+    // Hybrid panels keep a tighter height so they scroll instead of filling the screen.
+    const viewMaxH = window.innerHeight - pad * 2;
+    const viewMaxW = window.innerWidth - pad * 2;
+    const panelCap = pop.classList.contains("menu-panel")
+      ? (pop.classList.contains("menu-panel-sm") ? 420 : 560)
+      : viewMaxH;
+    pop.style.maxWidth = viewMaxW + "px";
+    pop.style.maxHeight = Math.min(panelCap, viewMaxH) + "px";
+    // Measure after show; clamp so controls never leave the viewport.
+    const width = Math.min(pop.offsetWidth || 280, viewMaxW);
+    const height = Math.min(pop.offsetHeight || 320, Math.min(panelCap, viewMaxH));
     let top = rect.bottom + 6;
     let left = rect.left;
     if (top + height > window.innerHeight - pad) {
@@ -4810,13 +4817,28 @@
     box.replaceChildren();
     const configs = state.runConfigs || [];
     if (!configs.length) {
-      box.appendChild(note("No saved configs yet."));
+      const empty = document.createElement("p");
+      empty.className = "path-note";
+      empty.textContent = "No saved configs yet.";
+      box.appendChild(empty);
       return;
     }
-    configs.forEach((cfg, index) => {
+    configs.forEach((cfg) => {
       const btn = document.createElement("button");
       btn.type = "button";
-      btn.textContent = cfg.name + " — " + (cfg.mainClass || "(main)") + (cfg.args ? " · " + cfg.args : "");
+      const main = cfg.mainClass || "(main)";
+      const args = cfg.args ? " · " + cfg.args : "";
+      btn.title = (cfg.name || "Run") + " — " + main + args;
+      btn.style.flexDirection = "column";
+      btn.style.alignItems = "flex-start";
+      btn.style.gap = "2px";
+      const name = document.createElement("strong");
+      name.textContent = cfg.name || "Run";
+      const meta = document.createElement("span");
+      meta.className = "path-note";
+      meta.textContent = main + args;
+      btn.appendChild(name);
+      btn.appendChild(meta);
       btn.addEventListener("click", () => {
         closePopovers();
         applyRunConfig(cfg);
@@ -5094,7 +5116,8 @@
     if ($("update-modal-now")) $("update-modal-now").addEventListener("click", () => installUpdate().catch((err) => toast(err.message)));
     if ($("update-modal-restart")) $("update-modal-restart").addEventListener("click", () => restartAfterUpdate().catch((err) => toast(err.message)));
     $("menu-project").addEventListener("click", (event) => {
-      const act = event.target.dataset.act;
+      const btn = event.target.closest("[data-act]");
+      const act = btn && btn.dataset.act;
       if (!act) return;
       closePopovers();
       const action = {
@@ -5114,7 +5137,8 @@
     });
     if ($("menu-assist")) {
       $("menu-assist").addEventListener("click", (event) => {
-        const act = event.target.dataset.assist;
+        const btn = event.target.closest("[data-assist]");
+        const act = btn && btn.dataset.assist;
         if (!act) return;
         closePopovers();
         runAssist(act).catch((err) => toast(err.message));
@@ -5122,7 +5146,8 @@
     }
     if ($("menu-run-config")) {
       $("menu-run-config").addEventListener("click", (event) => {
-        const act = event.target.dataset.runCfg;
+        const btn = event.target.closest("[data-run-cfg]");
+        const act = btn && btn.dataset.runCfg;
         if (!act) return;
         closePopovers();
         if (act === "save") saveRunConfig().catch((e) => toast(e.message));

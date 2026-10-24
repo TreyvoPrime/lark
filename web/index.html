@@ -26,32 +26,54 @@
           <path d="M3 16c4.2-.7 6-6 9-11 2.8 5 4.8 10.2 9 11" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/>
           <path d="M7 16.5h10" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/>
         </svg>
-        <span class="word">Lark <em class="ver">3.0</em></span>
+        <span class="word">Lark <em class="ver">__LARK_V__</em></span>
       </button>
-      <button id="files-toggle" type="button" title="Toggle files (Ctrl+B)">Files</button>
-      <button id="project-search" type="button" title="Search in project (Ctrl+Shift+F)">Search</button>
-      <label class="project-pick">
-        <span class="sr">Project</span>
-        <select id="project"></select>
-      </label>
-      <button id="project-menu" type="button" data-pop="menu-project">Project</button>
-      <button id="java-assist" type="button" data-pop="menu-assist">Java</button>
-      <button id="extras" type="button" data-pop="menu-extras">Extras</button>
+
+      <div class="top-group" role="group" aria-label="Navigate">
+        <button id="files-toggle" type="button" title="Toggle files (Ctrl+B)">Files</button>
+        <button id="project-search" type="button" title="Search in project (Ctrl+Shift+F)">Search</button>
+        <label class="project-pick">
+          <span class="sr">Project</span>
+          <select id="project"></select>
+        </label>
+        <button id="project-menu" type="button" data-pop="menu-project">Project</button>
+        <button id="github" type="button" title="Clone or push with GitHub">GitHub</button>
+      </div>
+
+      <span class="top-sep" aria-hidden="true"></span>
+
+      <div class="top-group" role="group" aria-label="Code">
+        <button id="java-assist" type="button" data-pop="menu-assist" title="Java helpers and snippets">Java</button>
+        <button id="extras" type="button" data-pop="menu-extras" title="Extra tools">Extras</button>
+        <button id="beautify" type="button" title="Fix indentation (Shift+Alt+F)">Beautify</button>
+      </div>
+
       <div class="grow"></div>
-      <label class="main-pick">
-        <span>Main</span>
-        <select id="main-class"></select>
-      </label>
-      <button id="run-config" type="button" data-pop="menu-run-config" title="Run configurations">Config</button>
-      <button id="run" type="button" class="primary run-btn" title="Ctrl+Enter">Run</button>
-      <button id="debug" type="button" title="Start debugger (F5)">Debug</button>
-      <button id="split-editor" type="button" title="Split editor (Ctrl+\)">Split</button>
-      <button id="scratch" type="button" title="Scratch pad (Space+.)">Scratch</button>
-      <button id="github" type="button">GitHub</button>
-      <button id="theme" type="button" title="Themes">Desk</button>
-      <button id="beautify" type="button" title="Fix indentation (Shift+Alt+F)">Beautify</button>
-      <button id="settings" type="button" data-pop="menu-settings" title="Settings" aria-label="Settings">Aa</button>
-      <button id="help" type="button" data-pop="menu-help" aria-label="Keyboard shortcuts">?</button>
+
+      <div class="top-group top-group-run" role="group" aria-label="Run">
+        <label class="main-pick">
+          <span>Main</span>
+          <select id="main-class"></select>
+        </label>
+        <button id="run-config" type="button" data-pop="menu-run-config" title="Run configurations">Config</button>
+        <button id="run" type="button" class="primary run-btn" title="Ctrl+Enter">Run</button>
+        <button id="debug" type="button" title="Start debugger (F5)">Debug</button>
+      </div>
+
+      <span class="top-sep" aria-hidden="true"></span>
+
+      <div class="top-group" role="group" aria-label="View">
+        <button id="split-editor" type="button" title="Split editor (Ctrl+\)">Split</button>
+        <button id="scratch" type="button" title="Scratch pad (Space+.)">Scratch</button>
+      </div>
+
+      <span class="top-sep" aria-hidden="true"></span>
+
+      <div class="top-group top-group-prefs" role="group" aria-label="Preferences">
+        <button id="theme" type="button" title="Themes">Desk</button>
+        <button id="settings" type="button" data-pop="menu-settings" title="Settings" aria-label="Settings">Aa</button>
+        <button id="help" type="button" data-pop="menu-help" aria-label="Keyboard shortcuts">?</button>
+      </div>
     </header>
 
     <div id="workspace">
@@ -62,10 +84,10 @@
             <span class="tray-label">Explorer</span>
             <strong id="tray-project">Project</strong>
           </div>
-          <span class="pane-actions tray-actions">
-            <button type="button" id="new-class" title="New Java class">Class</button>
-            <button type="button" id="new-file" title="New file">File</button>
-            <button type="button" id="new-folder" title="New folder">Folder</button>
+          <span class="pane-actions tray-actions" role="group" aria-label="New">
+            <button type="button" id="new-class" title="New Java class">+ Class</button>
+            <button type="button" id="new-file" title="New file">+ File</button>
+            <button type="button" id="new-folder" title="New folder">+ Folder</button>
           </span>
         </div>
         <div id="tree" class="file-tray"></div>
@@ -206,66 +228,137 @@
     </footer>
   </div>
 
-  <div id="menu-project" class="popover menu" hidden>
-    <button type="button" data-act="new-project">New project</button>
-    <button type="button" data-act="import-folder">Import folder</button>
-    <button type="button" data-act="import-zip">Import zip</button>
-    <button type="button" data-act="download">Download zip</button>
-    <button type="button" data-act="copy-path">Copy folder path</button>
-    <button type="button" data-act="show-welcome">Welcome page</button>
-    <button type="button" data-act="delete-project" class="danger">Delete project</button>
-    <p id="path-note" class="path-note"></p>
+  <div id="menu-project" class="popover menu menu-panel menu-panel-sm" hidden>
+    <div class="menu-panel-head">
+      <strong>Project</strong>
+      <p class="path-note">Create, import, or share the open folder.</p>
+    </div>
+    <section class="menu-panel-section" aria-label="Open">
+      <h3 class="menu-panel-label">Open</h3>
+      <div class="menu-panel-grid">
+        <button type="button" data-act="new-project">New project</button>
+        <button type="button" data-act="import-folder">Import folder</button>
+        <button type="button" data-act="import-zip">Import zip</button>
+        <button type="button" data-act="show-welcome">Welcome page</button>
+      </div>
+    </section>
+    <section class="menu-panel-section" aria-label="Share">
+      <h3 class="menu-panel-label">Share</h3>
+      <div class="menu-panel-grid">
+        <button type="button" data-act="download">Download zip</button>
+        <button type="button" data-act="copy-path">Copy folder path</button>
+      </div>
+    </section>
+    <section class="menu-panel-section" aria-label="Danger">
+      <h3 class="menu-panel-label">Danger</h3>
+      <div class="menu-panel-grid menu-panel-grid-one">
+        <button type="button" data-act="delete-project" class="danger">Delete project</button>
+      </div>
+    </section>
+    <p id="path-note" class="path-note menu-panel-foot"></p>
   </div>
-  <div id="menu-extras" class="popover menu" hidden>
-    <button type="button" data-extra="uml">UML class diagram…</button>
-    <button type="button" data-extra="assign">Assignment helper…</button>
-    <p class="path-note">Homework helpers — diagrams and field plans from assignment text.</p>
+  <div id="menu-extras" class="popover menu menu-panel menu-panel-sm" hidden>
+    <div class="menu-panel-head">
+      <strong>Extras</strong>
+      <p class="path-note">Homework helpers — no cloud AI.</p>
+    </div>
+    <section class="menu-panel-section" aria-label="Helpers">
+      <h3 class="menu-panel-label">Helpers</h3>
+      <div class="menu-panel-grid">
+        <button type="button" data-extra="uml" title="UML class diagram">UML diagram…</button>
+        <button type="button" data-extra="assign" title="Assignment helper">Assignment…</button>
+      </div>
+    </section>
   </div>
-  <div id="menu-assist" class="popover menu" hidden>
-    <button type="button" data-assist="beautify">Beautify indentation</button>
-    <button type="button" data-assist="snippet">Insert building block…</button>
-    <button type="button" data-assist="main">Insert main method</button>
-    <button type="button" data-assist="fori">Insert for-i loop</button>
-    <button type="button" data-assist="matrix">Insert matrix print loops…</button>
-    <button type="button" data-assist="homework">Insert homework block…</button>
-    <button type="button" data-assist="arrfill">Insert fill + print array…</button>
-    <button type="button" data-assist="arrstats">Insert array sum / min / max…</button>
-    <button type="button" data-assist="linsearch">Insert linear search…</button>
-    <button type="button" data-assist="countocc">Insert count occurrences…</button>
-    <button type="button" data-assist="sentinel">Insert sentinel read loop…</button>
-    <button type="button" data-assist="menu">Insert menu loop</button>
-    <button type="button" data-assist="fileio">Insert file read / write…</button>
-    <button type="button" data-assist="splitloop">Insert String split + loop</button>
-    <button type="button" data-assist="matfill">Insert 2D array fill…</button>
-    <button type="button" data-assist="arrcopy">Insert copy array…</button>
-    <button type="button" data-assist="arrrev">Insert reverse array…</button>
-    <button type="button" data-assist="foreach">Insert for-each loop</button>
-    <button type="button" data-assist="try">Insert try / catch</button>
-    <button type="button" data-assist="scanner">Insert Scanner input</button>
-    <button type="button" data-assist="getters">Generate getters / setters…</button>
-    <button type="button" data-assist="ctor">Generate constructor…</button>
-    <button type="button" data-assist="tostring">Generate toString…</button>
-    <button type="button" data-assist="equals">Generate equals / hashCode…</button>
-    <button type="button" data-assist="summary">Show class members</button>
-    <button type="button" data-assist="explain">Explain Java keywords</button>
-    <button type="button" data-assist="import">Suggest import for word at cursor</button>
-    <button type="button" data-assist="fix">Quick fix: missing accessors</button>
-    <button type="button" data-assist="goto">Go to definition</button>
-    <button type="button" data-assist="usages">Find usages</button>
-    <button type="button" data-assist="rename">Rename symbol…</button>
-    <button type="button" data-assist="rename-file">Rename in file (multi-cursor)</button>
-    <hr class="settings-rule">
-    <button type="button" data-assist="extract">Extract method…</button>
-    <button type="button" data-assist="introduce">Introduce variable…</button>
-    <button type="button" data-assist="brace">Jump to matching brace</button>
-    <button type="button" data-assist="search">Search in project…</button>
-    <button type="button" data-assist="check">Compile check now</button>
+  <div id="menu-assist" class="popover menu menu-panel" hidden>
+    <div class="menu-panel-head">
+      <strong>Java tools</strong>
+      <p class="path-note">Pick a tile — same actions as before, just grouped.</p>
+    </div>
+
+    <section class="menu-panel-section" aria-label="Quick">
+      <h3 class="menu-panel-label">Quick</h3>
+      <div class="menu-panel-grid">
+        <button type="button" data-assist="beautify" title="Beautify indentation">Beautify</button>
+        <button type="button" data-assist="snippet" title="Insert building block">Building block…</button>
+        <button type="button" data-assist="main" title="Insert main method">main method</button>
+        <button type="button" data-assist="check" title="Compile check now">Compile check</button>
+      </div>
+    </section>
+
+    <section class="menu-panel-section" aria-label="Loops and flow">
+      <h3 class="menu-panel-label">Loops &amp; flow</h3>
+      <div class="menu-panel-grid">
+        <button type="button" data-assist="fori" title="Insert for-i loop">for-i loop</button>
+        <button type="button" data-assist="foreach" title="Insert for-each loop">for-each</button>
+        <button type="button" data-assist="try" title="Insert try / catch">try / catch</button>
+        <button type="button" data-assist="scanner" title="Insert Scanner input">Scanner</button>
+        <button type="button" data-assist="menu" title="Insert menu loop">menu loop</button>
+        <button type="button" data-assist="sentinel" title="Insert sentinel read loop">sentinel read…</button>
+      </div>
+    </section>
+
+    <section class="menu-panel-section" aria-label="Arrays and homework">
+      <h3 class="menu-panel-label">Arrays &amp; homework</h3>
+      <div class="menu-panel-grid">
+        <button type="button" data-assist="matrix" title="Insert matrix print loops">matrix print…</button>
+        <button type="button" data-assist="arrfill" title="Insert fill + print array">fill + print…</button>
+        <button type="button" data-assist="arrstats" title="Insert array sum / min / max">sum / min / max…</button>
+        <button type="button" data-assist="linsearch" title="Insert linear search">linear search…</button>
+        <button type="button" data-assist="countocc" title="Insert count occurrences">count…</button>
+        <button type="button" data-assist="matfill" title="Insert 2D array fill">2D fill…</button>
+        <button type="button" data-assist="arrcopy" title="Insert copy array">copy array…</button>
+        <button type="button" data-assist="arrrev" title="Insert reverse array">reverse…</button>
+        <button type="button" data-assist="homework" title="Insert homework block">homework…</button>
+        <button type="button" data-assist="fileio" title="Insert file read / write">file I/O…</button>
+        <button type="button" data-assist="splitloop" title="Insert String split + loop">String split</button>
+      </div>
+    </section>
+
+    <section class="menu-panel-section" aria-label="Generate">
+      <h3 class="menu-panel-label">Generate</h3>
+      <div class="menu-panel-grid">
+        <button type="button" data-assist="getters" title="Generate getters / setters">getters / setters…</button>
+        <button type="button" data-assist="ctor" title="Generate constructor">constructor…</button>
+        <button type="button" data-assist="tostring" title="Generate toString">toString…</button>
+        <button type="button" data-assist="equals" title="Generate equals / hashCode">equals / hashCode…</button>
+      </div>
+    </section>
+
+    <section class="menu-panel-section" aria-label="Navigate and refactor">
+      <h3 class="menu-panel-label">Navigate &amp; refactor</h3>
+      <div class="menu-panel-grid">
+        <button type="button" data-assist="goto" title="Go to definition">Go to definition</button>
+        <button type="button" data-assist="usages" title="Find usages">Find usages</button>
+        <button type="button" data-assist="rename" title="Rename symbol">Rename…</button>
+        <button type="button" data-assist="rename-file" title="Rename in file (multi-cursor)">Rename in file</button>
+        <button type="button" data-assist="extract" title="Extract method">Extract method…</button>
+        <button type="button" data-assist="introduce" title="Introduce variable">Introduce var…</button>
+        <button type="button" data-assist="summary" title="Show class members">Class members</button>
+        <button type="button" data-assist="import" title="Suggest import for word at cursor">Suggest import</button>
+        <button type="button" data-assist="fix" title="Quick fix: missing accessors">Quick fix</button>
+        <button type="button" data-assist="explain" title="Explain Java keywords">Explain keywords</button>
+        <button type="button" data-assist="brace" title="Jump to matching brace">Matching brace</button>
+        <button type="button" data-assist="search" title="Search in project">Search project…</button>
+      </div>
+    </section>
   </div>
-  <div id="menu-run-config" class="popover menu" hidden>
-    <button type="button" data-run-cfg="save">Save current as config…</button>
-    <button type="button" data-run-cfg="manage">Manage configs…</button>
-    <hr class="settings-rule">
-    <div id="run-config-list"></div>
+  <div id="menu-run-config" class="popover menu menu-panel menu-panel-sm" hidden>
+    <div class="menu-panel-head">
+      <strong>Run configs</strong>
+      <p class="path-note">Save Main + args, then reapply in one click.</p>
+    </div>
+    <section class="menu-panel-section" aria-label="Actions">
+      <h3 class="menu-panel-label">Actions</h3>
+      <div class="menu-panel-grid">
+        <button type="button" data-run-cfg="save">Save current…</button>
+        <button type="button" data-run-cfg="manage">Manage…</button>
+      </div>
+    </section>
+    <section class="menu-panel-section" aria-label="Saved">
+      <h3 class="menu-panel-label">Saved</h3>
+      <div id="run-config-list" class="menu-panel-grid menu-panel-grid-one"></div>
+    </section>
   </div>
   <div id="theme-overlay" class="theme-overlay" hidden>
     <div class="theme-overlay-card" role="dialog" aria-modal="true" aria-labelledby="theme-overlay-title">
@@ -283,62 +376,77 @@
       <div id="theme-grid" class="theme-grid"></div>
     </div>
   </div>
-  <div id="menu-settings" class="popover settings-pop" hidden>
-    <div class="settings-sticky">
-      <label class="settings-row">Font size
-        <input id="setting-font" type="range" min="11" max="24" step="1" value="14">
-        <output id="setting-font-out">14</output>
-      </label>
-      <label class="settings-row">Editor scale
-        <input id="setting-zoom" type="range" min="80" max="150" step="5" value="100">
-        <output id="setting-zoom-out">100%</output>
-      </label>
-      <div class="settings-actions">
-        <button type="button" id="setting-font-down" title="Smaller font">A−</button>
-        <button type="button" id="setting-font-up" title="Larger font">A+</button>
-        <button type="button" id="setting-zoom-reset">Reset scale</button>
-        <button type="button" id="setting-display-reset" class="primary">Reset size</button>
-      </div>
-      <p class="path-note">Scale changes only editor text — not trays or the top bar. Ctrl+= / Ctrl+- · Ctrl+0 resets.</p>
+  <div id="menu-settings" class="popover settings-pop menu-panel" hidden>
+    <div class="menu-panel-head">
+      <strong>Settings</strong>
+      <p class="path-note">Display, editor, save, and updates.</p>
     </div>
-    <hr class="settings-rule">
-    <label class="settings-row settings-stack">Editor font
-      <select id="setting-font-family">
-        <option value="jetbrains">JetBrains Mono</option>
-        <option value="cascadia">Cascadia Code</option>
-        <option value="fira">Fira Code</option>
-        <option value="consolas">Consolas / Menlo</option>
-        <option value="system">System mono</option>
-      </select>
-    </label>
-    <label class="settings-check"><input id="setting-ligatures" type="checkbox" checked> Font ligatures</label>
-    <label class="settings-row settings-stack">Indentation
-      <select id="setting-indent-size">
-        <option value="2">2 spaces</option>
-        <option value="4" selected>4 spaces</option>
-        <option value="8">8 spaces</option>
-      </select>
-    </label>
-    <label class="settings-check"><input id="setting-indent-tabs" type="checkbox"> Indent with tabs</label>
-    <label class="settings-check"><input id="setting-line-wrap" type="checkbox"> Line wrap</label>
-    <label class="settings-check"><input id="setting-line-numbers" type="checkbox" checked> Show line numbers</label>
-    <hr class="settings-rule">
-    <label class="settings-check"><input id="setting-autosave" type="checkbox" checked> Autosave as you type</label>
-    <label class="settings-row settings-stack">Autosave delay
-      <select id="setting-autosave-delay">
-        <option value="300">Fast (0.3s)</option>
-        <option value="800" selected>Normal (0.8s)</option>
-        <option value="1500">Relaxed (1.5s)</option>
-      </select>
-    </label>
-    <label class="settings-check"><input id="setting-format-save" type="checkbox"> Format on save (Beautify)</label>
-    <p class="path-note">With autosave off, use Ctrl+S. Ctrl+S always saves immediately.</p>
-    <hr class="settings-rule">
-    <label class="settings-row settings-stack">Update feed URL
-      <input id="setting-update-feed" type="url" spellcheck="false" placeholder="https://…/update.json">
-    </label>
-    <button type="button" id="setting-check-updates">Check for updates</button>
-    <p id="setting-update-status" class="path-note"></p>
+    <section class="menu-panel-section" aria-label="Display">
+      <h3 class="menu-panel-label">Display</h3>
+      <div class="settings-sticky">
+        <label class="settings-row">Font size
+          <input id="setting-font" type="range" min="11" max="24" step="1" value="14">
+          <output id="setting-font-out">14</output>
+        </label>
+        <label class="settings-row">Editor scale
+          <input id="setting-zoom" type="range" min="80" max="150" step="5" value="100">
+          <output id="setting-zoom-out">100%</output>
+        </label>
+        <div class="settings-actions">
+          <button type="button" id="setting-font-down" title="Smaller font">A−</button>
+          <button type="button" id="setting-font-up" title="Larger font">A+</button>
+          <button type="button" id="setting-zoom-reset">Reset scale</button>
+          <button type="button" id="setting-display-reset" class="primary">Reset size</button>
+        </div>
+        <p class="path-note">Scale changes only editor text — not trays or the top bar. Ctrl+= / Ctrl+- · Ctrl+0 resets.</p>
+      </div>
+    </section>
+    <section class="menu-panel-section" aria-label="Editor">
+      <h3 class="menu-panel-label">Editor</h3>
+      <label class="settings-row settings-stack">Editor font
+        <select id="setting-font-family">
+          <option value="jetbrains">JetBrains Mono</option>
+          <option value="cascadia">Cascadia Code</option>
+          <option value="fira">Fira Code</option>
+          <option value="consolas">Consolas / Menlo</option>
+          <option value="system">System mono</option>
+        </select>
+      </label>
+      <label class="settings-check"><input id="setting-ligatures" type="checkbox" checked> Font ligatures</label>
+      <label class="settings-row settings-stack">Indentation
+        <select id="setting-indent-size">
+          <option value="2">2 spaces</option>
+          <option value="4" selected>4 spaces</option>
+          <option value="8">8 spaces</option>
+        </select>
+      </label>
+      <label class="settings-check"><input id="setting-indent-tabs" type="checkbox"> Indent with tabs</label>
+      <label class="settings-check"><input id="setting-line-wrap" type="checkbox"> Line wrap</label>
+      <label class="settings-check"><input id="setting-line-numbers" type="checkbox" checked> Show line numbers</label>
+    </section>
+    <section class="menu-panel-section" aria-label="Save">
+      <h3 class="menu-panel-label">Save</h3>
+      <label class="settings-check"><input id="setting-autosave" type="checkbox" checked> Autosave as you type</label>
+      <label class="settings-row settings-stack">Autosave delay
+        <select id="setting-autosave-delay">
+          <option value="300">Fast (0.3s)</option>
+          <option value="800" selected>Normal (0.8s)</option>
+          <option value="1500">Relaxed (1.5s)</option>
+        </select>
+      </label>
+      <label class="settings-check"><input id="setting-format-save" type="checkbox"> Format on save (Beautify)</label>
+      <p class="path-note">With autosave off, use Ctrl+S. Ctrl+S always saves immediately.</p>
+    </section>
+    <section class="menu-panel-section" aria-label="Updates">
+      <h3 class="menu-panel-label">Updates</h3>
+      <label class="settings-row settings-stack">Update feed URL
+        <input id="setting-update-feed" type="url" spellcheck="false" placeholder="https://…/update.json">
+      </label>
+      <div class="menu-panel-grid menu-panel-grid-one">
+        <button type="button" id="setting-check-updates">Check for updates</button>
+      </div>
+      <p id="setting-update-status" class="path-note"></p>
+    </section>
   </div>
   <aside id="scratch-pad" class="scratch-pad" hidden>
     <div class="scratch-head" id="scratch-drag" title="Drag to move">
@@ -359,13 +467,27 @@
         <div id="scratch-editor"></div>
       </div>
     </div>
-    <div id="scratch-menu" class="scratch-menu" hidden role="menu">
-      <button type="button" role="menuitem" data-scratch-act="new">New scratch…</button>
-      <button type="button" role="menuitem" data-scratch-act="rename">Rename…</button>
-      <button type="button" role="menuitem" data-scratch-act="duplicate">Duplicate</button>
-      <button type="button" role="menuitem" data-scratch-act="promote">Promote to project…</button>
-      <button type="button" role="menuitem" data-scratch-act="clear">Clear this</button>
-      <button type="button" role="menuitem" data-scratch-act="delete" class="danger">Delete…</button>
+    <div id="scratch-menu" class="scratch-menu menu-panel menu-panel-sm" hidden role="menu">
+      <div class="menu-panel-head">
+        <strong>Scratch</strong>
+        <p class="path-note">Deck actions for this pad.</p>
+      </div>
+      <section class="menu-panel-section" aria-label="Deck">
+        <h3 class="menu-panel-label">Deck</h3>
+        <div class="menu-panel-grid">
+          <button type="button" role="menuitem" data-scratch-act="new">New…</button>
+          <button type="button" role="menuitem" data-scratch-act="rename">Rename…</button>
+          <button type="button" role="menuitem" data-scratch-act="duplicate">Duplicate</button>
+          <button type="button" role="menuitem" data-scratch-act="promote">Promote…</button>
+        </div>
+      </section>
+      <section class="menu-panel-section" aria-label="Danger">
+        <h3 class="menu-panel-label">Danger</h3>
+        <div class="menu-panel-grid">
+          <button type="button" role="menuitem" data-scratch-act="clear">Clear this</button>
+          <button type="button" role="menuitem" data-scratch-act="delete" class="danger">Delete…</button>
+        </div>
+      </section>
     </div>
     <div class="scratch-resize" id="scratch-resize" title="Drag to resize"></div>
   </aside>
@@ -432,34 +554,58 @@
       </div>
     </div>
   </div>
-  <div id="menu-help" class="popover" hidden>
-    <ul class="help-list">
-      <li><span>Run</span><kbd>Ctrl+Enter</kbd></li>
-      <li><span>Debug</span><kbd>F5</kbd></li>
-      <li><span>Go to definition</span><kbd>F12</kbd></li>
-      <li><span>Find usages</span><kbd>Shift+F12</kbd></li>
-      <li><span>Rename</span><kbd>F2</kbd></li>
-      <li><span>Matching brace</span><kbd>Ctrl+M</kbd></li>
-      <li><span>Project search</span><kbd>Ctrl+Shift+F</kbd></li>
-      <li><span>Extract method</span><kbd>Ctrl+Alt+M</kbd></li>
-      <li><span>Introduce variable</span><kbd>Ctrl+Alt+V</kbd></li>
-      <li><span>Save</span><kbd>Ctrl+S</kbd></li>
-      <li><span>Split / unsplit</span><kbd>Ctrl+\</kbd></li>
-      <li><span>Themes overlay</span><kbd>Theme button</kbd> <span class="path-note">(← → cycle · Esc closes)</span></li>
-      <li><span>Scratch pad</span><kbd>Space+.</kbd></li>
-      <li><span>Run scratch</span><kbd>Ctrl+Enter</kbd> <span class="path-note">(while Scratch is open)</span></li>
-      <li><span>Javadoc stub</span><kbd>/**</kbd></li>
-      <li><span>Beautify</span><kbd>Shift+Alt+F</kbd></li>
-      <li><span>Open file / class</span><kbd>Ctrl+P</kbd></li>
-      <li><span>Complete</span><kbd>Ctrl+Space</kbd></li>
-      <li><span>Find</span><kbd>Ctrl+F</kbd></li>
-      <li><span>Replace</span><kbd>Ctrl+H</kbd></li>
-      <li><span>Undo / Redo</span><kbd>Ctrl+Z / Ctrl+Y</kbd></li>
-      <li><span>Comment</span><kbd>Ctrl+/</kbd></li>
-      <li><span>Files</span><kbd>Ctrl+B</kbd></li>
-      <li><span>Editor scale</span><kbd>Ctrl+= / Ctrl+-</kbd></li>
-    </ul>
-    <p class="path-note">On a Mac, use Command instead of Ctrl. Click the line-number gutter to set breakpoints. Type /** above a method for Javadoc. Live compile status appears in the footer.</p>
+  <div id="menu-help" class="popover menu-panel" hidden>
+    <div class="menu-panel-head">
+      <strong>Keyboard shortcuts</strong>
+      <p class="path-note">On Mac, use ⌘ instead of Ctrl.</p>
+    </div>
+    <section class="menu-panel-section" aria-label="Run">
+      <h3 class="menu-panel-label">Run</h3>
+      <div class="menu-panel-grid help-grid">
+        <div class="help-tile"><span>Run</span><kbd>Ctrl+Enter</kbd></div>
+        <div class="help-tile"><span>Debug</span><kbd>F5</kbd></div>
+        <div class="help-tile"><span>Run scratch</span><kbd>Ctrl+Enter</kbd></div>
+        <div class="help-tile"><span>Compile check</span><kbd>footer</kbd></div>
+      </div>
+    </section>
+    <section class="menu-panel-section" aria-label="Navigate">
+      <h3 class="menu-panel-label">Navigate</h3>
+      <div class="menu-panel-grid help-grid">
+        <div class="help-tile"><span>Go to definition</span><kbd>F12</kbd></div>
+        <div class="help-tile"><span>Find usages</span><kbd>Shift+F12</kbd></div>
+        <div class="help-tile"><span>Matching brace</span><kbd>Ctrl+M</kbd></div>
+        <div class="help-tile"><span>Project search</span><kbd>Ctrl+Shift+F</kbd></div>
+        <div class="help-tile"><span>Open file / class</span><kbd>Ctrl+P</kbd></div>
+        <div class="help-tile"><span>Files tray</span><kbd>Ctrl+B</kbd></div>
+      </div>
+    </section>
+    <section class="menu-panel-section" aria-label="Edit">
+      <h3 class="menu-panel-label">Edit</h3>
+      <div class="menu-panel-grid help-grid">
+        <div class="help-tile"><span>Rename</span><kbd>F2</kbd></div>
+        <div class="help-tile"><span>Extract method</span><kbd>Ctrl+Alt+M</kbd></div>
+        <div class="help-tile"><span>Introduce variable</span><kbd>Ctrl+Alt+V</kbd></div>
+        <div class="help-tile"><span>Beautify</span><kbd>Shift+Alt+F</kbd></div>
+        <div class="help-tile"><span>Complete</span><kbd>Ctrl+Space</kbd></div>
+        <div class="help-tile"><span>Comment</span><kbd>Ctrl+/</kbd></div>
+        <div class="help-tile"><span>Find</span><kbd>Ctrl+F</kbd></div>
+        <div class="help-tile"><span>Replace</span><kbd>Ctrl+H</kbd></div>
+        <div class="help-tile"><span>Undo / Redo</span><kbd>Ctrl+Z / Y</kbd></div>
+        <div class="help-tile"><span>Save</span><kbd>Ctrl+S</kbd></div>
+        <div class="help-tile"><span>Javadoc stub</span><kbd>/**</kbd></div>
+        <div class="help-tile"><span>Editor scale</span><kbd>Ctrl+= / -</kbd></div>
+      </div>
+    </section>
+    <section class="menu-panel-section" aria-label="View">
+      <h3 class="menu-panel-label">View</h3>
+      <div class="menu-panel-grid help-grid">
+        <div class="help-tile"><span>Split / unsplit</span><kbd>Ctrl+\</kbd></div>
+        <div class="help-tile"><span>Scratch pad</span><kbd>Space+.</kbd></div>
+        <div class="help-tile"><span>Themes</span><kbd>Desk · ← →</kbd></div>
+        <div class="help-tile"><span>Breakpoints</span><kbd>gutter click</kbd></div>
+      </div>
+    </section>
+    <p class="path-note menu-panel-foot">Live compile status is in the footer. Esc closes overlays.</p>
   </div>
   <div id="search-panel" class="search-panel" hidden>
     <div class="search-card">
@@ -558,6 +704,7 @@
   <script src="vendor/codemirror/addon/search/searchcursor.min.js"></script>
   <script src="vendor/codemirror/addon/search/search.min.js"></script>
   <script src="vendor/codemirror/addon/hint/show-hint.min.js"></script>
+  <script src="js/shell-guard.js?v=__LARK_V__"></script>
   <script src="js/java.js?v=__LARK_V__"></script>
   <script src="js/extras.js?v=__LARK_V__"></script>
   <script src="js/app.js?v=__LARK_V__"></script>
