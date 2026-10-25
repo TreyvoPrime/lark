@@ -1560,13 +1560,13 @@ select:focus, input:focus, textarea:focus, button:focus-visible {
   overflow: auto;
   display: flex;
   flex-direction: column;
-  gap: 3px;
+  gap: 4px;
 }
 /* Nested folder children also get breathing room between rows */
 .file-tray .tree-kids {
   display: flex;
   flex-direction: column;
-  gap: 3px;
+  gap: 4px;
   padding: 2px 0 2px 0;
 }
 .tree-icon {
@@ -1705,17 +1705,19 @@ select:focus, input:focus, textarea:focus, button:focus-visible {
   padding-right: 4px;
   max-width: 100%;
   overflow: hidden;
-  /* Soft outline so adjacent files don't blend into one strip */
-  border: 1px solid color-mix(in srgb, var(--line) 88%, transparent) !important;
+  /* Clear outline so adjacent files don't blend into one strip */
+  border: 1px solid color-mix(in srgb, var(--line) 70%, var(--muted)) !important;
   border-radius: 7px;
-  background: color-mix(in srgb, var(--bg-sunken) 28%, transparent);
+  background: color-mix(in srgb, var(--bg-sunken) 45%, var(--bg-elev));
+  margin: 0;
 }
 .tree-row.folder {
   border-color: transparent !important;
   background: transparent;
 }
 .tree-row.file:hover {
-  border-color: color-mix(in srgb, var(--accent) 35%, var(--line)) !important;
+  border-color: color-mix(in srgb, var(--accent) 50%, var(--line)) !important;
+  background: var(--hover);
 }
 .tree-row .chev { display: none; }
 .tree-row .name {
