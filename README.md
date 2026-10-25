@@ -54,6 +54,10 @@ https://github.com/TreyvoPrime/lark/releases/latest/download/lark-mobile-linux.z
 
 Do not open launchers from inside a zip preview / Temp folder.
 
+## What’s new in 3.9.7.19
+
+- **Explorer outlines are optional** — default tray is quiet (no tile borders) with a straight vertical tree line through open folders. Turn on **Outlined file tiles** in Settings → Display if you want the bordered look.
+
 ## What’s new in 3.9.7.18
 
 - **Tree guides** — open folders draw a light L-shaped rail into their children so the tray reads as a hierarchy, not a stack of separate tiles.

@@ -11,7 +11,7 @@ import java.util.Set;
 /** Preferences stored in the home folder. The GitHub token never leaves this machine except for GitHub. */
 public final class Settings {
     /** Four-part build (3.9.7.1) — stay on 3.x until an intentional Lark 4.0. */
-    public static final String VERSION = "3.9.7.18";
+    public static final String VERSION = "3.9.7.19";
     /** Default public update feed — always the latest GitHub release JSON companion. */
     public static final String DEFAULT_UPDATE_FEED =
             "https://github.com/TreyvoPrime/lark/releases/latest/download/update.json";
@@ -52,6 +52,11 @@ public final class Settings {
     public boolean lineWrapping = false;
     /** Show CodeMirror line numbers in the gutter (default on). */
     public boolean lineNumbers = true;
+    /**
+     * Explorer file tiles with a border around each row. Off by default — the tray
+     * uses quiet vertical tree lines instead (VS Code / IntelliJ style).
+     */
+    public boolean trayOutlines = false;
     public boolean autoSave = true;
     public int autoSaveDelayMs = 800;
     public boolean formatOnSave = false;
@@ -101,6 +106,7 @@ public final class Settings {
             if (obj.has("indentWithTabs")) settings.indentWithTabs = obj.bool("indentWithTabs");
             if (obj.has("lineWrapping")) settings.lineWrapping = obj.bool("lineWrapping");
             if (obj.has("lineNumbers")) settings.lineNumbers = obj.bool("lineNumbers");
+            if (obj.has("trayOutlines")) settings.trayOutlines = obj.bool("trayOutlines");
             if (obj.has("autoSave")) settings.autoSave = obj.bool("autoSave");
             int delay = (int) obj.longVal("autoSaveDelayMs");
             settings.autoSaveDelayMs = delay == 300 || delay == 800 || delay == 1500 ? delay : 800;
@@ -136,6 +142,7 @@ public final class Settings {
                     .put("indentWithTabs", indentWithTabs)
                     .put("lineWrapping", lineWrapping)
                     .put("lineNumbers", lineNumbers)
+                    .put("trayOutlines", trayOutlines)
                     .put("autoSave", autoSave)
                     .put("autoSaveDelayMs", autoSaveDelayMs)
                     .put("formatOnSave", formatOnSave)

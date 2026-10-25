@@ -296,6 +296,7 @@ public final class Server {
                 if (body.has("indentWithTabs")) settings.indentWithTabs = body.bool("indentWithTabs");
                 if (body.has("lineWrapping")) settings.lineWrapping = body.bool("lineWrapping");
                 if (body.has("lineNumbers")) settings.lineNumbers = body.bool("lineNumbers");
+                if (body.has("trayOutlines")) settings.trayOutlines = body.bool("trayOutlines");
                 if (body.has("autoSave")) settings.autoSave = body.bool("autoSave");
                 if (body.has("autoSaveDelayMs")) {
                     int delay = (int) body.longVal("autoSaveDelayMs");
@@ -629,6 +630,7 @@ public final class Server {
                 .put("indentWithTabs", settings.indentWithTabs)
                 .put("lineWrapping", settings.lineWrapping)
                 .put("lineNumbers", settings.lineNumbers)
+                .put("trayOutlines", settings.trayOutlines)
                 .put("autoSave", settings.autoSave)
                 .put("autoSaveDelayMs", settings.autoSaveDelayMs)
                 .put("formatOnSave", settings.formatOnSave)

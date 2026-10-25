@@ -1560,47 +1560,45 @@ select:focus, input:focus, textarea:focus, button:focus-visible {
   overflow: auto;
   display: flex;
   flex-direction: column;
-  gap: 4px;
+  gap: 1px;
 }
 /*
- * Nested folder children live in a guide gutter so L-rails stay outside the
- * outlined tiles (full-width rows used to paint over absolute guides).
+ * Vertical tree line (default Explorer look): a straight rail under the parent
+ * icon that runs through its children — like VS Code / IntelliJ indent guides.
  */
 .file-tray .tree-kids {
-  --guide: color-mix(in srgb, var(--accent) 55%, var(--muted));
+  --guide: color-mix(in srgb, var(--line) 75%, var(--muted));
   position: relative;
   display: flex;
   flex-direction: column;
-  gap: 4px;
-  margin: 1px 0 2px 18px;
-  padding: 2px 0 2px 14px;
-  border-left: 1.5px solid var(--guide);
+  gap: 1px;
+  margin: 0 0 0 18px;
+  padding: 0 0 0 12px;
+  border-left: 1px solid var(--guide);
 }
 .file-tray .tree-kids > * {
   position: relative;
 }
-/* Horizontal elbow from the spine into each child tile */
-.file-tray .tree-kids > *::before {
-  content: "";
-  position: absolute;
-  left: -14px;
-  top: 13px;
-  width: 12px;
-  height: 1.5px;
-  background: var(--guide);
-  border-radius: 1px;
-  pointer-events: none;
-}
-/* Stop the vertical spine under the last child's elbow */
+/* Mask the rail below the last child's midline so the line stops cleanly */
 .file-tray .tree-kids > *:last-child::after {
   content: "";
   position: absolute;
-  left: -16px;
-  top: 15px;
-  bottom: -8px;
-  width: 4px;
+  left: -13px;
+  top: 14px;
+  bottom: -4px;
+  width: 3px;
   background: var(--bg-elev);
   pointer-events: none;
+}
+body.tray-outlines .file-tray {
+  gap: 4px;
+}
+body.tray-outlines .file-tray .tree-kids {
+  --guide: color-mix(in srgb, var(--accent) 45%, var(--line));
+  gap: 4px;
+  margin: 1px 0 2px 18px;
+  padding: 2px 0 2px 12px;
+  border-left-color: var(--guide);
 }
 .tree-icon {
   width: 16px;
@@ -1738,18 +1736,30 @@ select:focus, input:focus, textarea:focus, button:focus-visible {
   padding-right: 4px;
   max-width: 100%;
   overflow: hidden;
-  /* Clear outline so adjacent files don't blend into one strip */
-  border: 1px solid color-mix(in srgb, var(--line) 70%, var(--muted)) !important;
-  border-radius: 7px;
-  background: color-mix(in srgb, var(--bg-sunken) 45%, var(--bg-elev));
+  /* Default: quiet rows — hierarchy comes from the vertical tree line */
+  border: 0 !important;
+  border-radius: 6px;
+  background: transparent;
   margin: 0;
 }
 .tree-row.folder {
-  /* Same outline language as files so the tray reads as one hierarchy of tiles */
-  background: color-mix(in srgb, var(--bg-elev) 55%, var(--bg-sunken));
+  background: transparent;
 }
 .tree-row.file:hover,
 .tree-row.folder:hover {
+  background: var(--hover);
+}
+/* Optional: bordered tiles (Settings → Outlined file tiles) */
+body.tray-outlines .tree-row {
+  border: 1px solid color-mix(in srgb, var(--line) 70%, var(--muted)) !important;
+  border-radius: 7px;
+  background: color-mix(in srgb, var(--bg-sunken) 45%, var(--bg-elev));
+}
+body.tray-outlines .tree-row.folder {
+  background: color-mix(in srgb, var(--bg-elev) 55%, var(--bg-sunken));
+}
+body.tray-outlines .tree-row.file:hover,
+body.tray-outlines .tree-row.folder:hover {
   border-color: color-mix(in srgb, var(--accent) 50%, var(--line)) !important;
   background: var(--hover);
 }
@@ -1802,10 +1812,14 @@ select:focus, input:focus, textarea:focus, button:focus-visible {
 .tree-row.active {
   box-shadow: inset 2px 0 0 var(--accent);
   background: var(--hover);
-  border-color: color-mix(in srgb, var(--accent) 45%, var(--line)) !important;
 }
 .tree-row.selected {
   background: var(--select);
+}
+body.tray-outlines .tree-row.active {
+  border-color: color-mix(in srgb, var(--accent) 45%, var(--line)) !important;
+}
+body.tray-outlines .tree-row.selected {
   border-color: color-mix(in srgb, var(--accent) 40%, var(--line)) !important;
 }
 .tree-row.java .name { color: var(--text); }

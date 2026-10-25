@@ -1309,6 +1309,7 @@
     const indentWithTabs = !!next.indentWithTabs;
     const lineWrapping = !!next.lineWrapping;
     const lineNumbers = next.lineNumbers !== false;
+    const trayOutlines = !!next.trayOutlines;
     const autoSave = next.autoSave !== false;
     const formatOnSave = !!next.formatOnSave;
 
@@ -1318,6 +1319,7 @@
     state.settings.indentWithTabs = indentWithTabs;
     state.settings.lineWrapping = lineWrapping;
     state.settings.lineNumbers = lineNumbers;
+    state.settings.trayOutlines = trayOutlines;
     state.settings.autoSave = autoSave;
     state.settings.autoSaveDelayMs = delay;
     state.settings.formatOnSave = formatOnSave;
@@ -1326,6 +1328,7 @@
     document.documentElement.style.setProperty("--mono", FONT_STACKS[family]);
     document.documentElement.style.setProperty("--font", FONT_STACKS[family]);
     document.body.classList.toggle("no-ligatures", !ligatures);
+    document.body.classList.toggle("tray-outlines", trayOutlines);
 
     if ($("setting-font-family")) $("setting-font-family").value = family;
     if ($("setting-ligatures")) $("setting-ligatures").checked = ligatures;
@@ -1333,6 +1336,7 @@
     if ($("setting-indent-tabs")) $("setting-indent-tabs").checked = indentWithTabs;
     if ($("setting-line-wrap")) $("setting-line-wrap").checked = lineWrapping;
     if ($("setting-line-numbers")) $("setting-line-numbers").checked = lineNumbers;
+    if ($("setting-tray-outlines")) $("setting-tray-outlines").checked = trayOutlines;
     if ($("setting-autosave")) $("setting-autosave").checked = autoSave;
     if ($("setting-autosave-delay")) $("setting-autosave-delay").value = String(delay);
     if ($("setting-autosave-delay")) $("setting-autosave-delay").disabled = !autoSave;
@@ -1377,6 +1381,7 @@
         indentWithTabs: indentWithTabs,
         lineWrapping: lineWrapping,
         lineNumbers: lineNumbers,
+        trayOutlines: trayOutlines,
         autoSave: autoSave,
         autoSaveDelayMs: delay,
         formatOnSave: formatOnSave
@@ -5696,6 +5701,7 @@
     bindPref("setting-indent-tabs", (el) => ({ indentWithTabs: el.checked }));
     bindPref("setting-line-wrap", (el) => ({ lineWrapping: el.checked }));
     bindPref("setting-line-numbers", (el) => ({ lineNumbers: el.checked }));
+    bindPref("setting-tray-outlines", (el) => ({ trayOutlines: el.checked }));
     bindPref("setting-autosave", (el) => ({ autoSave: el.checked }));
     bindPref("setting-autosave-delay", (el) => ({ autoSaveDelayMs: Number(el.value) }));
     bindPref("setting-format-save", (el) => ({ formatOnSave: el.checked }));
@@ -6601,6 +6607,7 @@
         indentWithTabs: !!state.settings.indentWithTabs,
         lineWrapping: !!state.settings.lineWrapping,
         lineNumbers: state.settings.lineNumbers !== false,
+        trayOutlines: !!state.settings.trayOutlines,
         autoSave: state.settings.autoSave !== false,
         autoSaveDelayMs: state.settings.autoSaveDelayMs || 800,
         formatOnSave: !!state.settings.formatOnSave
