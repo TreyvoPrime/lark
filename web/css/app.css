@@ -1562,12 +1562,45 @@ select:focus, input:focus, textarea:focus, button:focus-visible {
   flex-direction: column;
   gap: 4px;
 }
-/* Nested folder children also get breathing room between rows */
+/*
+ * Nested folder children live in a guide gutter so L-rails stay outside the
+ * outlined tiles (full-width rows used to paint over absolute guides).
+ */
 .file-tray .tree-kids {
+  --guide: color-mix(in srgb, var(--accent) 55%, var(--muted));
+  position: relative;
   display: flex;
   flex-direction: column;
   gap: 4px;
-  padding: 2px 0 2px 0;
+  margin: 1px 0 2px 18px;
+  padding: 2px 0 2px 14px;
+  border-left: 1.5px solid var(--guide);
+}
+.file-tray .tree-kids > * {
+  position: relative;
+}
+/* Horizontal elbow from the spine into each child tile */
+.file-tray .tree-kids > *::before {
+  content: "";
+  position: absolute;
+  left: -14px;
+  top: 13px;
+  width: 12px;
+  height: 1.5px;
+  background: var(--guide);
+  border-radius: 1px;
+  pointer-events: none;
+}
+/* Stop the vertical spine under the last child's elbow */
+.file-tray .tree-kids > *:last-child::after {
+  content: "";
+  position: absolute;
+  left: -16px;
+  top: 15px;
+  bottom: -8px;
+  width: 4px;
+  background: var(--bg-elev);
+  pointer-events: none;
 }
 .tree-icon {
   width: 16px;

@@ -2121,7 +2121,8 @@
     const row = document.createElement("button");
     row.type = "button";
     row.className = "tree-row" + (node.path === state.active ? " active" : "") + (node.path === state.selected ? " selected" : "") + (node.path.endsWith(".java") ? " java" : "") + (node.dir ? " folder" : " file");
-    row.style.paddingLeft = (10 + depth * 16) + "px";
+    // Nesting indent lives on .tree-kids (guide gutter) — keep row chrome padding constant.
+    row.style.paddingLeft = "10px";
     row.dataset.path = node.path;
     row.dataset.dir = node.dir ? "1" : "0";
     const name = document.createElement("span");
