@@ -1519,14 +1519,27 @@ select:focus, input:focus, textarea:focus, button:focus-visible {
   font-weight: 700;
   line-height: 1.2;
 }
-.tray-title strong {
-  font-size: 12px;
+.structure-project {
+  flex: none;
+  padding: 8px 10px 6px;
+  border-bottom: 1px solid var(--line);
+  background: color-mix(in srgb, var(--bg-elev) 70%, var(--bg-sunken));
+  min-width: 0;
+}
+.structure-project .tray-label {
+  display: block;
+  margin-bottom: 2px;
+}
+.structure-project strong {
+  display: block;
+  font-size: 13px;
   font-weight: 700;
   color: var(--text);
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-  line-height: 1.25;
+  line-height: 1.3;
+  /* Full title — wrap instead of clipping in the narrow top tray */
+  white-space: normal;
+  overflow-wrap: anywhere;
+  word-break: break-word;
 }
 .tray-actions {
   margin-left: auto;
@@ -1541,10 +1554,20 @@ select:focus, input:focus, textarea:focus, button:focus-visible {
   white-space: nowrap;
 }
 .file-tray {
-  padding: 6px 4px 8px;
+  padding: 6px 5px 8px;
   min-height: 0;
   flex: 1 1 auto;
   overflow: auto;
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+}
+/* Nested folder children also get breathing room between rows */
+.file-tray .tree-kids {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  padding: 2px 0 2px 0;
 }
 .tree-icon {
   width: 16px;
@@ -1669,6 +1692,7 @@ select:focus, input:focus, textarea:focus, button:focus-visible {
   gap: 2px;
   max-width: 100%;
   animation: tray-row-in 160ms ease both;
+  border-radius: 7px;
 }
 .tree-line.dragging { opacity: 0.45; }
 .tree-row {
@@ -1681,6 +1705,17 @@ select:focus, input:focus, textarea:focus, button:focus-visible {
   padding-right: 4px;
   max-width: 100%;
   overflow: hidden;
+  /* Soft outline so adjacent files don't blend into one strip */
+  border: 1px solid color-mix(in srgb, var(--line) 88%, transparent) !important;
+  border-radius: 7px;
+  background: color-mix(in srgb, var(--bg-sunken) 28%, transparent);
+}
+.tree-row.folder {
+  border-color: transparent !important;
+  background: transparent;
+}
+.tree-row.file:hover {
+  border-color: color-mix(in srgb, var(--accent) 35%, var(--line)) !important;
 }
 .tree-row .chev { display: none; }
 .tree-row .name {
@@ -1728,8 +1763,15 @@ select:focus, input:focus, textarea:focus, button:focus-visible {
 }
 .tree-row:hover, .outline-row:hover, .problem:hover, .menu button:hover, .palette-item:hover,
 .palette-item.active { background: var(--hover); }
-.tree-row.active { box-shadow: inset 2px 0 0 var(--accent); background: var(--hover); }
-.tree-row.selected { background: var(--select); }
+.tree-row.active {
+  box-shadow: inset 2px 0 0 var(--accent);
+  background: var(--hover);
+  border-color: color-mix(in srgb, var(--accent) 45%, var(--line)) !important;
+}
+.tree-row.selected {
+  background: var(--select);
+  border-color: color-mix(in srgb, var(--accent) 40%, var(--line)) !important;
+}
 .tree-row.java .name { color: var(--text); }
 .tree-row.dragging { opacity: 0.45; }
 .tree-row.drop-target {

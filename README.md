@@ -54,6 +54,10 @@ https://github.com/TreyvoPrime/lark/releases/latest/download/lark-mobile-linux.z
 
 Do not open launchers from inside a zip preview / Temp folder.
 
+## What’s new in 3.9.7.14
+
+- **File tray** — each file row has a light outline so adjacent entries stay distinct; the project name sits above Outline with room to show the full title.
+
 ## What’s new in 3.9.7.13
 
 - **Raise existing Desktop window** — second launch / tray Open asks the OS to foreground the Lark window (Windows/macOS/Linux), not only `window.focus()`.

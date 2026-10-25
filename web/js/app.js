@@ -2201,8 +2201,11 @@
       line.appendChild(add);
     }
     wrap.appendChild(line);
-    if (node.dir && !state.collapsed.has(node.path)) {
-      node.children.forEach((child) => wrap.appendChild(renderNode(child, depth + 1)));
+    if (node.dir && !state.collapsed.has(node.path) && node.children && node.children.length) {
+      const kids = document.createElement("div");
+      kids.className = "tree-kids";
+      node.children.forEach((child) => kids.appendChild(renderNode(child, depth + 1)));
+      wrap.appendChild(kids);
     }
     return wrap;
   }
