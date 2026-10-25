@@ -84,11 +84,15 @@ public final class Instance {
             Integer port = readPort();
             String url = runningUrl();
             if (url != null && port != null) {
-                boolean uiAlive = signalFocus(port);
-                if (uiAlive) {
+                // Bump focus so a live tab can window.focus(); also try OS raise.
+                signalFocus(port);
+                boolean raised = AppWindow.focusExisting();
+                if (raised) {
                     System.out.println("Lark is already open — bringing that window forward.");
                 } else if (openBrowser) {
-                    // Server is up but no UI heartbeat — reopen one window, do not start a JVM.
+                    // Server is up but no visible window (common after an update when the
+                    // old Chromium profile still holds the lock, or the UI was closed).
+                    // Never exit silently — always reopen.
                     System.out.println("Lark is running — opening the window.");
                     AppWindow.open(url);
                 } else {
@@ -110,8 +114,9 @@ public final class Instance {
     }
 
     /**
-     * Ask the running UI to come forward. Returns true when a live editor tab
-     * has checked in recently (so a new browser window is not needed).
+     * Ask the running UI to come forward (bump focus seq for live tabs).
+     * Returns true when the HTTP call succeeds — does <em>not</em> mean a
+     * window was raised; callers must check {@link AppWindow#focusExisting()}.
      */
     public static boolean signalFocus(int port) {
         HttpURLConnection conn = null;
@@ -128,11 +133,7 @@ public final class Instance {
                 out.write("{}".getBytes(StandardCharsets.UTF_8));
             }
             int code = conn.getResponseCode();
-            if (code < 200 || code >= 300) return false;
-            try (var in = conn.getInputStream()) {
-                String body = new String(in.readAllBytes(), StandardCharsets.UTF_8);
-                return body.contains("\"uiFresh\":true") || body.contains("\"uiFresh\": true");
-            }
+            return code >= 200 && code < 300;
         } catch (Exception e) {
             return false;
         } finally {
@@ -140,11 +141,12 @@ public final class Instance {
         }
     }
 
-    /** Tray / Open: focus the existing window, or open one if the UI is gone. */
+    /** Tray / Open: raise the existing window, or open one if none is visible. */
     public static void focusOrOpen(String url) {
         Integer port = readPort();
-        if (port != null && healthOk(port) && signalFocus(port)) {
-            return;
+        if (port != null && healthOk(port)) {
+            signalFocus(port);
+            if (AppWindow.focusExisting()) return;
         }
         AppWindow.open(url);
     }

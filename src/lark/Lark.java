@@ -115,7 +115,7 @@ public final class Lark {
         if (browser) {
             System.out.println("Opening your browser...");
             System.out.flush();
-            AppWindow.open(url);
+            AppWindow.openWithRetry(url);
         }
         // Keep the JVM alive while the (daemon) HTTP threads serve the IDE.
         new CountDownLatch(1).await();

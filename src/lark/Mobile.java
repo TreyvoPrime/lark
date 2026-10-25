@@ -152,7 +152,7 @@ public final class Mobile {
         if (browser) {
             System.out.println("Opening Mobile UI...");
             System.out.flush();
-            AppWindow.open(local);
+            AppWindow.openWithRetry(local);
         }
         new CountDownLatch(1).await();
     }

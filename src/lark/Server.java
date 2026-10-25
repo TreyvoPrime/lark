@@ -224,13 +224,10 @@ public final class Server {
                     .put("uiFresh", true));
             return;
         }
-        // Second launch / tray Open: bump focus so the open tab brings itself forward,
-        // and ask the OS to raise the existing Lark window (no new browser process).
+        // Second launch / tray Open: bump focus so the open tab brings itself forward.
+        // OS raise is done by the caller (Instance) so it can reopen if nothing is visible.
         if ("POST".equals(method) && "/api/focus".equals(path)) {
             long seq = bumpFocus();
-            Thread raise = new Thread(AppWindow::focusExisting, "lark-os-focus");
-            raise.setDaemon(true);
-            raise.start();
             sendJson(exchange, 200, new Json.Obj()
                     .put("ok", true)
                     .put("focus", seq)

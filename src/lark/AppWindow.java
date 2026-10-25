@@ -20,6 +20,34 @@ public final class AppWindow {
     private AppWindow() {}
 
     public static void open(String url) {
+        clearStaleProfileLocks();
+        openRaw(url);
+    }
+
+    /**
+     * Open the Lark window, then retry once if no editor tab checks in.
+     * Covers the post-update case where Chromium still holds the profile lock and
+     * the first {@code --app} launch hands off to a dying window (or nothing).
+     */
+    public static void openWithRetry(String url) {
+        open(url);
+        Thread retry = new Thread(() -> {
+            try {
+                Thread.sleep(2200);
+                if (Server.uiFresh()) return;
+                System.out.println("Lark window didn't check in — opening again…");
+                System.out.flush();
+                clearStaleProfileLocks();
+                openRaw(url);
+            } catch (InterruptedException e) {
+                Thread.currentThread().interrupt();
+            }
+        }, "lark-window-retry");
+        retry.setDaemon(true);
+        retry.start();
+    }
+
+    private static void openRaw(String url) {
         String os = System.getProperty("os.name", "").toLowerCase(Locale.ROOT);
         if (os.contains("win")) {
             String local = System.getenv("LOCALAPPDATA");
@@ -149,22 +177,29 @@ public final class AppWindow {
     }
 
     private static boolean focusLinux() throws Exception {
+        // Prefer our --class=Lark app window over a normal browser tab whose title
+        // happens to mention Lark.
+        if (onPath("xdotool") && activateXdotool("search", "--class", "Lark")) return true;
         if (onPath("wmctrl")) {
             Process p = new ProcessBuilder("wmctrl", "-a", "Lark").start();
             if (p.waitFor(2, TimeUnit.SECONDS) && p.exitValue() == 0) return true;
         }
-        if (onPath("xdotool")) {
-            Process search = new ProcessBuilder("xdotool", "search", "--name", "Lark").start();
-            if (!search.waitFor(2, TimeUnit.SECONDS) || search.exitValue() != 0) return false;
-            String ids = new String(search.getInputStream().readAllBytes(), StandardCharsets.UTF_8).trim();
-            if (ids.isBlank()) return false;
-            String id = ids.split("\\s+")[0];
-            // id is digits only from xdotool — refuse anything else.
-            if (!id.matches("\\d+")) return false;
-            Process act = new ProcessBuilder("xdotool", "windowactivate", "--sync", id).start();
-            return act.waitFor(2, TimeUnit.SECONDS) && act.exitValue() == 0;
-        }
+        if (onPath("xdotool") && activateXdotool("search", "--name", "Lark")) return true;
         return false;
+    }
+
+    private static boolean activateXdotool(String... searchArgs) throws Exception {
+        List<String> cmd = new ArrayList<>();
+        cmd.add("xdotool");
+        for (String a : searchArgs) cmd.add(a);
+        Process search = new ProcessBuilder(cmd).start();
+        if (!search.waitFor(2, TimeUnit.SECONDS) || search.exitValue() != 0) return false;
+        String ids = new String(search.getInputStream().readAllBytes(), StandardCharsets.UTF_8).trim();
+        if (ids.isBlank()) return false;
+        String id = ids.split("\\s+")[0];
+        if (!id.matches("\\d+")) return false;
+        Process act = new ProcessBuilder("xdotool", "windowactivate", "--sync", id).start();
+        return act.waitFor(2, TimeUnit.SECONDS) && act.exitValue() == 0;
     }
 
     /** Stable Chromium profile so --app windows group as one Lark app. */
@@ -172,6 +207,51 @@ public final class AppWindow {
         String channel = Instance.channel();
         if (channel == null || channel.isBlank()) channel = "portable";
         return Settings.home().resolve("browser").resolve(channel);
+    }
+
+    /**
+     * Drop Chromium Singleton* files left by a dead browser process so the next
+     * {@code --app} launch is not swallowed by a profile lock with no window.
+     */
+    public static void clearStaleProfileLocks() {
+        Path profile = profileDir();
+        Path lock = profile.resolve("SingletonLock");
+        try {
+            if (!Files.exists(lock)) return;
+            Long pid = singletonOwnerPid(lock);
+            // Only clear when we know the owning PID and it is gone. Unknown lock
+            // formats (common on Windows) stay put — Chrome owns that file while live.
+            if (pid == null || processAlive(pid)) return;
+            Files.deleteIfExists(lock);
+            Files.deleteIfExists(profile.resolve("SingletonCookie"));
+            Files.deleteIfExists(profile.resolve("SingletonSocket"));
+        } catch (Exception ignored) {
+            // Best-effort — Chrome may still recover on its own.
+        }
+    }
+
+    private static Long singletonOwnerPid(Path lock) {
+        try {
+            if (Files.isSymbolicLink(lock)) {
+                Path target = Files.readSymbolicLink(lock);
+                String name = target.getFileName().toString();
+                int dash = name.lastIndexOf('-');
+                if (dash >= 0 && dash + 1 < name.length()) {
+                    return Long.parseLong(name.substring(dash + 1));
+                }
+            }
+        } catch (Exception ignored) {
+            // Not a hostname-pid symlink (Windows uses a regular lock file).
+        }
+        return null;
+    }
+
+    private static boolean processAlive(long pid) {
+        try {
+            return ProcessHandle.of(pid).map(ProcessHandle::isAlive).orElse(false);
+        } catch (Exception e) {
+            return false;
+        }
     }
 
     private static String[] chromeArgs(String url, boolean linuxClass) {

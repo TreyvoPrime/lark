@@ -158,7 +158,7 @@ public final class Desktop {
         if (browser) {
             System.out.println("Opening Lark Desktop window...");
             System.out.flush();
-            AppWindow.open(url);
+            AppWindow.openWithRetry(url);
         }
         new CountDownLatch(1).await();
     }
