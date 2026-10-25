@@ -1573,9 +1573,14 @@ select:focus, input:focus, textarea:focus, button:focus-visible {
   height: 15px;
   display: block;
 }
+/* Classic Java logo sits on a clear badge so blue steam + orange cup read clearly. */
 .tree-icon.java {
-  background: color-mix(in srgb, #e76f00 55%, var(--bg));
-  color: #fff8f0;
+  background: color-mix(in srgb, #1b2838 55%, var(--bg-sunken));
+  border-radius: 3px;
+}
+.tree-icon.java .java-logo {
+  width: 15px;
+  height: 15px;
 }
 .tree-icon.txt {
   background: color-mix(in srgb, var(--muted) 22%, var(--bg-sunken));
