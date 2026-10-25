@@ -54,9 +54,13 @@ https://github.com/TreyvoPrime/lark/releases/latest/download/lark-mobile-linux.z
 
 Do not open launchers from inside a zip preview / Temp folder.
 
+## What’s new in 3.9.7.27
+
+- **Revert Lua Java engine** — beautify, brace helpers, diagnostics, and snippets are back on the fast JS path. The Lua highlighter from 3.9.7.25 stays; the engine that made the IDE sluggish is removed.
+
 ## What’s new in 3.9.7.26
 
-- **Lua Java engine** — indent/beautify, brace matching, unused-import & brace diagnostics, and Assist snippet expansion now run from real Lua (`web/lua/java_engine.lua`) via Fengari. The JS implementations remain as fallbacks if Lua cannot load.
+- **Lua Java engine** — indent/beautify, brace matching, unused-import & brace diagnostics, and Assist snippet expansion (reverted in 3.9.7.27 for speed).
 
 ## What’s new in 3.9.7.25
 

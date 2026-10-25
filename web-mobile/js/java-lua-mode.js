@@ -150,48 +150,20 @@
     "end"
   ].join("\n");
 
-  var ENGINE_CHUNK = [
-    "assert(JavaEngine, 'JavaEngine missing')",
-    "assert(JsonUtil, 'JsonUtil missing')",
-    "local function field(obj, key)",
-    "  if obj == nil then return nil end",
-    "  local ok, v = pcall(function() return obj[key] end)",
-    "  if ok and v ~= nil then return v end",
-    "  ok, v = pcall(function()",
-    "    if obj.get ~= nil then return obj:get(key) end",
-    "  end)",
-    "  if ok then return v end",
-    "  return nil",
-    "end",
-    "local function pick_req(a, b)",
-    "  if a ~= nil and a ~= 'null' and field(a, 'action') ~= nil then return a end",
-    "  if b ~= nil and field(b, 'action') ~= nil then return b end",
-    "  if a ~= nil and a ~= 'null' then return a end",
-    "  return b",
-    "end",
-    "local function boolish(v)",
-    "  if v == true or v == 'true' or v == 1 or v == '1' then return true end",
-    "  return false",
-    "end",
-    "return function(a, b)",
-    "  local req = pick_req(a, b) or {}",
-    "  local action = tostring(field(req, 'action') or '')",
-    "  local payload = {",
-    "    source = field(req, 'source') or '',",
-    "    indentSize = field(req, 'indentSize'),",
-    "    indentWithTabs = boolish(field(req, 'indentWithTabs')),",
-    "    offset = field(req, 'offset'),",
-    "    prefix = field(req, 'prefix') or '',",
-    "    id = field(req, 'id') or '',",
-    "    indent = field(req, 'indent') or ''",
-    "  }",
-    "  if type(payload.source) ~= 'string' then payload.source = tostring(payload.source or '') end",
-    "  return JavaEngine.dispatch_json(action, payload)",
-    "end"
-  ].join("\n");
-
-  var engineFn = null;
-  var engineReady = false;
+  function installFromSource(luaSource) {
+    if (typeof fengari === "undefined" || typeof fengari.load !== "function") {
+      throw new Error("Fengari is not available");
+    }
+    fengari.load(luaSource, "=java_tokenizer.lua")();
+    var start = fengari.load(START_CHUNK, "=lark_java_start.lua")();
+    var next = fengari.load(NEXT_CHUNK, "=lark_java_next.lua")();
+    if (typeof start !== "function" || typeof next !== "function") {
+      throw new Error("Lua bridge missing start/next functions");
+    }
+    startStateFn = function () { return start(); };
+    nextTokenFn = function (req) { return next(req); };
+    defineMode();
+  }
 
   function loadTextSync(url) {
     var xhr = new XMLHttpRequest();
@@ -204,61 +176,15 @@
     return xhr.responseText;
   }
 
-  function withQuery(url, versionQuery) {
-    if (!versionQuery) return url;
-    return url + (url.indexOf("?") >= 0 ? "&" : "?") + versionQuery.replace(/^\?/, "");
-  }
-
-  function installFromSources(tokenizerSrc, jsonSrc, engineSrc) {
-    if (typeof fengari === "undefined" || typeof fengari.load !== "function") {
-      throw new Error("Fengari is not available");
-    }
-    fengari.load(tokenizerSrc, "=java_tokenizer.lua")();
-    fengari.load(jsonSrc, "=json_util.lua")();
-    fengari.load(engineSrc, "=java_engine.lua")();
-    var start = fengari.load(START_CHUNK, "=lark_java_start.lua")();
-    var next = fengari.load(NEXT_CHUNK, "=lark_java_next.lua")();
-    var engine = fengari.load(ENGINE_CHUNK, "=lark_java_engine.lua")();
-    if (typeof start !== "function" || typeof next !== "function" || typeof engine !== "function") {
-      throw new Error("Lua bridge missing start/next/engine functions");
-    }
-    startStateFn = function () { return start(); };
-    nextTokenFn = function (req) { return next(req); };
-    engineFn = function (req) { return engine(req); };
-    engineReady = true;
-    defineMode();
-  }
-
-  function callEngine(action, fields) {
-    if (!engineFn) throw new Error("Lua Java engine not ready");
-    var req = fields || {};
-    req.action = action;
-    var raw = engineFn(req);
-    if (raw == null) return null;
-    if (typeof raw !== "string") {
-      raw = readField(raw, "json") || String(raw);
-    }
-    return JSON.parse(raw);
-  }
-
   function publish(ok) {
     global.LarkJavaLua = {
       ready: !!ok,
-      engine: !!ok && engineReady,
       mode: ok ? MODE_NAME : "text/x-java",
       error: ok ? null : loadError,
       start: startAsync,
       startSync: startSync,
       nextToken: nextTokenFn,
-      startState: startStateFn,
-      call: ok ? callEngine : null,
-      beautify: ok ? function (o) { return callEngine("beautify", o || {}); } : null,
-      diagnostics: ok ? function (o) { return callEngine("diagnostics", o || {}); } : null,
-      enclosingBrace: ok ? function (o) { return callEngine("enclosingBrace", o || {}); } : null,
-      classCloseIndex: ok ? function (o) { return callEngine("classCloseIndex", o || {}); } : null,
-      matchSnippets: ok ? function (o) { return callEngine("matchSnippets", o || {}); } : null,
-      listSnippets: ok ? function (o) { return callEngine("listSnippets", o || {}); } : null,
-      expandSnippet: ok ? function (o) { return callEngine("expandSnippet", o || {}); } : null
+      startState: startStateFn
     };
   }
 
@@ -266,32 +192,40 @@
     url = url || "lua/java_tokenizer.lua";
     try {
       if (typeof fengari === "undefined") throw new Error("fengari-web.js not loaded");
-      var q = "";
-      var qi = url.indexOf("?");
-      if (qi >= 0) {
-        q = url.slice(qi);
-        url = url.slice(0, qi);
-      }
-      var base = url.replace(/\/[^/]*$/, "/");
-      if (base === url) base = "lua/";
-      installFromSources(
-        loadTextSync(withQuery(base + "java_tokenizer.lua", q)),
-        loadTextSync(withQuery(base + "json_util.lua", q)),
-        loadTextSync(withQuery(base + "java_engine.lua", q))
-      );
+      installFromSource(loadTextSync(url));
       publish(true);
       return true;
     } catch (err) {
       loadError = err && err.message ? err.message : String(err);
-      engineReady = false;
-      console.warn("[Lark] Java Lua engine unavailable — using JS fallbacks:", loadError);
+      console.warn("[Lark] Java Lua tokenizer unavailable — using clike:", loadError);
       publish(false);
       return false;
     }
   }
 
   function startAsync(url) {
-    return Promise.resolve(startSync(url || "lua/java_tokenizer.lua"));
+    url = url || "lua/java_tokenizer.lua";
+    if (typeof fengari === "undefined") {
+      loadError = "fengari-web.js not loaded";
+      publish(false);
+      return Promise.resolve(false);
+    }
+    return fetch(url, { credentials: "same-origin" })
+      .then(function (res) {
+        if (!res.ok) throw new Error("HTTP " + res.status + " for " + url);
+        return res.text();
+      })
+      .then(function (src) {
+        installFromSource(src);
+        publish(true);
+        return true;
+      })
+      .catch(function (err) {
+        loadError = err && err.message ? err.message : String(err);
+        console.warn("[Lark] Java Lua tokenizer unavailable — using clike:", loadError);
+        publish(false);
+        return false;
+      });
   }
 
   aliasClikeJava();

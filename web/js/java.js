@@ -307,24 +307,7 @@
     return warnings;
   }
 
-  function luaEngine() {
-    return (typeof globalThis !== "undefined" && globalThis.LarkJavaLua && globalThis.LarkJavaLua.engine
-      && globalThis.LarkJavaLua.call)
-      ? globalThis.LarkJavaLua
-      : (typeof window !== "undefined" && window.LarkJavaLua && window.LarkJavaLua.engine
-        && window.LarkJavaLua.call)
-        ? window.LarkJavaLua
-        : null;
-  }
-
   function braceWarnings(source) {
-    const lua = luaEngine();
-    if (lua) {
-      try {
-        const res = lua.call("braceDiagnostics", { source: source || "" });
-        if (res && Array.isArray(res.warnings)) return res.warnings;
-      } catch (e) { /* fall through to JS */ }
-    }
     const clean = blankNoise(source || "");
     let depth = 0;
     let paren = 0;
@@ -379,16 +362,6 @@
   }
 
   function styleWarnings(source) {
-    const lua = luaEngine();
-    if (lua) {
-      try {
-        // Full diagnostics includes brace + unused + style; take style-only codes.
-        const res = lua.call("diagnostics", { source: source || "" });
-        if (res && Array.isArray(res.warnings)) {
-          return res.warnings.filter((w) => w && (w.code === "string-eq" || w.code === "empty-control"));
-        }
-      } catch (e) { /* fall through */ }
-    }
     const out = [];
     const lines = (source || "").split("\n");
     lines.forEach((line, i) => {
@@ -497,13 +470,6 @@
   }
 
   function unusedImportWarnings(source, imports, clean) {
-    const lua = luaEngine();
-    if (lua) {
-      try {
-        const res = lua.call("unusedImports", { source: source || "" });
-        if (res && Array.isArray(res.warnings)) return res.warnings;
-      } catch (e) { /* fall through to JS */ }
-    }
     const out = [];
     const lines = (source || "").split("\n");
     imports.forEach((imp) => {
@@ -702,13 +668,6 @@
 
   /** Index of the top-level type's closing `}`, ignoring braces in strings/comments. */
   function classCloseIndex(source) {
-    const lua = luaEngine();
-    if (lua) {
-      try {
-        const res = lua.call("classCloseIndex", { source: source || "" });
-        if (res && typeof res.index === "number") return res.index;
-      } catch (e) { /* fall through */ }
-    }
     const clean = blankNoise(source || "");
     let depth = 0;
     let opened = false;
@@ -1652,14 +1611,6 @@
   }
 
   function enclosingBraceRange(source, offset) {
-    const lua = luaEngine();
-    if (lua) {
-      try {
-        const res = lua.call("enclosingBrace", { source: source || "", offset: offset });
-        if (res && res.ok) return { from: res.from, to: res.to };
-        if (res && res.ok === false) return null;
-      } catch (e) { /* fall through */ }
-    }
     const text = source || "";
     if (offset < 0 || offset > text.length) return null;
     let depth = 0;
@@ -1686,13 +1637,6 @@
   }
 
   function matchingSnippets(prefix) {
-    const lua = luaEngine();
-    if (lua) {
-      try {
-        const res = lua.call("matchSnippets", { prefix: prefix || "" });
-        if (res && Array.isArray(res.snippets)) return res.snippets;
-      } catch (e) { /* fall through */ }
-    }
     const lower = (prefix || "").toLowerCase();
     return SNIPPETS.filter((s) => !lower || s.trigger.startsWith(lower) || s.label.toLowerCase().includes(lower));
   }
@@ -1704,17 +1648,6 @@
    */
   function beautifyJava(source, options) {
     options = options || {};
-    const lua = luaEngine();
-    if (lua) {
-      try {
-        const res = lua.call("beautify", {
-          source: source == null ? "" : String(source),
-          indentSize: options.indentSize,
-          indentWithTabs: !!options.indentWithTabs
-        });
-        if (res && typeof res.text === "string") return res.text;
-      } catch (e) { /* fall through to JS beautifier */ }
-    }
     const indentSize = options.indentSize === 2 || options.indentSize === 8 ? options.indentSize : 4;
     const useTabs = !!options.indentWithTabs;
     const unit = useTabs ? "\t" : " ".repeat(indentSize);
