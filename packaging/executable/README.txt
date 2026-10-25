@@ -1,10 +1,7 @@
 Lark Executable
 ===============
 
-1. Extract All (do not run from inside the zip).
-2. Double-click Lark.exe.
-
-That is the whole start path — no .bat files.
+Extract All, then double-click Lark.exe. No batch files & No Installer.
 
 The jdk and app folders are hidden runtime files. Leave them next to Lark.exe.
 Do not replace them with downloads from somewhere else.
