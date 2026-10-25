@@ -1403,6 +1403,7 @@
     applyDisplay({ fontSize: 14, zoom: 100 }, true);
     document.documentElement.style.setProperty("--files-w", "260px");
     document.documentElement.style.setProperty("--console-h", "188px");
+    document.documentElement.style.setProperty("--outline-h", "180px");
     savePanels();
     refreshAllEditors();
     toast("Font, scale, and panels reset.");
@@ -4874,7 +4875,17 @@
     return Math.max(160, Math.floor(h - 80));
   }
 
+  function outlinePanelMax(filesH) {
+    const h = Number.isFinite(filesH) ? filesH : ($("files") ? $("files").getBoundingClientRect().height : 420);
+    // Leave room for the Explorer header + a usable file tree.
+    return Math.max(88, Math.floor(h - 140));
+  }
+
   function savePanels() {
+    const outlineH = clampPanel(
+      getComputedStyle(document.documentElement).getPropertyValue("--outline-h"),
+      88, outlinePanelMax(), 180
+    );
     if (document.getElementById("shell") && document.getElementById("shell").classList.contains("files-collapsed")) {
       // Keep the last expanded width; collapse is a class, not a stored 0 width.
       const consoleH = clampPanel(
@@ -4886,7 +4897,11 @@
         const prev = JSON.parse(localStorage.getItem("lark-panels") || "null");
         filesW = clampPanel(prev && prev.files, 160, filesPanelMax(), 260);
       } catch (e) {}
-      localStorage.setItem("lark-panels", JSON.stringify({ files: filesW + "px", console: consoleH + "px" }));
+      localStorage.setItem("lark-panels", JSON.stringify({
+        files: filesW + "px",
+        console: consoleH + "px",
+        outline: outlineH + "px"
+      }));
       return;
     }
     const filesW = clampPanel(
@@ -4899,7 +4914,8 @@
     );
     localStorage.setItem("lark-panels", JSON.stringify({
       files: filesW + "px",
-      console: consoleH + "px"
+      console: consoleH + "px",
+      outline: outlineH + "px"
     }));
   }
 
@@ -4909,10 +4925,16 @@
     try { saved = JSON.parse(localStorage.getItem("lark-panels") || "null"); } catch (e) { saved = null; }
     const filesW = clampPanel(saved && saved.files, 160, filesPanelMax(), 260);
     const consoleH = clampPanel(saved && saved.console, 72, consolePanelMax(), 188);
+    const outlineH = clampPanel(saved && saved.outline, 88, outlinePanelMax(), 180);
     style.setProperty("--files-w", filesW + "px");
     style.setProperty("--console-h", consoleH + "px");
+    style.setProperty("--outline-h", outlineH + "px");
     // Rewrite sanitized values so a prior zoomed session cannot keep poisoning widths.
-    localStorage.setItem("lark-panels", JSON.stringify({ files: filesW + "px", console: consoleH + "px" }));
+    localStorage.setItem("lark-panels", JSON.stringify({
+      files: filesW + "px",
+      console: consoleH + "px",
+      outline: outlineH + "px"
+    }));
   }
 
   function bindSplitters() {
@@ -4928,11 +4950,17 @@
         handle.setPointerCapture(event.pointerId);
         document.body.classList.add(kind === "row" ? "dragging" : "dragging-col");
         handle.classList.add("on");
+        const filesBox = $("files") ? $("files").getBoundingClientRect() : { width: 260, height: 420 };
         const start = {
           x: event.clientX,
           y: event.clientY,
-          files: clampPanel($("files").getBoundingClientRect().width, 160, filesPanelMax(), 260),
+          files: clampPanel(filesBox.width, 160, filesPanelMax(), 260),
+          filesH: filesBox.height,
           console: clampPanel($("console").getBoundingClientRect().height, 72, consolePanelMax(), 188),
+          outline: clampPanel(
+            ($("structure") ? $("structure").getBoundingClientRect().height : 180),
+            88, outlinePanelMax(filesBox.height), 180
+          ),
           center: $("center").getBoundingClientRect().height,
           pointerId: event.pointerId
         };
@@ -4998,6 +5026,20 @@
         style.setProperty("--console-h", "188px");
         savePanels();
         refreshAllEditors();
+      });
+    }
+
+    const outlineSplit = document.querySelector("[data-split=outline]");
+    drag(outlineSplit, "row", (ev, start) => {
+      const max = outlinePanelMax(start.filesH);
+      // Drag up → taller Outline; drag down → shorter.
+      const next = clampPanel(start.outline - (ev.clientY - start.y), 88, max, 180);
+      style.setProperty("--outline-h", next + "px");
+    });
+    if (outlineSplit) {
+      outlineSplit.addEventListener("dblclick", () => {
+        style.setProperty("--outline-h", "180px");
+        savePanels();
       });
     }
   }
@@ -6127,6 +6169,11 @@
       if (!$("shell").classList.contains("files-collapsed")) {
         document.documentElement.style.setProperty("--files-w", filesW + "px");
       }
+      const outlineH = clampPanel(
+        getComputedStyle(document.documentElement).getPropertyValue("--outline-h"),
+        88, outlinePanelMax(), 180
+      );
+      document.documentElement.style.setProperty("--outline-h", outlineH + "px");
       refreshAllEditors();
     });
     bindSplitters();

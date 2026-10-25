@@ -54,6 +54,10 @@ https://github.com/TreyvoPrime/lark/releases/latest/download/lark-mobile-linux.z
 
 Do not open launchers from inside a zip preview / Temp folder.
 
+## What’s new in 3.9.7.23
+
+- **Resizable Outline tray** — drag the bar above Project/Outline up or down to give the file tree or Outline more room (double-click resets).
+
 ## What’s new in 3.9.7.22
 
 - **Shorter outlines setting copy** — Settings → Display describes outlined tiles as “Borders around Explorer rows.”

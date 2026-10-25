@@ -3,6 +3,7 @@
   color-scheme: dark;
   --files-w: 260px;
   --console-h: 188px;
+  --outline-h: 180px;
   --editor-font-size: 14px;
   /* Kept for older sessions; never applied as CSS zoom (that breaks layout + cursor). */
   --ui-zoom: 1;
@@ -1580,7 +1581,7 @@ select:focus, input:focus, textarea:focus, button:focus-visible {
 }
 .file-tray {
   padding: 6px 5px 8px;
-  min-height: 0;
+  min-height: 72px;
   flex: 1 1 auto;
   overflow: auto;
   display: flex;
@@ -1679,11 +1680,13 @@ body.tray-outlines .file-tray .tree-kids {
 #structure {
   border-top: 1px solid var(--line);
   flex: 0 0 auto;
-  max-height: 34%;
+  height: var(--outline-h);
   min-height: 88px;
+  max-height: 70%;
   display: flex;
   flex-direction: column;
   overflow: hidden;
+  position: relative;
   background: color-mix(in srgb, var(--bg-sunken) 35%, var(--bg-elev));
 }
 .structure-head {
@@ -2634,36 +2637,40 @@ body.edition-desktop .brand .word .ver { display: none; }
 .splitter:hover::before,
 .splitter.on::before,
 body.dragging .splitter[data-split="console"]::before,
+body.dragging .splitter[data-split="outline"]::before,
 body.dragging-col .splitter[data-split="files"]::before {
   background: color-mix(in srgb, var(--accent) 55%, transparent);
 }
-#files .splitter {
+#files > .splitter[data-split="files"] {
   top: 0;
   right: -6px;
   width: 12px;
   bottom: 0;
   cursor: col-resize;
 }
-#files .splitter::before {
+#files > .splitter[data-split="files"]::before {
   top: 0;
   bottom: 0;
   left: 5px;
   width: 2px;
 }
-#console .splitter {
+#console .splitter,
+#structure .splitter[data-split="outline"] {
   left: 0;
   right: 0;
   top: -7px;
   height: 14px;
   cursor: row-resize;
 }
-#console .splitter::before {
+#console .splitter::before,
+#structure .splitter[data-split="outline"]::before {
   left: 0;
   right: 0;
   top: 6px;
   height: 2px;
 }
-#console .splitter::after {
+#console .splitter::after,
+#structure .splitter[data-split="outline"]::after {
   content: "";
   position: absolute;
   left: 50%;
@@ -2677,7 +2684,10 @@ body.dragging-col .splitter[data-split="files"]::before {
 }
 body.dragging #console .splitter::after,
 #console .splitter:hover::after,
-#console .splitter.on::after {
+#console .splitter.on::after,
+body.dragging #structure .splitter[data-split="outline"]::after,
+#structure .splitter[data-split="outline"]:hover::after,
+#structure .splitter[data-split="outline"].on::after {
   background: var(--accent);
 }
 
