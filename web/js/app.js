@@ -4378,8 +4378,9 @@
     $("gh-signed-in").hidden = !signedIn;
     $("github").classList.toggle("connected", signedIn);
     if (signedIn) {
-      const login = state.settings.githubLogin ? "Connected as @" + state.settings.githubLogin : "Connected";
+      const login = state.settings.githubLogin ? ("@" + state.settings.githubLogin) : "Connected";
       $("gh-status").textContent = login;
+      $("gh-status").title = state.settings.githubLogin ? ("@" + state.settings.githubLogin) : "";
     }
     renderGithubTarget();
   }
@@ -4388,10 +4389,22 @@
     const target = $("gh-target");
     if (!target) return;
     if (!githubTarget) {
-      target.textContent = "Choose a repository to push this project, or create a new one.";
+      target.textContent = "Select a repository to push your current project.";
       return;
     }
-    target.textContent = "Push goes to " + githubTarget.owner + "/" + githubTarget.repo + " on " + githubTarget.branch + ".";
+    const full = githubTarget.owner + "/" + githubTarget.repo;
+    target.textContent = "Pushing to " + full + " (" + (githubTarget.branch || "main") + ").";
+    target.title = full;
+  }
+
+  function ghSvg(kind) {
+    if (kind === "repo") {
+      return '<svg class="repo-ico" viewBox="0 0 16 16" aria-hidden="true"><path fill="currentColor" d="M2 2.5A2.5 2.5 0 0 1 4.5 0h8.75a.75.75 0 0 1 .75.75v12.5a.75.75 0 0 1-.75.75h-2.5a.75.75 0 0 1 0-1.5h1.75v-2h-8a1 1 0 0 0-.714 1.7.75.75 0 1 1-1.072 1.05A2.495 2.495 0 0 1 2 11.5Zm10.5-1h-8a1 1 0 0 0-1 1v.5c0 .276.224.5.5.5h9.5v-2Zm0-3h-9.5a.5.5 0 0 1-.5-.5V4a1 1 0 0 1 1-1h8.5Z"/></svg>';
+    }
+    if (kind === "lock") {
+      return '<svg class="repo-lock" viewBox="0 0 16 16" aria-hidden="true"><path fill="currentColor" d="M4 7V5a4 4 0 1 1 8 0v2h1.25c.69 0 1.25.56 1.25 1.25v5.5c0 .69-.56 1.25-1.25 1.25h-10.5C1.56 15 1 14.44 1 13.75v-5.5C1 7.56 1.56 7 2.25 7Zm1.5-2a2.5 2.5 0 0 1 5 0v2h-5Z"/></svg>';
+    }
+    return "";
   }
 
   async function saveToken() {
@@ -4461,7 +4474,9 @@
     if (!rows.length) {
       const empty = document.createElement("p");
       empty.className = "muted";
-      empty.textContent = githubRepos.length ? "No repository matches that search." : "No repositories yet. Choose All repositories when you authorize, then sign in again.";
+      empty.textContent = githubRepos.length
+        ? "No repository matches that filter."
+        : "No repositories yet. Authorize with All repositories, then sign in again.";
       box.appendChild(empty);
       return;
     }
@@ -4469,17 +4484,33 @@
       const row = document.createElement("div");
       const selected = githubTarget && githubTarget.owner === repo.owner && githubTarget.repo === repo.name;
       row.className = "repo" + (selected ? " on" : "");
+      row.setAttribute("role", "option");
+      row.setAttribute("aria-selected", selected ? "true" : "false");
+      row.title = repo.fullName + (repo.private ? " (private)" : "");
+      row.insertAdjacentHTML("beforeend", ghSvg("repo"));
       const meta = document.createElement("div");
       meta.className = "meta";
-      const title = document.createElement("strong");
-      title.textContent = repo.fullName;
-      const detail = document.createElement("span");
-      detail.textContent = (repo.private ? "Private" : "Public") + " · " + (repo.defaultBranch || "main");
-      meta.append(title, detail);
+      const name = document.createElement("div");
+      name.className = "name";
+      const label = document.createElement("span");
+      label.textContent = repo.fullName;
+      name.appendChild(label);
+      if (repo.private) name.insertAdjacentHTML("beforeend", ghSvg("lock"));
+      const detail = document.createElement("div");
+      detail.className = "detail";
+      if (repo.private) {
+        detail.insertAdjacentHTML("beforeend", ghSvg("lock"));
+        detail.appendChild(document.createTextNode("Private"));
+      } else {
+        detail.appendChild(document.createTextNode("Public"));
+      }
+      detail.appendChild(document.createTextNode(" · " + (repo.defaultBranch || "main")));
+      meta.append(name, detail);
       const clone = document.createElement("button");
       clone.type = "button";
-      clone.className = "action";
+      clone.className = "clone";
       clone.textContent = "Clone";
+      clone.title = "Clone " + repo.fullName;
       clone.addEventListener("click", (event) => {
         event.stopPropagation();
         cloneRepo(repo);

@@ -654,59 +654,54 @@
   <div id="scrim" hidden></div>
   <aside id="drawer" hidden>
     <div class="drawer-head">
-      <div class="drawer-brand">
-        <span class="drawer-mark" aria-hidden="true">⌘</span>
-        <div>
-          <h2>GitHub</h2>
-          <p class="drawer-sub">Clone, connect, and push without leaving Lark.</p>
-        </div>
+      <div class="drawer-titles">
+        <h2>GitHub</h2>
+        <p class="drawer-sub">Repositories and sync</p>
       </div>
       <button type="button" id="drawer-close" class="drawer-x" aria-label="Close">×</button>
     </div>
     <div class="drawer-body">
-      <section id="gh-signed-out" class="gh-card">
-        <p class="gh-lead">Connect once. After that, Lark can list your repos, clone them, and push this project.</p>
-        <div class="gh-step-card">
-          <span class="gh-step-num">1</span>
-          <div>
-            <button type="button" id="gh-create-token" class="action primary">Create a GitHub token</button>
-            <p class="gh-hint">Opens GitHub with the repo permission already checked. Generate a classic token, then copy it.</p>
-          </div>
+      <section id="gh-signed-out">
+        <p class="gh-lead">Connect once to list repos, clone, and push this project.</p>
+        <div class="gh-connect">
+          <button type="button" id="gh-create-token" class="gh-btn primary">Create a GitHub token</button>
+          <p class="gh-hint">Opens GitHub with repo access checked. Generate a classic token, then paste it here.</p>
+          <label class="gh-field">Token
+            <input id="gh-token" type="password" autocomplete="off" spellcheck="false" placeholder="ghp_…">
+          </label>
+          <button type="button" id="gh-save" class="gh-btn primary">Connect</button>
+          <p id="gh-wait" class="gh-wait"></p>
+          <details class="gh-alt">
+            <summary>Prefer browser sign-in?</summary>
+            <button type="button" id="gh-oauth" class="gh-btn">Sign in with browser</button>
+          </details>
         </div>
-        <div class="gh-step-card">
-          <span class="gh-step-num">2</span>
-          <div class="gh-token-row">
-            <label>Paste the token
-              <input id="gh-token" type="password" autocomplete="off" spellcheck="false" placeholder="ghp_…">
-            </label>
-            <button type="button" id="gh-save" class="action primary">Connect</button>
-          </div>
-        </div>
-        <p id="gh-wait" class="gh-wait"></p>
-        <details class="gh-alt">
-          <summary>Prefer browser sign-in?</summary>
-          <button type="button" id="gh-oauth" class="action">Sign in with browser</button>
-        </details>
       </section>
       <section id="gh-signed-in" hidden>
-        <div class="gh-account-card">
-          <div>
-            <span class="gh-pill">Connected</span>
+        <div class="gh-account">
+          <div class="gh-account-info">
             <strong id="gh-status">Connected</strong>
+            <span class="gh-account-note">Connected to GitHub</span>
           </div>
-          <button type="button" id="gh-forget" class="action">Sign out</button>
+          <button type="button" id="gh-forget" class="gh-btn quiet">Sign out</button>
         </div>
-        <label class="gh-search">Find a repository
-          <input id="gh-filter" type="text" placeholder="Type a name…" spellcheck="false" autocomplete="off">
-        </label>
-        <div id="gh-repo-list" class="repo-list"></div>
-        <div class="gh-push-card">
-          <h3>Push this project</h3>
-          <p id="gh-target">Pick a repository above, or start a new one.</p>
-          <label>Commit message <input id="gh-message" type="text" value="Update from Lark" spellcheck="false"></label>
+        <div class="gh-repos">
+          <h3>Repositories</h3>
+          <label class="gh-field gh-filter-wrap">
+            <span class="visually-hidden">Filter repositories</span>
+            <input id="gh-filter" type="text" placeholder="Filter repositories…" spellcheck="false" autocomplete="off">
+          </label>
+          <div id="gh-repo-list" class="repo-list" role="listbox" aria-label="Repositories"></div>
+        </div>
+        <div class="gh-push">
+          <h3>Push project</h3>
+          <p id="gh-target">Select a repository to push your current project.</p>
+          <label class="gh-field">Commit message
+            <input id="gh-message" type="text" value="Update from Lark" spellcheck="false">
+          </label>
           <div class="gh-push-actions">
-            <button type="button" id="gh-push" class="action primary">Push</button>
-            <button type="button" id="gh-new-repo" class="action">New repository</button>
+            <button type="button" id="gh-push" class="gh-btn primary">Push</button>
+            <button type="button" id="gh-new-repo" class="gh-btn">New repository</button>
           </div>
           <p id="gh-result"></p>
         </div>

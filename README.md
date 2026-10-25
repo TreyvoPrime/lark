@@ -54,6 +54,10 @@ https://github.com/TreyvoPrime/lark/releases/latest/download/lark-mobile-linux.z
 
 Do not open launchers from inside a zip preview / Temp folder.
 
+## What’s new in 3.9.7.6
+
+- **GitHub drawer** — flatter, quieter layout: no logo badge, flat repo list with separators, lock icons for private repos, teal actions, UI font for chrome.
+
 ## What’s new in 3.9.7.5
 
 - **One instance** — a second launch focuses the running Lark instead of starting another JVM; Restart reuses the same port.
