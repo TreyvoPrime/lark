@@ -5971,8 +5971,19 @@
     return 0;
   }
 
-  function writeInstanceClaim(version) {
+  let instanceWatchTimers = [];
+  let tabMarkedOutdated = false;
+
+  function writeInstanceClaim(version, force) {
+    if (tabMarkedOutdated && !force) return;
     try {
+      const existing = readInstanceClaim();
+      // Never clobber a newer Lark's claim — that keeps old tabs from fighting updates.
+      if (existing && existing.bootId !== BOOT_ID) {
+        const peerNewer = compareVersionsUi(existing.version, version) > 0
+          || Number(existing.t || 0) > BOOT_STARTED_AT;
+        if (peerNewer && !force) return;
+      }
       const payload = encodeURIComponent(JSON.stringify({
         bootId: BOOT_ID,
         version: version || "",
@@ -5980,6 +5991,15 @@
       }));
       // Host cookie (no port) so a new Lark on another port can supersede this tab.
       document.cookie = INSTANCE_COOKIE + "=" + payload + "; path=/; max-age=604800; SameSite=Lax";
+    } catch (e) { /* ignore */ }
+  }
+
+  function clearInstanceClaimIfOurs() {
+    try {
+      const claim = readInstanceClaim();
+      if (claim && claim.bootId === BOOT_ID) {
+        document.cookie = INSTANCE_COOKIE + "=; path=/; max-age=0; SameSite=Lax";
+      }
     } catch (e) { /* ignore */ }
   }
 
@@ -5998,12 +6018,66 @@
     if (banner) banner.hidden = false;
   }
 
+  function stopInstanceWatch() {
+    tabMarkedOutdated = true;
+    instanceWatchTimers.forEach((id) => clearInterval(id));
+    instanceWatchTimers = [];
+    clearInstanceClaimIfOurs();
+    try { localStorage.removeItem("lark-close-after-update"); } catch (e) {}
+  }
+
+  /** Browsers block window.close() unless they opened the window — fall back to a dead page. */
+  function retireOutdatedPage() {
+    const html = "<!DOCTYPE html><html lang=\"en\"><head><meta charset=\"utf-8\">"
+      + "<meta name=\"viewport\" content=\"width=device-width, initial-scale=1\">"
+      + "<title>Lark — closed</title>"
+      + "<style>"
+      + "html,body{margin:0;height:100%;background:#1e2227;color:#c5ced8;"
+      + "font:15px/1.45 \"Segoe UI\",system-ui,sans-serif;display:grid;place-items:center}"
+      + "main{text-align:center;padding:28px;max-width:28rem}"
+      + "p{margin:0 0 10px;color:#8b96a3} strong{color:#c5ced8;font-size:16px}"
+      + "button{margin-top:14px;height:34px;padding:0 14px;border-radius:4px;border:0;"
+      + "background:#3aa8b5;color:#0f1418;font:inherit;font-weight:600;cursor:pointer}"
+      + "kbd{font:12px ui-monospace,monospace;background:#2a2e33;padding:2px 6px;border-radius:3px}"
+      + "</style></head><body><main>"
+      + "<strong>This Lark window is done.</strong>"
+      + "<p>A newer Lark is already running. You can close this window.</p>"
+      + "<button type=\"button\" id=\"bye\">Close window</button>"
+      + "<p style=\"margin-top:16px;font-size:12px\">If nothing happens, press <kbd>Ctrl</kbd>+<kbd>W</kbd>"
+      + " (Mac: <kbd>⌘</kbd>+<kbd>W</kbd>).</p>"
+      + "</main><script>"
+      + "document.getElementById('bye').onclick=function(){"
+      + "try{window.open('','_self');}catch(e){}"
+      + "try{window.close();}catch(e){}"
+      + "};"
+      + "try{window.open('','_self');window.close();}catch(e){}"
+      + "</script></body></html>";
+    try {
+      document.open();
+      document.write(html);
+      document.close();
+    } catch (e) {
+      try { location.replace("about:blank"); } catch (e2) { /* ignore */ }
+    }
+  }
+
   function tryCloseOutdatedTab() {
-    document.title = "Lark (outdated)";
+    stopInstanceWatch();
+    document.title = "Lark (outdated) — safe to close";
     showOutdatedBanner();
+    const btn = $("outdated-close");
+    if (btn) {
+      btn.disabled = true;
+      btn.textContent = "Closing…";
+    }
+    // Chromium --app windows sometimes accept close after reclaiming the browsing context.
+    try { window.open("", "_self"); } catch (e) { /* ignore */ }
     try { window.close(); } catch (e) { /* browser may block */ }
-    // Some Chromium app windows still need a delayed retry.
-    setTimeout(() => { try { window.close(); } catch (e) { /* ignore */ } }, 400);
+    setTimeout(() => {
+      try { window.close(); } catch (e) { /* ignore */ }
+      // Still here? Replace the page so the old IDE cannot keep running.
+      retireOutdatedPage();
+    }, 180);
   }
 
   function claimAndWatchInstance(version) {
@@ -6016,6 +6090,7 @@
       }));
     } catch (e) { /* ignore */ }
     const check = () => {
+      if (tabMarkedOutdated) return;
       const claim = readInstanceClaim();
       if (!claim || claim.bootId === BOOT_ID) return;
       const newer = compareVersionsUi(claim.version, version) > 0;
@@ -6027,12 +6102,12 @@
         tryCloseOutdatedTab();
       }
     };
-    setInterval(check, 700);
+    instanceWatchTimers.push(setInterval(check, 700));
     window.addEventListener("storage", (event) => {
       if (event.key === "lark-instance" || event.key === "lark-close-after-update") check();
     });
-    // Re-assert claim periodically so a stale cookie from a dead tab does not linger alone.
-    setInterval(() => writeInstanceClaim(version), 12000);
+    // Re-assert only while we are still the live tab — never overwrite a newer claim.
+    instanceWatchTimers.push(setInterval(() => writeInstanceClaim(version), 12000));
   }
 
   async function restartAfterUpdate() {
@@ -6040,7 +6115,7 @@
     try { localStorage.setItem("lark-close-after-update", "1"); } catch (e) {}
     try { await flushRecovery(true); } catch (e) { /* best-effort */ }
     await api("POST", "/api/update/restart", {});
-    // New process reclaims the same port; close this previous-version tab shortly after.
+    // New process reclaims the same port; retire this previous-version tab shortly after.
     setTimeout(() => tryCloseOutdatedTab(), 1600);
     setTimeout(() => tryCloseOutdatedTab(), 3500);
   }
