@@ -54,6 +54,10 @@ https://github.com/TreyvoPrime/lark/releases/latest/download/lark-mobile-linux.z
 
 Do not open launchers from inside a zip preview / Temp folder.
 
+## What’s new in 3.9.7.12
+
+- **Quick fix works** — Problems → Quick fix keeps fix metadata, finds the right line even if code moved a bit, and inserts accessors at the real class close (ignoring braces in strings). Also adds imports for “cannot find symbol” class errors, `==` → `.equals`, empty `if/for/while;`, unused imports, `@Override`, and missing semicolons.
+
 ## What’s new in 3.9.7.11
 
 - **Java file icon** — explorer uses the classic Java logo (orange cup + blue steam), not a letter “J”.

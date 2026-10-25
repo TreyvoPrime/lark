@@ -287,7 +287,7 @@
           column: 1,
           message: "Private field '" + field.name + "' has no getter or setter. Other classes cannot read or change it.",
           plain: "`" + field.name + "` is private, so other classes cannot reach it yet.",
-          hint: "Use Java → Generate getters / setters, or Java → Quick fix: missing accessors.",
+          hint: "Use Assist → Generate getters / setters, or Assist → Quick fix: missing accessors.",
           code: "missing-accessors",
           field: field.name
         });
@@ -298,7 +298,7 @@
           column: 1,
           message: "Private field '" + field.name + "' has no getter (" + info.getter + ").",
           plain: "`" + field.name + "` is private and has no getter method.",
-          hint: "Add `" + info.getter + "()` via Java → Generate getters / setters.",
+          hint: "Add `" + info.getter + "()` via Assist → Generate getters / setters.",
           code: "missing-getter",
           field: field.name
         });
@@ -378,7 +378,8 @@
           code: "string-eq"
         });
       }
-      if (/\b(if|for|while)\s*\([^;]*\)\s*;\s*$/.test(line)) {
+      // Allow `;` inside for(;;) headers — only flag a trailing `;` after the closing `)`.
+      if (/\b(if|for|while)\s*\([\s\S]*\)\s*;\s*$/.test(line) && !/\b(if|for|while)\s*\([\s\S]*\)\s*\{\s*$/.test(line)) {
         out.push({
           severity: "warning",
           line: lineNo,
@@ -453,11 +454,11 @@
       if (depth < 0) depth = 0;
       while (stack.length && depth <= stack[stack.length - 1].depth) stack.pop();
     }
-    // Do not nag about missing getters/setters in the editor — use Java → Quick fix instead.
     const warnings = braceWarnings(source)
       .concat(styleWarnings(source))
       .concat(unusedImportWarnings(source, imports, clean))
-      .concat(overrideWarnings(source, symbols, lines));
+      .concat(overrideWarnings(source, symbols, lines))
+      .concat(accessorWarnings(symbols));
     return {
       pkg: pkg,
       imports: imports,
@@ -664,45 +665,230 @@
     return score;
   }
 
-  function applyQuickFix(source, problem) {
-    if (!problem || !problem.code) return null;
-    const lines = (source || "").split("\n");
-    if (problem.code === "unused-import" && problem.importName) {
-      const re = new RegExp("^\\s*import\\s+(?:static\\s+)?" + problem.importName.replace(/\./g, "\\.") + "\\s*;\\s*$");
-      const next = lines.filter((line, i) => !(i + 1 === problem.line || re.test(line)));
-      // Prefer removing the exact line
-      if (problem.line >= 1 && problem.line <= lines.length && re.test(lines[problem.line - 1])) {
-        const copy = lines.slice();
-        copy.splice(problem.line - 1, 1);
-        if (copy[problem.line - 1] === "" && copy[problem.line - 2] === "") copy.splice(problem.line - 1, 1);
-        return copy.join("\n");
+  /** Index of the top-level type's closing `}`, ignoring braces in strings/comments. */
+  function classCloseIndex(source) {
+    const clean = blankNoise(source || "");
+    let depth = 0;
+    let opened = false;
+    for (let i = 0; i < clean.length; i++) {
+      const c = clean[i];
+      if (c === "{") {
+        depth++;
+        opened = true;
+      } else if (c === "}") {
+        depth--;
+        if (opened && depth === 0) return i;
       }
-      return next.join("\n");
     }
-    if (problem.code === "missing-override" && problem.line >= 1) {
-      const idx = problem.line - 1;
-      const indent = (lines[idx].match(/^\s*/) || [""])[0];
-      if (/@Override\b/.test(lines[idx]) || (idx > 0 && /@Override\b/.test(lines[idx - 1]))) return null;
-      lines.splice(idx, 0, indent + "@Override");
-      return lines.join("\n");
+    return -1;
+  }
+
+  function lineIndexNear(lines, preferredLine, predicate, windowSize) {
+    const n = lines.length;
+    if (!n) return -1;
+    const prefer = Math.max(1, Math.min(n, preferredLine || 1)) - 1;
+    if (predicate(lines[prefer], prefer)) return prefer;
+    const span = windowSize == null ? 12 : windowSize;
+    for (let d = 1; d <= span; d++) {
+      const a = prefer - d;
+      const b = prefer + d;
+      if (a >= 0 && predicate(lines[a], a)) return a;
+      if (b < n && predicate(lines[b], b)) return b;
     }
-    if (problem.code === "string-eq" && problem.line >= 1) {
-      const idx = problem.line - 1;
-      let line = lines[idx];
-      line = line.replace(/(["'][^"']*["'])\s*==\s*(\w+)/, "$2.equals($1)");
-      line = line.replace(/(\w+)\s*==\s*(["'][^"']*["'])/, "$1.equals($2)");
-      if (line === lines[idx]) return null;
-      lines[idx] = line;
-      return lines.join("\n");
+    for (let i = 0; i < n; i++) {
+      if (predicate(lines[i], i)) return i;
     }
-    if (problem.code === "empty-control" && problem.line >= 1) {
-      const idx = problem.line - 1;
-      lines[idx] = lines[idx].replace(/\)\s*;\s*$/, ") {");
-      const indent = (lines[idx].match(/^\s*/) || [""])[0];
-      lines.splice(idx + 1, 0, indent + "    ", indent + "}");
-      return lines.join("\n");
+    return -1;
+  }
+
+  function importNameFromProblem(problem) {
+    if (problem && problem.importName) return problem.importName;
+    const msg = ((problem && (problem.message || problem.plain)) || "");
+    const m = msg.match(/Unused import:\s*([A-Za-z_][\w.]*)/i)
+      || msg.match(/import\s+([A-Za-z_][\w.]*)\s+is never used/i)
+      || msg.match(/`([A-Za-z_][\w.]*)` is imported but never used/i);
+    return m ? m[1] : "";
+  }
+
+  function symbolFromCannotFind(problem) {
+    if (problem && problem.symbol) return { kind: problem.symbolKind || "class", name: problem.symbol };
+    const msg = ((problem && problem.message) || "");
+    const m = msg.match(/symbol:\s*(variable|method|class|interface|enum|package|constructor)\s+(\S+)/i);
+    if (m) {
+      let name = m[2].trim();
+      if (name.includes("(")) name = name.slice(0, name.indexOf("(")).trim();
+      return { kind: m[1].toLowerCase(), name: name };
     }
+    const plain = ((problem && problem.plain) || "");
+    const p = plain.match(/cannot find the \w+ `([^`]+)`/i);
+    if (p) return { kind: "class", name: p[1].replace(/\(.*$/, "").trim() };
     return null;
+  }
+
+  /** Infer a fixable code for javac diagnostics that arrive without one. */
+  function inferQuickFixCode(problem) {
+    if (!problem) return "";
+    if (problem.code) return problem.code;
+    const msg = (problem.message || "") + "\n" + (problem.plain || "") + "\n" + (problem.hint || "");
+    if (/cannot find symbol/i.test(msg) || /cannot find the (class|interface|enum)/i.test(msg)) {
+      const sym = symbolFromCannotFind(problem);
+      if (sym && (sym.kind === "class" || sym.kind === "interface" || sym.kind === "enum")) {
+        return "add-import";
+      }
+    }
+    if (/Comparing Strings with ==|compare text with `==`|\.equals\(/i.test(msg) && /==/.test(msg)) {
+      return "string-eq";
+    }
+    if (/Empty statement after if\/for\/while|;\s*right after `if`/i.test(msg)) return "empty-control";
+    if (/Unused import/i.test(msg)) return "unused-import";
+    if (/@Override|looks like an override/i.test(msg)) return "missing-override";
+    if (/no getter or setter|missing accessors/i.test(msg)) return "missing-accessors";
+    if (/has no getter/i.test(msg)) return "missing-getter";
+    if (/is private inside|has private access/i.test(msg)) return "missing-accessors";
+    if (/';' expected|expected a semicolon/i.test(msg)) return "add-semicolon";
+    return "";
+  }
+
+  function fixStringEqLine(line) {
+    if (!line) return line;
+    let next = line;
+    // Prefer replacing == with .equals while leaving null checks alone.
+    next = next.replace(/(!\s*)?(["'][^"']*["'])\s*==\s*([A-Za-z_]\w*(?:\.\w+)*)/g, function (_, bang, lit, id) {
+      if (id === "null") return _;
+      return (bang || "") + id + ".equals(" + lit + ")";
+    });
+    next = next.replace(/(!\s*)?([A-Za-z_]\w*(?:\.\w+)*)\s*==\s*(["'][^"']*["'])/g, function (_, bang, id, lit) {
+      if (id === "null") return _;
+      return (bang || "") + id + ".equals(" + lit + ")";
+    });
+    next = next.replace(/(!\s*)?(["'][^"']*["'])\s*!=\s*([A-Za-z_]\w*(?:\.\w+)*)/g, function (_, bang, lit, id) {
+      if (id === "null") return _;
+      return (bang ? "" : "!") + id + ".equals(" + lit + ")";
+    });
+    next = next.replace(/(!\s*)?([A-Za-z_]\w*(?:\.\w+)*)\s*!=\s*(["'][^"']*["'])/g, function (_, bang, id, lit) {
+      if (id === "null") return _;
+      return (bang ? "" : "!") + id + ".equals(" + lit + ")";
+    });
+    return next;
+  }
+
+  /**
+   * Apply an automatic fix. Returns { source, note } or null when nothing changed.
+   * projectTypes: optional [{name, pkg}] for add-import.
+   */
+  function applyQuickFix(source, problem, projectTypes) {
+    if (!problem) return null;
+    const code = inferQuickFixCode(problem) || problem.code || "";
+    if (!code) return null;
+    const text = source == null ? "" : String(source);
+    const lines = text.split("\n");
+
+    if (code === "unused-import") {
+      const imp = importNameFromProblem(Object.assign({}, problem, { code: code }));
+      if (!imp) return null;
+      const re = new RegExp("^\\s*import\\s+(?:static\\s+)?" + imp.replace(/\./g, "\\.") + "\\s*;\\s*$");
+      let idx = lineIndexNear(lines, problem.line, (line) => re.test(line));
+      if (idx < 0) idx = lineIndexNear(lines, problem.line, (line) => line.indexOf(imp) >= 0 && /^\s*import\b/.test(line));
+      if (idx < 0) return null;
+      const copy = lines.slice();
+      copy.splice(idx, 1);
+      if (copy[idx] === "" && (idx === 0 || copy[idx - 1] === "" || /^\s*import\b/.test(copy[idx - 1] || ""))) {
+        // keep a single blank between import block and code — drop doubles
+        if (copy[idx] === "" && copy[idx - 1] === "") copy.splice(idx, 1);
+      }
+      return { source: copy.join("\n"), note: "Removed unused import " + imp + "." };
+    }
+
+    if (code === "missing-override") {
+      const methodName = problem.methodName || "";
+      const idx = lineIndexNear(lines, problem.line, (line) => {
+        if (methodName) return new RegExp("\\b" + methodName + "\\s*\\(").test(line);
+        return /^\s*(?:(?:public|protected|private|static|final)\s+)+.+\(.*\)\s*\{?\s*$/.test(line.trim())
+          || /\b(toString|equals|hashCode|compareTo|clone)\s*\(/.test(line);
+      });
+      if (idx < 0) return null;
+      if (/@Override\b/.test(lines[idx]) || (idx > 0 && /@Override\b/.test(lines[idx - 1]))) {
+        return null;
+      }
+      const indent = (lines[idx].match(/^\s*/) || [""])[0];
+      const copy = lines.slice();
+      copy.splice(idx, 0, indent + "@Override");
+      return { source: copy.join("\n"), note: "Added @Override." };
+    }
+
+    if (code === "string-eq") {
+      const idx = lineIndexNear(lines, problem.line, (line) => {
+        return /(["'][^"']*["'])\s*[!=]=\s*\w|\w\s*[!=]=\s*(["'][^"']*["'])/.test(line)
+          && !(/[!=]=\s*null|null\s*[!=]=/.test(line) && !/(["'][^"']*["'])/.test(line));
+      });
+      if (idx < 0) return null;
+      const fixed = fixStringEqLine(lines[idx]);
+      if (fixed === lines[idx]) return null;
+      const copy = lines.slice();
+      copy[idx] = fixed;
+      return { source: copy.join("\n"), note: "Replaced == with .equals for String text." };
+    }
+
+    if (code === "empty-control") {
+      const idx = lineIndexNear(lines, problem.line, (line) =>
+        /\b(if|for|while)\s*\([\s\S]*\)\s*;\s*$/.test(line));
+      if (idx < 0) return null;
+      const copy = lines.slice();
+      copy[idx] = copy[idx].replace(/\)\s*;\s*$/, ") {");
+      const indent = (copy[idx].match(/^\s*/) || [""])[0];
+      copy.splice(idx + 1, 0, indent + "    ", indent + "}");
+      return { source: copy.join("\n"), note: "Wrapped the empty control statement in braces." };
+    }
+
+    if (code === "add-semicolon") {
+      const idx = lineIndexNear(lines, problem.line, (line, i) => {
+        const t = line.trim();
+        if (!t || t.endsWith(";") || t.endsWith("{") || t.endsWith("}") || t.endsWith(",")) return false;
+        // Prefer the line above the reported error (javac often points at the next token).
+        return true;
+      }, 3);
+      // Usually the missing ; is on the previous line.
+      let target = (problem.line >= 2) ? problem.line - 2 : idx;
+      if (target < 0 || target >= lines.length) target = idx;
+      if (target < 0) return null;
+      // Walk upward from reported line to find a statement missing ;
+      for (let i = Math.min(lines.length - 1, (problem.line || 1) - 1); i >= Math.max(0, (problem.line || 1) - 4); i--) {
+        const t = lines[i].trim();
+        if (!t) continue;
+        if (t.endsWith(";") || t.endsWith("{") || t.endsWith("}") || t.endsWith(",") || t.startsWith("@")) continue;
+        if (/^(if|for|while|else|try|catch|finally|switch|do)\b/.test(t)) continue;
+        const copy = lines.slice();
+        copy[i] = lines[i].replace(/\s*$/, ";");
+        return { source: copy.join("\n"), note: "Added missing semicolon." };
+      }
+      return null;
+    }
+
+    if (code === "add-import") {
+      const sym = symbolFromCannotFind(problem);
+      if (!sym || !sym.name) return null;
+      const suggestions = suggestImports(sym.name, projectTypes || []);
+      if (!suggestions.length) return null;
+      const next = ensureImports(text, [suggestions[0]]);
+      if (!next) return null;
+      return { source: next, note: "Added import " + suggestions[0] + "." };
+    }
+
+    if (code === "missing-accessors" || code === "missing-getter") {
+      // Caller should generate accessors via generateGetterSetter; we only signal.
+      return { source: text, note: "accessors", meta: { field: problem.field || "" } };
+    }
+
+    return null;
+  }
+
+  /** True when the Problems panel should offer a Quick fix button. */
+  function isQuickFixable(problem) {
+    const code = inferQuickFixCode(problem);
+    return !!code && [
+      "unused-import", "missing-override", "string-eq", "empty-control",
+      "missing-accessors", "missing-getter", "add-import", "add-semicolon"
+    ].indexOf(code) >= 0;
   }
 
   function explain(word) {
@@ -1795,6 +1981,9 @@
     renameAcross: renameAcross,
     fuzzyScore: fuzzyScore,
     applyQuickFix: applyQuickFix,
+    inferQuickFixCode: inferQuickFixCode,
+    isQuickFixable: isQuickFixable,
+    classCloseIndex: classCloseIndex,
     accessorWarnings: accessorWarnings,
     generateJavadoc: generateJavadoc,
     humanType: humanType,

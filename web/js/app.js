@@ -3166,30 +3166,45 @@
   }
 
   function insertBeforeClassClose(code) {
-    if (!cm || !code) return;
-    const text = cm.getValue();
-    let depth = 0;
-    let insertPos = null;
-    for (let i = 0; i < text.length; i++) {
-      const c = text[i];
-      if (c === "{") depth++;
-      else if (c === "}") {
-        depth--;
-        if (depth === 0) {
-          insertPos = i;
-          break;
+    const editor = activeCm() || cm;
+    if (!editor || !code) return false;
+    const text = editor.getValue();
+    // Prefer LarkJava's brace walk that ignores strings/comments — raw `{`/`}`
+    // counting used to insert in the wrong place (or look like the fix "couldn't find" its spot).
+    let insertPos = -1;
+    if (window.LarkJava && typeof window.LarkJava.classCloseIndex === "function") {
+      insertPos = window.LarkJava.classCloseIndex(text);
+    }
+    if (insertPos < 0) {
+      let depth = 0;
+      let opened = false;
+      for (let i = 0; i < text.length; i++) {
+        const c = text[i];
+        if (c === "{") {
+          depth++;
+          opened = true;
+        } else if (c === "}") {
+          depth--;
+          if (opened && depth === 0) {
+            insertPos = i;
+            break;
+          }
         }
       }
     }
-    if (insertPos == null) insertPos = text.length;
+    if (insertPos < 0) {
+      toast("Couldn't find where to insert inside the class. Check for a missing `}`.");
+      return false;
+    }
     const before = text.slice(0, insertPos);
-    const line = cm.posFromIndex(insertPos).line;
+    const line = editor.posFromIndex(insertPos).line;
     const insert = (before.endsWith("\n") ? "" : "\n") + "\n" + code + (code.endsWith("\n") ? "" : "\n");
     suppress = true;
-    cm.replaceRange(insert, cm.posFromIndex(insertPos), cm.posFromIndex(insertPos));
+    editor.replaceRange(insert, editor.posFromIndex(insertPos), editor.posFromIndex(insertPos));
     suppress = false;
-    cm.setCursor({ line: line + 2, ch: 0 });
+    editor.setCursor({ line: line + 2, ch: 0 });
     afterEdit();
+    return true;
   }
 
   async function pickFields(title, fields) {
@@ -3445,7 +3460,7 @@
       if (!missing.length) return toast("No missing accessors found.");
       const fields = missing.map((info) => info.field);
       const code = window.LarkJava.generateGetterSetter(fields, true, true);
-      insertBeforeClassClose(code);
+      if (!insertBeforeClassClose(code)) return;
       toast("Added missing getters/setters.");
       return;
     }
@@ -4005,7 +4020,9 @@
         raw.textContent = problem.message;
         body.appendChild(raw);
       }
-      const fixable = problem.code && ["unused-import", "missing-override", "string-eq", "empty-control", "missing-accessors", "missing-getter"].includes(problem.code);
+      const fixable = window.LarkJava.isQuickFixable
+        ? window.LarkJava.isQuickFixable(problem)
+        : (problem.code && ["unused-import", "missing-override", "string-eq", "empty-control", "missing-accessors", "missing-getter", "add-import", "add-semicolon"].includes(problem.code));
       if (fixable) {
         const fix = document.createElement("button");
         fix.type = "button";
@@ -4026,23 +4043,86 @@
     });
   }
 
+  function projectTypesForImports() {
+    const projectTypes = [];
+    state.files.forEach((file) => {
+      if (!file.path.endsWith(".java")) return;
+      const p = parsedFile(file);
+      p.symbols.forEach((sym) => {
+        if (sym.indent === 0 && (sym.kind === "class" || sym.kind === "interface" || sym.kind === "enum" || sym.kind === "record")) {
+          projectTypes.push({ name: sym.name, pkg: p.pkg });
+        }
+      });
+    });
+    return projectTypes;
+  }
+
+  function syncFileContentFromEditor(path) {
+    const file = fileByPath(path);
+    if (!file) return null;
+    const doc = docs.get(path);
+    if (doc) file.content = doc.getValue();
+    else if (cm && state.active === path) file.content = cm.getValue();
+    else if (cmB && state.activeB === path) file.content = cmB.getValue();
+    return file;
+  }
+
   async function applyProblemFix(problem) {
     const path = resolveProblemFile(problem.file);
-    const file = fileByPath(path);
-    if (!file) return toast("File not found.");
-    if (problem.code === "missing-accessors" || problem.code === "missing-getter") {
-      openPath(path);
-      await runAssist("fix");
+    let file = fileByPath(path);
+    if (!file) return toast("File not found for that problem.");
+    openPath(path);
+    file = syncFileContentFromEditor(path) || file;
+    const code = window.LarkJava.inferQuickFixCode
+      ? window.LarkJava.inferQuickFixCode(problem)
+      : (problem.code || "");
+
+    if (code === "missing-accessors" || code === "missing-getter") {
+      const parsed = parsedFile(file);
+      const missing = (parsed.accessors || []).filter((info) => {
+        const mods = info.field.mods || [];
+        if (mods.indexOf("private") < 0) return false;
+        if (problem.field && info.field.name !== problem.field) return false;
+        if (code === "missing-getter") return !info.hasGetter;
+        return !info.hasGetter || !info.hasSetter;
+      });
+      if (!missing.length) return toast("Couldn't find the field to generate accessors for.");
+      const fields = missing.map((info) => info.field);
+      const wantGet = true;
+      const wantSet = code !== "missing-getter";
+      const gen = window.LarkJava.generateGetterSetter(fields, wantGet, wantSet);
+      if (!insertBeforeClassClose(gen)) return;
+      await saveFile(path);
+      refreshLocalProblems();
+      renderProblems();
+      markErrors();
+      renderStructure();
+      toast("Added missing " + (wantSet ? "getters/setters" : "getter") + ".");
       return;
     }
-    const next = window.LarkJava.applyQuickFix(file.content || "", problem);
-    if (next == null) return toast("No automatic fix for that.");
+
+    const result = window.LarkJava.applyQuickFix(file.content || "", problem, projectTypesForImports());
+    if (!result || result.source == null) {
+      return toast("Couldn't apply that quick fix — the code may have moved. Try again after saving.");
+    }
+    // Accessor sentinel from applyQuickFix (should have been handled above).
+    if (result.note === "accessors") {
+      return toast("Open Assist → Quick fix to add accessors.");
+    }
+    const next = result.source;
+    if (next === (file.content || "")) {
+      return toast("That quick fix didn't change anything.");
+    }
     file.content = next;
     parsedCache.delete(path);
     const doc = docs.get(path);
     if (doc) {
       suppress = true;
       doc.setValue(next);
+      suppress = false;
+    } else if (cm && state.active === path) {
+      suppress = true;
+      cm.setValue(next);
       suppress = false;
     }
     state.dirty.add(path);
@@ -4051,7 +4131,7 @@
     renderProblems();
     markErrors();
     renderStructure();
-    toast("Quick fix applied.");
+    toast(result.note || "Quick fix applied.");
   }
 
   function showConsoleTab(which) {
@@ -4240,13 +4320,14 @@
       state.localProblems = [];
       return;
     }
-    const file = fileByPath(state.active);
+    const file = syncFileContentFromEditor(state.active) || fileByPath(state.active);
     if (!file) {
       state.localProblems = [];
       return;
     }
     const warnings = parsedFile(file).warnings || [];
-    state.localProblems = warnings.map((item) => ({
+    // Keep fix metadata (importName, field, methodName, …) — stripping it made Quick fix fail.
+    state.localProblems = warnings.map((item) => Object.assign({}, item, {
       file: file.path,
       line: item.line,
       column: item.column || 1,
