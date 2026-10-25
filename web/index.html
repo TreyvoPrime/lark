@@ -266,78 +266,57 @@
       </div>
     </section>
   </div>
-  <div id="menu-assist" class="popover menu menu-panel" hidden>
+  <div id="menu-assist" class="popover menu menu-panel menu-panel-assist" hidden>
     <div class="menu-panel-head">
       <strong>Assist</strong>
-      <p class="path-note">Snippets, generate, navigate — pick a tile.</p>
+      <p class="path-note">Drag a code block into the editor — the drop highlight shows where it lands.</p>
+    </div>
+    <div class="assist-tabs" role="tablist" aria-label="Assist modes">
+      <button type="button" class="assist-tab is-active" role="tab" aria-selected="true" data-assist-tab="blocks">Blocks</button>
+      <button type="button" class="assist-tab" role="tab" aria-selected="false" data-assist-tab="tools">Tools</button>
     </div>
 
-    <section class="menu-panel-section" aria-label="Quick">
-      <h3 class="menu-panel-label">Quick</h3>
-      <div class="menu-panel-grid">
-        <button type="button" data-assist="beautify" title="Beautify indentation">Beautify</button>
-        <button type="button" data-assist="snippet" title="Insert building block">Building block…</button>
-        <button type="button" data-assist="main" title="Insert main method">main method</button>
-        <button type="button" data-assist="check" title="Compile check now">Compile check</button>
-      </div>
-    </section>
+    <div class="assist-pane is-active" data-assist-pane="blocks" role="tabpanel">
+      <div id="assist-blocks" class="assist-blocks" aria-label="Draggable code blocks"></div>
+    </div>
 
-    <section class="menu-panel-section" aria-label="Loops and flow">
-      <h3 class="menu-panel-label">Loops &amp; flow</h3>
-      <div class="menu-panel-grid">
-        <button type="button" data-assist="fori" title="Insert for-i loop">for-i loop</button>
-        <button type="button" data-assist="foreach" title="Insert for-each loop">for-each</button>
-        <button type="button" data-assist="try" title="Insert try / catch">try / catch</button>
-        <button type="button" data-assist="scanner" title="Insert Scanner input">Scanner</button>
-        <button type="button" data-assist="menu" title="Insert menu loop">menu loop</button>
-        <button type="button" data-assist="sentinel" title="Insert sentinel read loop">sentinel read…</button>
-      </div>
-    </section>
-
-    <section class="menu-panel-section" aria-label="Arrays and homework">
-      <h3 class="menu-panel-label">Arrays &amp; homework</h3>
-      <div class="menu-panel-grid">
-        <button type="button" data-assist="matrix" title="Insert matrix print loops">matrix print…</button>
-        <button type="button" data-assist="arrfill" title="Insert fill + print array">fill + print…</button>
-        <button type="button" data-assist="arrstats" title="Insert array sum / min / max">sum / min / max…</button>
-        <button type="button" data-assist="linsearch" title="Insert linear search">linear search…</button>
-        <button type="button" data-assist="countocc" title="Insert count occurrences">count…</button>
-        <button type="button" data-assist="matfill" title="Insert 2D array fill">2D fill…</button>
-        <button type="button" data-assist="arrcopy" title="Insert copy array">copy array…</button>
-        <button type="button" data-assist="arrrev" title="Insert reverse array">reverse…</button>
-        <button type="button" data-assist="homework" title="Insert homework block">homework…</button>
-        <button type="button" data-assist="fileio" title="Insert file read / write">file I/O…</button>
-        <button type="button" data-assist="splitloop" title="Insert String split + loop">String split</button>
-      </div>
-    </section>
-
-    <section class="menu-panel-section" aria-label="Generate">
-      <h3 class="menu-panel-label">Generate</h3>
-      <div class="menu-panel-grid">
-        <button type="button" data-assist="getters" title="Generate getters / setters">getters / setters…</button>
-        <button type="button" data-assist="ctor" title="Generate constructor">constructor…</button>
-        <button type="button" data-assist="tostring" title="Generate toString">toString…</button>
-        <button type="button" data-assist="equals" title="Generate equals / hashCode">equals / hashCode…</button>
-      </div>
-    </section>
-
-    <section class="menu-panel-section" aria-label="Navigate and refactor">
-      <h3 class="menu-panel-label">Navigate &amp; refactor</h3>
-      <div class="menu-panel-grid">
-        <button type="button" data-assist="goto" title="Go to definition">Go to definition</button>
-        <button type="button" data-assist="usages" title="Find usages">Find usages</button>
-        <button type="button" data-assist="rename" title="Rename symbol">Rename…</button>
-        <button type="button" data-assist="rename-file" title="Rename in file (multi-cursor)">Rename in file</button>
-        <button type="button" data-assist="extract" title="Extract method">Extract method…</button>
-        <button type="button" data-assist="introduce" title="Introduce variable">Introduce var…</button>
-        <button type="button" data-assist="summary" title="Show class members">Class members</button>
-        <button type="button" data-assist="import" title="Suggest import for word at cursor">Suggest import</button>
-        <button type="button" data-assist="fix" title="Quick fix: missing accessors">Quick fix</button>
-        <button type="button" data-assist="explain" title="Explain Java keywords">Explain keywords</button>
-        <button type="button" data-assist="brace" title="Jump to matching brace">Matching brace</button>
-        <button type="button" data-assist="search" title="Search in project">Search project…</button>
-      </div>
-    </section>
+    <div class="assist-pane" data-assist-pane="tools" role="tabpanel" hidden>
+      <section class="menu-panel-section" aria-label="Quick">
+        <h3 class="menu-panel-label">Quick</h3>
+        <div class="menu-panel-grid">
+          <button type="button" data-assist="beautify" title="Beautify indentation">Beautify</button>
+          <button type="button" data-assist="main" title="Insert main method before class close">main method</button>
+          <button type="button" data-assist="check" title="Compile check now">Compile check</button>
+          <button type="button" data-assist="homework" title="Customize a homework block…">Customize block…</button>
+        </div>
+      </section>
+      <section class="menu-panel-section" aria-label="Generate">
+        <h3 class="menu-panel-label">Generate</h3>
+        <div class="menu-panel-grid">
+          <button type="button" data-assist="getters" title="Generate getters / setters">getters / setters…</button>
+          <button type="button" data-assist="ctor" title="Generate constructor">constructor…</button>
+          <button type="button" data-assist="tostring" title="Generate toString">toString…</button>
+          <button type="button" data-assist="equals" title="Generate equals / hashCode">equals / hashCode…</button>
+        </div>
+      </section>
+      <section class="menu-panel-section" aria-label="Navigate and refactor">
+        <h3 class="menu-panel-label">Navigate &amp; refactor</h3>
+        <div class="menu-panel-grid">
+          <button type="button" data-assist="goto" title="Go to definition">Go to definition</button>
+          <button type="button" data-assist="usages" title="Find usages">Find usages</button>
+          <button type="button" data-assist="rename" title="Rename symbol">Rename…</button>
+          <button type="button" data-assist="rename-file" title="Rename in file (multi-cursor)">Rename in file</button>
+          <button type="button" data-assist="extract" title="Extract method">Extract method…</button>
+          <button type="button" data-assist="introduce" title="Introduce variable">Introduce var…</button>
+          <button type="button" data-assist="summary" title="Show class members">Class members</button>
+          <button type="button" data-assist="import" title="Suggest import for word at cursor">Suggest import</button>
+          <button type="button" data-assist="fix" title="Quick fix: missing accessors">Quick fix</button>
+          <button type="button" data-assist="explain" title="Explain Java keywords">Explain keywords</button>
+          <button type="button" data-assist="brace" title="Jump to matching brace">Matching brace</button>
+          <button type="button" data-assist="search" title="Search in project">Search project…</button>
+        </div>
+      </section>
+    </div>
   </div>
   <div id="menu-run-config" class="popover menu menu-panel menu-panel-sm" hidden>
     <div class="menu-panel-head">

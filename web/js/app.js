@@ -1558,6 +1558,7 @@
       toggleBreakpoint(path, line + 1, ed);
     });
     editor.on("focus", () => { focusedEditor = which; });
+    wireAssistDrop(editor);
   }
 
   function activeCm() {
@@ -3057,18 +3058,265 @@
     scheduleCompileCheck();
   }
 
-  function insertAtCursor(code) {
-    if (!cm || !code) return;
-    const cur = cm.getCursor();
-    const lineText = cm.getLine(cur.line) || "";
+  const ASSIST_BLOCK_GROUPS = [
+    {
+      label: "Basics",
+      ids: ["main", "sout", "scanner", "fori", "foreach", "try", "while", "ife"]
+    },
+    {
+      label: "Arrays & homework",
+      ids: ["matrix", "arrfill", "arrstats", "linsearch", "countocc", "matfill", "arrcopy", "arrrev"]
+    },
+    {
+      label: "Flow & I/O",
+      ids: ["menu", "sentinel", "fileio", "splitloop", "switch", "list", "map", "arr"]
+    }
+  ];
+
+  let assistDragPayload = null;
+  let assistDidDrag = false;
+  let assistDropMark = null;
+  let assistDropEditor = null;
+  let assistDropPos = null;
+  let assistGhostEl = null;
+
+  function assistSnippetById(id) {
+    const snips = (window.LarkJava && window.LarkJava.snippets) || [];
+    return snips.find((s) => s.id === id) || null;
+  }
+
+  function indentCodeForEditor(editor, pos, code) {
+    const lineText = editor.getLine(pos.line) || "";
     const indent = (lineText.match(/^\s*/) || [""])[0];
-    let indented = code.split("\n").map((line, i) => (i === 0 ? line : indent + line)).join("\n");
-    if (!indented.endsWith("\n")) indented += "\n";
+    let indented = String(code || "").replace(/\r\n/g, "\n").replace(/\r/g, "\n");
+    indented = indented.split("\n").map((line, i) => (i === 0 ? line : (line ? indent + line : line))).join("\n");
+    if (indented && !indented.endsWith("\n")) indented += "\n";
+    return indented;
+  }
+
+  function insertCodeAt(editor, pos, code) {
+    if (!editor || !code) return false;
+    const at = pos || editor.getCursor();
+    const indented = indentCodeForEditor(editor, at, code);
     suppress = true;
-    cm.replaceRange(indented, cur);
+    editor.replaceRange(indented, at);
     suppress = false;
     afterEdit();
-    cm.focus();
+    editor.focus();
+    return true;
+  }
+
+  function insertAtCursor(code) {
+    const editor = activeCm() || cm;
+    if (!editor || !code) return;
+    insertCodeAt(editor, editor.getCursor(), code);
+  }
+
+  function clearAssistDropPreview() {
+    if (assistDropMark) {
+      try { assistDropMark.clear(); } catch (e) { /* gone */ }
+      assistDropMark = null;
+    }
+    if (assistDropEditor) {
+      const wrap = assistDropEditor.getWrapperElement();
+      if (wrap) wrap.classList.remove("assist-drop-over");
+      assistDropEditor = null;
+    }
+    assistDropPos = null;
+    if (assistGhostEl) {
+      assistGhostEl.remove();
+      assistGhostEl = null;
+    }
+  }
+
+  function showAssistDropPreview(editor, pos, code) {
+    if (!editor || !pos || !code) return;
+    const indented = indentCodeForEditor(editor, pos, code);
+    const lines = indented.split("\n");
+    // Trailing newline makes a blank last entry — don't count it as a taken line.
+    const lineCount = Math.max(1, lines.length - (indented.endsWith("\n") ? 1 : 0));
+    const from = { line: pos.line, ch: pos.ch };
+    const lastLine = Math.min(editor.lastLine(), pos.line + lineCount - 1);
+    const to = {
+      line: lastLine,
+      ch: lastLine === pos.line
+        ? Math.min((editor.getLine(lastLine) || "").length, pos.ch + (lines[0] || "").length)
+        : (editor.getLine(lastLine) || "").length
+    };
+
+    const sameEditor = assistDropEditor === editor;
+    const samePos = assistDropPos && assistDropPos.line === pos.line && assistDropPos.ch === pos.ch;
+    if (sameEditor && samePos && assistDropMark) {
+      // Still refresh ghost text/position if scrolled.
+    } else {
+      clearAssistDropPreview();
+      assistDropEditor = editor;
+      assistDropPos = { line: pos.line, ch: pos.ch };
+      editor.getWrapperElement().classList.add("assist-drop-over");
+      try {
+        assistDropMark = editor.markText(from, to, {
+          className: "cm-assist-drop",
+          inclusiveLeft: false,
+          inclusiveRight: false,
+          clearOnEnter: false
+        });
+      } catch (e) {
+        assistDropMark = null;
+      }
+    }
+
+    if (!assistGhostEl) {
+      assistGhostEl = document.createElement("pre");
+      assistGhostEl.id = "assist-drop-ghost";
+      document.body.appendChild(assistGhostEl);
+    }
+    assistGhostEl.textContent = indented.replace(/\n$/, "");
+    const coords = editor.cursorCoords(pos, "page");
+    const lineH = editor.defaultTextHeight() || 16;
+    assistGhostEl.style.top = Math.round(coords.top) + "px";
+    assistGhostEl.style.left = Math.round(coords.left) + "px";
+    assistGhostEl.style.minHeight = Math.round(lineH * lineCount) + "px";
+  }
+
+  function editorFromDragEvent(event) {
+    const editors = [cm, cmB].filter(Boolean);
+    for (let i = 0; i < editors.length; i++) {
+      const wrap = editors[i].getWrapperElement();
+      if (wrap && wrap.contains(event.target)) return editors[i];
+    }
+    return null;
+  }
+
+  function dropPosFromEvent(editor, event) {
+    return editor.coordsChar({ left: event.clientX, top: event.clientY }, "page");
+  }
+
+  function readAssistDragPayload(event) {
+    try {
+      const raw = event.dataTransfer && event.dataTransfer.getData("text/lark-assist");
+      if (raw) return JSON.parse(raw);
+    } catch (e) { /* ignore */ }
+    if (assistDragPayload) return assistDragPayload;
+    const plain = event.dataTransfer && event.dataTransfer.getData("text/plain");
+    if (plain) return { code: plain, label: "block", id: "" };
+    return null;
+  }
+
+  function wireAssistDrop(editor) {
+    if (!editor || editor._larkAssistDrop) return;
+    editor._larkAssistDrop = true;
+    const wrap = editor.getWrapperElement();
+    wrap.addEventListener("dragenter", (event) => {
+      if (!assistDragPayload && !(event.dataTransfer && event.dataTransfer.types)) return;
+      event.preventDefault();
+      if (event.dataTransfer) event.dataTransfer.dropEffect = "copy";
+    });
+    wrap.addEventListener("dragover", (event) => {
+      const payload = assistDragPayload || (event.dataTransfer && Array.from(event.dataTransfer.types || []).indexOf("text/lark-assist") >= 0);
+      if (!payload && !(event.dataTransfer && Array.from(event.dataTransfer.types || []).indexOf("text/plain") >= 0)) return;
+      event.preventDefault();
+      if (event.dataTransfer) event.dataTransfer.dropEffect = "copy";
+      const pos = dropPosFromEvent(editor, event);
+      const code = (assistDragPayload && assistDragPayload.code) || "";
+      if (code) showAssistDropPreview(editor, pos, code);
+    });
+    wrap.addEventListener("dragleave", (event) => {
+      if (!wrap.contains(event.relatedTarget)) clearAssistDropPreview();
+    });
+    wrap.addEventListener("drop", (event) => {
+      event.preventDefault();
+      event.stopPropagation();
+      const payload = readAssistDragPayload(event);
+      const pos = assistDropPos || dropPosFromEvent(editor, event);
+      clearAssistDropPreview();
+      assistDragPayload = null;
+      if (!payload || !payload.code) return;
+      if (insertCodeAt(editor, pos, payload.code)) {
+        closePopovers();
+        toast("Placed " + (payload.label || "block") + ".");
+      }
+    });
+  }
+
+  function renderAssistBlocks() {
+    const host = $("assist-blocks");
+    if (!host) return;
+    host.replaceChildren();
+    if (!window.LarkJava || !window.LarkJava.snippets) {
+      const empty = document.createElement("p");
+      empty.className = "path-note";
+      empty.textContent = "Open a Java file to load Assist blocks.";
+      host.appendChild(empty);
+      return;
+    }
+    ASSIST_BLOCK_GROUPS.forEach((group) => {
+      const label = document.createElement("div");
+      label.className = "assist-block-group-label";
+      label.textContent = group.label;
+      host.appendChild(label);
+      group.ids.forEach((id) => {
+        const snip = assistSnippetById(id);
+        if (!snip || !snip.text) return;
+        const card = document.createElement("button");
+        card.type = "button";
+        card.className = "assist-block";
+        card.draggable = true;
+        card.dataset.assistBlock = snip.id;
+        card.title = "Drag into the editor to place this code";
+        const top = document.createElement("div");
+        top.className = "assist-block-top";
+        const title = document.createElement("span");
+        title.className = "assist-block-title";
+        title.textContent = snip.label;
+        const hint = document.createElement("span");
+        hint.className = "assist-block-hint";
+        hint.textContent = "Drag";
+        top.append(title, hint);
+        const pre = document.createElement("pre");
+        pre.textContent = snip.text;
+        card.append(top, pre);
+        card.addEventListener("dragstart", (event) => {
+          assistDidDrag = true;
+          assistDragPayload = { id: snip.id, label: snip.label, code: snip.text };
+          card.classList.add("is-dragging");
+          try {
+            event.dataTransfer.effectAllowed = "copy";
+            event.dataTransfer.setData("text/lark-assist", JSON.stringify(assistDragPayload));
+            event.dataTransfer.setData("text/plain", snip.text);
+          } catch (e) { /* some browsers */ }
+        });
+        card.addEventListener("dragend", () => {
+          card.classList.remove("is-dragging");
+          clearAssistDropPreview();
+          assistDragPayload = null;
+          // Ignore the click that browsers fire after a drag.
+          setTimeout(() => { assistDidDrag = false; }, 0);
+        });
+        card.addEventListener("click", () => {
+          if (assistDidDrag) return;
+          insertAtCursor(snip.text);
+          closePopovers();
+          toast("Inserted " + snip.label + " at cursor. Drag next time to choose the spot.");
+        });
+        host.appendChild(card);
+      });
+    });
+  }
+
+  function setAssistTab(name) {
+    const menu = $("menu-assist");
+    if (!menu) return;
+    menu.querySelectorAll(".assist-tab").forEach((tab) => {
+      const on = tab.dataset.assistTab === name;
+      tab.classList.toggle("is-active", on);
+      tab.setAttribute("aria-selected", on ? "true" : "false");
+    });
+    menu.querySelectorAll(".assist-pane").forEach((pane) => {
+      const on = pane.dataset.assistPane === name;
+      pane.classList.toggle("is-active", on);
+      pane.hidden = !on;
+    });
+    if (name === "blocks") renderAssistBlocks();
   }
 
   async function insertHomeworkBlock(kind) {
@@ -4333,6 +4581,7 @@
     document.querySelectorAll(".popover").forEach((el) => { el.hidden = true; });
     $("context").hidden = true;
     if ($("tray-new")) $("tray-new").setAttribute("aria-expanded", "false");
+    clearAssistDropPreview();
   }
 
   function togglePopover(button) {
@@ -4340,6 +4589,10 @@
     const willOpen = pop.hidden;
     closePopovers();
     if (!willOpen) return;
+    if (pop.id === "menu-assist") {
+      setAssistTab("blocks");
+      renderAssistBlocks();
+    }
     pop.hidden = false;
     placePopover(pop, button);
   }
@@ -4352,7 +4605,8 @@
     const viewMaxH = window.innerHeight - pad * 2;
     const viewMaxW = window.innerWidth - pad * 2;
     const panelCap = pop.classList.contains("menu-panel")
-      ? (pop.classList.contains("menu-panel-sm") ? 420 : 560)
+      ? (pop.classList.contains("menu-panel-assist") ? 680
+        : pop.classList.contains("menu-panel-sm") ? 420 : 560)
       : viewMaxH;
     pop.style.maxWidth = viewMaxW + "px";
     pop.style.maxHeight = Math.min(panelCap, viewMaxH) + "px";
@@ -5848,6 +6102,13 @@
     });
     if ($("menu-assist")) {
       $("menu-assist").addEventListener("click", (event) => {
+        const tab = event.target.closest("[data-assist-tab]");
+        if (tab) {
+          setAssistTab(tab.dataset.assistTab);
+          placePopover($("menu-assist"), $("java-assist"));
+          return;
+        }
+        if (event.target.closest(".assist-block")) return;
         const btn = event.target.closest("[data-assist]");
         const act = btn && btn.dataset.assist;
         if (!act) return;

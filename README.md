@@ -54,6 +54,10 @@ https://github.com/TreyvoPrime/lark/releases/latest/download/lark-mobile-linux.z
 
 Do not open launchers from inside a zip preview / Temp folder.
 
+## What’s new in 3.9.7.28
+
+- **Assist drag-and-drop blocks** — Assist opens on a Blocks tab with real code cards. Drag a block into the editor; a ghost highlight shows the exact space it will take. Drop to place it there (click still inserts at the cursor). Tools tab keeps generate / navigate actions.
+
 ## What’s new in 3.9.7.27
 
 - **Revert Lua Java engine** — beautify, brace helpers, diagnostics, and snippets are back on the fast JS path. The Lua highlighter from 3.9.7.25 stays; the engine that made the IDE sluggish is removed.
