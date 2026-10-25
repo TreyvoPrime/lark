@@ -3740,6 +3740,46 @@
     menu.style.minWidth = width + "px";
   }
 
+  /** Explorer header: one + control → Class / File / Folder. */
+  function openTrayNewMenu(anchor) {
+    closePopovers();
+    const btn = anchor || $("tray-new");
+    if (btn) btn.setAttribute("aria-expanded", "true");
+    const menu = $("context");
+    menu.replaceChildren();
+    const head = document.createElement("p");
+    head.className = "path-note";
+    head.style.margin = "4px 8px 6px";
+    head.textContent = "New";
+    menu.appendChild(head);
+    [
+      ["Class", () => createClass()],
+      ["File", () => createFile()],
+      ["Folder", () => createFolder()]
+    ].forEach(([label, action]) => {
+      const item = document.createElement("button");
+      item.type = "button";
+      item.textContent = label;
+      item.addEventListener("click", () => {
+        menu.hidden = true;
+        if (btn) btn.setAttribute("aria-expanded", "false");
+        Promise.resolve(action()).catch((err) => toast(err.message));
+      });
+      menu.appendChild(item);
+    });
+    menu.hidden = false;
+    const rect = (btn || { getBoundingClientRect: () => ({ left: 8, right: 36, bottom: 48, top: 20 }) }).getBoundingClientRect();
+    const width = 160;
+    let left = rect.right - width;
+    let top = rect.bottom + 6;
+    if (left < 8) left = 8;
+    if (left + width > window.innerWidth - 8) left = Math.max(8, window.innerWidth - width - 8);
+    if (top + 140 > window.innerHeight - 8) top = Math.max(8, rect.top - 140);
+    menu.style.left = left + "px";
+    menu.style.top = top + "px";
+    menu.style.minWidth = width + "px";
+  }
+
   function formDialog({ title, ok, note, fields }) {
     $("modal-title").textContent = title;
     $("modal-ok").textContent = ok || "OK";
@@ -4290,6 +4330,7 @@
   function closePopovers() {
     document.querySelectorAll(".popover").forEach((el) => { el.hidden = true; });
     $("context").hidden = true;
+    if ($("tray-new")) $("tray-new").setAttribute("aria-expanded", "false");
   }
 
   function togglePopover(button) {
@@ -5593,10 +5634,23 @@
         showWelcome();
       });
     }
-    $("new-class").addEventListener("click", () => createClass().catch((err) => toast(err.message)));
-    $("empty-new").addEventListener("click", () => createClass().catch((err) => toast(err.message)));
-    $("new-file").addEventListener("click", () => createFile().catch((err) => toast(err.message)));
-    $("new-folder").addEventListener("click", () => createFolder().catch((err) => toast(err.message)));
+    if ($("tray-new")) {
+      $("tray-new").addEventListener("click", (event) => {
+        event.preventDefault();
+        event.stopPropagation();
+        const open = $("context") && !$("context").hidden
+          && $("tray-new").getAttribute("aria-expanded") === "true";
+        if (open) {
+          closePopovers();
+          $("tray-new").setAttribute("aria-expanded", "false");
+        } else {
+          openTrayNewMenu($("tray-new"));
+        }
+      });
+    }
+    if ($("empty-new")) {
+      $("empty-new").addEventListener("click", () => createClass().catch((err) => toast(err.message)));
+    }
     $("files-toggle").addEventListener("click", toggleFiles);
     if ($("project")) {
       $("project").addEventListener("click", () => {

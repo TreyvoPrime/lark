@@ -1497,7 +1497,7 @@ select:focus, input:focus, textarea:focus, button:focus-visible {
   flex: none;
   height: auto;
   min-height: 40px;
-  padding: 8px 6px 8px 10px;
+  padding: 8px 8px 8px 12px;
   align-items: center;
   gap: 8px;
   flex-wrap: nowrap;
@@ -1512,11 +1512,12 @@ select:focus, input:focus, textarea:focus, button:focus-visible {
   overflow: hidden;
 }
 .tray-label {
-  font-size: 10px;
-  letter-spacing: 0.12em;
+  font-family: "Segoe UI", "Helvetica Neue", Helvetica, Arial, sans-serif;
+  font-size: 11px;
+  letter-spacing: 0.06em;
   text-transform: uppercase;
-  color: var(--faint);
-  font-weight: 700;
+  color: var(--muted);
+  font-weight: 600;
   line-height: 1.2;
 }
 .structure-project {
@@ -1547,11 +1548,35 @@ select:focus, input:focus, textarea:focus, button:focus-visible {
   display: flex;
   gap: 2px;
   max-width: none;
+  align-items: center;
 }
-.tray-actions button {
-  font-size: 11px !important;
-  padding: 3px 6px !important;
-  white-space: nowrap;
+.tray-new {
+  width: 28px !important;
+  height: 28px !important;
+  min-width: 28px !important;
+  padding: 0 !important;
+  display: inline-grid !important;
+  place-items: center;
+  border: 1px solid var(--line) !important;
+  border-radius: 7px !important;
+  background: var(--bg) !important;
+  color: var(--text) !important;
+  font-family: "Segoe UI", "Helvetica Neue", Helvetica, Arial, sans-serif !important;
+  font-size: 18px !important;
+  font-weight: 600 !important;
+  line-height: 1 !important;
+  letter-spacing: 0 !important;
+  text-transform: none !important;
+  cursor: pointer;
+}
+.tray-new:hover {
+  background: var(--hover) !important;
+  border-color: color-mix(in srgb, var(--accent) 40%, var(--line)) !important;
+  color: var(--text) !important;
+}
+.tray-new[aria-expanded="true"] {
+  background: color-mix(in srgb, var(--accent) 14%, var(--bg)) !important;
+  border-color: color-mix(in srgb, var(--accent) 45%, var(--line)) !important;
 }
 .file-tray {
   padding: 6px 5px 8px;
@@ -2795,8 +2820,18 @@ body.dragging #console .splitter::after,
 }
 .menu button, #context button {
   display: block;
+  width: 100%;
   padding: 8px 10px;
   border-radius: 7px;
+  border: 0 !important;
+  background: transparent !important;
+  text-align: left;
+  color: var(--text);
+  font-family: "Segoe UI", "Helvetica Neue", Helvetica, Arial, sans-serif;
+  font-size: 13px;
+}
+.menu button:hover, #context button:hover {
+  background: var(--hover) !important;
 }
 .swatch {
   width: 12px;
