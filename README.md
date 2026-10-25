@@ -54,6 +54,10 @@ https://github.com/TreyvoPrime/lark/releases/latest/download/lark-mobile-linux.z
 
 Do not open launchers from inside a zip preview / Temp folder.
 
+## What’s new in 3.9.7.15
+
+- **Clearer copy** — project picker subtitle is “Pick a Project to open”; Executable download blurb is “Extract All, then double-click Lark.exe. No batch files & No Installer.”
+
 ## What’s new in 3.9.7.14
 
 - **File tray** — each file row has a light outline so adjacent entries stay distinct; the project name sits above Outline with room to show the full title.
