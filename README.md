@@ -54,6 +54,10 @@ https://github.com/TreyvoPrime/lark/releases/latest/download/lark-mobile-linux.z
 
 Do not open launchers from inside a zip preview / Temp folder.
 
+## What’s new in 3.9.7.17
+
+- **Folder outlines** — explorer folders use the same outlined row treatment as files so the hierarchy stays easy to scan.
+
 ## What’s new in 3.9.7.16
 
 - **Desktop always opens a window** — after an update, a second click no longer exits quietly when the old window is gone. Lark raises the existing window when it can, and otherwise opens a new one (with a one-shot retry if Chromium’s profile was still locked).

@@ -1712,10 +1712,11 @@ select:focus, input:focus, textarea:focus, button:focus-visible {
   margin: 0;
 }
 .tree-row.folder {
-  border-color: transparent !important;
-  background: transparent;
+  /* Same outline language as files so the tray reads as one hierarchy of tiles */
+  background: color-mix(in srgb, var(--bg-elev) 55%, var(--bg-sunken));
 }
-.tree-row.file:hover {
+.tree-row.file:hover,
+.tree-row.folder:hover {
   border-color: color-mix(in srgb, var(--accent) 50%, var(--line)) !important;
   background: var(--hover);
 }
