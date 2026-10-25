@@ -54,6 +54,12 @@ https://github.com/TreyvoPrime/lark/releases/latest/download/lark-mobile-linux.z
 
 Do not open launchers from inside a zip preview / Temp folder.
 
+## What’s new in 3.9.7.10
+
+- **One Desktop window** — opening Lark again focuses the running window instead of adding another taskbar entry.
+- **Project previews** — project tiles show a code snippet from the project.
+- **File icons** — Java files use a coffee-cup logo; `.md` and `.txt` use a document icon.
+
 ## What’s new in 3.9.7.9
 
 - **Project picker** — switch projects from a Themes-style tile overlay instead of a dropdown.

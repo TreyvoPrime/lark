@@ -16,9 +16,14 @@ import java.nio.file.Path;
 import java.util.Locale;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.Executors;
+import java.util.concurrent.atomic.AtomicLong;
 
 /** Local-only HTTP server. The editor in the browser talks to this, and nowhere else. */
 public final class Server {
+    private static final AtomicLong FOCUS_SEQ = new AtomicLong(0);
+    private static volatile long lastUiSeenMs;
+    private static final long UI_FRESH_MS = 5_000;
+
     private final HttpServer http;
     private final int port;
     private final Projects projects;
@@ -35,6 +40,24 @@ public final class Server {
     private final boolean lan;
     /** Failed pair attempts per remote IP (rate limit). */
     private final ConcurrentHashMap<String, long[]> pairFails = new ConcurrentHashMap<>();
+
+    /** True when an editor tab has polled within the freshness window. */
+    public static boolean uiFresh() {
+        long seen = lastUiSeenMs;
+        return seen > 0 && (System.currentTimeMillis() - seen) < UI_FRESH_MS;
+    }
+
+    public static long bumpFocus() {
+        return FOCUS_SEQ.incrementAndGet();
+    }
+
+    public static long focusSeq() {
+        return FOCUS_SEQ.get();
+    }
+
+    private static void touchUi() {
+        lastUiSeenMs = System.currentTimeMillis();
+    }
 
     private Server(HttpServer http, int port, Projects projects, Runner runner, Debugger debugger, Tests tests,
                    Checker checker, GitHub github, Updates updates, Terminal terminal, Settings settings, Path webDir,
@@ -187,7 +210,27 @@ public final class Server {
                     .put("edition", editionName())
                     .put("channel", channelName())
                     .put("mobile", Mobile.isMobile())
-                    .put("lan", lan));
+                    .put("lan", lan)
+                    .put("focus", focusSeq())
+                    .put("uiFresh", uiFresh()));
+            return;
+        }
+        // UI poll: marks the editor as present and returns the current focus token.
+        if ("GET".equals(method) && "/api/focus".equals(path)) {
+            touchUi();
+            sendJson(exchange, 200, new Json.Obj()
+                    .put("ok", true)
+                    .put("focus", focusSeq())
+                    .put("uiFresh", true));
+            return;
+        }
+        // Second launch / tray Open: bump focus so the open tab brings itself forward.
+        if ("POST".equals(method) && "/api/focus".equals(path)) {
+            long seq = bumpFocus();
+            sendJson(exchange, 200, new Json.Obj()
+                    .put("ok", true)
+                    .put("focus", seq)
+                    .put("uiFresh", uiFresh()));
             return;
         }
         if ("GET".equals(method) && "/api/mobile/info".equals(path)) {

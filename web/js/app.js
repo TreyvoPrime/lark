@@ -1924,7 +1924,14 @@
     if (active) btn.classList.add("active");
     const preview = document.createElement("span");
     preview.className = "project-tile-preview";
-    preview.innerHTML = projectFolderSvg();
+    const snippet = (project.preview || "").trim();
+    if (snippet) {
+      preview.classList.add("code");
+      preview.textContent = snippet;
+    } else {
+      preview.classList.add("empty");
+      preview.innerHTML = projectFolderSvg();
+    }
     const name = document.createElement("span");
     name.className = "project-tile-name";
     name.textContent = project.name;
@@ -2058,23 +2065,49 @@
       + "</svg>";
   }
 
+  /** Simplified Java coffee-cup mark for .java files. */
+  function javaIconSvg() {
+    return '<svg class="tree-svg" viewBox="0 0 16 16" aria-hidden="true">'
+      + '<path fill="none" stroke="currentColor" stroke-width="1.15" stroke-linecap="round" d="M6.2 3.1c.55.7.55 1.45 0 2.15M8 2.2c.55.75.55 1.7 0 2.45M9.8 3.1c.55.7.55 1.45 0 2.15"/>'
+      + '<path fill="currentColor" d="M3.6 6.2h7.4c.2 0 .35.2.3.4-.45 2.05-1.85 3.5-4 3.5s-3.55-1.45-4-3.5c-.05-.2.1-.4.3-.4z"/>'
+      + '<path fill="none" stroke="currentColor" stroke-width="1.1" stroke-linecap="round" d="M11 6.9h1.15c.7 0 1.25.55 1.25 1.25S12.85 9.4 12.15 9.4H11"/>'
+      + '<path fill="currentColor" d="M4.2 13.15h6.2c1.35 0 1.35.85 0 .85H4.2c-1.35 0-1.35-.85 0-.85z"/>'
+      + '<path fill="currentColor" opacity=".85" d="M5.1 11.05h4.4c.55.35.9.75.9 1.15 0 .2-.55.35-3.1.35s-3.1-.15-3.1-.35c0-.4.35-.8.9-1.15z"/>'
+      + "</svg>";
+  }
+
+  /** Document glyph for .md / .txt and other plain text. */
+  function textFileIconSvg() {
+    return '<svg class="tree-svg" viewBox="0 0 16 16" aria-hidden="true">'
+      + '<path fill="currentColor" d="M3.75 1.5c-.69 0-1.25.56-1.25 1.25v10.5c0 .69.56 1.25 1.25 1.25h8.5c.69 0 1.25-.56 1.25-1.25V5.31c0-.33-.13-.65-.37-.88L10.07 1.87a1.25 1.25 0 0 0-.88-.37H3.75zm5.5 1.1 2.65 2.65H10a.75.75 0 0 1-.75-.75V2.6z"/>'
+      + '<path fill="var(--bg-elev, #fff)" d="M5.25 8.1h5.5a.6.6 0 0 1 0 1.2h-5.5a.6.6 0 0 1 0-1.2zm0 2.35h4.1a.6.6 0 0 1 0 1.2h-4.1a.6.6 0 0 1 0-1.2z"/>'
+      + "</svg>";
+  }
+
   function fileIcon(node) {
     const icon = document.createElement("span");
     icon.className = "tree-icon";
+    icon.setAttribute("aria-hidden", "true");
     if (node.dir) {
       const open = !state.collapsed.has(node.path);
       icon.classList.add("folder");
       icon.classList.toggle("open", open);
-      icon.setAttribute("aria-hidden", "true");
       icon.innerHTML = folderIconSvg(open);
       return icon;
     }
-    if (node.path.endsWith(".java")) {
-      icon.textContent = "J";
+    const lower = (node.path || "").toLowerCase();
+    if (lower.endsWith(".java")) {
+      icon.classList.add("java");
+      icon.innerHTML = javaIconSvg();
+      return icon;
+    }
+    if (lower.endsWith(".md") || lower.endsWith(".txt")) {
+      icon.classList.add("txt");
+      icon.innerHTML = textFileIconSvg();
       return icon;
     }
     icon.classList.add("txt");
-    icon.textContent = node.path.endsWith(".txt") ? "T" : "·";
+    icon.innerHTML = textFileIconSvg();
     return icon;
   }
 
@@ -6181,6 +6214,37 @@
     }, 180);
   }
 
+  function bringWindowForward() {
+    try { window.focus(); } catch (e) { /* ignore */ }
+    try {
+      if (typeof window.top !== "undefined" && window.top) window.top.focus();
+    } catch (e) { /* ignore */ }
+    try {
+      const base = document.title.replace(/^\u25CF\s*/, "");
+      document.title = "\u25CF " + base;
+      setTimeout(() => {
+        if (document.title.indexOf("\u25CF ") === 0) {
+          document.title = base;
+        }
+      }, 1200);
+    } catch (e) { /* ignore */ }
+  }
+
+  let lastFocusSeq = 0;
+  function watchFocusRequests() {
+    const tick = async () => {
+      if (tabMarkedOutdated) return;
+      try {
+        const data = await api("GET", "/api/focus");
+        const seq = Number(data && data.focus) || 0;
+        if (lastFocusSeq && seq > lastFocusSeq) bringWindowForward();
+        lastFocusSeq = seq || lastFocusSeq;
+      } catch (e) { /* server may be restarting */ }
+    };
+    tick();
+    instanceWatchTimers.push(setInterval(tick, 900));
+  }
+
   function claimAndWatchInstance(version) {
     writeInstanceClaim(version);
     try {
@@ -6209,6 +6273,7 @@
     });
     // Re-assert only while we are still the live tab — never overwrite a newer claim.
     instanceWatchTimers.push(setInterval(() => writeInstanceClaim(version), 12000));
+    watchFocusRequests();
   }
 
   async function restartAfterUpdate() {

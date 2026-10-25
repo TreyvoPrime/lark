@@ -1,6 +1,7 @@
 package lark;
 
 import java.io.IOException;
+import java.io.OutputStream;
 import java.io.RandomAccessFile;
 import java.net.HttpURLConnection;
 import java.net.InetSocketAddress;
@@ -80,12 +81,19 @@ public final class Instance {
             }
         }
         if (lock == null) {
+            Integer port = readPort();
             String url = runningUrl();
-            if (url != null && openBrowser) {
-                System.out.println("Lark is already open — bringing that window forward.");
-                AppWindow.open(url);
-            } else if (url != null) {
-                System.out.println("Lark is already running at " + url);
+            if (url != null && port != null) {
+                boolean uiAlive = signalFocus(port);
+                if (uiAlive) {
+                    System.out.println("Lark is already open — bringing that window forward.");
+                } else if (openBrowser) {
+                    // Server is up but no UI heartbeat — reopen one window, do not start a JVM.
+                    System.out.println("Lark is running — opening the window.");
+                    AppWindow.open(url);
+                } else {
+                    System.out.println("Lark is already running at " + url);
+                }
             } else {
                 System.out.println("Another Lark seems to be running. Close it, then try again.");
             }
@@ -99,6 +107,46 @@ public final class Instance {
         }
         Runtime.getRuntime().addShutdownHook(new Thread(Instance::releaseQuietly, "lark-instance-unlock"));
         return true;
+    }
+
+    /**
+     * Ask the running UI to come forward. Returns true when a live editor tab
+     * has checked in recently (so a new browser window is not needed).
+     */
+    public static boolean signalFocus(int port) {
+        HttpURLConnection conn = null;
+        try {
+            conn = (HttpURLConnection) URI.create("http://127.0.0.1:" + port + "/api/focus").toURL().openConnection();
+            conn.setRequestMethod("POST");
+            conn.setConnectTimeout(600);
+            conn.setReadTimeout(900);
+            conn.setDoOutput(true);
+            conn.setRequestProperty("X-Lark", "1");
+            conn.setRequestProperty("Content-Type", "application/json");
+            conn.setRequestProperty("Content-Length", "2");
+            try (OutputStream out = conn.getOutputStream()) {
+                out.write("{}".getBytes(StandardCharsets.UTF_8));
+            }
+            int code = conn.getResponseCode();
+            if (code < 200 || code >= 300) return false;
+            try (var in = conn.getInputStream()) {
+                String body = new String(in.readAllBytes(), StandardCharsets.UTF_8);
+                return body.contains("\"uiFresh\":true") || body.contains("\"uiFresh\": true");
+            }
+        } catch (Exception e) {
+            return false;
+        } finally {
+            if (conn != null) conn.disconnect();
+        }
+    }
+
+    /** Tray / Open: focus the existing window, or open one if the UI is gone. */
+    public static void focusOrOpen(String url) {
+        Integer port = readPort();
+        if (port != null && healthOk(port) && signalFocus(port)) {
+            return;
+        }
+        AppWindow.open(url);
     }
 
     public static void writePort(int port) {

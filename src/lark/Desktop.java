@@ -181,7 +181,7 @@ public final class Desktop {
             SystemTray tray = SystemTray.getSystemTray();
             PopupMenu menu = new PopupMenu();
             MenuItem open = new MenuItem("Open Lark");
-            open.addActionListener(e -> AppWindow.open(url));
+            open.addActionListener(e -> Instance.focusOrOpen(url));
             MenuItem quit = new MenuItem("Quit Lark Desktop");
             quit.addActionListener(e -> System.exit(0));
             menu.add(open);
@@ -189,7 +189,7 @@ public final class Desktop {
             menu.add(quit);
             TrayIcon icon = new TrayIcon(trayImage(), "Lark Desktop " + Settings.VERSION, menu);
             icon.setImageAutoSize(true);
-            icon.addActionListener(e -> AppWindow.open(url));
+            icon.addActionListener(e -> Instance.focusOrOpen(url));
             tray.add(icon);
         } catch (AWTException | IllegalArgumentException e) {
             System.out.println("Note: system tray unavailable (" + e.getMessage() + ")");

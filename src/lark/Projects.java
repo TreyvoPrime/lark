@@ -72,7 +72,8 @@ public final class Projects {
                 out.add(new Json.Obj()
                         .put("id", id)
                         .put("name", meta.name)
-                        .put("mainClass", meta.mainClass));
+                        .put("mainClass", meta.mainClass)
+                        .put("preview", previewSnippet(dir, meta.mainClass)));
             }
         } catch (IOException e) {
             throw new RequestFail(500, "Couldn't list projects.");
@@ -892,6 +893,75 @@ public final class Projects {
 
     private static boolean idOk(String id) {
         return id != null && id.matches("[A-Za-z0-9][A-Za-z0-9._-]{0,80}");
+    }
+
+    /** Short source excerpt for project picker tiles (first ~8 lines of the main file). */
+    private static String previewSnippet(Path dir, String mainClass) {
+        try {
+            Path chosen = null;
+            if (mainClass != null && !mainClass.isBlank()) {
+                String rel = mainClass.replace('.', '/') + ".java";
+                Path candidate = dir.resolve(rel);
+                if (Files.isRegularFile(candidate)) chosen = candidate;
+            }
+            if (chosen == null) {
+                Path main = dir.resolve("Main.java");
+                if (Files.isRegularFile(main)) chosen = main;
+            }
+            if (chosen == null) {
+                try (Stream<Path> walk = Files.walk(dir)) {
+                    chosen = walk.filter(Files::isRegularFile)
+                            .filter(p -> {
+                                String name = p.getFileName().toString().toLowerCase(Locale.ROOT);
+                                return name.endsWith(".java") || name.endsWith(".txt") || name.endsWith(".md");
+                            })
+                            .filter(p -> !skip(rel(dir, p)))
+                            .sorted((a, b) -> {
+                                int ra = rankPreview(a.getFileName().toString());
+                                int rb = rankPreview(b.getFileName().toString());
+                                if (ra != rb) return Integer.compare(ra, rb);
+                                return a.compareTo(b);
+                            })
+                            .findFirst()
+                            .orElse(null);
+                }
+            }
+            if (chosen == null || Files.size(chosen) > 200_000) return "";
+            String text = Files.readString(chosen);
+            return clipPreview(text, 8, 320);
+        } catch (Exception e) {
+            return "";
+        }
+    }
+
+    private static int rankPreview(String name) {
+        String lower = name.toLowerCase(Locale.ROOT);
+        if (lower.endsWith(".java")) return 0;
+        if (lower.endsWith(".md")) return 1;
+        if (lower.endsWith(".txt")) return 2;
+        return 9;
+    }
+
+    private static String clipPreview(String text, int maxLines, int maxChars) {
+        if (text == null || text.isBlank()) return "";
+        String normalized = text.replace("\r\n", "\n").replace('\r', '\n');
+        StringBuilder out = new StringBuilder();
+        int lines = 0;
+        for (int i = 0; i < normalized.length() && lines < maxLines && out.length() < maxChars; i++) {
+            char c = normalized.charAt(i);
+            if (c == '\n') {
+                lines++;
+                if (lines >= maxLines) break;
+                out.append('\n');
+            } else if (c == '\t') {
+                out.append("  ");
+            } else if (c >= 32 || c == '\n') {
+                out.append(c);
+            }
+        }
+        String clipped = out.toString().stripTrailing();
+        if (clipped.length() > maxChars) clipped = clipped.substring(0, maxChars).stripTrailing();
+        return clipped;
     }
 
     private static String rel(Path root, Path path) {
