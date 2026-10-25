@@ -54,6 +54,10 @@ https://github.com/TreyvoPrime/lark/releases/latest/download/lark-mobile-linux.z
 
 Do not open launchers from inside a zip preview / Temp folder.
 
+## What’s new in 3.9.7.22
+
+- **Shorter outlines setting copy** — Settings → Display describes outlined tiles as “Borders around Explorer rows.”
+
 ## What’s new in 3.9.7.21
 
 - **Explorer New menu** — the tray header is a quiet Explorer label plus one **+** button (Class / File / Folder), instead of three text actions.
