@@ -1309,7 +1309,7 @@
     const indentWithTabs = !!next.indentWithTabs;
     const lineWrapping = !!next.lineWrapping;
     const lineNumbers = next.lineNumbers !== false;
-    const trayOutlines = !!next.trayOutlines;
+    const trayOutlines = next.trayOutlines !== false;
     const autoSave = next.autoSave !== false;
     const formatOnSave = !!next.formatOnSave;
 
@@ -6607,7 +6607,7 @@
         indentWithTabs: !!state.settings.indentWithTabs,
         lineWrapping: !!state.settings.lineWrapping,
         lineNumbers: state.settings.lineNumbers !== false,
-        trayOutlines: !!state.settings.trayOutlines,
+        trayOutlines: state.settings.trayOutlines !== false,
         autoSave: state.settings.autoSave !== false,
         autoSaveDelayMs: state.settings.autoSaveDelayMs || 800,
         formatOnSave: !!state.settings.formatOnSave

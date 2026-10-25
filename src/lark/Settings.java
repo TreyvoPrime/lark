@@ -11,7 +11,7 @@ import java.util.Set;
 /** Preferences stored in the home folder. The GitHub token never leaves this machine except for GitHub. */
 public final class Settings {
     /** Four-part build (3.9.7.1) — stay on 3.x until an intentional Lark 4.0. */
-    public static final String VERSION = "3.9.7.19";
+    public static final String VERSION = "3.9.7.20";
     /** Default public update feed — always the latest GitHub release JSON companion. */
     public static final String DEFAULT_UPDATE_FEED =
             "https://github.com/TreyvoPrime/lark/releases/latest/download/update.json";
@@ -53,10 +53,10 @@ public final class Settings {
     /** Show CodeMirror line numbers in the gutter (default on). */
     public boolean lineNumbers = true;
     /**
-     * Explorer file tiles with a border around each row. Off by default — the tray
-     * uses quiet vertical tree lines instead (VS Code / IntelliJ style).
+     * Explorer file tiles with a border around each row. On by default; can be
+     * turned off in Settings for a quieter tray that keeps the vertical tree line.
      */
-    public boolean trayOutlines = false;
+    public boolean trayOutlines = true;
     public boolean autoSave = true;
     public int autoSaveDelayMs = 800;
     public boolean formatOnSave = false;
