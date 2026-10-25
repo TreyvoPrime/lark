@@ -6386,6 +6386,7 @@
         return;
       }
       state.problems = [];
+      state.compileProblems = [];
       clearMarks();
       renderProblems();
       renderConsole("");
