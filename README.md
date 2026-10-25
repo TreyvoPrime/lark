@@ -54,6 +54,10 @@ https://github.com/TreyvoPrime/lark/releases/latest/download/lark-mobile-linux.z
 
 Do not open launchers from inside a zip preview / Temp folder.
 
+## What’s new in 3.9.7.9
+
+- **Project picker** — switch projects from a Themes-style tile overlay instead of a dropdown.
+
 ## What’s new in 3.9.7.8
 
 - **Folder icons** — explorer folders use real open/closed folder glyphs instead of chevrons.

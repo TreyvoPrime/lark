@@ -306,6 +306,7 @@
     const panel = $("theme-overlay");
     if (!panel) return;
     closePopovers();
+    closeProjectOverlay();
     renderThemeGrid();
     panel.hidden = false;
   }
@@ -1894,22 +1895,92 @@
   }
 
   function renderProjects() {
-    const select = $("project");
-    select.replaceChildren();
+    const label = $("project-pick-label");
+    if (label) {
+      label.textContent = state.project
+        ? state.project.name
+        : (state.projects.length ? "Choose project" : "No project");
+    }
+    const btn = $("project");
+    if (btn && state.project) btn.title = "Switch project — " + state.project.name;
+    if (projectOverlayOpen()) renderProjectGrid();
+  }
+
+  function projectOverlayOpen() {
+    const panel = $("project-overlay");
+    return !!(panel && !panel.hidden);
+  }
+
+  function projectFolderSvg() {
+    return '<svg viewBox="0 0 16 16" aria-hidden="true"><path fill="currentColor" d="M1.75 1A1.75 1.75 0 0 0 0 2.75v10.5C0 14.216.784 15 1.75 15h12.5A1.75 1.75 0 0 0 16 13.25v-8.5A1.75 1.75 0 0 0 14.25 3H7.5a.25.25 0 0 1-.2-.1l-.9-1.2C6.18 1.26 5.84 1 5.45 1H1.75Z"/></svg>';
+  }
+
+  function makeProjectTile(project) {
+    const btn = document.createElement("button");
+    btn.type = "button";
+    btn.className = "project-tile";
+    btn.dataset.projectId = project.id;
+    const active = state.project && state.project.id === project.id;
+    if (active) btn.classList.add("active");
+    const preview = document.createElement("span");
+    preview.className = "project-tile-preview";
+    preview.innerHTML = projectFolderSvg();
+    const name = document.createElement("span");
+    name.className = "project-tile-name";
+    name.textContent = project.name;
+    const meta = document.createElement("span");
+    meta.className = "project-tile-meta";
+    meta.textContent = active ? "Open now" : "Click to open";
+    btn.append(preview, name, meta);
+    btn.addEventListener("click", async () => {
+      try {
+        if (!state.project || state.project.id !== project.id) {
+          await openProject(project.id);
+        }
+        closeProjectOverlay();
+      } catch (err) {
+        toast(err.message);
+      }
+    });
+    return btn;
+  }
+
+  function renderProjectGrid() {
+    const grid = $("project-grid");
+    if (!grid) return;
+    grid.replaceChildren();
     if (!state.projects.length) {
-      const opt = document.createElement("option");
-      opt.value = "";
-      opt.textContent = "No project";
-      select.appendChild(opt);
+      const empty = document.createElement("p");
+      empty.className = "project-grid-empty path-note";
+      empty.textContent = "No projects yet. Create one with New, or open a folder.";
+      grid.appendChild(empty);
       return;
     }
-    state.projects.forEach((project) => {
-      const opt = document.createElement("option");
-      opt.value = project.id;
-      opt.textContent = project.name;
-      select.appendChild(opt);
+    const sorted = state.projects.slice().sort((a, b) => {
+      const aOn = state.project && state.project.id === a.id;
+      const bOn = state.project && state.project.id === b.id;
+      if (aOn !== bOn) return aOn ? -1 : 1;
+      return String(a.name || "").localeCompare(String(b.name || ""));
     });
-    if (state.project) select.value = state.project.id;
+    sorted.forEach((project) => grid.appendChild(makeProjectTile(project)));
+  }
+
+  function openProjectOverlay() {
+    const panel = $("project-overlay");
+    if (!panel) return;
+    closePopovers();
+    closeThemeOverlay();
+    renderProjectGrid();
+    panel.hidden = false;
+    const btn = $("project");
+    if (btn) btn.setAttribute("aria-expanded", "true");
+  }
+
+  function closeProjectOverlay() {
+    const panel = $("project-overlay");
+    if (panel) panel.hidden = true;
+    const btn = $("project");
+    if (btn) btn.setAttribute("aria-expanded", "false");
   }
 
   function buildTree() {
@@ -5338,12 +5409,26 @@
     $("new-file").addEventListener("click", () => createFile().catch((err) => toast(err.message)));
     $("new-folder").addEventListener("click", () => createFolder().catch((err) => toast(err.message)));
     $("files-toggle").addEventListener("click", toggleFiles);
-    $("project").addEventListener("change", () => {
-      const id = $("project").value;
-      if (id && (!state.project || state.project.id !== id)) {
-        openProject(id).catch((err) => toast(err.message));
-      }
-    });
+    if ($("project")) {
+      $("project").addEventListener("click", () => {
+        if (projectOverlayOpen()) closeProjectOverlay();
+        else openProjectOverlay();
+      });
+    }
+    if ($("project-overlay-close")) {
+      $("project-overlay-close").addEventListener("click", () => closeProjectOverlay());
+    }
+    if ($("project-overlay-new")) {
+      $("project-overlay-new").addEventListener("click", () => {
+        closeProjectOverlay();
+        newProject().catch((err) => toast(err.message));
+      });
+    }
+    if ($("project-overlay")) {
+      $("project-overlay").addEventListener("click", (event) => {
+        if (event.target === $("project-overlay")) closeProjectOverlay();
+      });
+    }
     $("main-class").addEventListener("change", () => {
       if (!state.project) return;
       state.project.mainClass = $("main-class").value;
@@ -5663,6 +5748,7 @@
     window.addEventListener("keydown", (event) => {
       const key = event.key.toLowerCase();
       if (event.key === "Escape") {
+        if (projectOverlayOpen()) { closeProjectOverlay(); return; }
         if (themeOverlayOpen()) { closeThemeOverlay(); return; }
         if ($("extras-panel") && !$("extras-panel").hidden) { closeExtras(); return; }
         if (scratchOpen()) { closeScratch(); return; }

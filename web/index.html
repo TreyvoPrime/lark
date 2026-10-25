@@ -32,10 +32,10 @@
       <div class="top-group" role="group" aria-label="Navigate">
         <button id="files-toggle" type="button" title="Toggle files (Ctrl+B)">Files</button>
         <button id="project-search" type="button" title="Search in project (Ctrl+Shift+F)">Search</button>
-        <label class="project-pick">
-          <span class="sr">Project</span>
-          <select id="project"></select>
-        </label>
+        <button id="project" type="button" class="project-pick" title="Switch project" aria-haspopup="dialog" aria-expanded="false">
+          <span class="project-pick-label" id="project-pick-label">No project</span>
+          <span class="project-pick-caret" aria-hidden="true">▾</span>
+        </button>
         <button id="project-menu" type="button" data-pop="menu-project">Project</button>
         <button id="github" type="button" title="Clone or push with GitHub">GitHub</button>
       </div>
@@ -378,6 +378,21 @@
         <button type="button" class="theme-filter-btn" data-theme-filter="distinct" role="tab" aria-selected="false">Distinct</button>
       </div>
       <div id="theme-grid" class="theme-grid"></div>
+    </div>
+  </div>
+  <div id="project-overlay" class="theme-overlay project-overlay" hidden>
+    <div class="theme-overlay-card project-overlay-card" role="dialog" aria-modal="true" aria-labelledby="project-overlay-title">
+      <div class="theme-overlay-head">
+        <div>
+          <strong id="project-overlay-title">Projects</strong>
+          <p class="path-note">Pick a project to open — same layout as Themes, just for your workspaces.</p>
+        </div>
+        <div class="theme-overlay-tools">
+          <button type="button" id="project-overlay-new" title="New project">New</button>
+          <button type="button" id="project-overlay-close" aria-label="Close projects">×</button>
+        </div>
+      </div>
+      <div id="project-grid" class="theme-grid project-grid"></div>
     </div>
   </div>
   <div id="menu-settings" class="popover settings-pop menu-panel" hidden>
