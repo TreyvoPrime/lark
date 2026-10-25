@@ -54,6 +54,12 @@ https://github.com/TreyvoPrime/lark/releases/latest/download/lark-mobile-linux.z
 
 Do not open launchers from inside a zip preview / Temp folder.
 
+## What’s new in 3.9.7.4
+
+- **Post-update restart** — the previous-version Lark tab closes when the new window opens.
+- **Slate default** — first install opens on Slate.
+- **Five vivid themes** — Prism, Volt, Flare, Reef, and Magma with distinct colors for every syntax token.
+
 ## What’s new in 3.9.7.3
 
 - **Core tracks only** — Desktop, Executable, and Mobile. School and Enterprise packaging removed.

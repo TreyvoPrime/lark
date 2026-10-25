@@ -1,7 +1,7 @@
 (function () {
   const THEMES = [
-    ["desk", "Desk"],
     ["slate", "Slate"],
+    ["desk", "Desk"],
     ["studio", "Studio"],
     ["daylight", "Daylight"],
     ["moss", "Moss"],
@@ -11,7 +11,12 @@
     ["hearth", "Hearth"],
     ["canopy", "Canopy"],
     ["obsidian", "Obsidian"],
-    ["glacier", "Glacier"]
+    ["glacier", "Glacier"],
+    ["prism", "Prism"],
+    ["volt", "Volt"],
+    ["flare", "Flare"],
+    ["reef", "Reef"],
+    ["magma", "Magma"]
   ];
 
   const state = {
@@ -226,8 +231,8 @@
   }
 
   function applyTheme(theme) {
-    document.documentElement.dataset.theme = theme || "desk";
-    $("theme-select").value = theme || "desk";
+    document.documentElement.dataset.theme = theme || "slate";
+    $("theme-select").value = theme || "slate";
   }
 
   async function refreshProjects() {
@@ -562,7 +567,7 @@
       }
       $("version-line").textContent = "Lark Mobile " + (health.version || "") + " · " + (health.edition || "mobile");
       state.settings = await api("GET", "/api/settings");
-      applyTheme(state.settings.theme || "desk");
+      applyTheme(state.settings.theme || "slate");
       applyFont(Math.max(14, state.settings.fontSize || 16));
       if ($("line-numbers")) {
         $("line-numbers").checked = state.settings.lineNumbers !== false;

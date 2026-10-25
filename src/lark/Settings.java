@@ -11,7 +11,7 @@ import java.util.Set;
 /** Preferences stored in the home folder. The GitHub token never leaves this machine except for GitHub. */
 public final class Settings {
     /** Four-part build (3.9.7.1) — stay on 3.x until an intentional Lark 4.0. */
-    public static final String VERSION = "3.9.7.3";
+    public static final String VERSION = "3.9.7.4";
     /** Default public update feed — always the latest GitHub release JSON companion. */
     public static final String DEFAULT_UPDATE_FEED =
             "https://github.com/TreyvoPrime/lark/releases/latest/download/update.json";
@@ -23,7 +23,8 @@ public final class Settings {
             "graphite", "navy", "terminal", "parchment", "ultraviolet", "forest", "monochrome", "amber",
             "lagoon", "rosewood", "nova", "atelier",
             "obsidian", "glacier",
-            "cedar", "inkwell", "porcelain", "hearth", "canopy"
+            "cedar", "inkwell", "porcelain", "hearth", "canopy",
+            "prism", "volt", "flare", "reef", "magma"
     );
     public static final Set<String> FONT_FAMILIES = Set.of(
             "jetbrains", "cascadia", "fira", "consolas", "system"
@@ -38,7 +39,8 @@ public final class Settings {
             "pink", "blossom"
     );
 
-    public String theme = "desk";
+    /** Slate is the first-install default (quiet dark desk). */
+    public String theme = "slate";
     public int fontSize = 14;
     public int zoom = 100;
     public String fontFamily = "jetbrains";
@@ -82,9 +84,9 @@ public final class Settings {
         if (!Files.isRegularFile(file)) return settings;
         try {
             Json.Obj obj = Json.parseObj(Files.readString(file));
-            String theme = obj.str("theme", "desk");
+            String theme = obj.str("theme", "slate");
             theme = THEME_ALIASES.getOrDefault(theme, theme);
-            settings.theme = THEMES.contains(theme) ? theme : "desk";
+            settings.theme = THEMES.contains(theme) ? theme : "slate";
             int loadedFont = (int) obj.longVal("fontSize");
             settings.fontSize = loadedFont > 0 ? clamp(loadedFont, 11, 28, 14) : 14;
             int loadedZoom = (int) obj.longVal("zoom");

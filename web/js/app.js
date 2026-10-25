@@ -31,6 +31,11 @@
     porcelain: "Porcelain",
     hearth: "Hearth",
     canopy: "Canopy",
+    prism: "Prism",
+    volt: "Volt",
+    flare: "Flare",
+    reef: "Reef",
+    magma: "Magma",
     ink: "Desk",
     paper: "Daylight",
     tide: "Moss",
@@ -53,7 +58,8 @@
     "blossom", "candy", "midnight", "citrus", "harbor",
     "graphite", "navy", "terminal", "parchment", "ultraviolet", "forest", "monochrome", "amber",
     "lagoon", "rosewood", "nova", "atelier", "obsidian", "glacier",
-    "cedar", "inkwell", "porcelain", "hearth", "canopy"
+    "cedar", "inkwell", "porcelain", "hearth", "canopy",
+    "prism", "volt", "flare", "reef", "magma"
   ];
   /** Preview chip colors for the theme overlay tiles. */
   const THEME_SWATCHES = {
@@ -87,8 +93,18 @@
     inkwell: { bg: "#1a1e24", accent: "#6b8cae" },
     porcelain: { bg: "#f3f1ec", accent: "#5a7d9a" },
     hearth: { bg: "#231c18", accent: "#c07048" },
-    canopy: { bg: "#171d19", accent: "#5f8f6a" }
+    canopy: { bg: "#171d19", accent: "#5f8f6a" },
+    prism: { bg: "#0c0d12", accent: "#ff4fd8" },
+    volt: { bg: "#0a0f1c", accent: "#ffe566" },
+    flare: { bg: "#1a0e0a", accent: "#ff6b2d" },
+    reef: { bg: "#04181c", accent: "#2ee6c5" },
+    magma: { bg: "#140808", accent: "#ff3b3b" }
   };
+  const BOOT_ID = (typeof crypto !== "undefined" && crypto.randomUUID)
+    ? crypto.randomUUID()
+    : ("boot-" + Date.now() + "-" + Math.random().toString(16).slice(2));
+  const BOOT_STARTED_AT = Date.now();
+  const INSTANCE_COOKIE = "lark_instance";
   const FONT_STACKS = {
     jetbrains: '"JetBrains Mono", "Cascadia Mono", "Liberation Mono", ui-monospace, monospace',
     cascadia: '"Cascadia Code", "Cascadia Mono", "JetBrains Mono", ui-monospace, monospace',
@@ -188,17 +204,17 @@
   }
 
   function themeName(theme) {
-    return THEME_NAMES[theme] || "Desk";
+    return THEME_NAMES[theme] || "Slate";
   }
 
   function currentThemeId() {
-    const raw = document.documentElement.dataset.theme || "desk";
+    const raw = document.documentElement.dataset.theme || "slate";
     return THEME_CANON[raw] || raw;
   }
 
   function applyTheme(theme, save) {
     theme = THEME_CANON[theme] || theme;
-    if (!THEME_NAMES[theme] || !THEME_IDS.includes(theme)) theme = "desk";
+    if (!THEME_NAMES[theme] || !THEME_IDS.includes(theme)) theme = "slate";
     document.documentElement.dataset.theme = theme;
     try { localStorage.setItem("lark-theme", theme); } catch (e) {}
     if ($("theme")) $("theme").textContent = themeName(theme);
@@ -5836,26 +5852,113 @@
     }
   }
 
+  function compareVersionsUi(a, b) {
+    const parts = (v) => {
+      const clean = String(v || "").replace(/^v/i, "").trim();
+      const bits = clean.split(/[^0-9]+/).filter(Boolean).map((n) => Number(n) || 0);
+      while (bits.length < 4) bits.push(0);
+      return bits.slice(0, 4);
+    };
+    const left = parts(a);
+    const right = parts(b);
+    for (let i = 0; i < 4; i++) {
+      if (left[i] !== right[i]) return left[i] < right[i] ? -1 : 1;
+    }
+    return 0;
+  }
+
+  function writeInstanceClaim(version) {
+    try {
+      const payload = encodeURIComponent(JSON.stringify({
+        bootId: BOOT_ID,
+        version: version || "",
+        t: Date.now()
+      }));
+      // Host cookie (no port) so a new Lark on another port can supersede this tab.
+      document.cookie = INSTANCE_COOKIE + "=" + payload + "; path=/; max-age=604800; SameSite=Lax";
+    } catch (e) { /* ignore */ }
+  }
+
+  function readInstanceClaim() {
+    try {
+      const match = document.cookie.match(/(?:^|; )lark_instance=([^;]*)/);
+      if (!match) return null;
+      return JSON.parse(decodeURIComponent(match[1]));
+    } catch (e) {
+      return null;
+    }
+  }
+
+  function showOutdatedBanner() {
+    const banner = $("outdated-banner");
+    if (banner) banner.hidden = false;
+  }
+
+  function tryCloseOutdatedTab() {
+    document.title = "Lark (outdated)";
+    showOutdatedBanner();
+    try { window.close(); } catch (e) { /* browser may block */ }
+    // Some Chromium app windows still need a delayed retry.
+    setTimeout(() => { try { window.close(); } catch (e) { /* ignore */ } }, 400);
+  }
+
+  function claimAndWatchInstance(version) {
+    writeInstanceClaim(version);
+    try {
+      localStorage.setItem("lark-instance", JSON.stringify({
+        bootId: BOOT_ID,
+        version: version || "",
+        t: BOOT_STARTED_AT
+      }));
+    } catch (e) { /* ignore */ }
+    const check = () => {
+      const claim = readInstanceClaim();
+      if (!claim || claim.bootId === BOOT_ID) return;
+      const newer = compareVersionsUi(claim.version, version) > 0;
+      const peerAfterUs = Number(claim.t || 0) > BOOT_STARTED_AT;
+      let pendingRestart = false;
+      try { pendingRestart = localStorage.getItem("lark-close-after-update") === "1"; } catch (e) {}
+      if (newer || (pendingRestart && peerAfterUs)) {
+        try { localStorage.removeItem("lark-close-after-update"); } catch (e) {}
+        tryCloseOutdatedTab();
+      }
+    };
+    setInterval(check, 700);
+    window.addEventListener("storage", (event) => {
+      if (event.key === "lark-instance" || event.key === "lark-close-after-update") check();
+    });
+    // Re-assert claim periodically so a stale cookie from a dead tab does not linger alone.
+    setInterval(() => writeInstanceClaim(version), 12000);
+  }
+
   async function restartAfterUpdate() {
     toast("Restarting Lark…");
+    try { localStorage.setItem("lark-close-after-update", "1"); } catch (e) {}
     await api("POST", "/api/update/restart", {});
+    // New process opens a fresh window; close this previous-version tab shortly after.
+    setTimeout(() => tryCloseOutdatedTab(), 1800);
+    setTimeout(() => tryCloseOutdatedTab(), 4000);
   }
 
   async function boot() {
     try {
       ensureEditor();
       bind();
+      if ($("outdated-close")) {
+        $("outdated-close").addEventListener("click", () => tryCloseOutdatedTab());
+      }
       let larkVer = "";
       try {
         const health = await api("GET", "/api/health");
         larkVer = health.version || "";
       } catch (_) { /* optional */ }
+      claimAndWatchInstance(larkVer);
       state.settings = await api("GET", "/api/settings");
       const edition = state.settings.edition || "portable";
       document.body.classList.toggle("edition-desktop", edition === "desktop");
       document.body.classList.toggle("edition-executable", edition === "executable");
       document.body.classList.toggle("edition-mobile", edition === "mobile");
-      applyTheme(state.settings.theme, false);
+      applyTheme(state.settings.theme || "slate", false);
       applyDisplay({
         fontSize: state.settings.fontSize || 14,
         zoom: state.settings.zoom || 100

@@ -193,7 +193,7 @@ public final class Server {
             if ("PUT".equals(method)) {
                 Json.Obj body = body(exchange);
                 if (body.has("theme")) {
-                    String theme = body.str("theme", "desk");
+                    String theme = body.str("theme", "slate");
                     if ("ink".equals(theme)) theme = "desk";
                     if ("paper".equals(theme)) theme = "daylight";
                     if ("tide".equals(theme)) theme = "moss";
