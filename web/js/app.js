@@ -3075,10 +3075,9 @@
 
   let assistDragPayload = null;
   let assistDidDrag = false;
-  let assistDropMark = null;
-  let assistDropEditor = null;
+  /** Live drop preview: { editor, from, len, lines, histBefore, code } */
+  let assistPreview = null;
   let assistDropPos = null;
-  let assistGhostEl = null;
 
   function assistSnippetById(id) {
     const snips = (window.LarkJava && window.LarkJava.snippets) || [];
@@ -3112,79 +3111,83 @@
     insertCodeAt(editor, editor.getCursor(), code);
   }
 
-  function clearAssistDropPreview() {
-    if (assistDropMark) {
-      try { assistDropMark.clear(); } catch (e) { /* gone */ }
-      assistDropMark = null;
-    }
-    if (assistDropEditor) {
-      const wrap = assistDropEditor.getWrapperElement();
-      if (wrap) wrap.classList.remove("assist-drop-over");
-      assistDropEditor = null;
-    }
+  function assistPreviewEnd(preview) {
+    if (!preview || !preview.editor) return null;
+    return preview.editor.posFromIndex(preview.editor.indexFromPos(preview.from) + preview.len);
+  }
+
+  function clearAssistDropPreview(opts) {
+    opts = opts || {};
+    const keepText = !!opts.keepText;
+    const preview = assistPreview;
+    assistPreview = null;
     assistDropPos = null;
-    if (assistGhostEl) {
-      assistGhostEl.remove();
-      assistGhostEl = null;
-    }
+    if (!preview || !preview.editor) return;
+    const editor = preview.editor;
+    const wrap = editor.getWrapperElement();
+    if (wrap) wrap.classList.remove("assist-drop-over");
+    (preview.lines || []).forEach((line) => {
+      try { editor.removeLineClass(line, "background", "cm-assist-drop-line"); } catch (e) { /* gone */ }
+    });
+    if (keepText) return;
+    const end = assistPreviewEnd(preview);
+    if (!end) return;
+    suppress = true;
+    try {
+      editor.operation(() => {
+        editor.replaceRange("", preview.from, end, "*assist-preview");
+        if (preview.histBefore) editor.getDoc().setHistory(preview.histBefore);
+      });
+    } catch (e) { /* ignore */ }
+    suppress = false;
   }
 
   function showAssistDropPreview(editor, pos, code) {
     if (!editor || !pos || !code) return;
-    const indented = indentCodeForEditor(editor, pos, code);
-    const lines = indented.split("\n");
-    // Trailing newline makes a blank last entry — don't count it as a taken line.
-    const lineCount = Math.max(1, lines.length - (indented.endsWith("\n") ? 1 : 0));
-    const from = { line: pos.line, ch: pos.ch };
-    const lastLine = Math.min(editor.lastLine(), pos.line + lineCount - 1);
-    const to = {
-      line: lastLine,
-      ch: lastLine === pos.line
-        ? Math.min((editor.getLine(lastLine) || "").length, pos.ch + (lines[0] || "").length)
-        : (editor.getLine(lastLine) || "").length
-    };
-
-    const sameEditor = assistDropEditor === editor;
-    const samePos = assistDropPos && assistDropPos.line === pos.line && assistDropPos.ch === pos.ch;
-    if (sameEditor && samePos && assistDropMark) {
-      // Still refresh ghost text/position if scrolled.
-    } else {
-      clearAssistDropPreview();
-      assistDropEditor = editor;
-      assistDropPos = { line: pos.line, ch: pos.ch };
-      editor.getWrapperElement().classList.add("assist-drop-over");
-      try {
-        assistDropMark = editor.markText(from, to, {
-          className: "cm-assist-drop",
-          inclusiveLeft: false,
-          inclusiveRight: false,
-          clearOnEnter: false
-        });
-      } catch (e) {
-        assistDropMark = null;
-      }
+    // Place by line so the green band covers whole lines.
+    const at = { line: pos.line, ch: pos.ch };
+    if (
+      assistPreview &&
+      assistPreview.editor === editor &&
+      assistDropPos &&
+      assistDropPos.line === at.line &&
+      assistDropPos.ch === at.ch
+    ) {
+      return;
     }
 
-    if (!assistGhostEl) {
-      assistGhostEl = document.createElement("pre");
-      assistGhostEl.id = "assist-drop-ghost";
-      document.body.appendChild(assistGhostEl);
-    }
-    assistGhostEl.textContent = indented.replace(/\n$/, "");
-    const coords = editor.cursorCoords(pos, "page");
-    const lineH = editor.defaultTextHeight() || 16;
-    assistGhostEl.style.top = Math.round(coords.top) + "px";
-    assistGhostEl.style.left = Math.round(coords.left) + "px";
-    assistGhostEl.style.minHeight = Math.round(lineH * lineCount) + "px";
-  }
+    clearAssistDropPreview({ keepText: false });
 
-  function editorFromDragEvent(event) {
-    const editors = [cm, cmB].filter(Boolean);
-    for (let i = 0; i < editors.length; i++) {
-      const wrap = editors[i].getWrapperElement();
-      if (wrap && wrap.contains(event.target)) return editors[i];
+    const indented = indentCodeForEditor(editor, at, code);
+    if (!indented) return;
+    const histBefore = editor.getDoc().getHistory();
+    suppress = true;
+    let lines = [];
+    try {
+      editor.operation(() => {
+        editor.replaceRange(indented, at, null, "*assist-preview");
+        const end = editor.posFromIndex(editor.indexFromPos(at) + indented.length);
+        const lastLine = indented.endsWith("\n") ? Math.max(at.line, end.line - 1) : end.line;
+        for (let line = at.line; line <= lastLine; line++) {
+          editor.addLineClass(line, "background", "cm-assist-drop-line");
+          lines.push(line);
+        }
+        assistPreview = {
+          editor: editor,
+          from: { line: at.line, ch: at.ch },
+          len: indented.length,
+          lines: lines,
+          histBefore: histBefore,
+          code: indented
+        };
+        assistDropPos = { line: at.line, ch: at.ch };
+        editor.getWrapperElement().classList.add("assist-drop-over");
+      });
+    } catch (e) {
+      assistPreview = null;
+      assistDropPos = null;
     }
-    return null;
+    suppress = false;
   }
 
   function dropPosFromEvent(editor, event) {
@@ -3202,6 +3205,26 @@
     return null;
   }
 
+  function finalizeAssistDrop(editor, payload, fallbackPos) {
+    if (!payload || !payload.code) {
+      clearAssistDropPreview({ keepText: false });
+      return false;
+    }
+    if (assistPreview && assistPreview.editor === editor) {
+      const from = { line: assistPreview.from.line, ch: assistPreview.from.ch };
+      const code = payload.code;
+      const histBefore = assistPreview.histBefore;
+      // Strip the live preview, restore history, then insert once cleanly.
+      clearAssistDropPreview({ keepText: false });
+      if (histBefore) {
+        try { editor.getDoc().setHistory(histBefore); } catch (e) { /* ignore */ }
+      }
+      return insertCodeAt(editor, from, code);
+    }
+    clearAssistDropPreview({ keepText: false });
+    return insertCodeAt(editor, fallbackPos || editor.getCursor(), payload.code);
+  }
+
   function wireAssistDrop(editor) {
     if (!editor || editor._larkAssistDrop) return;
     editor._larkAssistDrop = true;
@@ -3212,26 +3235,36 @@
       if (event.dataTransfer) event.dataTransfer.dropEffect = "copy";
     });
     wrap.addEventListener("dragover", (event) => {
-      const payload = assistDragPayload || (event.dataTransfer && Array.from(event.dataTransfer.types || []).indexOf("text/lark-assist") >= 0);
-      if (!payload && !(event.dataTransfer && Array.from(event.dataTransfer.types || []).indexOf("text/plain") >= 0)) return;
+      const dragging = assistDragPayload || (event.dataTransfer && Array.from(event.dataTransfer.types || []).indexOf("text/lark-assist") >= 0);
+      if (!dragging && !(event.dataTransfer && Array.from(event.dataTransfer.types || []).indexOf("text/plain") >= 0)) return;
       event.preventDefault();
       if (event.dataTransfer) event.dataTransfer.dropEffect = "copy";
-      const pos = dropPosFromEvent(editor, event);
       const code = (assistDragPayload && assistDragPayload.code) || "";
-      if (code) showAssistDropPreview(editor, pos, code);
+      if (!code) return;
+      // While a preview is in the buffer, map coords against the pre-preview document
+      // by temporarily ignoring the inserted block's shift when the pointer is above it.
+      let pos = dropPosFromEvent(editor, event);
+      if (assistPreview && assistPreview.editor === editor) {
+        const start = assistPreview.from.line;
+        const endLine = start + Math.max(0, (assistPreview.lines || []).length - 1);
+        if (pos.line > endLine) {
+          pos = { line: pos.line - (assistPreview.lines || []).length, ch: pos.ch };
+        } else if (pos.line >= start) {
+          pos = { line: start, ch: assistPreview.from.ch };
+        }
+      }
+      showAssistDropPreview(editor, pos, code);
     });
     wrap.addEventListener("dragleave", (event) => {
-      if (!wrap.contains(event.relatedTarget)) clearAssistDropPreview();
+      if (!wrap.contains(event.relatedTarget)) clearAssistDropPreview({ keepText: false });
     });
     wrap.addEventListener("drop", (event) => {
       event.preventDefault();
       event.stopPropagation();
       const payload = readAssistDragPayload(event);
-      const pos = assistDropPos || dropPosFromEvent(editor, event);
-      clearAssistDropPreview();
+      const pos = (assistPreview && assistPreview.from) || dropPosFromEvent(editor, event);
       assistDragPayload = null;
-      if (!payload || !payload.code) return;
-      if (insertCodeAt(editor, pos, payload.code)) {
+      if (finalizeAssistDrop(editor, payload, pos)) {
         closePopovers();
         toast("Placed " + (payload.label || "block") + ".");
       }
@@ -3245,6 +3278,7 @@
     if (!window.LarkJava || !window.LarkJava.snippets) {
       const empty = document.createElement("p");
       empty.className = "path-note";
+      empty.style.gridColumn = "1 / -1";
       empty.textContent = "Open a Java file to load Assist blocks.";
       host.appendChild(empty);
       return;
@@ -3262,19 +3296,14 @@
         card.className = "assist-block";
         card.draggable = true;
         card.dataset.assistBlock = snip.id;
-        card.title = "Drag into the editor to place this code";
-        const top = document.createElement("div");
-        top.className = "assist-block-top";
+        card.title = "Drag into the editor — green lines show where it lands";
         const title = document.createElement("span");
         title.className = "assist-block-title";
         title.textContent = snip.label;
         const hint = document.createElement("span");
         hint.className = "assist-block-hint";
         hint.textContent = "Drag";
-        top.append(title, hint);
-        const pre = document.createElement("pre");
-        pre.textContent = snip.text;
-        card.append(top, pre);
+        card.append(title, hint);
         card.addEventListener("dragstart", (event) => {
           assistDidDrag = true;
           assistDragPayload = { id: snip.id, label: snip.label, code: snip.text };
@@ -3287,9 +3316,8 @@
         });
         card.addEventListener("dragend", () => {
           card.classList.remove("is-dragging");
-          clearAssistDropPreview();
+          clearAssistDropPreview({ keepText: false });
           assistDragPayload = null;
-          // Ignore the click that browsers fire after a drag.
           setTimeout(() => { assistDidDrag = false; }, 0);
         });
         card.addEventListener("click", () => {

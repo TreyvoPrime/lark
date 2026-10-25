@@ -54,9 +54,13 @@ https://github.com/TreyvoPrime/lark/releases/latest/download/lark-mobile-linux.z
 
 Do not open launchers from inside a zip preview / Temp folder.
 
+## What’s new in 3.9.7.29
+
+- **Assist drop preview** — compact title tiles (no code dump in the menu). While you drag, every line the block will occupy lights up green in the editor; drop to place.
+
 ## What’s new in 3.9.7.28
 
-- **Assist drag-and-drop blocks** — Assist opens on a Blocks tab with real code cards. Drag a block into the editor; a ghost highlight shows the exact space it will take. Drop to place it there (click still inserts at the cursor). Tools tab keeps generate / navigate actions.
+- **Assist drag-and-drop blocks** — Blocks tab with draggable titles; Tools tab keeps generate / navigate.
 
 ## What’s new in 3.9.7.27
 
