@@ -321,7 +321,8 @@
       if (c === ")") paren--;
       if (depth < 0 || paren < 0) {
         return [{
-          severity: "error",
+          // Tip only — never paint as a hard error; javac owns real failures.
+          severity: "warning",
           line: maxLine,
           column: 1,
           message: "Unbalanced braces or parentheses near this line.",
@@ -334,7 +335,7 @@
     const out = [];
     if (depth !== 0) {
       out.push({
-        severity: "error",
+        severity: "warning",
         line: maxLine,
         column: 1,
         message: depth > 0 ? "Missing closing brace(s)." : "Extra closing brace(s).",
@@ -347,7 +348,7 @@
     }
     if (paren !== 0) {
       out.push({
-        severity: "error",
+        severity: "warning",
         line: maxLine,
         column: 1,
         message: paren > 0 ? "Missing closing parenthesis." : "Extra closing parenthesis.",

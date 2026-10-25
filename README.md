@@ -54,6 +54,10 @@ https://github.com/TreyvoPrime/lark/releases/latest/download/lark-mobile-linux.z
 
 Do not open launchers from inside a zip preview / Temp folder.
 
+## What’s new in 3.9.7.31
+
+- **Honest red lines** — editor red highlights only come from real javac/run errors. Local brace tips no longer paint working code red; a successful Run clears stale live-check marks.
+
 ## What’s new in 3.9.7.30
 
 - **Assist rebuild** — drag titles into the editor; a green line highlight previews the insert range *before* drop (nothing is written until you release). Blocks are brace-indented, auto-import when needed, and labeled for method body vs class member.

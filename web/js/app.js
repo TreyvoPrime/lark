@@ -4359,6 +4359,11 @@
       state.job = job;
       renderConsole(job.output || "");
       state.problems = job.problems || [];
+      if (job.done) {
+        const hasErr = state.problems.some((problem) => problem.severity === "error");
+        // Successful compile+run means any prior live-check reds are stale.
+        if (!hasErr) state.compileProblems = [];
+      }
       renderProblems();
       markErrors();
       renderTabs();
@@ -4706,15 +4711,30 @@
   function markErrors() {
     clearMarks();
     if (!cm && !cmB) return;
-    allProblems().forEach((problem) => {
+    // Red/amber editor lines come ONLY from javac (Run + live check).
+    // Local Assist heuristics stay in the Problems list — they must not paint
+    // red over code that actually compiles.
+    const paint = [].concat(state.problems || [], state.compileProblems || []);
+    const byLine = new Map();
+    paint.forEach((problem) => {
+      if (!problem) return;
+      const sev = problem.severity;
+      if (sev !== "error" && sev !== "warning") return;
       const resolved = resolveProblemFile(problem.file);
       const doc = docs.get(resolved);
       if (!doc) return;
-      const line = problem.line - 1;
-      if (line < 0 || line >= doc.lineCount()) return;
-      const cls = problem.severity === "warning" ? "cm-warning-line" : "cm-problem-line";
-      doc.addLineClass(line, "background", cls);
-      lineMarks.push({ doc: doc, line: line, cls: cls });
+      const line = Number(problem.line) - 1;
+      if (!Number.isFinite(line) || line < 0 || line >= doc.lineCount()) return;
+      const key = resolved + ":" + line;
+      const prev = byLine.get(key);
+      if (!prev || (sev === "error" && prev.sev !== "error")) {
+        byLine.set(key, { doc: doc, line: line, sev: sev });
+      }
+    });
+    byLine.forEach((hit) => {
+      const cls = hit.sev === "error" ? "cm-problem-line" : "cm-warning-line";
+      hit.doc.addLineClass(hit.line, "background", cls);
+      lineMarks.push({ doc: hit.doc, line: hit.line, cls: cls });
     });
   }
 
