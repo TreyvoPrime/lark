@@ -42,7 +42,7 @@
     { id: "souf", trigger: "souf", label: "printf", text: "System.out.printf(\"%s%n\", );" },
     { id: "serr", trigger: "serr", label: "print error", text: "System.err.println();" },
     { id: "fori", trigger: "fori", label: "for i loop", text:
-      "for (int i = 0; i < n; i++) {\n    \n}" },
+      "for (int i = 0; i < nums.length; i++) {\n    System.out.println(nums[i]);\n}" },
     { id: "matrix", trigger: "matrix", label: "matrix print (nested loops)", text:
       "int[][] matrix = {\n    {1, 2, 3},\n    {4, 5, 6},\n    {7, 8, 9}\n};\n" +
       "for (int i = 0; i < matrix.length; i++) {\n" +
@@ -70,29 +70,29 @@
     { id: "arrcopy", trigger: "arrcopy", label: "copy array", text: null },
     { id: "arrrev", trigger: "arrrev", label: "reverse array", text: null },
     { id: "foreach", trigger: "foreach", label: "for-each loop", text:
-      "for (Type item : collection) {\n    \n}" },
+      "for (String item : list) {\n    System.out.println(item);\n}" },
     { id: "while", trigger: "while", label: "while loop", text:
-      "while (condition) {\n    \n}" },
+      "while (in.hasNext()) {\n    String word = in.next();\n    System.out.println(word);\n}" },
     { id: "dowhile", trigger: "dowhile", label: "do-while loop", text:
-      "do {\n    \n} while (condition);" },
+      "do {\n    System.out.print(\"Again? (y/n): \");\n    answer = in.next();\n} while (answer.equalsIgnoreCase(\"y\"));" },
     { id: "if", trigger: "if", label: "if statement", text:
-      "if (condition) {\n    \n}" },
+      "if (value > 0) {\n    System.out.println(\"positive\");\n}" },
     { id: "ife", trigger: "ife", label: "if / else", text:
-      "if (condition) {\n    \n} else {\n    \n}" },
+      "if (value >= 0) {\n    System.out.println(\"non-negative\");\n} else {\n    System.out.println(\"negative\");\n}" },
     { id: "switch", trigger: "switch", label: "switch", text:
-      "switch (value) {\n    case 1:\n        break;\n    default:\n        break;\n}" },
+      "switch (choice) {\n    case 1:\n        System.out.println(\"One\");\n        break;\n    case 2:\n        System.out.println(\"Two\");\n        break;\n    default:\n        System.out.println(\"Other\");\n        break;\n}" },
     { id: "try", trigger: "try", label: "try / catch", text:
-      "try {\n    \n} catch (Exception e) {\n    System.out.println(e.getMessage());\n}" },
+      "try {\n    int n = Integer.parseInt(text);\n    System.out.println(n);\n} catch (NumberFormatException e) {\n    System.out.println(\"Not a number: \" + e.getMessage());\n}" },
     { id: "tryr", trigger: "tryr", label: "try-with-resources", text:
-      "try (Scanner in = new Scanner(System.in)) {\n    \n}" },
+      "try (Scanner in = new Scanner(System.in)) {\n    System.out.print(\"Enter a line: \");\n    String line = in.nextLine();\n    System.out.println(line);\n}" },
     { id: "scanner", trigger: "scanner", label: "Scanner input", text:
-      "Scanner in = new Scanner(System.in);\nString line = in.nextLine();" },
+      "Scanner in = new Scanner(System.in);\nSystem.out.print(\"Enter a line: \");\nString line = in.nextLine();\nSystem.out.println(\"You typed: \" + line);" },
     { id: "list", trigger: "list", label: "ArrayList", text:
-      "List<String> list = new ArrayList<>();" },
+      "List<String> list = new ArrayList<>();\nlist.add(\"alpha\");\nlist.add(\"beta\");" },
     { id: "map", trigger: "map", label: "HashMap", text:
-      "Map<String, Integer> map = new HashMap<>();" },
+      "Map<String, Integer> map = new HashMap<>();\nmap.put(\"a\", 1);\nmap.put(\"b\", 2);" },
     { id: "arr", trigger: "arr", label: "int array", text:
-      "int[] nums = new int[10];" },
+      "int[] nums = { 4, 8, 15, 16, 23, 42 };" },
     { id: "class", trigger: "class", label: "simple class", text:
       "public class Name {\n    \n}" },
     { id: "record", trigger: "record", label: "record", text:

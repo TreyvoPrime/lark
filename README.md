@@ -54,9 +54,13 @@ https://github.com/TreyvoPrime/lark/releases/latest/download/lark-mobile-linux.z
 
 Do not open launchers from inside a zip preview / Temp folder.
 
+## What’s new in 3.9.7.30
+
+- **Assist rebuild** — drag titles into the editor; a green line highlight previews the insert range *before* drop (nothing is written until you release). Blocks are brace-indented, auto-import when needed, and labeled for method body vs class member.
+
 ## What’s new in 3.9.7.29
 
-- **Assist drop preview** — compact title tiles (no code dump in the menu). While you drag, every line the block will occupy lights up green in the editor; drop to place.
+- Assist drop preview pass (superseded by 3.9.7.30).
 
 ## What’s new in 3.9.7.28
 
