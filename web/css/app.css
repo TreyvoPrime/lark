@@ -1434,8 +1434,8 @@ select:focus, input:focus, textarea:focus, button:focus-visible {
   overflow: auto;
 }
 .tree-icon {
-  width: 15px;
-  height: 15px;
+  width: 16px;
+  height: 16px;
   flex: none;
   border-radius: 3px;
   display: inline-grid;
@@ -1448,12 +1448,25 @@ select:focus, input:focus, textarea:focus, button:focus-visible {
   background: color-mix(in srgb, var(--accent) 75%, var(--bg));
 }
 .tree-icon.folder {
-  background: color-mix(in srgb, var(--muted) 35%, var(--bg-sunken));
-  color: var(--text);
+  background: transparent;
+  color: color-mix(in srgb, var(--accent) 55%, var(--muted));
+  border-radius: 0;
+}
+.tree-icon.folder.open {
+  color: color-mix(in srgb, var(--accent) 72%, var(--text));
+}
+.tree-icon .tree-svg {
+  width: 15px;
+  height: 15px;
+  display: block;
 }
 .tree-icon.txt {
   background: color-mix(in srgb, var(--muted) 28%, var(--bg-sunken));
   color: var(--muted);
+}
+.tree-row.folder:hover .tree-icon.folder,
+.tree-row.folder.selected .tree-icon.folder {
+  color: var(--accent);
 }
 @keyframes tray-row-in {
   from { opacity: 0; transform: translateX(-3px); }

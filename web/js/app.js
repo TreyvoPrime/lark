@@ -1975,12 +1975,27 @@
     });
   }
 
+  function folderIconSvg(open) {
+    // 16×16 folder glyphs — closed vs open.
+    if (open) {
+      return '<svg class="tree-svg" viewBox="0 0 16 16" aria-hidden="true">'
+        + '<path fill="currentColor" d="M.513 1.513A1.75 1.75 0 0 1 1.75 1h3.5c.55 0 1.07.26 1.4.7l.9 1.2a.25.25 0 0 0 .2.1H13a1 1 0 0 1 1 1v.5H.75a.75.75 0 0 0 0 1.5h14.5a.75.75 0 0 1 .73.93l-1.5 6.5a1.75 1.75 0 0 1-1.7 1.32H2.75A1.75 1.75 0 0 1 1 11.25V2.75c0-.48.198-.93.513-1.237Z"/>'
+        + "</svg>";
+    }
+    return '<svg class="tree-svg" viewBox="0 0 16 16" aria-hidden="true">'
+      + '<path fill="currentColor" d="M1.75 1A1.75 1.75 0 0 0 0 2.75v10.5C0 14.216.784 15 1.75 15h12.5A1.75 1.75 0 0 0 16 13.25v-8.5A1.75 1.75 0 0 0 14.25 3H7.5a.25.25 0 0 1-.2-.1l-.9-1.2C6.18 1.26 5.84 1 5.45 1H1.75Z"/>'
+      + "</svg>";
+  }
+
   function fileIcon(node) {
     const icon = document.createElement("span");
     icon.className = "tree-icon";
     if (node.dir) {
+      const open = !state.collapsed.has(node.path);
       icon.classList.add("folder");
-      icon.textContent = state.collapsed.has(node.path) ? "▸" : "▾";
+      icon.classList.toggle("open", open);
+      icon.setAttribute("aria-hidden", "true");
+      icon.innerHTML = folderIconSvg(open);
       return icon;
     }
     if (node.path.endsWith(".java")) {

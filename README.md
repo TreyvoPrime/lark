@@ -54,6 +54,10 @@ https://github.com/TreyvoPrime/lark/releases/latest/download/lark-mobile-linux.z
 
 Do not open launchers from inside a zip preview / Temp folder.
 
+## What’s new in 3.9.7.8
+
+- **Folder icons** — explorer folders use real open/closed folder glyphs instead of chevrons.
+
 ## What’s new in 3.9.7.7
 
 - **Close outdated window** — after an update, Close window actually retires the old tab (browsers block a silent `window.close()`).
