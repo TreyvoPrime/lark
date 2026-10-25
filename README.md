@@ -54,6 +54,15 @@ https://github.com/TreyvoPrime/lark/releases/latest/download/lark-mobile-linux.z
 
 Do not open launchers from inside a zip preview / Temp folder.
 
+## What’s new in 3.9.7.5
+
+- **One instance** — a second launch focuses the running Lark instead of starting another JVM; Restart reuses the same port.
+- **Crash recovery** — after a kill, crash, or closed tab, unsaved buffers and the open project come back on the next launch.
+- **Distinct themes** — a Distinct filter in Themes for looks where keywords, strings, numbers, and types are clearly different colors.
+- **GitHub drawer** — refreshed layout aligned with current Lark.
+- **Editor fonts** — 10+ clearly different monospace choices (Fira, Source Code Pro, Plex, VT323, and more).
+- **Quieter highlights** — softer active-line and brace matching; right-click offers Copy and Paste only.
+
 ## What’s new in 3.9.7.4
 
 - **Post-update restart** — the previous-version Lark tab closes when the new window opens.

@@ -80,11 +80,11 @@ public final class Updates {
                     .put("skipped", skippedThis)
                     .put("page", info.page == null ? "" : info.page)
                     .put("required", desktop && newer);
-            if (!newer) result.put("message", "You're on the latest Lark (" + Settings.VERSION + ").");
-            else if (skippedThis) result.put("message", "Update " + latest + " is available, but you skipped it.");
-            else if (desktop) result.put("message", "Lark Desktop " + latest + " is ready — update to keep your install current.");
-            else if (executable) result.put("message", "Lark Executable " + latest + " is available.");
-            else result.put("message", "Lark " + latest + " is available.");
+            if (!newer) result.put("message", "You're up to date — still on Lark " + Settings.VERSION + ".");
+            else if (skippedThis) result.put("message", "Lark " + latest + " is still waiting whenever you want it.");
+            else if (desktop) result.put("message", "Lark Desktop " + latest + " is ready. Updating takes a minute.");
+            else if (executable) result.put("message", "Lark " + latest + " is ready to download.");
+            else result.put("message", "Lark " + latest + " is ready when you are.");
             settings.lastUpdateCheck = System.currentTimeMillis();
             settings.save();
             return result;
@@ -326,14 +326,14 @@ public final class Updates {
                         .put("pending", false)
                         .put("applied", true)
                         .put("canRestart", true)
-                        .put("message", "Update installed. Click Restart Lark to open the new version.");
+                        .put("message", "All set — restart Lark and you'll be on the new version.");
             }
             return new Json.Obj()
                     .put("ok", true)
                     .put("pending", true)
                     .put("applied", false)
                     .put("canRestart", true)
-                    .put("message", "Update downloaded. Click Restart Lark — Start Lark will finish swapping the jar (close other Lark windows if it asks).");
+                    .put("message", "Download finished. Restart Lark and it'll wrap up the install as it comes back.");
         } catch (RequestFail e) {
             throw e;
         } catch (Exception e) {
@@ -362,6 +362,9 @@ public final class Updates {
         boolean desktop = Desktop.isDesktop();
         boolean executable = Executable.isExecutable() && !desktop;
         boolean mobile = Mobile.isMobile();
+        Integer livePort = Instance.readPort();
+        int handoffPort = livePort == null ? Instance.defaultPort() : livePort;
+        Instance.prepareRestart(handoffPort);
         try {
             if (desktop) refreshDesktopLaunchers(dir);
             if (executable) refreshExecutableMarkers(dir);
@@ -424,9 +427,11 @@ public final class Updates {
         } catch (Exception e) {
             throw new RequestFail(500, e.getMessage() == null ? "Couldn't restart Lark." : e.getMessage());
         }
+        // Free the instance lock early so the new process can claim it while we exit.
+        Instance.releaseQuietly();
         Thread stopper = new Thread(() -> {
             try {
-                Thread.sleep(1500);
+                Thread.sleep(700);
             } catch (InterruptedException ignored) {
                 Thread.currentThread().interrupt();
             }
@@ -434,22 +439,26 @@ public final class Updates {
         }, "lark-restart");
         stopper.setDaemon(true);
         stopper.start();
-        String msg = mobile ? "Restarting Lark Mobile…"
-                : desktop ? "Restarting Lark Desktop…"
-                : executable ? "Restarting Lark Executable…"
-                : "Restarting Lark…";
+        String msg = mobile ? "Restarting Lark Mobile — hang tight…"
+                : desktop ? "Restarting Lark Desktop — back in a moment…"
+                : executable ? "Restarting Lark — back in a moment…"
+                : "Restarting Lark — back in a moment…";
         return new Json.Obj()
                 .put("ok", true)
                 .put("message", msg);
     }
 
     private static Json.Obj restartNativeExe(Path exe, Path dir, String message) throws IOException {
-        new ProcessBuilder(exe.toAbsolutePath().toString())
-                .directory(dir.toFile())
-                .start();
+        ProcessBuilder pb = new ProcessBuilder(exe.toAbsolutePath().toString())
+                .directory(dir.toFile());
+        pb.environment().put("LARK_REPLACE", "1");
+        Integer port = Instance.readPort();
+        if (port != null) pb.environment().put("LARK_PORT", Integer.toString(port));
+        pb.start();
+        Instance.releaseQuietly();
         Thread stopper = new Thread(() -> {
             try {
-                Thread.sleep(1500);
+                Thread.sleep(700);
             } catch (InterruptedException ignored) {
                 Thread.currentThread().interrupt();
             }

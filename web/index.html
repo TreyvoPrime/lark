@@ -364,7 +364,7 @@
     <div class="theme-overlay-card" role="dialog" aria-modal="true" aria-labelledby="theme-overlay-title">
       <div class="theme-overlay-head">
         <div>
-          <strong id="theme-overlay-title">Desk themes</strong>
+          <strong id="theme-overlay-title">Themes</strong>
           <p class="path-note">Click a theme to try it — the panel stays open so you can keep browsing.</p>
         </div>
         <div class="theme-overlay-tools">
@@ -372,6 +372,10 @@
           <button type="button" id="theme-next" title="Next theme">→</button>
           <button type="button" id="theme-overlay-close" aria-label="Close themes">×</button>
         </div>
+      </div>
+      <div class="theme-filter-bar" role="tablist" aria-label="Theme categories">
+        <button type="button" class="theme-filter-btn on" data-theme-filter="all" role="tab" aria-selected="true">All</button>
+        <button type="button" class="theme-filter-btn" data-theme-filter="distinct" role="tab" aria-selected="false">Distinct</button>
       </div>
       <div id="theme-grid" class="theme-grid"></div>
     </div>
@@ -406,8 +410,17 @@
       <label class="settings-row settings-stack">Editor font
         <select id="setting-font-family">
           <option value="jetbrains">JetBrains Mono</option>
-          <option value="cascadia">Cascadia Code</option>
           <option value="fira">Fira Code</option>
+          <option value="source">Source Code Pro</option>
+          <option value="plex">IBM Plex Mono</option>
+          <option value="roboto">Roboto Mono</option>
+          <option value="space">Space Mono</option>
+          <option value="inconsolata">Inconsolata</option>
+          <option value="ubuntu">Ubuntu Mono</option>
+          <option value="cousine">Cousine</option>
+          <option value="sharetech">Share Tech Mono</option>
+          <option value="vt323">VT323 (retro)</option>
+          <option value="cascadia">Cascadia Code</option>
           <option value="consolas">Consolas / Menlo</option>
           <option value="system">System mono</option>
         </select>
@@ -641,45 +654,57 @@
   <div id="scrim" hidden></div>
   <aside id="drawer" hidden>
     <div class="drawer-head">
-      <h2>GitHub</h2>
-      <div class="grow"></div>
-      <button type="button" id="drawer-close">Close</button>
+      <div class="drawer-brand">
+        <span class="drawer-mark" aria-hidden="true">⌘</span>
+        <div>
+          <h2>GitHub</h2>
+          <p class="drawer-sub">Clone, connect, and push without leaving Lark.</p>
+        </div>
+      </div>
+      <button type="button" id="drawer-close" class="drawer-x" aria-label="Close">×</button>
     </div>
     <div class="drawer-body">
-      <section id="gh-signed-out">
-        <p class="gh-lead">Connect once. Lark can then list your repositories, clone them, and push this project.</p>
-        <ol class="gh-steps">
-          <li>
+      <section id="gh-signed-out" class="gh-card">
+        <p class="gh-lead">Connect once. After that, Lark can list your repos, clone them, and push this project.</p>
+        <div class="gh-step-card">
+          <span class="gh-step-num">1</span>
+          <div>
             <button type="button" id="gh-create-token" class="action primary">Create a GitHub token</button>
-            <span class="gh-hint">Opens GitHub with the <code>repo</code> scope already selected. Choose classic token, generate, then copy it.</span>
-          </li>
-          <li>
-            <label>Paste the token here
+            <p class="gh-hint">Opens GitHub with the repo permission already checked. Generate a classic token, then copy it.</p>
+          </div>
+        </div>
+        <div class="gh-step-card">
+          <span class="gh-step-num">2</span>
+          <div class="gh-token-row">
+            <label>Paste the token
               <input id="gh-token" type="password" autocomplete="off" spellcheck="false" placeholder="ghp_…">
             </label>
             <button type="button" id="gh-save" class="action primary">Connect</button>
-          </li>
-        </ol>
+          </div>
+        </div>
         <p id="gh-wait" class="gh-wait"></p>
         <details class="gh-alt">
-          <summary>Browser sign-in instead</summary>
+          <summary>Prefer browser sign-in?</summary>
           <button type="button" id="gh-oauth" class="action">Sign in with browser</button>
         </details>
       </section>
       <section id="gh-signed-in" hidden>
-        <div class="row gh-account">
-          <strong id="gh-status">Connected</strong>
+        <div class="gh-account-card">
+          <div>
+            <span class="gh-pill">Connected</span>
+            <strong id="gh-status">Connected</strong>
+          </div>
           <button type="button" id="gh-forget" class="action">Sign out</button>
         </div>
-        <label>Your repositories
-          <input id="gh-filter" type="text" placeholder="Filter by name" spellcheck="false" autocomplete="off">
+        <label class="gh-search">Find a repository
+          <input id="gh-filter" type="text" placeholder="Type a name…" spellcheck="false" autocomplete="off">
         </label>
         <div id="gh-repo-list" class="repo-list"></div>
-        <div class="block">
+        <div class="gh-push-card">
           <h3>Push this project</h3>
-          <p id="gh-target">Choose a repository above, or create a new one.</p>
+          <p id="gh-target">Pick a repository above, or start a new one.</p>
           <label>Commit message <input id="gh-message" type="text" value="Update from Lark" spellcheck="false"></label>
-          <div class="row">
+          <div class="gh-push-actions">
             <button type="button" id="gh-push" class="action primary">Push</button>
             <button type="button" id="gh-new-repo" class="action">New repository</button>
           </div>
@@ -688,6 +713,10 @@
       </section>
     </div>
   </aside>
+  <div id="editor-context" class="editor-context" hidden role="menu">
+    <button type="button" id="ctx-copy" role="menuitem">Copy</button>
+    <button type="button" id="ctx-paste" role="menuitem">Paste</button>
+  </div>
 
   <div id="modal" hidden>
     <form id="modal-form">

@@ -80,8 +80,9 @@ public final class Desktop {
     }
 
     private static void boot(String[] args) throws Exception {
-        int port = 43123;
+        int port = Instance.defaultPort();
         boolean browser = true;
+        boolean replace = "1".equals(System.getenv("LARK_REPLACE"));
         for (int i = 0; i < args.length; i++) {
             switch (args[i]) {
                 case "--help", "-h" -> {
@@ -89,6 +90,7 @@ public final class Desktop {
                     return;
                 }
                 case "--no-browser" -> browser = false;
+                case "--replace" -> replace = true;
                 case "--desktop" -> {
                     // Already in desktop mode.
                 }
@@ -107,9 +109,30 @@ public final class Desktop {
             }
         }
 
+        Instance.configure(CHANNEL, replace);
+        Integer restartPort = Instance.consumeRestartPort();
+        if (restartPort != null) {
+            port = restartPort;
+            Instance.configure(CHANNEL, true);
+        } else {
+            String envPort = System.getenv("LARK_PORT");
+            if (envPort != null && !envPort.isBlank()) {
+                try {
+                    port = Integer.parseInt(envPort.trim());
+                    Instance.configure(CHANNEL, true);
+                } catch (NumberFormatException ignored) {
+                    // keep parsed --port
+                }
+            }
+        }
+
         System.out.println("Lark Desktop " + Settings.VERSION + " starting...");
         System.out.flush();
         JdkHealth.verifyOrThrow();
+
+        if (!Instance.acquireOrFocus(browser)) {
+            return;
+        }
 
         Settings settings = Settings.load();
         try {

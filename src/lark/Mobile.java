@@ -77,6 +77,7 @@ public final class Mobile {
     private static void boot(String[] args) throws Exception {
         int port = 43125;
         boolean browser = true;
+        boolean replace = "1".equals(System.getenv("LARK_REPLACE"));
         lanEnabled = true;
         for (int i = 0; i < args.length; i++) {
             switch (args[i]) {
@@ -85,6 +86,7 @@ public final class Mobile {
                     return;
                 }
                 case "--no-browser" -> browser = false;
+                case "--replace" -> replace = true;
                 case "--local-only" -> lanEnabled = false;
                 case "--lan" -> lanEnabled = true;
                 case "--port" -> {
@@ -102,10 +104,21 @@ public final class Mobile {
             }
         }
 
+        Instance.configure(CHANNEL, replace);
+        Integer restartPort = Instance.consumeRestartPort();
+        if (restartPort != null) {
+            port = restartPort;
+            Instance.configure(CHANNEL, true);
+        }
+
         pairToken = newToken();
         System.out.println("Lark Mobile " + Settings.VERSION + " starting...");
         System.out.flush();
         JdkHealth.verifyOrThrow();
+
+        if (!Instance.acquireOrFocus(browser)) {
+            return;
+        }
 
         Settings settings = Settings.load();
         try {

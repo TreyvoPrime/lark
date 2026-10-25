@@ -107,11 +107,25 @@
   const INSTANCE_COOKIE = "lark_instance";
   const FONT_STACKS = {
     jetbrains: '"JetBrains Mono", "Cascadia Mono", "Liberation Mono", ui-monospace, monospace',
-    cascadia: '"Cascadia Code", "Cascadia Mono", "JetBrains Mono", ui-monospace, monospace',
     fira: '"Fira Code", "JetBrains Mono", ui-monospace, monospace',
+    source: '"Source Code Pro", "JetBrains Mono", ui-monospace, monospace',
+    plex: '"IBM Plex Mono", "JetBrains Mono", ui-monospace, monospace',
+    roboto: '"Roboto Mono", "JetBrains Mono", ui-monospace, monospace',
+    space: '"Space Mono", "Courier New", monospace',
+    inconsolata: 'Inconsolata, "Courier New", monospace',
+    ubuntu: '"Ubuntu Mono", "Courier New", monospace',
+    cousine: 'Cousine, "Courier New", monospace',
+    sharetech: '"Share Tech Mono", "Courier New", monospace',
+    vt323: 'VT323, "Courier New", monospace',
+    cascadia: '"Cascadia Code", "Cascadia Mono", "JetBrains Mono", ui-monospace, monospace',
     consolas: 'Consolas, Menlo, Monaco, "Courier New", monospace',
     system: 'ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace'
   };
+  /** Themes where each syntax token family is clearly a different color. */
+  const DISTINCT_THEME_IDS = [
+    "prism", "volt", "flare", "reef", "magma",
+    "candy", "terminal", "ultraviolet", "nova", "citrus"
+  ];
   const state = {
     settings: null,
     projects: [],
@@ -229,27 +243,51 @@
     return !!(panel && !panel.hidden);
   }
 
+  function themeFilterMode() {
+    const on = document.querySelector(".theme-filter-btn.on");
+    return (on && on.dataset.themeFilter) || "all";
+  }
+
+  function themesForFilter(mode) {
+    if (mode === "distinct") {
+      return THEME_IDS.filter((id) => DISTINCT_THEME_IDS.includes(id));
+    }
+    return THEME_IDS.slice();
+  }
+
+  function makeThemeTile(id) {
+    const sw = THEME_SWATCHES[id] || { bg: "#333", accent: "#6897bb" };
+    const btn = document.createElement("button");
+    btn.type = "button";
+    btn.className = "theme-tile";
+    btn.dataset.themeChoice = id;
+    if (DISTINCT_THEME_IDS.includes(id)) btn.classList.add("theme-tile-distinct");
+    btn.innerHTML =
+      '<span class="theme-tile-preview" style="--tile-bg:' + sw.bg + ";--tile-accent:" + sw.accent + '"></span>'
+      + '<span class="theme-tile-name">' + themeName(id) + "</span>"
+      + '<span class="theme-tile-meta">Click to preview</span>';
+    btn.addEventListener("click", () => {
+      applyTheme(id, true);
+    });
+    return btn;
+  }
+
   function renderThemeGrid() {
     const grid = $("theme-grid");
-    if (!grid || grid.dataset.ready === "1") return;
+    if (!grid) return;
+    const mode = themeFilterMode();
     grid.innerHTML = "";
-    THEME_IDS.forEach((id) => {
-      const sw = THEME_SWATCHES[id] || { bg: "#333", accent: "#6897bb" };
-      const btn = document.createElement("button");
-      btn.type = "button";
-      btn.className = "theme-tile";
-      btn.dataset.themeChoice = id;
-      btn.innerHTML =
-        '<span class="theme-tile-preview" style="--tile-bg:' + sw.bg + ";--tile-accent:" + sw.accent + '"></span>'
-        + '<span class="theme-tile-name">' + themeName(id) + "</span>"
-        + '<span class="theme-tile-meta">Click to preview</span>';
-      btn.addEventListener("click", () => {
-        applyTheme(id, true);
-        // Keep the overlay open so you can keep cycling through looks.
-      });
-      grid.appendChild(btn);
-    });
     grid.dataset.ready = "1";
+    grid.dataset.filter = mode;
+    const ids = themesForFilter(mode);
+    if (mode === "distinct") {
+      const note = document.createElement("p");
+      note.className = "theme-filter-note path-note";
+      note.textContent = "Distinct themes give keywords, strings, numbers, and types clearly different colors.";
+      grid.appendChild(note);
+    }
+    ids.forEach((id) => grid.appendChild(makeThemeTile(id)));
+    syncThemeOverlaySelection();
   }
 
   function syncThemeOverlaySelection() {
@@ -269,8 +307,21 @@
     if (!panel) return;
     closePopovers();
     renderThemeGrid();
-    syncThemeOverlaySelection();
     panel.hidden = false;
+  }
+
+  function bindThemeFilters() {
+    document.querySelectorAll(".theme-filter-btn").forEach((btn) => {
+      btn.addEventListener("click", () => {
+        document.querySelectorAll(".theme-filter-btn").forEach((b) => {
+          b.classList.remove("on");
+          b.setAttribute("aria-selected", "false");
+        });
+        btn.classList.add("on");
+        btn.setAttribute("aria-selected", "true");
+        renderThemeGrid();
+      });
+    });
   }
 
   function closeThemeOverlay() {
@@ -279,10 +330,11 @@
   }
 
   function cycleTheme(delta) {
+    const list = themesForFilter(themeFilterMode());
     const active = currentThemeId();
-    let idx = THEME_IDS.indexOf(active);
+    let idx = list.indexOf(active);
     if (idx < 0) idx = 0;
-    const next = THEME_IDS[(idx + delta + THEME_IDS.length) % THEME_IDS.length];
+    const next = list[(idx + delta + list.length) % list.length];
     applyTheme(next, true);
   }
 
@@ -1734,6 +1786,7 @@
 
   function scheduleSave(path) {
     clearTimeout(state.timers.get(path));
+    scheduleRecovery();
     if (!state.settings || state.settings.autoSave === false) {
       setSaveStatus("Unsaved");
       return;
@@ -5270,6 +5323,23 @@
         if (event.target === $("theme-overlay")) closeThemeOverlay();
       });
     }
+    bindThemeFilters();
+    bindEditorContextMenu();
+    window.addEventListener("beforeunload", () => {
+      const payload = recoveryPayload();
+      if (!payload || !payload.files.length) return;
+      try {
+        fetch("/api/recovery", {
+          method: "POST",
+          headers: { "Content-Type": "application/json", "X-Lark": "1" },
+          body: JSON.stringify(payload),
+          keepalive: true
+        });
+      } catch (e) { /* ignore */ }
+    });
+    document.addEventListener("visibilitychange", () => {
+      if (document.visibilityState === "hidden") flushRecovery(false).catch(() => {});
+    });
     $("settings").addEventListener("click", (event) => togglePopover(event.currentTarget));
     $("help").addEventListener("click", (event) => togglePopover(event.currentTarget));
     $("setting-font").addEventListener("input", () => {
@@ -5719,16 +5789,18 @@
     state.updateInfo = info;
     const desktop = isDesktopEdition(info);
     const edition = (info && info.edition) || (state.settings && state.settings.edition) || "";
-    const title = desktop
-      ? (productName(edition) + " " + (info.latest || "") + " is ready")
-      : ("Lark " + (info.latest || "") + " is ready");
-    const notes = info.notes || info.message || ("You have " + (info.current || "") + ".");
+    const latest = info.latest || "";
+    const title = latest
+      ? ("Lark " + latest + " is ready")
+      : (productName(edition) + " update is ready");
+    const notes = info.notes || info.message
+      || ("You're on " + (info.current || "an older build") + ". Updating keeps things smooth and safe.");
 
     if (desktop && $("update-modal")) {
       $("update-modal-title").textContent = title;
       $("update-modal-notes").textContent = notes;
       const eyebrow = $("update-modal-eyebrow");
-      if (eyebrow) eyebrow.textContent = productName(edition);
+      if (eyebrow) eyebrow.textContent = "A newer Lark is available";
       const nowBtn = $("update-modal-now");
       const laterBtn = $("update-modal-later");
       const restartBtn = $("update-modal-restart");
@@ -5784,12 +5856,12 @@
       // Desktop: Later only hides for this session; next launch prompts again.
       hideUpdateBanner();
       const ed = (info && info.edition) || (state.settings && state.settings.edition) || "";
-      toast("You'll be prompted again next time you open " + productName(ed) + ".");
+      toast("No worries — we'll ask again next time you open " + productName(ed) + ".");
       return;
     }
     await api("POST", "/api/update/skip", { version: info.latest });
     hideUpdateBanner();
-    toast("Skipped Lark " + info.latest + ".");
+    toast("Okay — skipped Lark " + info.latest + " for now.");
   }
 
   async function installUpdate() {
@@ -5808,15 +5880,16 @@
       $("update-modal-title").textContent = "Downloading update…";
       $("update-modal-notes").textContent = "Fetching " + productName(ed) + ". Keep this window open.";
     }
-    toast("Downloading update…");
+    toast("Downloading the update…");
     try {
       const result = await api("POST", "/api/update/install", { download: info.download || "" });
-      toast(result.message || "Update ready. Restart Lark.");
+      toast(result.message || "Almost there — restart Lark to finish.");
       if (result.canRestart) {
         if (desktop && $("update-modal")) {
           $("update-modal").hidden = false;
-          $("update-modal-title").textContent = "Update installed";
-          $("update-modal-notes").textContent = result.message || ("Restart " + productName(ed) + " to finish.");
+          $("update-modal-title").textContent = "You're ready to restart";
+          $("update-modal-notes").textContent = result.message
+            || ("Restart " + productName(ed) + " and you'll be on the new version.");
           if (nowBtn) {
             nowBtn.hidden = true;
             nowBtn.disabled = false;
@@ -5832,8 +5905,8 @@
           bannerNow.hidden = true;
           bannerNow.disabled = false;
         }
-        $("update-title").textContent = "Update ready";
-        $("update-notes").textContent = result.message || "Restart Lark to finish.";
+        $("update-title").textContent = "Ready to restart";
+        $("update-notes").textContent = result.message || "Restart Lark to finish the update.";
       } else {
         hideUpdateBanner();
       }
@@ -5845,8 +5918,8 @@
       }
       if (bannerNow) bannerNow.disabled = false;
       if (desktop && $("update-modal")) {
-        $("update-modal-title").textContent = productName(ed) + " " + (info.latest || "") + " is ready";
-        $("update-modal-notes").textContent = err.message || "Update failed. Try again.";
+        $("update-modal-title").textContent = "Couldn't finish the update";
+        $("update-modal-notes").textContent = err.message || "Something went wrong. Try again in a moment.";
       }
       throw err;
     }
@@ -5932,12 +6005,146 @@
   }
 
   async function restartAfterUpdate() {
-    toast("Restarting Lark…");
+    toast("Restarting Lark — hang tight…");
     try { localStorage.setItem("lark-close-after-update", "1"); } catch (e) {}
+    try { await flushRecovery(true); } catch (e) { /* best-effort */ }
     await api("POST", "/api/update/restart", {});
-    // New process opens a fresh window; close this previous-version tab shortly after.
-    setTimeout(() => tryCloseOutdatedTab(), 1800);
-    setTimeout(() => tryCloseOutdatedTab(), 4000);
+    // New process reclaims the same port; close this previous-version tab shortly after.
+    setTimeout(() => tryCloseOutdatedTab(), 1600);
+    setTimeout(() => tryCloseOutdatedTab(), 3500);
+  }
+
+  function recoveryPayload() {
+    if (!state.project) return null;
+    const unique = new Map();
+    const put = (path, content) => {
+      if (!path) return;
+      unique.set(path, { path: path, content: content == null ? "" : String(content) });
+    };
+    state.dirty.forEach((path) => {
+      if (state.active === path && cm) put(path, cm.getValue());
+      else if (state.activeB === path && cmB) put(path, cmB.getValue());
+      else put(path, docs.get(path));
+    });
+    if (state.active && cm && state.dirty.has(state.active)) put(state.active, cm.getValue());
+    if (state.activeB && cmB && state.dirty.has(state.activeB)) put(state.activeB, cmB.getValue());
+    return {
+      projectId: state.project.id,
+      active: state.active || "",
+      activeB: state.activeB || "",
+      open: state.open.slice(),
+      files: [...unique.values()]
+    };
+  }
+
+  let recoveryTimer = null;
+  async function flushRecovery(force) {
+    const payload = recoveryPayload();
+    if (!payload) return;
+    if (!force && !payload.files.length && !state.dirty.size) return;
+    try {
+      await api("PUT", "/api/recovery", payload);
+    } catch (e) {
+      if (force) throw e;
+    }
+  }
+
+  function scheduleRecovery() {
+    if (recoveryTimer) clearTimeout(recoveryTimer);
+    recoveryTimer = setTimeout(() => {
+      flushRecovery(false).catch(() => {});
+    }, 900);
+  }
+
+  async function maybeRestoreRecovery() {
+    let snap;
+    try {
+      snap = await api("GET", "/api/recovery");
+    } catch (e) {
+      return false;
+    }
+    if (!snap || !snap.present || !snap.projectId) return false;
+    const known = (id) => state.projects.some((p) => p.id === id);
+    if (!known(snap.projectId)) {
+      await api("DELETE", "/api/recovery").catch(() => {});
+      return false;
+    }
+    toast("Restoring what you were working on…");
+    try {
+      const applied = await api("POST", "/api/recovery/apply", { projectId: snap.projectId });
+      await openProject(snap.projectId);
+      const openPaths = (snap.open && snap.open.length) ? snap.open : (applied.paths || []);
+      for (const path of openPaths) {
+        try { await openFile(path); } catch (e) { /* skip missing */ }
+      }
+      if (snap.active) {
+        try { await openFile(snap.active); } catch (e) { /* skip */ }
+      }
+      await api("DELETE", "/api/recovery").catch(() => {});
+      toast("Welcome back — your editors are restored.");
+      return true;
+    } catch (err) {
+      toast(err.message || "Couldn't restore the last session.");
+      return false;
+    }
+  }
+
+  function bindEditorContextMenu() {
+    const menu = $("editor-context");
+    if (!menu) return;
+    const hide = () => { menu.hidden = true; };
+    const showAt = (x, y) => {
+      menu.hidden = false;
+      const pad = 8;
+      const w = menu.offsetWidth || 140;
+      const h = menu.offsetHeight || 80;
+      menu.style.left = Math.min(window.innerWidth - w - pad, Math.max(pad, x)) + "px";
+      menu.style.top = Math.min(window.innerHeight - h - pad, Math.max(pad, y)) + "px";
+    };
+    document.addEventListener("contextmenu", (event) => {
+      const inEditor = event.target.closest && event.target.closest(".CodeMirror, #scratch-editor, #console-out, #terminal-out, textarea, input");
+      event.preventDefault();
+      if (!inEditor) {
+        hide();
+        return;
+      }
+      showAt(event.clientX, event.clientY);
+    });
+    document.addEventListener("click", hide);
+    document.addEventListener("keydown", (event) => {
+      if (event.key === "Escape") hide();
+    });
+    if ($("ctx-copy")) {
+      $("ctx-copy").addEventListener("click", async () => {
+        hide();
+        try {
+          const text = window.getSelection ? String(window.getSelection()) : "";
+          if (text) await navigator.clipboard.writeText(text);
+          else if (cm) {
+            const sel = cm.getSelection();
+            if (sel) await navigator.clipboard.writeText(sel);
+          }
+          toast(text || (cm && cm.getSelection()) ? "Copied." : "Nothing selected.");
+        } catch (e) {
+          toast("Couldn't copy.");
+        }
+      });
+    }
+    if ($("ctx-paste")) {
+      $("ctx-paste").addEventListener("click", async () => {
+        hide();
+        try {
+          const text = await navigator.clipboard.readText();
+          if (cmScratch && document.activeElement && document.activeElement.closest("#scratch-pad")) {
+            cmScratch.replaceSelection(text);
+          } else if (cm) {
+            cm.replaceSelection(text);
+          }
+        } catch (e) {
+          toast("Couldn't paste — allow clipboard access, or use Ctrl+V.");
+        }
+      });
+    }
   }
 
   async function boot() {
@@ -5995,13 +6202,16 @@
       })();
       const id = known(hash) ? hash : (skipWelcome && known(state.settings.lastProject) ? state.settings.lastProject : "");
       $("boot").hidden = true;
-      if (id) {
-        try { localStorage.setItem("lark-skip-welcome", "1"); } catch (e) {}
-        await openProject(id);
-      } else if (state.projects.length && known(state.settings.lastProject) && skipWelcome) {
-        await openProject(state.settings.lastProject);
-      } else {
-        showWelcome();
+      const restored = await maybeRestoreRecovery();
+      if (!restored) {
+        if (id) {
+          try { localStorage.setItem("lark-skip-welcome", "1"); } catch (e) {}
+          await openProject(id);
+        } else if (state.projects.length && known(state.settings.lastProject) && skipWelcome) {
+          await openProject(state.settings.lastProject);
+        } else {
+          showWelcome();
+        }
       }
       if (cm && state.active) {
         cm.refresh();

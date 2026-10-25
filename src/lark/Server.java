@@ -29,6 +29,7 @@ public final class Server {
     private final GitHub github;
     private final Updates updates;
     private final Terminal terminal;
+    private final Recovery recovery;
     private final Settings settings;
     private final Path webDir;
     private final boolean lan;
@@ -48,6 +49,7 @@ public final class Server {
         this.github = github;
         this.updates = updates;
         this.terminal = terminal;
+        this.recovery = new Recovery();
         this.settings = settings;
         this.webDir = webDir;
         this.lan = lan;
@@ -63,13 +65,37 @@ public final class Server {
         IOException last = null;
         int chosen = port;
         String bind = lan ? "0.0.0.0" : "127.0.0.1";
-        for (int candidate = port; candidate < port + 20; candidate++) {
+        // After an update restart, wait for the previous process to free the same port
+        // instead of hopping to 43124 and opening a second window.
+        boolean preferExact = Instance.isReplaceMode();
+        long deadline = System.currentTimeMillis() + (preferExact ? 15_000 : 0);
+        while (http == null) {
             try {
-                http = HttpServer.create(new InetSocketAddress(bind, candidate), 0);
-                chosen = candidate;
-                break;
+                http = HttpServer.create(new InetSocketAddress(bind, port), 0);
+                chosen = port;
             } catch (IOException e) {
                 last = e;
+                if (System.currentTimeMillis() < deadline) {
+                    try {
+                        Thread.sleep(150);
+                    } catch (InterruptedException ie) {
+                        Thread.currentThread().interrupt();
+                        break;
+                    }
+                    continue;
+                }
+                break;
+            }
+        }
+        if (http == null && !preferExact) {
+            for (int candidate = port + 1; candidate < port + 20; candidate++) {
+                try {
+                    http = HttpServer.create(new InetSocketAddress(bind, candidate), 0);
+                    chosen = candidate;
+                    break;
+                } catch (IOException e) {
+                    last = e;
+                }
             }
         }
         if (http == null) throw last == null ? new IOException("No free port") : last;
@@ -82,6 +108,7 @@ public final class Server {
             return thread;
         }));
         http.start();
+        Instance.writePort(chosen);
         return server;
     }
 
@@ -266,6 +293,25 @@ public final class Server {
         }
         if ("/api/update/restart".equals(path) && "POST".equals(method)) {
             sendJson(exchange, 200, updates.restart());
+            return;
+        }
+        if ("/api/recovery".equals(path) && "GET".equals(method)) {
+            sendJson(exchange, 200, recovery.snapshot());
+            return;
+        }
+        if ("/api/recovery".equals(path) && ("PUT".equals(method) || "POST".equals(method))) {
+            sendJson(exchange, 200, recovery.save(body(exchange)));
+            return;
+        }
+        if ("/api/recovery".equals(path) && "DELETE".equals(method)) {
+            sendJson(exchange, 200, recovery.clear());
+            return;
+        }
+        if ("/api/recovery/apply".equals(path) && "POST".equals(method)) {
+            Json.Obj body = body(exchange);
+            String id = body.str("projectId", "").trim();
+            if (id.isBlank()) id = recovery.snapshot().str("projectId", "");
+            sendJson(exchange, 200, recovery.applyToProject(projects, id));
             return;
         }
         if ("/api/projects".equals(path) && "GET".equals(method)) {
