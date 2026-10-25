@@ -22,6 +22,7 @@ public final class AppWindow {
     public static void open(String url) {
         clearStaleProfileLocks();
         openRaw(url);
+        WinTaskbar.reclaimAfterLaunch();
     }
 
     /**
@@ -34,11 +35,15 @@ public final class AppWindow {
         Thread retry = new Thread(() -> {
             try {
                 Thread.sleep(2200);
-                if (Server.uiFresh()) return;
+                if (Server.uiFresh()) {
+                    WinTaskbar.claimEditorWindow();
+                    return;
+                }
                 System.out.println("Lark window didn't check in — opening again…");
                 System.out.flush();
                 clearStaleProfileLocks();
                 openRaw(url);
+                WinTaskbar.reclaimAfterLaunch();
             } catch (InterruptedException e) {
                 Thread.currentThread().interrupt();
             }
@@ -103,7 +108,11 @@ public final class AppWindow {
     public static boolean focusExisting() {
         String os = System.getProperty("os.name", "").toLowerCase(Locale.ROOT);
         try {
-            if (os.contains("win")) return focusWindows();
+            if (os.contains("win")) {
+                // Focus + re-stamp AUMID so the pin and editor stay one taskbar button.
+                if (WinTaskbar.focusAndClaim()) return true;
+                return focusWindowsFallback();
+            }
             if (os.contains("mac")) return focusMac();
             return focusLinux();
         } catch (Exception e) {
@@ -111,8 +120,8 @@ public final class AppWindow {
         }
     }
 
-    private static boolean focusWindows() throws Exception {
-        // Hardcoded script only — no string interpolation of URLs or user data.
+    /** Title-only fallback when the AUMID claim script cannot run. */
+    private static boolean focusWindowsFallback() throws Exception {
         String script = String.join(";",
                 "Add-Type -TypeDefinition @'",
                 "using System;",

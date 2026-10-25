@@ -14,7 +14,12 @@ import (
 	"unsafe"
 )
 
+// Must match src/lark/WinTaskbar.java EXECUTABLE_AUMID.
+const appUserModelID = "TreyvoPrime.Lark.Executable"
+
 func main() {
+	setAppUserModelID(appUserModelID)
+
 	exe, err := os.Executable()
 	if err != nil {
 		fail("Lark", "Could not find Lark.exe location.")
@@ -28,7 +33,7 @@ func main() {
 	root = filepath.Clean(root)
 
 	logPath := bootLogPath("executable")
-	logf(logPath, "Lark Executable boot %s\nROOT=%s\n", time.Now().Format(time.RFC3339), root)
+	logf(logPath, "Lark Executable boot %s\nROOT=%s\nAUMID=%s\n", time.Now().Format(time.RFC3339), root, appUserModelID)
 
 	if unsafeInstallPath(root) {
 		fail("Lark", "Do not run Lark from a Temp or zip preview folder.\n\n"+
@@ -290,6 +295,16 @@ func logf(path, format string, args ...any) {
 
 func fail(title, msg string) {
 	messageBox(title, msg)
+}
+
+func setAppUserModelID(id string) {
+	p, err := syscall.UTF16PtrFromString(id)
+	if err != nil {
+		return
+	}
+	shell32 := syscall.NewLazyDLL("shell32.dll")
+	proc := shell32.NewProc("SetCurrentProcessExplicitAppUserModelID")
+	_, _, _ = proc.Call(uintptr(unsafe.Pointer(p)))
 }
 
 func messageBox(title, text string) {

@@ -63,15 +63,22 @@ Set-Content -LiteralPath (Join-Path $appDir "update-feed.url") -Value $feed
 # Soft-hide the app runtime folder on Windows (still accessible).
 try { attrib +H "$appDir" 2>$null } catch { }
 
+$launchExe = Join-Path $InstallRoot "Lark Desktop.exe"
 $launchBat = Join-Path $InstallRoot "Start Lark Desktop.bat"
 if (-not (Test-Path -LiteralPath $launchBat)) {
   $launchBat = Join-Path $InstallRoot "Launch Lark Desktop.bat"
 }
-if (-not (Test-Path -LiteralPath $launchBat)) {
-  throw "Start Lark Desktop.bat missing after copy."
-}
 $launchVbs = Join-Path $appDir "Start Lark Desktop.vbs"
-$target = if (Test-Path -LiteralPath $launchVbs) { $launchVbs } else { $launchBat }
+# Prefer the GUI exe so the taskbar pin matches the running window AUMID.
+$target = if (Test-Path -LiteralPath $launchExe) {
+  $launchExe
+} elseif (Test-Path -LiteralPath $launchVbs) {
+  $launchVbs
+} elseif (Test-Path -LiteralPath $launchBat) {
+  $launchBat
+} else {
+  throw "Lark Desktop.exe / Start Lark Desktop.bat missing after copy."
+}
 
 function New-LarkShortcut([string]$Path, [string]$Target, [string]$WorkDir) {
   $w = New-Object -ComObject WScript.Shell
@@ -83,17 +90,28 @@ function New-LarkShortcut([string]$Path, [string]$Target, [string]$WorkDir) {
   $icon = Join-Path $WorkDir "app\lark-icon.ico"
   if (-not (Test-Path -LiteralPath $icon)) { $icon = Join-Path $WorkDir "app\lark-icon.png" }
   if (-not (Test-Path -LiteralPath $icon)) { $icon = Join-Path $WorkDir "lark-icon.png" }
+  if (-not (Test-Path -LiteralPath $icon) -and (Test-Path -LiteralPath $Target)) { $icon = $Target }
   if (Test-Path -LiteralPath $icon) { $sc.IconLocation = $icon }
   $sc.Save()
 }
 
 $programs = Join-Path $env:APPDATA "Microsoft\Windows\Start Menu\Programs"
 New-Item -ItemType Directory -Force -Path $programs | Out-Null
-New-LarkShortcut (Join-Path $programs "Lark Desktop.lnk") $target $InstallRoot
-
+New-Item -ItemType Directory -Force -Path (Join-Path $programs "Lark") | Out-Null
+$shortcutPaths = @(
+  (Join-Path $programs "Lark Desktop.lnk"),
+  (Join-Path $programs "Lark\Lark Desktop.lnk")
+)
 $desktop = [Environment]::GetFolderPath("Desktop")
-if ($desktop) {
-  New-LarkShortcut (Join-Path $desktop "Lark Desktop.lnk") $target $InstallRoot
+if ($desktop) { $shortcutPaths += (Join-Path $desktop "Lark Desktop.lnk") }
+foreach ($sp in $shortcutPaths) {
+  New-LarkShortcut $sp $target $InstallRoot
+}
+
+$stamp = Join-Path $InstallRoot "app\Stamp-LarkAumid.ps1"
+if (-not (Test-Path -LiteralPath $stamp)) { $stamp = Join-Path $Here "Stamp-LarkAumid.ps1" }
+if (Test-Path -LiteralPath $stamp) {
+  & powershell -NoProfile -ExecutionPolicy Bypass -File $stamp -Paths $shortcutPaths
 }
 
 $uninst = Join-Path $appDir "Uninstall Lark Desktop.ps1"

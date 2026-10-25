@@ -54,6 +54,10 @@ https://github.com/TreyvoPrime/lark/releases/latest/download/lark-mobile-linux.z
 
 Do not open launchers from inside a zip preview / Temp folder.
 
+## What’s new in 3.9.7.24
+
+- **One Windows taskbar icon** — clicking the pinned Lark opens/focuses that window instead of leaving a second Lark on the taskbar. Shared AppUserModelID groups the launcher with the editor window. If you still see two icons after updating, unpin Lark once and pin it again from the Start Menu.
+
 ## What’s new in 3.9.7.23
 
 - **Resizable Outline tray** — drag the bar above Project/Outline up or down to give the file tree or Outline more room (double-click resets).

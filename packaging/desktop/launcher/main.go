@@ -15,7 +15,13 @@ import (
 	"unsafe"
 )
 
+// Must match src/lark/WinTaskbar.java DESKTOP_AUMID and installer shortcuts.
+const appUserModelID = "TreyvoPrime.Lark.Desktop"
+
 func main() {
+	// Group with the Chromium --app window after Java reclaims its AUMID.
+	setAppUserModelID(appUserModelID)
+
 	exe, err := os.Executable()
 	if err != nil {
 		fail("Lark Desktop", "Could not find Lark Desktop.exe location.")
@@ -29,7 +35,7 @@ func main() {
 	root = filepath.Clean(root)
 
 	logPath := bootLogPath("desktop")
-	logf(logPath, "Lark Desktop boot %s\nROOT=%s\n", time.Now().Format(time.RFC3339), root)
+	logf(logPath, "Lark Desktop boot %s\nROOT=%s\nAUMID=%s\n", time.Now().Format(time.RFC3339), root, appUserModelID)
 
 	if unsafeInstallPath(root) {
 		fail("Lark Desktop", "Do not run Lark Desktop from a Temp or zip preview folder.\n\n"+
@@ -291,6 +297,16 @@ func logf(path, format string, args ...any) {
 
 func fail(title, msg string) {
 	messageBox(title, msg)
+}
+
+func setAppUserModelID(id string) {
+	p, err := syscall.UTF16PtrFromString(id)
+	if err != nil {
+		return
+	}
+	shell32 := syscall.NewLazyDLL("shell32.dll")
+	proc := shell32.NewProc("SetCurrentProcessExplicitAppUserModelID")
+	_, _, _ = proc.Call(uintptr(unsafe.Pointer(p)))
 }
 
 func messageBox(title, text string) {

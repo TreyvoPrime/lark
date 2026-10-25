@@ -517,6 +517,7 @@ public final class Updates {
         // Setup installs: only refresh unix helpers + marker — do not scatter .bat at root.
         writeLaunchResource("lark/launch/start-lark-desktop.sh", installDir.resolve("start-lark-desktop.sh"));
         writeLaunchResource("lark/launch/start-lark-desktop.sh", installDir.resolve("Launch Lark Desktop.command"));
+        writeLaunchResource("lark/launch/StampLarkAumid.ps1", app.resolve("Stamp-LarkAumid.ps1"));
         if (!setupInstall) {
             writeLaunchResource("lark/launch/StartDesktop.bat", installDir.resolve("Start Lark Desktop.bat"));
             writeLaunchResource("lark/launch/StartDesktop.vbs", app.resolve("Start Lark Desktop.vbs"));

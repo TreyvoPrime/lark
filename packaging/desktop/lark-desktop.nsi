@@ -83,6 +83,10 @@ Section "Lark Desktop" SecMain
   CreateShortCut "$SMPROGRAMS\Lark\Uninstall Lark Desktop.lnk" "$INSTDIR\Uninstall.exe"
   CreateShortCut "$DESKTOP\Lark Desktop.lnk" "$INSTDIR\Lark Desktop.exe" "" "$INSTDIR\app\lark-icon.ico" 0
 
+  ; Stamp System.AppUserModel.ID so the pin groups with the Edge/Chrome --app window.
+  ; Must match packaging/desktop/launcher and src/lark/WinTaskbar.java (TreyvoPrime.Lark.Desktop).
+  ExecWait 'powershell -NoProfile -NonInteractive -ExecutionPolicy Bypass -File "$INSTDIR\app\Stamp-LarkAumid.ps1"'
+
   WriteUninstaller "$INSTDIR\Uninstall.exe"
 SectionEnd
 

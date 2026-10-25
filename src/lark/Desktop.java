@@ -154,6 +154,11 @@ public final class Desktop {
         System.out.println("====================================");
         System.out.flush();
 
+        try {
+            WinTaskbar.stampKnownShortcuts();
+        } catch (Throwable ignored) {
+            // Best-effort taskbar identity.
+        }
         installTray(url);
         if (browser) {
             System.out.println("Opening Lark Desktop window...");

@@ -90,11 +90,25 @@ public final class Instance {
                 if (raised) {
                     System.out.println("Lark is already open — bringing that window forward.");
                 } else if (openBrowser) {
-                    // Server is up but no visible window (common after an update when the
-                    // old Chromium profile still holds the lock, or the UI was closed).
-                    // Never exit silently — always reopen.
-                    System.out.println("Lark is running — opening the window.");
-                    AppWindow.open(url);
+                    // Prefer /api/focus + a short wait before spawning another --app window
+                    // (second taskbar icon) when the editor title hasn't appeared yet.
+                    boolean uiLive = Server.uiFresh();
+                    if (uiLive) {
+                        try {
+                            Thread.sleep(350);
+                        } catch (InterruptedException ie) {
+                            Thread.currentThread().interrupt();
+                        }
+                        raised = AppWindow.focusExisting();
+                    }
+                    if (raised) {
+                        System.out.println("Lark is already open — bringing that window forward.");
+                    } else {
+                        // Server is up but no visible window (common after an update when the
+                        // old Chromium profile still holds the lock, or the UI was closed).
+                        System.out.println("Lark is running — opening the window.");
+                        AppWindow.open(url);
+                    }
                 } else {
                     System.out.println("Lark is already running at " + url);
                 }

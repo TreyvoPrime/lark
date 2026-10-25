@@ -82,6 +82,12 @@ stage_desktop() {
   if [ -f packaging/desktop/lark-icon.png ]; then
     cp packaging/desktop/lark-icon.png "$stage/app/lark-icon.png"
   fi
+  if [ -f packaging/desktop/Stamp-LarkAumid.ps1 ]; then
+    cp packaging/desktop/Stamp-LarkAumid.ps1 "$stage/app/Stamp-LarkAumid.ps1"
+  fi
+  if [ -f "packaging/desktop/Install Lark Desktop.ps1" ]; then
+    cp "packaging/desktop/Install Lark Desktop.ps1" "$stage/app/Install Lark Desktop.ps1"
+  fi
   printf 'desktop\n' > "$stage/app/desktop.marker"
   printf '%s\n' "$github_latest/update.json" > "$stage/app/update-feed.url"
   chmod 755 "$stage/start-lark-desktop.sh" "$stage/Launch Lark Desktop.command"

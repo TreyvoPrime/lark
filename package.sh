@@ -20,6 +20,7 @@ cp "packaging/desktop/Start Lark Desktop.vbs" build/lark/launch/StartDesktop.vbs
 cp packaging/desktop/start-lark-desktop.sh build/lark/launch/start-lark-desktop.sh
 cp "packaging/desktop/Install Lark Desktop.ps1" build/lark/launch/InstallDesktop.ps1
 cp "packaging/desktop/Uninstall Lark Desktop.ps1" build/lark/launch/UninstallDesktop.ps1
+cp "packaging/desktop/Stamp-LarkAumid.ps1" build/lark/launch/StampLarkAumid.ps1
 # Also embed under LaunchDesktop.* so existing installs still refresh launchers.
 cp "packaging/desktop/Start Lark Desktop.bat" build/lark/launch/LaunchDesktop.bat
 cp "packaging/desktop/Start Lark Desktop.vbs" build/lark/launch/LaunchDesktop.vbs

@@ -112,6 +112,11 @@ public final class Lark {
         System.out.println("====================================");
         System.out.println("Projects: " + settings.projectsDir());
         System.out.flush();
+        try {
+            WinTaskbar.stampKnownShortcuts();
+        } catch (Throwable ignored) {
+            // Best-effort taskbar identity (Executable / portable).
+        }
         if (browser) {
             System.out.println("Opening your browser...");
             System.out.flush();
