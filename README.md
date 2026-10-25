@@ -54,6 +54,10 @@ https://github.com/TreyvoPrime/lark/releases/latest/download/lark-mobile-linux.z
 
 Do not open launchers from inside a zip preview / Temp folder.
 
+## What’s new in 3.9.7.25
+
+- **Lua Java highlighter** — the editor’s Java syntax colors come from a real tokenizer written in Lua (`web/lua/java_tokenizer.lua`), running in-browser via Fengari and feeding CodeMirror. Keywords, strings, comments, numbers, operators, annotations, and identifiers are classified in Lua—not just CSS theme tweaks.
+
 ## What’s new in 3.9.7.24
 
 - **One Windows taskbar icon** — clicking the pinned Lark opens/focuses that window instead of leaving a second Lark on the taskbar. Shared AppUserModelID groups the launcher with the editor window. If you still see two icons after updating, unpin Lark once and pin it again from the Start Menu.

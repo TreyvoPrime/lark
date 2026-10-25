@@ -1422,6 +1422,7 @@
   }
 
   function modeFor(path) {
+    // text/x-java is remapped to the Lua tokenizer (lark-java) when Fengari loads.
     return path.endsWith(".java") ? "text/x-java" : null;
   }
 

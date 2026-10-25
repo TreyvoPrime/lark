@@ -904,6 +904,7 @@ public final class Server {
         if (rel.endsWith(".html")) return "text/html; charset=utf-8";
         if (rel.endsWith(".css")) return "text/css; charset=utf-8";
         if (rel.endsWith(".js")) return "text/javascript; charset=utf-8";
+        if (rel.endsWith(".lua")) return "text/plain; charset=utf-8";
         if (rel.endsWith(".svg")) return "image/svg+xml";
         if (rel.endsWith(".png")) return "image/png";
         if (rel.endsWith(".woff2")) return "font/woff2";
@@ -974,11 +975,12 @@ public final class Server {
         exchange.getResponseHeaders().set("Permissions-Policy", "camera=(), microphone=(), geolocation=()");
         exchange.getResponseHeaders().set("Cross-Origin-Resource-Policy", "same-origin");
         exchange.getResponseHeaders().set("Cross-Origin-Opener-Policy", "same-origin");
-        // Local IDE UI — no third-party scripts; block inline eval and cross-origin framing.
+        // Local IDE UI — first-party scripts only. Fengari needs 'unsafe-eval' for Lua.
         if (type != null && (type.startsWith("text/html") || type.startsWith("application/javascript")
                 || type.contains("text/css"))) {
+            // unsafe-eval: Fengari (Lua VM) compiles tokenizer chunks with Function/eval.
             exchange.getResponseHeaders().set("Content-Security-Policy",
-                    "default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; "
+                    "default-src 'self'; script-src 'self' 'unsafe-eval'; style-src 'self' 'unsafe-inline'; "
                             + "font-src 'self' data:; img-src 'self' data:; "
                             + "connect-src 'self'; frame-ancestors 'none'; base-uri 'self'; form-action 'self'; "
                             + "object-src 'none'; upgrade-insecure-requests");
