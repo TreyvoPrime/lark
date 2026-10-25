@@ -4,13 +4,18 @@ import java.awt.Desktop;
 import java.io.File;
 import java.io.IOException;
 import java.net.URI;
+import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Locale;
+import java.util.concurrent.TimeUnit;
 
-/** Opens Lark in a dedicated browser app window (Chrome/Edge --app) when possible. */
+/**
+ * Opens Lark in a dedicated browser app window (Chrome/Edge --app) when possible,
+ * and can raise an already-open Lark window without spawning another taskbar entry.
+ */
 public final class AppWindow {
     private AppWindow() {}
 
@@ -61,6 +66,105 @@ public final class AppWindow {
         } catch (IOException e) {
             System.out.println("Open this address in a browser: " + url);
         }
+    }
+
+    /**
+     * Raise an already-open Lark Chromium/Edge --app window. Never opens a new window.
+     * Title match is hardcoded to {@code Lark} — no user/URL input is passed to the shell.
+     */
+    public static boolean focusExisting() {
+        String os = System.getProperty("os.name", "").toLowerCase(Locale.ROOT);
+        try {
+            if (os.contains("win")) return focusWindows();
+            if (os.contains("mac")) return focusMac();
+            return focusLinux();
+        } catch (Exception e) {
+            return false;
+        }
+    }
+
+    private static boolean focusWindows() throws Exception {
+        // Hardcoded script only — no string interpolation of URLs or user data.
+        String script = String.join(";",
+                "Add-Type -TypeDefinition @'",
+                "using System;",
+                "using System.Runtime.InteropServices;",
+                "public class LarkFocus {",
+                "  [DllImport(\"user32.dll\")] public static extern bool SetForegroundWindow(IntPtr hWnd);",
+                "  [DllImport(\"user32.dll\")] public static extern bool ShowWindowAsync(IntPtr hWnd, int nCmdShow);",
+                "  [DllImport(\"user32.dll\")] public static extern bool IsIconic(IntPtr hWnd);",
+                "}",
+                "'@",
+                "$hit = $false",
+                "Get-Process | Where-Object { $_.MainWindowHandle -ne 0 -and $_.MainWindowTitle -match 'Lark' } | ForEach-Object {",
+                "  $h = $_.MainWindowHandle",
+                "  if ([LarkFocus]::IsIconic($h)) { [void][LarkFocus]::ShowWindowAsync($h, 9) }",
+                "  [void][LarkFocus]::SetForegroundWindow($h)",
+                "  $hit = $true",
+                "}",
+                "if (-not $hit) { exit 2 } else { exit 0 }"
+        );
+        ProcessBuilder pb = new ProcessBuilder(
+                "powershell",
+                "-NoProfile",
+                "-NonInteractive",
+                "-WindowStyle", "Hidden",
+                "-Command", script
+        );
+        pb.redirectErrorStream(true);
+        Process p = pb.start();
+        boolean finished = p.waitFor(4, TimeUnit.SECONDS);
+        if (!finished) {
+            p.destroyForcibly();
+            return false;
+        }
+        return p.exitValue() == 0;
+    }
+
+    private static boolean focusMac() throws Exception {
+        String[] apps = { "Google Chrome", "Microsoft Edge", "Chromium" };
+        for (String app : apps) {
+            // Activate the browser; then try to raise a window whose name contains Lark.
+            String script = "tell application \"" + app + "\" to activate\n"
+                    + "tell application \"System Events\"\n"
+                    + "  if exists process \"" + app + "\" then\n"
+                    + "    tell process \"" + app + "\"\n"
+                    + "      set frontmost to true\n"
+                    + "      repeat with w in windows\n"
+                    + "        try\n"
+                    + "          if name of w contains \"Lark\" then\n"
+                    + "            perform action \"AXRaise\" of w\n"
+                    + "            set index of w to 1\n"
+                    + "            return\n"
+                    + "          end if\n"
+                    + "        end try\n"
+                    + "      end repeat\n"
+                    + "    end tell\n"
+                    + "  end if\n"
+                    + "end tell";
+            Process p = new ProcessBuilder("osascript", "-e", script).start();
+            if (p.waitFor(3, TimeUnit.SECONDS) && p.exitValue() == 0) return true;
+        }
+        return false;
+    }
+
+    private static boolean focusLinux() throws Exception {
+        if (onPath("wmctrl")) {
+            Process p = new ProcessBuilder("wmctrl", "-a", "Lark").start();
+            if (p.waitFor(2, TimeUnit.SECONDS) && p.exitValue() == 0) return true;
+        }
+        if (onPath("xdotool")) {
+            Process search = new ProcessBuilder("xdotool", "search", "--name", "Lark").start();
+            if (!search.waitFor(2, TimeUnit.SECONDS) || search.exitValue() != 0) return false;
+            String ids = new String(search.getInputStream().readAllBytes(), StandardCharsets.UTF_8).trim();
+            if (ids.isBlank()) return false;
+            String id = ids.split("\\s+")[0];
+            // id is digits only from xdotool — refuse anything else.
+            if (!id.matches("\\d+")) return false;
+            Process act = new ProcessBuilder("xdotool", "windowactivate", "--sync", id).start();
+            return act.waitFor(2, TimeUnit.SECONDS) && act.exitValue() == 0;
+        }
+        return false;
     }
 
     /** Stable Chromium profile so --app windows group as one Lark app. */

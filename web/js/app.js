@@ -2647,19 +2647,32 @@
       fields: [{ name: "name", label: "Method name", value: "extracted" }]
     });
     if (!values) return;
+    const methodName = values.name.trim();
+    if (!/^[A-Za-z_][\w$]*$/.test(methodName) || (window.LarkJava.keywords || []).includes(methodName)) {
+      return toast("Pick a valid Java method name.");
+    }
     const indent = " ".repeat((state.settings && state.settings.indentSize) || 4);
-    const plan = window.LarkJava.extractMethod(editor.getValue(), selected, values.name.trim(), indent);
-    if (!plan) return toast("Couldn't extract that selection.");
+    const plan = window.LarkJava.extractMethod(editor.getValue(), selected, methodName, indent);
+    if (!plan) return toast("Couldn't extract that selection. Select complete statements inside a method.");
+    // Replace selection with the call first, then insert the new method before the class's closing brace
+    // (appending at EOF used to land outside the class — the classic "couldn't find position" failure).
     suppress = true;
     editor.replaceSelection(plan.call);
-    const end = editor.lastLine();
-    editor.replaceRange(plan.method, { line: end, ch: editor.getLine(end).length });
+    const text = editor.getValue();
+    const closeAt = window.LarkJava.classCloseIndex(text);
+    if (closeAt < 0) {
+      suppress = false;
+      return toast("Couldn't find the class closing brace to insert the new method.");
+    }
+    const before = text.slice(0, closeAt);
+    const insert = (before.endsWith("\n") ? "" : "\n") + plan.method + (plan.method.endsWith("\n") ? "" : "\n");
+    editor.replaceRange(insert, editor.posFromIndex(closeAt), editor.posFromIndex(closeAt));
     suppress = false;
     const file = fileByPath(path);
     if (file) file.content = editor.getValue();
     state.dirty.add(path);
     afterEdit();
-    toast(plan.note || ("Extracted " + values.name.trim() + "()."));
+    toast(plan.note || ("Extracted " + methodName + "()."));
   }
 
 
@@ -4022,7 +4035,7 @@
       }
       const fixable = window.LarkJava.isQuickFixable
         ? window.LarkJava.isQuickFixable(problem)
-        : (problem.code && ["unused-import", "missing-override", "string-eq", "empty-control", "missing-accessors", "missing-getter", "add-import", "add-semicolon"].includes(problem.code));
+        : (problem.code && ["unused-import", "missing-override", "string-eq", "empty-control", "missing-accessors", "missing-getter", "add-import", "add-semicolon", "missing-return", "add-throws", "make-static", "add-cast"].includes(problem.code));
       if (fixable) {
         const fix = document.createElement("button");
         fix.type = "button";
@@ -5001,9 +5014,10 @@
     const next = (values.name || "").trim();
     if (!next || next === at.word) return;
     if (!/^[A-Za-z_][\w$]*$/.test(next)) return toast("That isn't a valid Java identifier.");
+    if ((window.LarkJava.keywords || []).includes(next)) return toast("Can't rename to a Java keyword.");
     await flushSaves();
     const changes = window.LarkJava.renameAcross(state.files, at.word, next);
-    if (!changes.length) return toast("Nothing to rename.");
+    if (!changes.length) return toast("Nothing matched `" + at.word + "` outside strings/comments.");
     for (const change of changes) {
       const file = fileByPath(change.path);
       if (file) file.content = change.content;
@@ -5072,28 +5086,77 @@
 
   function findJavaBySimpleName(simple) {
     if (!simple) return null;
-    return state.files.find((f) => f.path.endsWith("/" + simple + ".java") || f.path === simple + ".java") || null;
+    const name = String(simple).split("$")[0];
+    return state.files.find((f) => f.path.endsWith("/" + name + ".java") || f.path === name + ".java") || null;
+  }
+
+  /** Resolve a jdb class / file token to a project .java path (package-aware). */
+  function findJavaForDebug(classOrFile) {
+    let raw = String(classOrFile || "").trim();
+    if (!raw) return null;
+    raw = raw.replace(/\.java$/i, "");
+    // Strip method suffix if present: pkg.Cls.method
+    if (raw.includes("(")) raw = raw.slice(0, raw.indexOf("("));
+    // Outer class for Outer$Inner
+    const noInner = raw.split("$")[0];
+    // FQN → path
+    if (noInner.includes(".")) {
+      const rel = noInner.replace(/\./g, "/") + ".java";
+      const byPkg = state.files.find((f) =>
+        f.path === rel || f.path.endsWith("/" + rel) || f.path.replace(/\\/g, "/").endsWith(rel));
+      if (byPkg) return byPkg;
+    }
+    const simple = noInner.includes(".") ? noInner.slice(noInner.lastIndexOf(".") + 1) : noInner;
+    const byName = findJavaBySimpleName(simple);
+    if (byName) return byName;
+    // Last resort: parse symbols for a matching type name.
+    for (let i = 0; i < state.files.length; i++) {
+      const file = state.files[i];
+      if (!file.path.endsWith(".java")) continue;
+      try {
+        const parsed = parsedFile(file);
+        if ((parsed.symbols || []).some((s) =>
+          s.name === simple && (s.kind === "class" || s.kind === "interface" || s.kind === "enum" || s.kind === "record"))) {
+          return file;
+        }
+      } catch (e) { /* skip */ }
+    }
+    return null;
   }
 
   function jumpDebugLocation(className, line) {
-    const cls = className || "";
-    const simple = cls.includes(".") ? cls.slice(cls.lastIndexOf(".") + 1) : cls;
-    const file = findJavaBySimpleName(simple);
-    if (!file) return toast("Couldn't find source for " + (simple || "that frame") + ".");
+    const file = findJavaForDebug(className);
+    if (!file) {
+      return toast("Couldn't find source for " + (className || "that frame") + ". Open the matching .java file in this project.");
+    }
     jumpTo(file.path, line || 1, 1);
   }
 
   function parseDebugStack(output) {
     const frames = [];
     const text = output || "";
+    // jdb: [1] pkg.Cls.method (Cls.java:12)
     const re = /\[(\d+)\]\s+([\w.$]+)\s+\(([^:)]+):(\d+)\)/g;
     let m;
     while ((m = re.exec(text)) !== null) {
       frames.push({
         depth: m[1],
         method: m[2],
-        file: m[3].replace(/\.java$/, ""),
+        file: m[3].replace(/\.java$/i, ""),
+        fqn: m[2].includes(".") ? m[2].replace(/\.[^.]+$/, "") : m[3].replace(/\.java$/i, ""),
         line: Number(m[4])
+      });
+      if (frames.length >= 24) break;
+    }
+    // Breakpoint hit: "thread=main", pkg.Cls.method(), line=12 bci=0
+    const br = /,\s*([\w.$]+)\.\w+\(\),\s*line=(\d+)/g;
+    while ((m = br.exec(text)) !== null) {
+      frames.push({
+        depth: "0",
+        method: m[1],
+        file: m[1].includes(".") ? m[1].slice(m[1].lastIndexOf(".") + 1) : m[1],
+        fqn: m[1],
+        line: Number(m[2])
       });
       if (frames.length >= 24) break;
     }
@@ -5172,7 +5235,7 @@
           btn.innerHTML = "<div></div><div class=\"frame-meta\"></div>";
           btn.firstChild.textContent = frame.method;
           btn.lastChild.textContent = frame.file + ".java:" + frame.line;
-          btn.addEventListener("click", () => jumpDebugLocation(frame.file, frame.line));
+          btn.addEventListener("click", () => jumpDebugLocation(frame.fqn || frame.file, frame.line));
           stack.appendChild(btn);
         });
       }

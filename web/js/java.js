@@ -627,7 +627,8 @@
 
   function renameInSource(source, oldName, newName) {
     if (!oldName || !newName || oldName === newName) return source;
-    if (!/^[A-Za-z_][\w$]*$/.test(newName)) return source;
+    if (!/^[A-Za-z_][\w$]*$/.test(newName) || KEYWORDS.has(newName)) return source;
+    if (!/^[A-Za-z_][\w$]*$/.test(oldName)) return source;
     const re = new RegExp("\\b" + oldName.replace(/\$/g, "\\$") + "\\b", "g");
     return replaceOutsideStrings(source || "", re, newName);
   }
@@ -746,6 +747,13 @@
     if (/has no getter/i.test(msg)) return "missing-getter";
     if (/is private inside|has private access/i.test(msg)) return "missing-accessors";
     if (/';' expected|expected a semicolon/i.test(msg)) return "add-semicolon";
+    if (/missing return statement/i.test(msg)) return "missing-return";
+    if (/unreported exception/i.test(msg)) return "add-throws";
+    if (/non-static\s+(variable|method).+cannot be referenced from a static context/i.test(msg)
+        || /cannot use the instance/i.test(msg)) {
+      return "make-static";
+    }
+    if (/possible lossy conversion from\s+\w+\s+to\s+\w+/i.test(msg)) return "add-cast";
     return "";
   }
 
@@ -879,6 +887,139 @@
       return { source: text, note: "accessors", meta: { field: problem.field || "" } };
     }
 
+    if (code === "missing-return") {
+      const idx = lineIndexNear(lines, problem.line, (line) => /\}\s*$/.test(line.trim()), 8);
+      // Find the enclosing method signature above the error line.
+      let sig = -1;
+      const start = Math.max(0, (problem.line || lines.length) - 1);
+      for (let i = start; i >= 0; i--) {
+        const t = lines[i].trim();
+        if (/^(if|for|while|switch|catch|else)\b/.test(t)) continue;
+        if (!/\(/.test(lines[i])) continue;
+        if (/\b(public|protected|private|static|final)\b/.test(lines[i])
+          || /\b(void|boolean|byte|char|short|int|long|float|double|String|[A-Z]\w*)\s+[A-Za-z_]\w*\s*\(/.test(lines[i])) {
+          sig = i;
+          break;
+        }
+      }
+      if (sig < 0) return null;
+      const sigLine = lines[sig];
+      let ret = "null";
+      if (/\bvoid\b/.test(sigLine)) return null;
+      if (/\bboolean\b/.test(sigLine)) ret = "false";
+      else if (/\b(int|long|short|byte|char)\b/.test(sigLine)) ret = "0";
+      else if (/\b(float|double)\b/.test(sigLine)) ret = "0.0";
+      else if (/\bString\b/.test(sigLine)) ret = "\"\"";
+      // Insert before the closing brace of the method — prefer the reported line's `}`.
+      let close = idx;
+      if (close < 0) {
+        for (let i = start; i < lines.length; i++) {
+          if (/^\s*\}\s*$/.test(lines[i])) { close = i; break; }
+        }
+      }
+      if (close < 0) return null;
+      const indent = (lines[close].match(/^\s*/) || [""])[0] + "    ";
+      const copy = lines.slice();
+      copy.splice(close, 0, indent + "return " + ret + ";");
+      return { source: copy.join("\n"), note: "Added a return " + ret + " before the method ends." };
+    }
+
+    if (code === "add-throws") {
+      const msg = problem.message || "";
+      const m = msg.match(/unreported exception\s+([A-Za-z_][\w.]*)/i);
+      if (!m) return null;
+      const fq = m[1];
+      const ex = fq.includes(".") ? fq.slice(fq.lastIndexOf(".") + 1) : fq;
+      let sig = -1;
+      for (let i = Math.max(0, (problem.line || 1) - 1); i >= Math.max(0, (problem.line || 1) - 40); i--) {
+        const t = lines[i].trim();
+        if (!t || /^\s*(if|for|while|switch|catch|else|try)\b/.test(t)) continue;
+        if (/\(.*\)/.test(lines[i]) && (/\b(void|int|boolean|String|[A-Z]\w*)\b/.test(lines[i]) || /\b(public|private|protected)\b/.test(lines[i]))) {
+          sig = i;
+          break;
+        }
+      }
+      if (sig < 0) return null;
+      const original = lines[sig];
+      if (new RegExp("\\bthrows\\b[^{]*\\b" + ex + "\\b").test(original)) return null;
+      let rewritten;
+      if (/\bthrows\b/.test(original)) {
+        rewritten = original.replace(/\bthrows\s+([^{]+)/, function (_, list) {
+          const brace = /\{/.test(list) ? " {" : "";
+          const parts = list.replace(/\{/, "").split(",").map((s) => s.trim()).filter(Boolean);
+          if (parts.indexOf(ex) < 0) parts.push(ex);
+          return "throws " + parts.join(", ") + brace;
+        });
+      } else if (/\{/.test(original)) {
+        rewritten = original.replace(/\s*\{/, " throws " + ex + " {");
+      } else {
+        rewritten = original.replace(/\s*$/, " throws " + ex);
+      }
+      const copy = lines.slice();
+      copy[sig] = rewritten;
+      let withImport = copy.join("\n");
+      if (fq.includes(".") && !fq.startsWith("java.lang.")) {
+        const added = ensureImports(withImport, [fq]);
+        if (added) withImport = added;
+      }
+      return { source: withImport, note: "Declared throws " + ex + "." };
+    }
+
+    if (code === "make-static") {
+      const msg = problem.message || "";
+      const m = msg.match(/non-static\s+(?:variable|method)\s+(\S+)/i)
+        || msg.match(/instance (?:variable|method) `([^`]+)`/i);
+      const name = m ? m[1].replace(/\(.*$/, "").trim() : "";
+      if (!name) return null;
+      const idx = lineIndexNear(lines, problem.line, (line) => {
+        return new RegExp("\\b" + name.replace(/\$/g, "\\$") + "\\b").test(line)
+          && /\b(private|public|protected|int|boolean|void|String|[A-Z]\w*)\b/.test(line)
+          && !/\bstatic\b/.test(line);
+      }, 80);
+      // Search whole file for the field/method declaration.
+      let decl = idx;
+      if (decl < 0) {
+        decl = lineIndexNear(lines, 1, (line) => {
+          return new RegExp("\\b" + name.replace(/\$/g, "\\$") + "\\s*[;=(\\[]").test(line)
+            && !/\bstatic\b/.test(line)
+            && !/^\s*\//.test(line);
+        }, 500);
+      }
+      if (decl < 0) return null;
+      const copy = lines.slice();
+      if (/\bstatic\b/.test(copy[decl])) return null;
+      if (/\b(private|public|protected)\b/.test(copy[decl])) {
+        copy[decl] = copy[decl].replace(/\b(private|public|protected)\b/, "$1 static");
+      } else {
+        copy[decl] = copy[decl].replace(/^(\s*)/, "$1static ");
+      }
+      return { source: copy.join("\n"), note: "Made `" + name + "` static so main can use it." };
+    }
+
+    if (code === "add-cast") {
+      const msg = problem.message || "";
+      const m = msg.match(/possible lossy conversion from\s+(\w+)\s+to\s+(\w+)/i);
+      if (!m) return null;
+      const toType = m[2];
+      const idx = lineIndexNear(lines, problem.line, () => true, 2);
+      if (idx < 0) return null;
+      const copy = lines.slice();
+      const line = copy[idx];
+      // Cast the RHS of an assignment or return when it isn't already cast.
+      let next = line.replace(/=\s*(?!\()([^;]+);/, function (_, rhs) {
+        if (new RegExp("^\\(\\s*" + toType + "\\s*\\)").test(rhs.trim())) return "= " + rhs + ";";
+        return "= (" + toType + ") (" + rhs.trim() + ");";
+      });
+      if (next === line) {
+        next = line.replace(/\breturn\s+(?!\()([^;]+);/, function (_, rhs) {
+          return "return (" + toType + ") (" + rhs.trim() + ");";
+        });
+      }
+      if (next === line) return null;
+      copy[idx] = next;
+      return { source: copy.join("\n"), note: "Added a (" + toType + ") cast." };
+    }
+
     return null;
   }
 
@@ -887,7 +1028,8 @@
     const code = inferQuickFixCode(problem);
     return !!code && [
       "unused-import", "missing-override", "string-eq", "empty-control",
-      "missing-accessors", "missing-getter", "add-import", "add-semicolon"
+      "missing-accessors", "missing-getter", "add-import", "add-semicolon",
+      "missing-return", "add-throws", "make-static", "add-cast"
     ].indexOf(code) >= 0;
   }
 
@@ -1349,10 +1491,18 @@
   }
 
   function introduceVariable(source, selected, varName, typeHint) {
-    const sel = (selected || "").trim();
-    if (!sel || sel.includes(";") || sel.includes("\n")) return null;
+    let sel = (selected || "").trim();
+    // Allow a trailing semicolon the student highlighted by accident.
+    if (sel.endsWith(";")) sel = sel.slice(0, -1).trim();
+    // Collapse simple wrapped expressions; reject multi-statement selections.
+    if (!sel || /;/.test(sel)) return null;
+    if (/\n/.test(sel)) {
+      const collapsed = sel.replace(/\s*\n\s*/g, " ").trim();
+      if (/;/.test(collapsed) || collapsed.length > 180) return null;
+      sel = collapsed;
+    }
     const name = varName || "value";
-    if (!/^[A-Za-z_][\w$]*$/.test(name)) return null;
+    if (!/^[A-Za-z_][\w$]*$/.test(name) || KEYWORDS.has(name)) return null;
     let type = typeHint || "var";
     if (!typeHint) {
       if (/^".*"$/.test(sel) || /^'.*'$/.test(sel)) type = "String";
@@ -1360,6 +1510,11 @@
       else if (/^\d+$/.test(sel)) type = "int";
       else if (/^\d+\.\d+[fF]?$/.test(sel)) type = "double";
       else if (/^(true|false)$/.test(sel)) type = "boolean";
+      else if (/\.size\s*\(\s*\)$/.test(sel) || /\.length\s*\(\s*\)$/.test(sel) || /\.indexOf\s*\(/.test(sel)) type = "int";
+      else if (/\.isEmpty\s*\(\s*\)$/.test(sel) || /\.contains\s*\(/.test(sel) || /\.equals\s*\(/.test(sel)) type = "boolean";
+      else if (/\.toString\s*\(\s*\)$/.test(sel) || /\.trim\s*\(\s*\)$/.test(sel) || /\.nextLine\s*\(\s*\)$/.test(sel)) type = "String";
+      else if (/\.nextInt\s*\(\s*\)$/.test(sel)) type = "int";
+      else if (/\.nextDouble\s*\(\s*\)$/.test(sel)) type = "double";
       else {
         const neu = sel.match(/^new\s+([A-Za-z_][\w.]*)\s*[(\[]/);
         if (neu) type = neu[1].replace(/<.*>/, "").split(".").pop();
@@ -1392,22 +1547,66 @@
     const body = (selected || "").replace(/\s+$/g, "");
     if (!body.trim()) return null;
     const name = methodName || "extracted";
-    if (!/^[A-Za-z_][\w$]*$/.test(name)) return null;
+    if (!/^[A-Za-z_][\w$]*$/.test(name) || KEYWORDS.has(name)) return null;
     const unit = indentUnit || "    ";
-    const lines = body.split("\n");
-    const indented = lines.map((line) => (line.trim() ? unit + unit + line.replace(/^\s*/, "") : "")).join("\n");
-    const returnsValue = /^\s*return\b/m.test(body);
+    const rawLines = body.split("\n");
+    // Collect identifiers used in the selection that look like free variables.
+    const declared = new Set();
+    rawLines.forEach((line) => {
+      const decl = line.match(/^\s*(?:final\s+)?([A-Za-z_][\w.<>,\[\]?]*)\s+([A-Za-z_]\w*)\s*(?:=|;)/);
+      if (decl && !KEYWORDS.has(decl[2])) declared.add(decl[2]);
+      const forDecl = line.match(/\bfor\s*\(\s*(?:final\s+)?(?:[A-Za-z_][\w.<>,\[\]?]*)\s+([A-Za-z_]\w*)\s*[:=]/);
+      if (forDecl) declared.add(forDecl[1]);
+    });
+    const used = [];
+    const seen = new Set();
+    const idRe = /\b([A-Za-z_][\w]*)\b/g;
+    let m;
+    const blank = blankNoise(body);
+    const builtins = new Set(["System", "Math", "String", "Object", "Integer", "Double", "Boolean", "Arrays", "Collections", "Objects"]);
+    while ((m = idRe.exec(blank)) !== null) {
+      const id = m[1];
+      if (KEYWORDS.has(id) || TYPE_WORDS.has(id) || declared.has(id) || seen.has(id) || builtins.has(id)) continue;
+      if (id === name || id === "this" || id === "super") continue;
+      // Skip member names: anything after a `.` (out / println in System.out.println).
+      let k = m.index - 1;
+      while (k >= 0 && /\s/.test(blank[k])) k--;
+      if (k >= 0 && blank[k] === ".") continue;
+      // Skip method names being called: foo(
+      let j = m.index + id.length;
+      while (j < blank.length && /\s/.test(blank[j])) j++;
+      const called = j < blank.length && blank[j] === "(";
+      // Capitalized bare type names (new ArrayList) — skip unless clearly a var.
+      if (/^[A-Z]/.test(id) && !declared.has(id)) continue;
+      // Method call with no qualifier is still local — keep as param only if not called,
+      // or keep if it's a simple name used as a value. Prefer values over callees.
+      if (called) continue;
+      seen.add(id);
+      used.push(id);
+      if (used.length >= 6) break;
+    }
+    const params = used.map((id) => "Object " + id).join(", ");
+    const args = used.join(", ");
+    const indented = rawLines.map((line) => (line.trim() ? unit + unit + line.replace(/^\s+/, "") : "")).join("\n");
+    const returnsValue = /^\s*return\b/m.test(body) && !/^\s*return\s*;/m.test(body);
+    let retType = "void";
+    let call;
+    if (returnsValue) {
+      retType = "Object";
+      call = name + "(" + args + ")";
+    } else {
+      call = name + "(" + args + ");";
+    }
     const stub =
-      "\n" + unit + "private static void " + name + "() {\n" +
+      "\n" + unit + "private static " + retType + " " + name + "(" + params + ") {\n" +
       (indented || unit + unit + "// …\n") +
-      (returnsValue ? "" : "") +
       unit + "}\n";
     return {
-      call: name + "();",
+      call: call,
       method: stub,
       note: returnsValue
-        ? "Selection contains return — review the new method’s return type."
-        : ""
+        ? "Extracted with return type Object — tighten the type if you know it."
+        : (used.length ? ("Passed " + used.join(", ") + " as parameters.") : "")
     };
   }
 

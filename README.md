@@ -54,6 +54,12 @@ https://github.com/TreyvoPrime/lark/releases/latest/download/lark-mobile-linux.z
 
 Do not open launchers from inside a zip preview / Temp folder.
 
+## What’s new in 3.9.7.13
+
+- **Raise existing Desktop window** — second launch / tray Open asks the OS to foreground the Lark window (Windows/macOS/Linux), not only `window.focus()`.
+- **Stronger Quick Fix** — missing return, `throws`, make-static, and lossy-conversion casts; Extract / Introduce / Rename are more reliable; debugger stack jumps resolve packages and inner classes.
+- **Mobile Quick Fix** — editor shows a Quick fix action when the open file has a fixable warning.
+
 ## What’s new in 3.9.7.12
 
 - **Quick fix works** — Problems → Quick fix keeps fix metadata, finds the right line even if code moved a bit, and inserts accessors at the real class close (ignoring braces in strings). Also adds imports for “cannot find symbol” class errors, `==` → `.equals`, empty `if/for/while;`, unused imports, `@Override`, and missing semicolons.

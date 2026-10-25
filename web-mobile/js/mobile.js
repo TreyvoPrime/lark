@@ -215,6 +215,8 @@
       state.dirty = true;
       $("edit-status").textContent = "Unsaved";
       $("edit-status").className = "dirty";
+      if (state._problemTimer) clearTimeout(state._problemTimer);
+      state._problemTimer = setTimeout(() => refreshMobileProblems(), 400);
     });
     return state.cm;
   }
@@ -326,6 +328,66 @@
     $("edit-status").className = "ok";
     renderFiles();
     $("btn-save").hidden = state.view !== "edit";
+    refreshMobileProblems();
+  }
+
+  function refreshMobileProblems() {
+    const tip = $("edit-problem");
+    const btn = $("btn-quickfix");
+    if (!tip || !btn) return;
+    tip.hidden = true;
+    btn.hidden = true;
+    state.fixable = null;
+    if (!state.cm || !state.path || !state.path.endsWith(".java") || !window.LarkJava) return;
+    const source = state.cm.getValue();
+    const warnings = (window.LarkJava.parseJava(source).warnings || []);
+    const fixable = warnings.find((w) => window.LarkJava.isQuickFixable && window.LarkJava.isQuickFixable(w));
+    if (!fixable) return;
+    state.fixable = fixable;
+    tip.hidden = false;
+    tip.textContent = (fixable.plain || fixable.message || "Issue found") + (fixable.hint ? " — " + fixable.hint : "");
+    btn.hidden = false;
+    btn.textContent = "Quick fix";
+  }
+
+  async function applyMobileQuickFix() {
+    if (!state.cm || !state.path || !state.fixable || !window.LarkJava) return toast("Nothing to fix.");
+    const problem = state.fixable;
+    const code = window.LarkJava.inferQuickFixCode ? window.LarkJava.inferQuickFixCode(problem) : problem.code;
+    const source = state.cm.getValue();
+    if (code === "missing-accessors" || code === "missing-getter") {
+      const parsed = window.LarkJava.parseJava(source);
+      const missing = (parsed.accessors || []).filter((info) => {
+        const mods = info.field.mods || [];
+        if (mods.indexOf("private") < 0) return false;
+        if (problem.field && info.field.name !== problem.field) return false;
+        return !info.hasGetter || !info.hasSetter;
+      });
+      if (!missing.length) return toast("Couldn't find the field to fix.");
+      const gen = window.LarkJava.generateGetterSetter(missing.map((i) => i.field), true, true);
+      const closeAt = window.LarkJava.classCloseIndex(source);
+      if (closeAt < 0) return toast("Couldn't find where to insert inside the class.");
+      const before = source.slice(0, closeAt);
+      const insert = (before.endsWith("\n") ? "" : "\n") + "\n" + gen + (gen.endsWith("\n") ? "" : "\n");
+      const next = source.slice(0, closeAt) + insert + source.slice(closeAt);
+      state.cm.setValue(next);
+      state.dirty = true;
+      $("edit-status").textContent = "Unsaved";
+      $("edit-status").className = "dirty";
+      refreshMobileProblems();
+      toast("Added missing getters/setters.");
+      return;
+    }
+    const result = window.LarkJava.applyQuickFix(source, problem, []);
+    if (!result || result.source == null || result.source === source) {
+      return toast("Couldn't apply that quick fix.");
+    }
+    state.cm.setValue(result.source);
+    state.dirty = true;
+    $("edit-status").textContent = "Unsaved";
+    $("edit-status").className = "dirty";
+    refreshMobileProblems();
+    toast(result.note || "Quick fix applied.");
   }
 
   async function saveFile() {
@@ -523,6 +585,9 @@
     $("btn-blocks-more").addEventListener("click", () => insertHomeworkBlock());
     $("btn-matrix").addEventListener("click", () => insertMatrixPrint());
     $("btn-matrix-more").addEventListener("click", () => insertMatrixPrint());
+    if ($("btn-quickfix")) {
+      $("btn-quickfix").addEventListener("click", () => applyMobileQuickFix().catch((e) => toast(e.message)));
+    }
     $("btn-check-update").addEventListener("click", () => checkUpdate().catch((e) => toast(e.message)));
     $("btn-install-update").addEventListener("click", () => installUpdate().catch((e) => toast(e.message)));
     $("theme-select").addEventListener("change", () => {

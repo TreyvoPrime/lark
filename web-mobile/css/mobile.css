@@ -252,11 +252,15 @@ button, .ghost, .accent {
 }
 .wide { width: 100%; }
 
-.empty, .error, .muted {
+.empty, .error, .muted, .hint {
   color: var(--muted);
   line-height: 1.4;
 }
 .error { color: var(--danger); }
+.hint {
+  margin: 0 12px 8px;
+  font-size: 0.85rem;
+}
 
 .edit-tools {
   padding: 0 12px 8px;
