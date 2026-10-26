@@ -54,6 +54,12 @@ https://github.com/TreyvoPrime/lark/releases/latest/download/lark-mobile-linux.z
 
 Do not open launchers from inside a zip preview / Temp folder.
 
+## Unreleased (in main, not in a release yet)
+
+- **Red lines fixed for real** — only errors from your most recent compile show red, with a squiggle under the exact spot. Warnings stay in the Problems list. Old marks no longer stick to the wrong lines after edits, and a program that's still running can't bring old errors back.
+- **No more double drag-in** — dragging an Assist block into the editor drops one copy instead of two.
+- **Security** — Lark only answers local requests with a matching localhost Host header (blocks DNS rebinding), `/api/mobile/info` checks it too, updates must carry a SHA-256, and update downloads must come from TreyvoPrime/lark GitHub releases.
+
 ## What’s new in 3.9.7.31
 
 - **Honest red lines** — editor red highlights only come from real javac/run errors. Local brace tips no longer paint working code red; a successful Run clears stale live-check marks.
