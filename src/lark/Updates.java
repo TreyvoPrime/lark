@@ -158,24 +158,38 @@ public final class Updates {
         }
     }
 
+    /** Where an update download may start: TreyvoPrime/lark release assets over HTTPS, or localhost for packaging. */
     static boolean allowedDownloadUrl(String url) {
         if (url == null || url.isBlank()) return false;
         try {
             URI uri = URI.create(url.trim());
             String scheme = uri.getScheme() == null ? "" : uri.getScheme().toLowerCase(Locale.ROOT);
-            if (!"https".equals(scheme) && !"http".equals(scheme)) return false;
+            String host = uri.getHost() == null ? "" : uri.getHost().toLowerCase(Locale.ROOT);
             // Relative/local update feeds during packaging are http://127.0.0.1 only.
             if ("http".equals(scheme)) {
-                String host = uri.getHost() == null ? "" : uri.getHost().toLowerCase(Locale.ROOT);
                 return host.equals("127.0.0.1") || host.equals("localhost");
             }
-            String host = uri.getHost() == null ? "" : uri.getHost().toLowerCase(Locale.ROOT);
+            if (!"https".equals(scheme) || uri.getRawUserInfo() != null) return false;
+            if (uri.getPort() != -1 && uri.getPort() != 443) return false;
+            String path = uri.getRawPath() == null ? "" : uri.getRawPath();
             return host.equals("github.com")
-                    || host.equals("objects.githubusercontent.com")
-                    || host.equals("release-assets.githubusercontent.com")
-                    || host.endsWith(".githubusercontent.com")
-                    || host.equals("api.github.com")
-                    || host.equals("treyvoprime.github.io");
+                    && path.startsWith("/TreyvoPrime/lark/releases/download/")
+                    && !path.contains("/../") && !path.contains("%2e") && !path.contains("%2E");
+        } catch (Exception e) {
+            return false;
+        }
+    }
+
+    /** Where a release download may end up after redirects: the pinned URL itself or GitHub's release asset CDN. */
+    static boolean allowedRedirectUrl(String url) {
+        if (allowedDownloadUrl(url)) return true;
+        try {
+            URI uri = URI.create(url.trim());
+            String scheme = uri.getScheme() == null ? "" : uri.getScheme().toLowerCase(Locale.ROOT);
+            String host = uri.getHost() == null ? "" : uri.getHost().toLowerCase(Locale.ROOT);
+            return "https".equals(scheme)
+                    && (host.equals("objects.githubusercontent.com")
+                        || host.equals("release-assets.githubusercontent.com"));
         } catch (Exception e) {
             return false;
         }
@@ -258,11 +272,12 @@ public final class Updates {
             if (downloadUrl == null || downloadUrl.isBlank()) {
                 throw new RequestFail(403, "Updates must use the official download from the update feed.");
             }
-        } else if (!downloadUrl.equals(feedDownload) && !allowedDownloadUrl(downloadUrl)) {
-            throw new RequestFail(400, "That update URL is not on an allowed host.");
+        } else if (!allowedDownloadUrl(downloadUrl)) {
+            // Even loopback clients must use a TreyvoPrime/lark release asset; the feed's SHA-256 is still required below.
+            throw new RequestFail(400, "Update URLs must be TreyvoPrime/lark GitHub release downloads.");
         }
         if (!allowedDownloadUrl(downloadUrl)) {
-            throw new RequestFail(400, "Update downloads must use HTTPS on GitHub Releases (or localhost for packaging).");
+            throw new RequestFail(400, "Update downloads must be HTTPS TreyvoPrime/lark GitHub release assets (or localhost for packaging).");
         }
         // Public releases must carry SHA-256 — refuse unsigned remote updates.
         if (!isLocalhostUrl(downloadUrl) && (expectedSha == null || expectedSha.isBlank())) {
@@ -794,7 +809,7 @@ public final class Updates {
             throw new RequestFail(502, "Download failed (" + response.statusCode() + ").");
         }
         URI finalUri = response.uri();
-        if (finalUri != null && !allowedDownloadUrl(finalUri.toString())) {
+        if (finalUri != null && !allowedRedirectUrl(finalUri.toString())) {
             throw new RequestFail(400, "Update redirect pointed at a blocked host.");
         }
         try (InputStream in = response.body()) {

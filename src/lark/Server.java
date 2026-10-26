@@ -235,7 +235,7 @@ public final class Server {
             return;
         }
         if ("GET".equals(method) && "/api/mobile/info".equals(path)) {
-            boolean loopback = isLoopbackPeer(exchange);
+            boolean loopback = isLoopbackPeer(exchange) && localHost(exchange.getRequestHeaders().getFirst("Host"));
             boolean paired = pairOk(exchange);
             boolean sharePair = loopback || paired;
             Json.Arr urls = new Json.Arr();
