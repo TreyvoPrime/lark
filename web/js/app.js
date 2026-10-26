@@ -4375,9 +4375,14 @@
         // Successful compile+run means any prior live-check reds are stale.
         if (!hasErr) state.compileProblems = [];
       }
-      state.markProblems = state.problems;
+      // Only a finished Run sets the editor marks. While a program is still
+      // running, each poll would otherwise repaint its old errors over newer
+      // live-check results at stale line numbers.
+      if (job.done) {
+        state.markProblems = state.problems;
+        markErrors();
+      }
       renderProblems();
-      markErrors();
       renderTabs();
       if (job.done) {
         setRunning(false, false);

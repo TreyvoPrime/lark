@@ -174,7 +174,8 @@ public final class Updates {
             String path = uri.getRawPath() == null ? "" : uri.getRawPath();
             return host.equals("github.com")
                     && path.startsWith("/TreyvoPrime/lark/releases/download/")
-                    && !path.contains("/../") && !path.contains("%2e") && !path.contains("%2E");
+                    && !path.contains("/../") && !path.endsWith("/..")
+                    && !path.contains("%2e") && !path.contains("%2E");
         } catch (Exception e) {
             return false;
         }
