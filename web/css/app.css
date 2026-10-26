@@ -4205,6 +4205,7 @@ body.no-ligatures .CodeMirror {
   text-align: right;
 }
 .cm-problem-line { background: color-mix(in srgb, var(--red) 18%, transparent); }
+.cm-problem-mark { text-decoration: underline wavy var(--red); text-underline-offset: 3px; }
 .cm-warn-line { background: color-mix(in srgb, var(--warn) 18%, transparent); }
 .CodeMirror-dialog {
   background: var(--bg-elev);

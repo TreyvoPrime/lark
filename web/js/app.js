@@ -138,6 +138,7 @@
     selected: null,
     collapsed: new Set(),
     problems: [],
+    markProblems: [],
     localProblems: [],
     job: null,
     poll: null,
@@ -2538,6 +2539,9 @@
       const data = await api("POST", "/api/check", { project: state.project.id });
       if (seq !== state.checkSeq) return;
       state.compileProblems = data.problems || [];
+      state.markProblems = state.compileProblems;
+      // A newer compile supersedes errors from the last Run.
+      state.problems = (state.problems || []).filter((p) => p.severity !== "error" && p.severity !== "warning");
       renderProblems();
       markErrors();
       const errCount = state.compileProblems.filter((p) => p.severity === "error").length;
@@ -2966,6 +2970,7 @@
     state.active = null;
     state.selected = null;
     state.problems = [];
+    state.markProblems = [];
     state.runConfigs = data.project.runConfigs || [];
     state.discoveredTests = [];
     state.dirty.clear();
@@ -3367,7 +3372,13 @@
       if (!wrap.contains(event.relatedTarget)) clearAssistDropPreview();
     });
 
+    // Capture phase: CodeMirror's own drop handler sits on inner elements and
+    // would insert the text/plain copy before a bubbling listener ran, so the
+    // block landed twice. Only claim drops that carry an Assist block; plain text
+    // and file drops keep CodeMirror's default behaviour.
     wrap.addEventListener("drop", (event) => {
+      const types = event.dataTransfer ? Array.from(event.dataTransfer.types || []) : [];
+      if (!assistDragPayload && types.indexOf("text/lark-assist") < 0) return;
       event.preventDefault();
       event.stopPropagation();
       const payload = readAssistDragPayload(event);
@@ -3391,7 +3402,7 @@
         closePopovers();
         toast("Placed " + (payload.label || "block") + ".");
       }
-    });
+    }, true);
   }
 
   function renderAssistBlocks() {
@@ -4364,6 +4375,7 @@
         // Successful compile+run means any prior live-check reds are stale.
         if (!hasErr) state.compileProblems = [];
       }
+      state.markProblems = state.problems;
       renderProblems();
       markErrors();
       renderTabs();
@@ -4704,37 +4716,44 @@
   }
 
   function clearMarks() {
-    lineMarks.forEach((mark) => mark.doc.removeLineClass(mark.line, "background", mark.cls));
+    lineMarks.forEach((mark) => {
+      if (mark.text) mark.text.clear();
+      // Line handles follow edits; removing by stale line numbers left old reds behind.
+      else mark.doc.removeLineClass(mark.handle, "background", mark.cls);
+    });
     lineMarks.length = 0;
   }
 
   function markErrors() {
     clearMarks();
     if (!cm && !cmB) return;
-    // Red/amber editor lines come ONLY from javac (Run + live check).
-    // Local Assist heuristics stay in the Problems list — they must not paint
-    // red over code that actually compiles.
-    const paint = [].concat(state.problems || [], state.compileProblems || []);
+    // Red editor marks come ONLY from javac ERROR diagnostics of the most recent
+    // compile (Run or live check, whichever finished last). Warnings and local
+    // Assist heuristics stay in the Problems list and never paint the editor.
+    const paint = state.markProblems || [];
     const byLine = new Map();
     paint.forEach((problem) => {
-      if (!problem) return;
-      const sev = problem.severity;
-      if (sev !== "error" && sev !== "warning") return;
+      if (!problem || problem.severity !== "error") return;
       const resolved = resolveProblemFile(problem.file);
       const doc = docs.get(resolved);
       if (!doc) return;
       const line = Number(problem.line) - 1;
       if (!Number.isFinite(line) || line < 0 || line >= doc.lineCount()) return;
       const key = resolved + ":" + line;
-      const prev = byLine.get(key);
-      if (!prev || (sev === "error" && prev.sev !== "error")) {
-        byLine.set(key, { doc: doc, line: line, sev: sev });
-      }
+      if (!byLine.has(key)) byLine.set(key, { doc: doc, line: line, column: Number(problem.column) || 0 });
     });
     byLine.forEach((hit) => {
-      const cls = hit.sev === "error" ? "cm-problem-line" : "cm-warning-line";
-      hit.doc.addLineClass(hit.line, "background", cls);
-      lineMarks.push({ doc: hit.doc, line: hit.line, cls: cls });
+      const cls = "cm-problem-line";
+      const handle = hit.doc.addLineClass(hit.line, "background", cls);
+      lineMarks.push({ doc: hit.doc, handle: handle, cls: cls });
+      const text = hit.doc.getLine(hit.line) || "";
+      const ch = Math.min(Math.max(0, hit.column - 1), text.length);
+      if (hit.column > 0 && ch < text.length) {
+        let end = ch + 1;
+        while (end < text.length && /[\w$]/.test(text[end]) && /[\w$]/.test(text[ch])) end++;
+        const mark = hit.doc.markText({ line: hit.line, ch: ch }, { line: hit.line, ch: end }, { className: "cm-problem-mark" });
+        lineMarks.push({ doc: hit.doc, text: mark });
+      }
     });
   }
 
@@ -6387,6 +6406,7 @@
       }
       state.problems = [];
       state.compileProblems = [];
+      state.markProblems = [];
       clearMarks();
       renderProblems();
       renderConsole("");
