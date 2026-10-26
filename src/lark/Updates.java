@@ -281,11 +281,12 @@ public final class Updates {
             Files.createDirectories(target.getParent());
             zip = Files.createTempFile("lark-update-", ".zip");
             downloadTo(downloadUrl, zip);
-            if (expectedSha != null && !expectedSha.isBlank()) {
-                String actual = sha256Hex(zip);
-                if (!expectedSha.equalsIgnoreCase(actual)) {
-                    throw new RequestFail(400, "Update zip failed integrity check (SHA-256 mismatch).");
-                }
+            if (expectedSha == null || expectedSha.isBlank()) {
+                throw new RequestFail(400, "Update feed has no SHA-256 for this download, so Lark won't install it.");
+            }
+            String actual = sha256Hex(zip);
+            if (!expectedSha.trim().equalsIgnoreCase(actual)) {
+                throw new RequestFail(400, "Update zip failed integrity check (SHA-256 mismatch).");
             }
             // Seed launchers from the running jar first, then let the update zip
             // overwrite them. Never refresh AFTER extract — that would clobber the
