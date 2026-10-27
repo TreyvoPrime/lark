@@ -58,20 +58,6 @@ Do not open launchers from inside a zip preview / Temp folder.
 
 - Sharper app icon at every size.
 
-## What’s new in 3.9.7.34
-
-- The open app window and tray icon now use the new Lark logo.
-
-## What’s new in 3.9.7.33
-
-- New Lark app icon for the desktop and executable apps.
-
-## What’s new in 3.9.7.32
-
-- **Red lines fixed for real** — only errors from your most recent compile show red, with a squiggle under the exact spot. Warnings stay in the Problems list. Old marks no longer stick to the wrong lines after edits, and a program that's still running can't bring old errors back.
-- **No more double drag-in** — dragging an Assist block into the editor drops one copy instead of two.
-- **Security** — Lark only answers local requests with a matching localhost Host header (blocks DNS rebinding), `/api/mobile/info` checks it too, updates must carry a SHA-256, and update downloads must come from TreyvoPrime/lark GitHub releases.
-
 ## Build from source
 
 ```bash
