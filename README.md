@@ -54,6 +54,10 @@ https://github.com/TreyvoPrime/lark/releases/latest/download/lark-mobile-linux.z
 
 Do not open launchers from inside a zip preview / Temp folder.
 
+## What’s new in 3.9.7.35
+
+- Sharper app icon at every size.
+
 ## What’s new in 3.9.7.34
 
 - The open app window and tray icon now use the new Lark logo.
