@@ -204,6 +204,14 @@ public final class Desktop {
     }
 
     private static Image trayImage() {
+        // Installs serve web/ from inside lark.jar, so load the icon as a resource first.
+        try (java.io.InputStream in = Lark.class.getResourceAsStream("/web/favicon.png")) {
+            if (in != null) {
+                BufferedImage logo = ImageIO.read(in);
+                if (logo != null) return logo;
+            }
+        } catch (IOException ignored) {
+        }
         try {
             File png = new File("web/favicon.png");
             if (png.isFile()) {
