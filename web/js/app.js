@@ -3183,8 +3183,8 @@
 
   /**
    * Assist Blocks — drag titles into the editor.
-   * Preview paints green on the line range that will receive the block (document is NOT mutated).
-   * place: "body" follows the pointer inside a method; "member" snaps before the class closing brace.
+   * The placement controller renders ghost code without modifying the document.
+   * Both statement and member snippets follow the pointer at structural line boundaries.
    */
   const ASSIST_BLOCK_GROUPS = [
     {
@@ -3223,8 +3223,6 @@
 
   let assistDragPayload = null;
   let assistDidDrag = false;
-  /** Non-mutating preview: { editor, startLine, lineCount, painted, widget } */
-  let assistPreview = null;
 
   function assistSnippetById(id) {
     const snips = (window.LarkJava && window.LarkJava.snippets) || [];
@@ -3240,207 +3238,37 @@
       label: snip.label,
       code: snip.text,
       place: member ? "member" : "body",
-      where: member ? "Drops before the class closing }" : "Drops on the green lines (inside a method)",
+      where: member ? "Drag to a class member boundary" : "Drag to a statement boundary inside a method",
       imports: ASSIST_IMPORTS[id] || []
     };
   }
 
-  function editorIndentUnit(editor) {
-    if (editor.getOption("indentWithTabs")) return "\t";
-    const n = Number(editor.getOption("indentUnit")) || 4;
-    return " ".repeat(n);
-  }
 
-  function dedentAssistCode(code) {
-    const raw = String(code || "").replace(/\r\n/g, "\n").replace(/\r/g, "\n");
-    const lines = raw.split("\n");
-    while (lines.length && lines[lines.length - 1] === "") lines.pop();
-    let min = null;
-    lines.forEach((line) => {
-      if (!line.trim()) return;
-      const m = line.match(/^[ \t]*/)[0].length;
-      min = min == null ? m : Math.min(min, m);
-    });
-    if (!min) return lines.join("\n");
-    return lines.map((line) => (line.trim() ? line.slice(min) : "")).join("\n");
-  }
-
-  function countCodeLines(code) {
-    const text = String(code || "");
-    if (!text) return 1;
-    const parts = text.split("\n");
-    if (parts.length && parts[parts.length - 1] === "") return Math.max(1, parts.length - 1);
-    return Math.max(1, parts.length);
-  }
-
-  /** Brace depth at the start of `line` (0 = top-level / outside class body content). */
-  function braceDepthAtLine(editor, line) {
-    const end = editor.indexFromPos({ line: Math.max(0, line), ch: 0 });
-    const text = editor.getValue().slice(0, end);
-    let depth = 0;
-    let i = 0;
-    while (i < text.length) {
-      const c = text[i];
-      const n = text[i + 1];
-      if (c === "/" && n === "/") {
-        i += 2;
-        while (i < text.length && text[i] !== "\n") i++;
-        continue;
-      }
-      if (c === "/" && n === "*") {
-        i += 2;
-        while (i + 1 < text.length && !(text[i] === "*" && text[i + 1] === "/")) i++;
-        i += 2;
-        continue;
-      }
-      if (c === '"' || c === "'") {
-        const q = c;
-        i++;
-        while (i < text.length && text[i] !== q) {
-          if (text[i] === "\\") i++;
-          i++;
-        }
-        i++;
-        continue;
-      }
-      if (c === "{") depth++;
-      else if (c === "}") depth = Math.max(0, depth - 1);
-      i++;
+  const assistPlacement = window.LarkAssist.controller(() => assistDragPayload, (editor, prepared, meta) => {
+    if (window.LarkAssist.commit(editor, prepared, meta)) {
+      assistDragPayload = null;
+      afterEdit();
+      closePopovers();
     }
-    return depth;
-  }
+  }, () => { assistDragPayload = null; document.body.classList.remove("assist-dragging"); });
 
-  function indentAssistCode(editor, baseDepth, code) {
-    const unit = editorIndentUnit(editor);
-    const base = unit.repeat(Math.max(0, baseDepth));
-    const dedented = dedentAssistCode(code);
-    const lines = dedented.split("\n");
-    const out = lines.map((line) => {
-      if (!line.trim()) return "";
-      // Snippet internal indent is 4 spaces from generators — normalize to editor unit.
-      const lead = line.match(/^[ ]*/)[0].length;
-      const levels = Math.floor(lead / 4);
-      const rest = line.replace(/^[ \t]+/, "");
-      return base + unit.repeat(levels) + rest;
-    });
-    return out.join("\n") + "\n";
-  }
-
-  function classMemberInsertPos(editor) {
-    const text = editor.getValue();
-    let insertPos = -1;
-    if (window.LarkJava && typeof window.LarkJava.classCloseIndex === "function") {
-      insertPos = window.LarkJava.classCloseIndex(text);
-    }
-    if (insertPos < 0) return null;
-    return editor.posFromIndex(insertPos);
-  }
+  function clearAssistDropPreview() { assistPlacement.clear(); }
 
   function resolveAssistTarget(editor, pointerPos, place) {
-    if (place === "member") {
-      const at = classMemberInsertPos(editor);
-      if (!at) return null;
-      return { line: at.line, ch: 0, depth: 1 };
-    }
-    const line = Math.max(0, Math.min(editor.lastLine(), pointerPos.line));
-    return { line: line, ch: 0, depth: braceDepthAtLine(editor, line) };
+    return { line: pointerPos.line, ch: 0, place };
   }
 
-  function clearAssistDropPreview() {
-    const preview = assistPreview;
-    assistPreview = null;
-    if (!preview || !preview.editor) return;
-    const editor = preview.editor;
-    const wrap = editor.getWrapperElement();
-    if (wrap) wrap.classList.remove("assist-drop-over");
-    (preview.painted || []).forEach((line) => {
-      try {
-        editor.removeLineClass(line, "background", "cm-assist-drop-line");
-        editor.removeLineClass(line, "gutter", "cm-assist-drop-gutter");
-      } catch (e) { /* gone */ }
-    });
-    if (preview.widget) {
-      try { preview.widget.clear(); } catch (e) { /* gone */ }
-    }
-  }
-
-  function showAssistDropPreview(editor, target, lineCount) {
-    if (!editor || !target || lineCount < 1) return;
-    if (
-      assistPreview &&
-      assistPreview.editor === editor &&
-      assistPreview.startLine === target.line &&
-      assistPreview.lineCount === lineCount
-    ) {
-      return;
-    }
-    clearAssistDropPreview();
-
-    const last = editor.lastLine();
-    const start = Math.max(0, Math.min(last, target.line));
-    const painted = [];
-    const endPaint = Math.min(last, start + lineCount - 1);
-    for (let line = start; line <= endPaint; line++) {
-      editor.addLineClass(line, "background", "cm-assist-drop-line");
-      editor.addLineClass(line, "gutter", "cm-assist-drop-gutter");
-      painted.push(line);
-    }
-
-    let widget = null;
-    const paintedCount = painted.length;
-    if (paintedCount < lineCount) {
-      const extra = lineCount - paintedCount;
-      const band = document.createElement("div");
-      band.className = "cm-assist-drop-band";
-      band.style.height = Math.round(extra * (editor.defaultTextHeight() || 16)) + "px";
-      widget = editor.addLineWidget(start, band, { coverGutter: false, noHScroll: true, above: true });
-    }
-
-    editor.getWrapperElement().classList.add("assist-drop-over");
-    assistPreview = {
-      editor: editor,
-      startLine: start,
-      lineCount: lineCount,
-      depth: target.depth,
-      placeLine: start,
-      painted: painted,
-      widget: widget
-    };
-  }
-
-  function applyAssistImports(editor, imports) {
-    if (!imports || !imports.length || !window.LarkJava || !window.LarkJava.ensureImports) return;
-    const next = window.LarkJava.ensureImports(editor.getValue(), imports);
-    if (!next || next === editor.getValue()) return;
-    const cursor = editor.getCursor();
-    suppress = true;
-    editor.setValue(next);
-    editor.setCursor(cursor);
-    suppress = false;
-  }
-
-  function insertAssistBlock(editor, target, meta) {
-    if (!editor || !meta || !meta.code) return false;
-    const indented = indentAssistCode(editor, target.depth, meta.code);
-    const at = { line: target.line, ch: 0 };
-    // Keep a blank line separation when inserting before non-empty content.
-    let text = indented;
-    const lineText = editor.getLine(at.line) || "";
-    if (lineText.trim() && !text.endsWith("\n")) text += "\n";
-    suppress = true;
-    editor.replaceRange(text, at);
-    applyAssistImports(editor, meta.imports);
-    suppress = false;
-    afterEdit();
-    editor.setCursor({ line: at.line, ch: (editor.getLine(at.line) || "").length });
-    editor.focus();
-    return true;
+  function insertAssistBlock(editor, target, meta, replace) {
+    const prepared = window.LarkAssist.plan(editor, target, meta);
+    if (prepared.error) { toast(prepared.error); return false; }
+    const changed = window.LarkAssist.commit(editor, prepared, meta, replace);
+    if (changed) afterEdit();
+    return changed;
   }
 
   function insertCodeAt(editor, pos, code) {
     if (!editor || !code) return false;
-    const depth = braceDepthAtLine(editor, (pos && pos.line) || 0);
-    const target = { line: (pos && pos.line) || 0, ch: 0, depth: depth };
+    const target = { line: (pos && pos.line) || 0, ch: 0 };
     return insertAssistBlock(editor, target, { code: code, imports: [] });
   }
 
@@ -3451,76 +3279,10 @@
     insertCodeAt(editor, cur, code);
   }
 
-  function dropPosFromEvent(editor, event) {
-    return editor.coordsChar({ left: event.clientX, top: event.clientY }, "page");
-  }
-
-  function readAssistDragPayload(event) {
-    try {
-      const raw = event.dataTransfer && event.dataTransfer.getData("text/lark-assist");
-      if (raw) return JSON.parse(raw);
-    } catch (e) { /* ignore */ }
-    return assistDragPayload;
-  }
-
   function wireAssistDrop(editor) {
     if (!editor || editor._larkAssistDrop) return;
     editor._larkAssistDrop = true;
-    const wrap = editor.getWrapperElement();
-
-    wrap.addEventListener("dragenter", (event) => {
-      if (!assistDragPayload) return;
-      event.preventDefault();
-      if (event.dataTransfer) event.dataTransfer.dropEffect = "copy";
-    });
-
-    wrap.addEventListener("dragover", (event) => {
-      if (!assistDragPayload) return;
-      event.preventDefault();
-      if (event.dataTransfer) event.dataTransfer.dropEffect = "copy";
-      const meta = assistDragPayload;
-      const pointer = dropPosFromEvent(editor, event);
-      const target = resolveAssistTarget(editor, pointer, meta.place || "body");
-      if (!target) return;
-      const prepared = indentAssistCode(editor, target.depth, meta.code);
-      showAssistDropPreview(editor, target, countCodeLines(prepared));
-    });
-
-    wrap.addEventListener("dragleave", (event) => {
-      if (!wrap.contains(event.relatedTarget)) clearAssistDropPreview();
-    });
-
-    // Capture phase: CodeMirror's own drop handler sits on inner elements and
-    // would insert the text/plain copy before a bubbling listener ran, so the
-    // block landed twice. Only claim drops that carry an Assist block; plain text
-    // and file drops keep CodeMirror's default behaviour.
-    wrap.addEventListener("drop", (event) => {
-      const types = event.dataTransfer ? Array.from(event.dataTransfer.types || []) : [];
-      if (!assistDragPayload && types.indexOf("text/lark-assist") < 0) return;
-      event.preventDefault();
-      event.stopPropagation();
-      const payload = readAssistDragPayload(event);
-      assistDragPayload = null;
-      if (!payload || !payload.code) {
-        clearAssistDropPreview();
-        return;
-      }
-      const pointer = dropPosFromEvent(editor, event);
-      const target = (assistPreview && {
-        line: assistPreview.placeLine,
-        ch: 0,
-        depth: assistPreview.depth
-      }) || resolveAssistTarget(editor, pointer, payload.place || "body");
-      clearAssistDropPreview();
-      if (!target) {
-        toast("Couldn't find a place to drop that block.");
-        return;
-      }
-      if (insertAssistBlock(editor, target, payload)) {
-        closePopovers();
-        toast("Placed " + (payload.label || "block") + ".");
-      }
-    }, true);
+    assistPlacement.wire(editor);
   }
 
   function renderAssistBlocks() {
@@ -3543,23 +3305,46 @@
       group.ids.forEach((id) => {
         const meta = assistBlockMeta(id);
         if (!meta) return;
-        const card = document.createElement("button");
-        card.type = "button";
+        const card = document.createElement("div");
         card.className = "assist-block";
         card.draggable = true;
         card.dataset.assistBlock = meta.id;
         card.title = meta.where + " — drag to place";
-        const title = document.createElement("span");
+        const title = document.createElement("button");
+        title.type = "button";
+        title.title = "Insert at current line, or drag to place";
         title.className = "assist-block-title";
         title.textContent = meta.label;
         const where = document.createElement("span");
         where.className = "assist-block-where";
-        where.textContent = meta.place === "member" ? "Before class }" : "Inside method body";
-        card.append(title, where);
+        where.textContent = meta.place === "member" ? "Class member" : "Statement block";
+        const actions = document.createElement("select");
+        actions.className = "assist-block-actions";
+        actions.setAttribute("aria-label", "Actions for " + meta.label);
+        [["", "Actions…"], ["copy", "Copy"], ["replace", "Replace selection"]].forEach(([value, label]) => {
+          const option = document.createElement("option"); option.value = value; option.textContent = label; actions.append(option);
+        });
+        const editor = activeCm();
+        const locked = !editor || editor.getOption("readOnly") || editor.getOption("disableInput");
+        title.disabled = !!locked;
+        card.draggable = !locked;
+        actions.options[2].disabled = !!locked || !editor.somethingSelected() || editor.listSelections().length !== 1;
+        actions.addEventListener("change", async () => {
+          const action = actions.value; actions.value = "";
+          if (action === "copy") {
+            try { await navigator.clipboard.writeText(meta.code); } catch (err) { toast("Clipboard unavailable: " + err.message); }
+          } else if (action === "replace") {
+            const ed = activeCm();
+            if (!ed || !ed.somethingSelected()) return;
+            if (insertAssistBlock(ed, ed.getCursor("from"), meta, true)) closePopovers();
+          }
+        });
+        card.append(title, actions, where);
 
         card.addEventListener("dragstart", (event) => {
           assistDidDrag = true;
           assistDragPayload = meta;
+          document.body.classList.add("assist-dragging");
           card.classList.add("is-dragging");
           try {
             event.dataTransfer.effectAllowed = "copy";
@@ -3573,7 +3358,7 @@
           assistDragPayload = null;
           setTimeout(() => { assistDidDrag = false; }, 0);
         });
-        card.addEventListener("click", () => {
+        title.addEventListener("click", () => {
           if (assistDidDrag) return;
           const editor = activeCm() || cm;
           if (!editor) return;
@@ -4899,6 +4684,8 @@
   }
 
   function closePopovers() {
+    assistDragPayload = null;
+    document.body.classList.remove("assist-dragging");
     document.querySelectorAll(".popover").forEach((el) => { el.hidden = true; });
     $("context").hidden = true;
     if ($("tray-new")) $("tray-new").setAttribute("aria-expanded", "false");
@@ -6765,6 +6552,7 @@
       }
     });
     document.addEventListener("pointerdown", (event) => {
+      if (assistDragPayload) return;
       if (event.target.closest(".popover") || event.target.closest("[data-pop]") || event.target.closest("#context")) return;
       closePopovers();
     });
@@ -6775,6 +6563,8 @@
     window.addEventListener("keydown", (event) => {
       const key = event.key.toLowerCase();
       if (event.key === "Escape") {
+        assistDragPayload = null;
+        clearAssistDropPreview();
         if (projectOverlayOpen()) { closeProjectOverlay(); return; }
         if (themeOverlayOpen()) { closeThemeOverlay(); return; }
         if ($("extras-panel") && !$("extras-panel").hidden) { closeExtras(); return; }
