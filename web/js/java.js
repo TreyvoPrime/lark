@@ -457,7 +457,6 @@
     }
     const warnings = braceWarnings(source)
       .concat(styleWarnings(source))
-      .concat(unusedImportWarnings(source, imports, clean))
       .concat(overrideWarnings(source, symbols, lines))
       .concat(accessorWarnings(symbols));
     return {
@@ -1028,7 +1027,7 @@
   function isQuickFixable(problem) {
     const code = inferQuickFixCode(problem);
     return !!code && [
-      "unused-import", "missing-override", "string-eq", "empty-control",
+      "missing-override", "string-eq", "empty-control",
       "missing-accessors", "missing-getter", "add-import", "add-semicolon",
       "missing-return", "add-throws", "make-static", "add-cast"
     ].indexOf(code) >= 0;

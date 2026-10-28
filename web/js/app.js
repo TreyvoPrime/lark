@@ -36,6 +36,11 @@
     flare: "Flare",
     reef: "Reef",
     magma: "Magma",
+    aurora: "Aurora",
+    solar: "Solar",
+    lilac: "Lilac",
+    ocean: "Ocean",
+    espresso: "Espresso",
     ink: "Desk",
     paper: "Daylight",
     tide: "Moss",
@@ -59,7 +64,8 @@
     "graphite", "navy", "terminal", "parchment", "ultraviolet", "forest", "monochrome", "amber",
     "lagoon", "rosewood", "nova", "atelier", "obsidian", "glacier",
     "cedar", "inkwell", "porcelain", "hearth", "canopy",
-    "prism", "volt", "flare", "reef", "magma"
+    "prism", "volt", "flare", "reef", "magma",
+    "aurora", "solar", "lilac", "ocean", "espresso"
   ];
   /** Preview chip colors for the theme overlay tiles. */
   const THEME_SWATCHES = {
@@ -98,7 +104,12 @@
     volt: { bg: "#0a0f1c", accent: "#ffe566" },
     flare: { bg: "#1a0e0a", accent: "#ff6b2d" },
     reef: { bg: "#04181c", accent: "#2ee6c5" },
-    magma: { bg: "#140808", accent: "#ff3b3b" }
+    magma: { bg: "#140808", accent: "#ff3b3b" },
+    aurora: { bg: "#101c1d", accent: "#72e6bd" },
+    solar: { bg: "#fff7df", accent: "#c76b00" },
+    lilac: { bg: "#201a2b", accent: "#c7a0ff" },
+    ocean: { bg: "#071b2a", accent: "#4fc3f7" },
+    espresso: { bg: "#211814", accent: "#e0a36c" }
   };
   const BOOT_ID = (typeof crypto !== "undefined" && crypto.randomUUID)
     ? crypto.randomUUID()
@@ -118,6 +129,8 @@
     sharetech: '"Share Tech Mono", "Courier New", monospace',
     vt323: 'VT323, "Courier New", monospace',
     cascadia: '"Cascadia Code", "Cascadia Mono", "JetBrains Mono", ui-monospace, monospace',
+    aptos: '"Aptos Mono", "Cascadia Mono", "JetBrains Mono", ui-monospace, monospace',
+    lucida: '"Lucida Console", "Courier New", monospace',
     consolas: 'Consolas, Menlo, Monaco, "Courier New", monospace',
     system: 'ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace'
   };
@@ -1482,14 +1495,12 @@
       const path = state.active;
       const file = fileByPath(path);
       if (file) file.content = cm.getValue();
+      const wasDirty = state.dirty.has(path);
       state.dirty.add(path);
-      renderTabs();
+      if (!wasDirty) renderTabs();
       clearMarks();
       scheduleSave(path);
-      renderStructure();
-      refreshLocalProblems();
-      renderProblems();
-      markErrors();
+      scheduleEditorAnalysis();
       scheduleCompileCheck();
       if (state.settings && state.settings.autoSave === false) setSaveStatus("Unsaved");
       else setSaveStatus("Saving…");
@@ -2145,7 +2156,13 @@
       const open = !state.collapsed.has(node.path);
       icon.classList.add("folder");
       icon.classList.toggle("open", open);
-      icon.innerHTML = folderIconSvg(open);
+      const custom = customFolderIcons()[node.path];
+      if (custom) {
+        icon.classList.add("folder-custom");
+        icon.textContent = custom;
+      } else {
+        icon.innerHTML = folderIconSvg(open);
+      }
       return icon;
     }
     const lower = (node.path || "").toLowerCase();
@@ -2414,10 +2431,52 @@
     state.projects.slice(0, 8).forEach((project) => {
       const btn = document.createElement("button");
       btn.type = "button";
-      btn.textContent = project.name;
+      btn.className = "welcome-recent-row";
+      const copy = document.createElement("span");
+      copy.className = "welcome-recent-copy";
+      const name = document.createElement("strong");
+      name.textContent = project.name;
+      const meta = document.createElement("span");
+      meta.textContent = project.mainClass ? "Main: " + project.mainClass : "Java project";
+      copy.append(name, meta);
+      const arrow = document.createElement("span");
+      arrow.className = "welcome-recent-arrow";
+      arrow.textContent = "→";
+      btn.append(copy, arrow);
       btn.addEventListener("click", () => openProject(project.id).catch((err) => toast(err.message)));
       box.appendChild(btn);
     });
+  }
+
+  function folderIconStorageKey() {
+    return "lark-folder-icons:" + (state.project && state.project.id ? state.project.id : "none");
+  }
+
+  function customFolderIcons() {
+    try { return JSON.parse(localStorage.getItem(folderIconStorageKey()) || "{}"); }
+    catch (e) { return {}; }
+  }
+
+  async function chooseFolderIcon(path) {
+    const icons = customFolderIcons();
+    const values = await formDialog({
+      title: "Folder icon",
+      ok: "Apply icon",
+      note: "Give important folders a recognizable icon. This preference stays with this project on your device.",
+      fields: [{
+        name: "icon", label: "Icon", type: "select", value: icons[path] || "",
+        options: [
+          ["", "Default folder"], ["★", "Favorite"], ["☕", "Java package"],
+          ["◆", "Source"], ["✓", "Tests"], ["◈", "Resources"],
+          ["≡", "Documentation"], ["⚙", "Configuration"]
+        ]
+      }]
+    });
+    if (!values) return;
+    if (values.icon) icons[path] = values.icon;
+    else delete icons[path];
+    try { localStorage.setItem(folderIconStorageKey(), JSON.stringify(icons)); } catch (e) {}
+    renderTree();
   }
 
   function openPath(path, opts) {
@@ -2564,7 +2623,22 @@
     updateBraceGuide(editor);
   }
 
+  let editorAnalysisTimer;
+  function scheduleEditorAnalysis() {
+    clearTimeout(editorAnalysisTimer);
+    const project = state.project;
+    const path = state.active;
+    editorAnalysisTimer = setTimeout(() => {
+      if (state.project !== project || state.active !== path) return;
+      renderStructure();
+      refreshLocalProblems();
+      renderProblems();
+      markErrors();
+    }, 250);
+  }
+
   function scheduleCompileCheck() {
+    ++state.checkSeq;
     if (state.checkTimer) clearTimeout(state.checkTimer);
     state.checkTimer = setTimeout(() => {
       state.checkTimer = null;
@@ -2574,11 +2648,13 @@
 
   async function runCompileCheck() {
     if (!state.project) return;
-    await flushSaves();
+    const project = state.project.id;
     const seq = ++state.checkSeq;
+    await flushSaves();
+    if (seq !== state.checkSeq || !state.project || state.project.id !== project) return;
     try {
-      const data = await api("POST", "/api/check", { project: state.project.id });
-      if (seq !== state.checkSeq) return;
+      const data = await api("POST", "/api/check", { project });
+      if (seq !== state.checkSeq || !state.project || state.project.id !== project) return;
       state.compileProblems = data.problems || [];
       state.markProblems = state.compileProblems;
       // A newer compile supersedes errors from the last Run.
@@ -2591,6 +2667,7 @@
         $("status-check").dataset.state = data.clean ? "ok" : (errCount ? "err" : "warn");
       }
     } catch (err) {
+      if (seq !== state.checkSeq || !state.project || state.project.id !== project) return;
       if ($("status-check")) {
         $("status-check").textContent = "";
         delete $("status-check").dataset.state;
@@ -4148,6 +4225,7 @@
     const items = [
       ["New Class", () => { state.selected = node.dir ? node.path : parentDir(node.path); createClass(); }],
       ["New File", () => { state.selected = node.dir ? node.path : parentDir(node.path); createFile(); }],
+      ...(node.dir ? [["Folder icon…", () => chooseFolderIcon(node.path)]] : []),
       ["Rename", () => renamePath(node.path)],
       ["Delete", () => removePath(node.path)]
     ];
@@ -4256,8 +4334,8 @@
         input = document.createElement("select");
         field.options.forEach((option) => {
           const el = document.createElement("option");
-          el.value = option;
-          el.textContent = option;
+          el.value = Array.isArray(option) ? option[0] : option;
+          el.textContent = Array.isArray(option) ? option[1] : option;
           input.appendChild(el);
         });
       } else {
@@ -4555,7 +4633,7 @@
       }
       const fixable = window.LarkJava.isQuickFixable
         ? window.LarkJava.isQuickFixable(problem)
-        : (problem.code && ["unused-import", "missing-override", "string-eq", "empty-control", "missing-accessors", "missing-getter", "add-import", "add-semicolon", "missing-return", "add-throws", "make-static", "add-cast"].includes(problem.code));
+        : (problem.code && ["missing-override", "string-eq", "empty-control", "missing-accessors", "missing-getter", "add-import", "add-semicolon", "missing-return", "add-throws", "make-static", "add-cast"].includes(problem.code));
       if (fixable) {
         const fix = document.createElement("button");
         fix.type = "button";
@@ -5594,10 +5672,17 @@
     const at = wordUnderCursor();
     if (!at || !at.word) return toast("Place the cursor on a name.");
     if (window.LarkJava.keywords.includes(at.word)) return toast("Can't rename a keyword.");
+    await flushSaves();
+    const references = window.LarkJava.findUsages(state.files, at.word);
+    if (!references.length) return toast("No references found for `" + at.word + "`.");
+    const files = Array.from(new Set(references.map((hit) => hit.file)));
+    const preview = references.slice(0, 6).map((hit) => hit.file + ":" + hit.line).join(" · ")
+      + (references.length > 6 ? " · +" + (references.length - 6) + " more" : "");
     const values = await formDialog({
       title: "Rename `" + at.word + "`",
       ok: "Rename in project",
-      note: "Replaces whole-word matches in .java files (skips string/comment text when possible).",
+      note: "Preview: " + references.length + " reference" + (references.length === 1 ? "" : "s")
+        + " in " + files.length + " file" + (files.length === 1 ? "" : "s") + ".\n" + preview,
       fields: [{ name: "name", label: "New name", value: at.word }]
     });
     if (!values) return;
@@ -5605,7 +5690,6 @@
     if (!next || next === at.word) return;
     if (!/^[A-Za-z_][\w$]*$/.test(next)) return toast("That isn't a valid Java identifier.");
     if ((window.LarkJava.keywords || []).includes(next)) return toast("Can't rename to a Java keyword.");
-    await flushSaves();
     const changes = window.LarkJava.renameAcross(state.files, at.word, next);
     if (!changes.length) return toast("Nothing matched `" + at.word + "` outside strings/comments.");
     for (const change of changes) {
@@ -6105,8 +6189,91 @@
     update();
   }
 
+  async function exportCodeImage() {
+    const editor = activeCm();
+    if (!editor || !activePath()) return toast("Open a file first.");
+    await document.fonts.ready;
+    const wrap = editor.getWrapperElement();
+    const style = getComputedStyle(wrap);
+    const probe = document.createElement("span");
+    wrap.append(probe);
+    const colors = new Map();
+    const escape = value => String(value).replace(/[&<>"']/g, c => ({"&":"&amp;", "<":"&lt;", ">":"&gt;", '"':"&quot;", "'":"&apos;"}[c]));
+    const lineHeight = Math.ceil(editor.defaultTextHeight());
+    const fontSize = parseFloat(style.fontSize);
+    const measure = document.createElement("canvas").getContext("2d");
+    measure.font = style.font;
+    let width = 0;
+    const rows = [];
+    try {
+      for (let line = 0; line < editor.lineCount(); line++) {
+        let column = 0;
+        let plain = "";
+        const spans = editor.getLineTokens(line, true).map(token => {
+          const text = token.string.replace(/\t|[^\t]/g, ch => {
+            if (ch !== "\t") { column++; return ch; }
+            const count = editor.getOption("tabSize") - column % editor.getOption("tabSize");
+            column += count; return " ".repeat(count);
+          });
+          plain += text;
+          const type = token.type || "";
+          if (!colors.has(type)) {
+            probe.className = type.split(/\s+/).filter(Boolean).map(t => "cm-" + t).join(" ");
+            colors.set(type, getComputedStyle(probe).color);
+          }
+          return '<tspan fill="' + escape(colors.get(type)) + '">' + escape(text) + '</tspan>';
+        }).join("");
+        width = Math.max(width, measure.measureText(plain).width);
+        rows.push('<text x="24" y="' + (24 + fontSize + line * lineHeight) + '">' + spans + '</text>');
+      }
+    } finally { probe.remove(); }
+    const svg = '<svg xmlns="http://www.w3.org/2000/svg" width="' + Math.ceil(width + 48) + '" height="' + (48 + editor.lineCount() * lineHeight) + '"><rect width="100%" height="100%" fill="' + escape(style.backgroundColor) + '"/><g xml:space="preserve" font-family="' + escape(style.fontFamily) + '" font-size="' + fontSize + '">' + rows.join("") + '</g></svg>';
+    const url = URL.createObjectURL(new Blob([svg], { type: "image/svg+xml;charset=utf-8" }));
+    const link = document.createElement("a");
+    link.href = url;
+    link.download = activePath().split(/[\\/]/).pop() + ".svg";
+    link.click();
+    setTimeout(() => URL.revokeObjectURL(url), 1000);
+    toast("Full-file code image exported as SVG.");
+  }
+
+  function setupToolbarResize() {
+    const top = $("top");
+    const handle = $("top-resize");
+    if (!top || !handle) return;
+    let saved = 0;
+    try { saved = Number(localStorage.getItem("lark-toolbar-height") || 0); } catch (e) {}
+    if (saved >= 44 && saved <= 132) top.style.minHeight = saved + "px";
+    handle.addEventListener("pointerdown", (event) => {
+      event.preventDefault();
+      const startY = event.clientY;
+      const startHeight = top.getBoundingClientRect().height;
+      handle.setPointerCapture(event.pointerId);
+      const move = (nextEvent) => {
+        const height = Math.min(132, Math.max(44, Math.round(startHeight + nextEvent.clientY - startY)));
+        top.style.minHeight = height + "px";
+      };
+      const done = () => {
+        handle.removeEventListener("pointermove", move);
+        handle.removeEventListener("pointerup", done);
+        handle.removeEventListener("pointercancel", done);
+        try { localStorage.setItem("lark-toolbar-height", String(Math.round(top.getBoundingClientRect().height))); } catch (e) {}
+        refreshAllEditors();
+      };
+      handle.addEventListener("pointermove", move);
+      handle.addEventListener("pointerup", done);
+      handle.addEventListener("pointercancel", done);
+    });
+    handle.addEventListener("dblclick", () => {
+      top.style.removeProperty("min-height");
+      try { localStorage.removeItem("lark-toolbar-height"); } catch (e) {}
+    });
+  }
+
   function bind() {
+    $("code-image").addEventListener("click", () => exportCodeImage().catch(err => toast(err.message)));
     setupToolbarOverflow();
+    setupToolbarResize();
     $("run").addEventListener("click", () => {
       if ($("run").textContent === "Stop" && state.job && !state.job.done) {
         api("POST", "/api/run/" + state.job.id + "/stop", {}).catch((err) => toast(err.message));

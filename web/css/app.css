@@ -1123,6 +1123,25 @@ button:disabled { opacity: 0.5; cursor: default; }
   height: 44px;
   gap: 6px;
 }
+#top-resize {
+  position: absolute;
+  z-index: 4;
+  left: 0;
+  right: 0;
+  bottom: -3px;
+  height: 7px;
+  cursor: ns-resize;
+  touch-action: none;
+}
+#top-resize:hover::after {
+  content: "";
+  position: absolute;
+  left: 12%;
+  right: 12%;
+  top: 3px;
+  height: 1px;
+  background: color-mix(in srgb, var(--accent) 65%, transparent);
+}
 #top .grow { flex: 1 1 auto; min-width: 10px; }
 #top .top-group {
   display: flex;
@@ -4381,6 +4400,37 @@ li.CodeMirror-hint-active { background: var(--select); color: var(--text); }
   #status { gap: 8px; }
   #status-java { display: none; }
 }
+
+.welcome-recent { display: grid; gap: 2px; }
+.welcome-recent-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  width: 100%;
+  padding: 10px 4px;
+  border: 0;
+  border-bottom: 1px solid var(--line);
+  border-radius: 0;
+  background: transparent;
+  color: var(--text);
+  text-align: left;
+  cursor: pointer;
+}
+.welcome-recent-row:hover { color: var(--accent); background: color-mix(in srgb, var(--hover) 55%, transparent); }
+.welcome-recent-copy { display: grid; gap: 2px; min-width: 0; }
+.welcome-recent-copy strong { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.welcome-recent-copy span { color: var(--muted); font-size: 11px; }
+.welcome-recent-arrow { flex: none; font-size: 16px; }
+.tree-icon.folder-custom {
+  display: inline-grid;
+  place-items: center;
+  width: 16px;
+  height: 16px;
+  color: var(--accent);
+  font-size: 13px;
+  font-weight: 700;
+}
 #modal form, .palette-card, .toast, .popover {
   animation: lark-rise 160ms ease;
 }
@@ -4408,6 +4458,43 @@ li.CodeMirror-hint-active { background: var(--select); color: var(--text); }
 
 @media (prefers-reduced-motion: reduce) {
   * { transition: none !important; animation: none !important; }
+}
+
+/* Lark 4.0 themes: complete editor and syntax palettes. */
+[data-theme="aurora"] {
+  color-scheme: dark; --bg:#101c1d; --bg-elev:#172829; --bg-sunken:#0b1516; --line:#2c4545;
+  --text:#d5e9e4; --muted:#89aaa2; --faint:#52736d; --accent:#72e6bd; --accent-ink:#082019;
+  --green:#8fdb91; --red:#ff7f86; --warn:#ffd166; --hover:#72e6bd14; --select:#24594d; --shadow:0 12px 28px #0008;
+  --syn-keyword:#ff8fb3; --syn-string:#a8e6a1; --syn-comment:#638a82; --syn-number:#ffd37d; --syn-type:#7ed6ff;
+  --syn-annotation:#d4a5ff; --syn-def:#72e6bd; --syn-atom:#ffad7a; --syn-operator:#b8cfff; --syn-variable:#d5e9e4;
+}
+[data-theme="solar"] {
+  color-scheme: light; --bg:#fff7df; --bg-elev:#fffdf5; --bg-sunken:#f5ead0; --line:#ddcda9;
+  --text:#3f382b; --muted:#796d58; --faint:#aa9979; --accent:#c76b00; --accent-ink:#fffaf0;
+  --green:#4d7a33; --red:#b43c32; --warn:#9a7200; --hover:#c76b0012; --select:#f3ca83; --shadow:0 12px 28px #563b1c22;
+  --syn-keyword:#9b3e7b; --syn-string:#4d7a33; --syn-comment:#8c806b; --syn-number:#b55700; --syn-type:#176f8c;
+  --syn-annotation:#8a5b00; --syn-def:#8d3e00; --syn-atom:#6d4ab3; --syn-operator:#5a4a35; --syn-variable:#3f382b;
+}
+[data-theme="lilac"] {
+  color-scheme: dark; --bg:#201a2b; --bg-elev:#2b2438; --bg-sunken:#181320; --line:#463958;
+  --text:#eee7f7; --muted:#ae9cbd; --faint:#756484; --accent:#c7a0ff; --accent-ink:#21142f;
+  --green:#9bd9a2; --red:#ff8d9d; --warn:#eacb72; --hover:#c7a0ff16; --select:#513b70; --shadow:0 12px 28px #0008;
+  --syn-keyword:#ff92c2; --syn-string:#a8dda2; --syn-comment:#796b89; --syn-number:#ffc978; --syn-type:#84d9ef;
+  --syn-annotation:#dfb2ff; --syn-def:#c7a0ff; --syn-atom:#ffab8a; --syn-operator:#d6c4ee; --syn-variable:#eee7f7;
+}
+[data-theme="ocean"] {
+  color-scheme: dark; --bg:#071b2a; --bg-elev:#0c293d; --bg-sunken:#04131e; --line:#17435d;
+  --text:#d6edf7; --muted:#7fa9ba; --faint:#476e80; --accent:#4fc3f7; --accent-ink:#03202e;
+  --green:#72d6a0; --red:#ff7885; --warn:#ffd166; --hover:#4fc3f716; --select:#15506d; --shadow:0 12px 28px #0009;
+  --syn-keyword:#ff86bb; --syn-string:#77d6a1; --syn-comment:#4d788a; --syn-number:#ffcb6b; --syn-type:#82d9ff;
+  --syn-annotation:#c7a0ff; --syn-def:#4fc3f7; --syn-atom:#f7a46c; --syn-operator:#b1d8e8; --syn-variable:#d6edf7;
+}
+[data-theme="espresso"] {
+  color-scheme: dark; --bg:#211814; --bg-elev:#30231d; --bg-sunken:#17100d; --line:#503a2f;
+  --text:#eaded6; --muted:#ad9383; --faint:#735e52; --accent:#e0a36c; --accent-ink:#29170b;
+  --green:#9bc47c; --red:#e87972; --warn:#d8b65e; --hover:#e0a36c15; --select:#62422c; --shadow:0 12px 28px #0008;
+  --syn-keyword:#e887a5; --syn-string:#a7c87e; --syn-comment:#806b5f; --syn-number:#dfb870; --syn-type:#83c6c8;
+  --syn-annotation:#c89ee8; --syn-def:#e0a36c; --syn-atom:#e99b72; --syn-operator:#d2b7a5; --syn-variable:#eaded6;
 }
 
 /* Allow the toolbar to grow vertically without stealing the workspace row. */

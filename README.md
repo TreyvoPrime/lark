@@ -1,4 +1,4 @@
-# Lark 3
+# Lark 4
 
 Lark is a focused Java IDE: multi-file projects, live compile feedback, brace guide, small refactors, debugger, JUnit, and GitHub clone/push. Lighter than IntelliJ, more useful than a browser text box — deliberately not bloated.
 
@@ -54,9 +54,13 @@ https://github.com/TreyvoPrime/lark/releases/latest/download/lark-mobile-linux.z
 
 Do not open launchers from inside a zip preview / Temp folder.
 
-## What’s new in 3.9.7.35
+## What’s new in 4.0
 
-- Sharper app icon at every size.
+- Faster typing with debounced, cancellable Java analysis and fewer unnecessary rerenders.
+- Cleaner Quick Fix suggestions focused on actionable compiler and Java problems.
+- Responsive toolbar overflow plus a draggable toolbar height.
+- Five new complete syntax themes and two additional editor font choices.
+- Project folder icons, rename previews, improved UML ownership/arrows, and full-file themed code-image export.
 
 ## Build from source
 

@@ -72,6 +72,7 @@
         <summary>More</summary>
         <div id="toolbar-overflow" role="group" aria-label="More toolbar actions"></div>
       </details>
+      <div id="top-resize" aria-hidden="true" title="Drag to resize toolbar"></div>
     </header>
 
     <div id="workspace">
@@ -126,8 +127,8 @@
                 </svg>
                 <h1>Lark</h1>
               </div>
-              <p class="welcome-kicker">Lark 3.0</p>
-              <p class="welcome-lead">A focused Java IDE — compile, run, debug, and refactor without the weight of a full enterprise suite. Built for clear work and shipping small programs cleanly.</p>
+              <p class="welcome-kicker">Lark 4.0</p>
+              <p class="welcome-lead">Your Java workspace. Write, explore, run, and debug your projects with code and tools close at hand.</p>
               <div class="welcome-grid">
                 <section>
                   <h2>Start</h2>
@@ -141,12 +142,12 @@
                   <div id="welcome-recent" class="welcome-recent"></div>
                 </section>
                 <section>
-                  <h2>What’s new in 3.0</h2>
+                  <h2>What’s new in Lark 4.0</h2>
                   <ul class="welcome-tips">
-                    <li><strong>Ctrl+M</strong> jump braces · block highlight while you nest.</li>
-                    <li>Live <strong>Compiles</strong> status while typing — no full Run needed.</li>
-                    <li><strong>Extract method</strong> / <strong>Introduce variable</strong> · <strong>Ctrl+Shift+F</strong> project search.</li>
-                    <li>Presets: BigInteger factorial, quiz, sorting, recursion, and more.</li>
+                    <li><strong>Faster typing</strong> with cancellable, delayed Java analysis.</li>
+                    <li><strong>Smarter Java</strong> signatures, navigation, references, and rename previews.</li>
+                    <li><strong>Personal workspace</strong> with five new themes, fonts, and folder icons.</li>
+                    <li><strong>Code images</strong> export the full current file with its active theme.</li>
                   </ul>
                 </section>
               </div>
@@ -267,6 +268,7 @@
       <div class="menu-panel-grid">
         <button type="button" data-extra="uml" title="UML class diagram">UML diagram…</button>
         <button type="button" data-extra="assign" title="Assignment helper">Assignment…</button>
+        <button type="button" id="code-image">Export code image…</button>
       </div>
     </section>
   </div>
@@ -417,6 +419,8 @@
           <option value="sharetech">Share Tech Mono</option>
           <option value="vt323">VT323 (retro)</option>
           <option value="cascadia">Cascadia Code</option>
+          <option value="aptos">Aptos Mono</option>
+          <option value="lucida">Lucida Console</option>
           <option value="consolas">Consolas / Menlo</option>
           <option value="system">System mono</option>
         </select>
