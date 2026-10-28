@@ -296,6 +296,11 @@ public final class Server {
                 if (body.has("indentWithTabs")) settings.indentWithTabs = body.bool("indentWithTabs");
                 if (body.has("lineWrapping")) settings.lineWrapping = body.bool("lineWrapping");
                 if (body.has("lineNumbers")) settings.lineNumbers = body.bool("lineNumbers");
+                if (body.has("minimapEnabled")) settings.minimapEnabled = body.bool("minimapEnabled");
+                if (body.has("minimapWidth")) { int w = (int) body.longVal("minimapWidth"); settings.minimapWidth = w == 64 || w == 128 ? w : 96; }
+                if (body.has("minimapSide")) settings.minimapSide = "left".equals(body.str("minimapSide", "right")) ? "left" : "right";
+                if (body.has("minimapSyntax")) settings.minimapSyntax = body.bool("minimapSyntax");
+                if (body.has("minimapMarkers")) settings.minimapMarkers = body.bool("minimapMarkers");
                 if (body.has("trayOutlines")) settings.trayOutlines = body.bool("trayOutlines");
                 if (body.has("autoSave")) settings.autoSave = body.bool("autoSave");
                 if (body.has("autoSaveDelayMs")) {
@@ -630,6 +635,11 @@ public final class Server {
                 .put("indentWithTabs", settings.indentWithTabs)
                 .put("lineWrapping", settings.lineWrapping)
                 .put("lineNumbers", settings.lineNumbers)
+                .put("minimapEnabled", settings.minimapEnabled)
+                .put("minimapWidth", settings.minimapWidth)
+                .put("minimapSide", settings.minimapSide)
+                .put("minimapSyntax", settings.minimapSyntax)
+                .put("minimapMarkers", settings.minimapMarkers)
                 .put("trayOutlines", settings.trayOutlines)
                 .put("autoSave", settings.autoSave)
                 .put("autoSaveDelayMs", settings.autoSaveDelayMs)

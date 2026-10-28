@@ -1338,6 +1338,17 @@
     state.settings.autoSave = autoSave;
     state.settings.autoSaveDelayMs = delay;
     state.settings.formatOnSave = formatOnSave;
+    state.settings.minimapEnabled = !!next.minimapEnabled;
+    state.settings.minimapWidth = [64, 96, 128].includes(Number(next.minimapWidth)) ? Number(next.minimapWidth) : 96;
+    state.settings.minimapSide = next.minimapSide === "left" ? "left" : "right";
+    state.settings.minimapSyntax = next.minimapSyntax !== false;
+    state.settings.minimapMarkers = next.minimapMarkers !== false;
+    $("setting-minimap").checked = state.settings.minimapEnabled;
+    $("setting-minimap-width").value = state.settings.minimapWidth;
+    $("setting-minimap-side").value = state.settings.minimapSide;
+    $("setting-minimap-syntax").checked = state.settings.minimapSyntax;
+    $("setting-minimap-markers").checked = state.settings.minimapMarkers;
+    for (const ed of [cm, cmB]) if (ed && ed._larkMinimap) ed._larkMinimap.configure(minimapOptions());
 
     document.documentElement.dataset.font = family;
     document.documentElement.style.setProperty("--mono", FONT_STACKS[family]);
@@ -1396,6 +1407,11 @@
         indentWithTabs: indentWithTabs,
         lineWrapping: lineWrapping,
         lineNumbers: lineNumbers,
+        minimapEnabled: state.settings.minimapEnabled,
+        minimapWidth: state.settings.minimapWidth,
+        minimapSide: state.settings.minimapSide,
+        minimapSyntax: state.settings.minimapSyntax,
+        minimapMarkers: state.settings.minimapMarkers,
         trayOutlines: trayOutlines,
         autoSave: autoSave,
         autoSaveDelayMs: delay,
@@ -1612,6 +1628,12 @@
     });
     editor.on("focus", () => { focusedEditor = which; });
     wireAssistDrop(editor);
+    editor._larkMinimap = new window.LarkMinimap(editor, minimapOptions());
+  }
+
+  function minimapOptions() {
+    const s = state.settings || {};
+    return { enabled: !!s.minimapEnabled, width: s.minimapWidth || 96, side: s.minimapSide || "right", syntax: s.minimapSyntax !== false, markers: s.minimapMarkers !== false };
   }
 
   function activeCm() {
@@ -1666,7 +1688,11 @@
   function collectBreakpoints() {
     const out = [];
     state.breakpoints.forEach((set, file) => {
-      set.forEach((line) => out.push({ file: file, line: line }));
+      const source = fileByPath(file);
+      const pkg = source && file.endsWith(".java") ? parsedFile(source).pkg : "";
+      // jdb needs the qualified class name; a source path loses its package.
+      const target = pkg ? pkg + "." + file.split("/").pop().replace(/\.java$/, "") : file;
+      set.forEach((line) => out.push({ file: target, line: line }));
     });
     return out;
   }
@@ -2393,6 +2419,7 @@
     $("empty").hidden = false;
     if ($("editors-row")) $("editors-row").hidden = true;
     $("editor").hidden = true;
+    for (const ed of [cm, cmB]) if (ed && ed._larkMinimap) ed._larkMinimap.cancel();
     renderStructure();
     $("status-path").textContent = state.project ? state.project.name : "Lark";
   }
@@ -2403,6 +2430,7 @@
     $("empty").hidden = true;
     if ($("editors-row")) $("editors-row").hidden = true;
     $("editor").hidden = true;
+    for (const ed of [cm, cmB]) if (ed && ed._larkMinimap) ed._larkMinimap.cancel();
     welcome.hidden = false;
     state.active = null;
     renderTabs();
@@ -2821,18 +2849,26 @@
   }
 
   function resetSplitWidths() {
+    let ratio = 50;
+    try { ratio = Math.max(10, Math.min(90, Number(localStorage.getItem("lark-split-ratio")) || 50)); } catch (e) {}
+    applySplitRatio(ratio);
+  }
+
+  function applySplitRatio(ratio) {
     const colA = $("editor-col-a");
     const colB = $("editor-col-b");
     if (colA) {
-      colA.style.flex = "1 1 50%";
+      colA.style.flex = "1 1 " + ratio + "%";
       colA.style.width = "";
       colA.style.maxWidth = "";
     }
     if (colB) {
-      colB.style.flex = "1 1 50%";
+      colB.style.flex = "1 1 " + (100 - ratio) + "%";
       colB.style.width = "";
       colB.style.maxWidth = "";
     }
+    const bar = $("editor-split-bar");
+    if (bar) bar.setAttribute("aria-valuenow", String(Math.round(ratio)));
   }
 
   /** keepSide: "a" keeps the left file as primary; "b" promotes the right file. */
@@ -2847,6 +2883,7 @@
       const colB = $("editor-col-b");
       const bar = $("editor-split-bar");
       if (colB) colB.hidden = true;
+      if (cmB && cmB._larkMinimap) cmB._larkMinimap.cancel();
       if (bar) bar.hidden = true;
       resetSplitWidths();
       updateSplitButton();
@@ -2917,6 +2954,22 @@
     const colB = $("editor-col-b");
     if (!bar || !row || !colA || !colB || bar._larkBound) return;
     bar._larkBound = true;
+    bar.tabIndex = 0;
+    bar.setAttribute("role", "separator");
+    bar.setAttribute("aria-label", "Resize editors");
+    bar.setAttribute("aria-orientation", "vertical");
+    bar.setAttribute("aria-valuemin", "10");
+    bar.setAttribute("aria-valuemax", "90");
+    bar.addEventListener("keydown", event => {
+      if (!state.split || !["ArrowLeft", "ArrowRight"].includes(event.key)) return;
+      event.preventDefault();
+      const total = colA.clientWidth + colB.clientWidth;
+      const step = (event.shiftKey ? 10 : 2) * (event.key === "ArrowLeft" ? -1 : 1);
+      const ratio = Math.max(10, Math.min(90, colA.clientWidth / total * 100 + step));
+      applySplitRatio(ratio);
+      try { localStorage.setItem("lark-split-ratio", String(ratio)); } catch (e) {}
+      refreshAllEditors();
+    });
     const CLOSE_PX = 72;
     bar.addEventListener("pointerdown", (event) => {
       if (!state.split) return;
@@ -2970,12 +3023,11 @@
           toast("Closed split.");
           return;
         }
-        // Keep a stable 50/50-ish flex from the dragged sizes.
+        // Keep the chosen proportion through window resizing and reopening a split.
         const total = Math.max(1, aW + bW);
-        colA.style.flex = "1 1 " + Math.round((aW / total) * 100) + "%";
-        colB.style.flex = "1 1 " + Math.round((bW / total) * 100) + "%";
-        colA.style.width = "";
-        colB.style.width = "";
+        const ratio = aW / total * 100;
+        applySplitRatio(ratio);
+        try { localStorage.setItem("lark-split-ratio", String(ratio)); } catch (e) {}
         refreshAllEditors();
       };
       bar.addEventListener("pointermove", move);
@@ -4638,8 +4690,11 @@
     if (!cm && !cmB) return;
     // Red editor marks come ONLY from javac ERROR diagnostics of the most recent
     // compile (Run or live check, whichever finished last). Warnings and local
-    // Assist heuristics stay in the Problems list and never paint the editor.
+    // Assist heuristics stay in the Problems list. The minimap includes compiler warnings.
     const paint = state.markProblems || [];
+    for (const [ed, path] of [[cm, state.active], [cmB, state.activeB]]) {
+      if (ed && ed._larkMinimap) ed._larkMinimap.setDiagnostics(paint.filter(p => resolveProblemFile(p.file) === path));
+    }
     const byLine = new Map();
     paint.forEach((problem) => {
       if (!problem || problem.severity !== "error") return;
@@ -4687,6 +4742,7 @@
     assistDragPayload = null;
     document.body.classList.remove("assist-dragging");
     document.querySelectorAll(".popover").forEach((el) => { el.hidden = true; });
+    document.querySelectorAll("[data-pop]").forEach(el => el.setAttribute("aria-expanded", "false"));
     $("context").hidden = true;
     if ($("tray-new")) $("tray-new").setAttribute("aria-expanded", "false");
     clearAssistDropPreview();
@@ -4702,6 +4758,8 @@
       renderAssistBlocks();
     }
     pop.hidden = false;
+    button.setAttribute("aria-expanded", "true");
+    button.setAttribute("aria-controls", pop.id);
     placePopover(pop, button);
   }
 
@@ -5306,6 +5364,21 @@
 
     function drag(handle, kind, onMove) {
       if (!handle) return;
+      handle.tabIndex = 0;
+      handle.setAttribute("role", "separator");
+      handle.setAttribute("aria-orientation", kind === "col" ? "vertical" : "horizontal");
+      handle.setAttribute("aria-label", "Resize " + (handle.dataset.split || "panel"));
+      handle.addEventListener("keydown", event => {
+        const keys = kind === "col" ? ["ArrowLeft", "ArrowRight"] : ["ArrowUp", "ArrowDown"];
+        if (!keys.includes(event.key)) return;
+        event.preventDefault();
+        const amount = (event.shiftKey ? 40 : 10) * (event.key === keys[0] ? -1 : 1);
+        const files = $("files").getBoundingClientRect();
+        const start = { x: 0, y: 0, files: files.width, filesH: files.height, console: $("console").getBoundingClientRect().height,
+          outline: $("structure").getBoundingClientRect().height, center: $("center").getBoundingClientRect().height };
+        onMove({ clientX: amount, clientY: amount }, start);
+        savePanels(); refreshAllEditors();
+      });
       handle.addEventListener("pointerdown", (event) => {
         if (event.button !== 0) return;
         event.preventDefault();
@@ -6316,6 +6389,11 @@
     bindPref("setting-indent-tabs", (el) => ({ indentWithTabs: el.checked }));
     bindPref("setting-line-wrap", (el) => ({ lineWrapping: el.checked }));
     bindPref("setting-line-numbers", (el) => ({ lineNumbers: el.checked }));
+    bindPref("setting-minimap", el => ({ minimapEnabled: el.checked }));
+    bindPref("setting-minimap-width", el => ({ minimapWidth: Number(el.value) }));
+    bindPref("setting-minimap-side", el => ({ minimapSide: el.value }));
+    bindPref("setting-minimap-syntax", el => ({ minimapSyntax: el.checked }));
+    bindPref("setting-minimap-markers", el => ({ minimapMarkers: el.checked }));
     bindPref("setting-tray-outlines", (el) => ({ trayOutlines: el.checked }));
     bindPref("setting-autosave", (el) => ({ autoSave: el.checked }));
     bindPref("setting-autosave-delay", (el) => ({ autoSaveDelayMs: Number(el.value) }));
@@ -6556,6 +6634,24 @@
       if (event.target.closest(".popover") || event.target.closest("[data-pop]") || event.target.closest("#context")) return;
       closePopovers();
     });
+    document.addEventListener("keydown", event => {
+      const pop = document.querySelector(".popover:not([hidden])");
+      if (!pop) return;
+      const trigger = document.querySelector('[data-pop="' + pop.id + '"]');
+      if (event.key === "Escape") {
+        event.preventDefault(); event.stopImmediatePropagation();
+        closePopovers(); if (trigger) trigger.focus(); return;
+      }
+      if (!pop.contains(event.target) && event.target !== trigger) return;
+      if (event.target.matches("input, select, textarea")) return;
+      if (!["ArrowDown", "ArrowUp", "Home", "End"].includes(event.key)) return;
+      const items = Array.from(pop.querySelectorAll("button:not(:disabled), input:not(:disabled), select:not(:disabled)")).filter(el => el.getClientRects().length);
+      if (!items.length) return;
+      event.preventDefault(); event.stopPropagation();
+      const index = items.indexOf(document.activeElement);
+      const next = event.key === "Home" ? 0 : event.key === "End" ? items.length - 1 : index < 0 ? (event.key === "ArrowDown" ? 0 : items.length - 1) : (index + (event.key === "ArrowDown" ? 1 : -1) + items.length) % items.length;
+      items[next].focus();
+    }, true);
     window.addEventListener("keyup", (event) => {
       if (event.code === "Space" || event.key === " ") spaceHeld = false;
     });

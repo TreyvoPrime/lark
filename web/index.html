@@ -10,6 +10,7 @@
   <link rel="stylesheet" href="vendor/codemirror/addon/hint/show-hint.css">
   <link rel="stylesheet" href="css/fonts.css">
   <link rel="stylesheet" href="css/app.css?v=__LARK_V__">
+  <link rel="stylesheet" href="css/ide-polish.css?v=__LARK_V__">
   <script src="js/theme-boot.js?v=__LARK_V__"></script>
 </head>
 <body>
@@ -436,6 +437,13 @@
       <label class="settings-check"><input id="setting-indent-tabs" type="checkbox"> Indent with tabs</label>
       <label class="settings-check"><input id="setting-line-wrap" type="checkbox"> Line wrap</label>
       <label class="settings-check"><input id="setting-line-numbers" type="checkbox" checked> Show line numbers</label>
+      <h4 class="settings-subheading">Code minimap</h4>
+      <label class="settings-check"><input id="setting-minimap" type="checkbox"> Show code minimap</label>
+      <label class="settings-row">Width <select id="setting-minimap-width"><option value="64">Compact · 64 px</option><option value="96">Normal · 96 px</option><option value="128">Wide · 128 px</option></select></label>
+      <label class="settings-row">Position <select id="setting-minimap-side"><option value="right">Right</option><option value="left">Left</option></select></label>
+      <label class="settings-check"><input id="setting-minimap-syntax" type="checkbox" checked> Syntax colors</label>
+      <label class="settings-check"><input id="setting-minimap-markers" type="checkbox" checked> Error and warning markers</label>
+      <p class="path-note">Click the overview to jump, or drag its viewport. Search matches appear alongside the code.</p>
     </section>
     <section class="menu-panel-section" aria-label="Save">
       <h3 class="menu-panel-label">Save</h3>
@@ -752,6 +760,7 @@
   <script src="js/java.js?v=__LARK_V__"></script>
   <script src="js/extras.js?v=__LARK_V__"></script>
   <script src="js/assist.js?v=__LARK_V__"></script>
+  <script src="js/minimap.js?v=__LARK_V__"></script>
   <script src="js/app.js?v=__LARK_V__"></script>
 </body>
 </html>

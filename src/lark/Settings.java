@@ -52,6 +52,11 @@ public final class Settings {
     public boolean lineWrapping = false;
     /** Show CodeMirror line numbers in the gutter (default on). */
     public boolean lineNumbers = true;
+    public boolean minimapEnabled = false;
+    public int minimapWidth = 96;
+    public String minimapSide = "right";
+    public boolean minimapSyntax = true;
+    public boolean minimapMarkers = true;
     /**
      * Explorer file tiles with a border around each row. On by default; can be
      * turned off in Settings for a quieter tray that keeps the vertical tree line.
@@ -106,6 +111,12 @@ public final class Settings {
             if (obj.has("indentWithTabs")) settings.indentWithTabs = obj.bool("indentWithTabs");
             if (obj.has("lineWrapping")) settings.lineWrapping = obj.bool("lineWrapping");
             if (obj.has("lineNumbers")) settings.lineNumbers = obj.bool("lineNumbers");
+            if (obj.has("minimapEnabled")) settings.minimapEnabled = obj.bool("minimapEnabled");
+            int mapWidth = (int) obj.longVal("minimapWidth");
+            settings.minimapWidth = mapWidth == 64 || mapWidth == 128 ? mapWidth : 96;
+            settings.minimapSide = "left".equals(obj.str("minimapSide", "right")) ? "left" : "right";
+            if (obj.has("minimapSyntax")) settings.minimapSyntax = obj.bool("minimapSyntax");
+            if (obj.has("minimapMarkers")) settings.minimapMarkers = obj.bool("minimapMarkers");
             if (obj.has("trayOutlines")) settings.trayOutlines = obj.bool("trayOutlines");
             if (obj.has("autoSave")) settings.autoSave = obj.bool("autoSave");
             int delay = (int) obj.longVal("autoSaveDelayMs");
@@ -142,6 +153,11 @@ public final class Settings {
                     .put("indentWithTabs", indentWithTabs)
                     .put("lineWrapping", lineWrapping)
                     .put("lineNumbers", lineNumbers)
+                    .put("minimapEnabled", minimapEnabled)
+                    .put("minimapWidth", minimapWidth)
+                    .put("minimapSide", minimapSide)
+                    .put("minimapSyntax", minimapSyntax)
+                    .put("minimapMarkers", minimapMarkers)
                     .put("trayOutlines", trayOutlines)
                     .put("autoSave", autoSave)
                     .put("autoSaveDelayMs", autoSaveDelayMs)
