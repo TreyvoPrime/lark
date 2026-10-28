@@ -245,7 +245,10 @@
     if (!THEME_NAMES[theme] || !THEME_IDS.includes(theme)) theme = "slate";
     document.documentElement.dataset.theme = theme;
     try { localStorage.setItem("lark-theme", theme); } catch (e) {}
-    if ($("theme")) $("theme").textContent = themeName(theme);
+    if ($("theme")) {
+      $("theme").textContent = "Themes";
+      $("theme").title = "Themes · " + themeName(theme);
+    }
     if (save && state.settings) {
       api("PUT", "/api/settings", { theme: theme }).catch((err) => toast(err.message));
     }
@@ -5117,13 +5120,21 @@
   }
 
   async function signIn() {
+    const button = $("gh-oauth") || $("gh-signin");
+    if (button.disabled) return;
+    button.disabled = true;
     const popup = window.open("", "lark-github", "width=540,height=760");
-    $("gh-wait").textContent = "GitHub is opening. Authorize Lark there, and choose All repositories.";
+    $("gh-wait").textContent = "GitHub is opening. Authorize Lark there and choose repository access.";
     try {
       const before = await api("GET", "/api/github/status");
       const data = await api("POST", "/api/github/login");
       if (popup) popup.location.href = data.url;
-      else window.open(data.url, "_blank", "noopener");
+      else {
+        const link = document.createElement("a");
+        link.href = data.url; link.target = "_blank"; link.rel = "noopener";
+        link.textContent = "Open GitHub sign-in";
+        $("gh-wait").replaceChildren("The browser blocked the sign-in window. ", link);
+      }
       window.clearInterval(githubPoll);
       let ticks = 0;
       githubPoll = window.setInterval(async () => {
@@ -5151,6 +5162,8 @@
     } catch (err) {
       if (popup) popup.close();
       $("gh-wait").textContent = err.message;
+    } finally {
+      button.disabled = false;
     }
   }
 

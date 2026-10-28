@@ -1006,7 +1006,8 @@ public final class Server {
             exchange.getResponseHeaders().set("Content-Security-Policy",
                     "default-src 'self'; script-src 'self' 'unsafe-eval'; style-src 'self' 'unsafe-inline'; "
                             + "font-src 'self' data:; img-src 'self' data:; "
-                            + "connect-src 'self'; frame-ancestors 'none'; base-uri 'self'; form-action 'self'; "
+                            + "connect-src 'self'; frame-ancestors 'none'; base-uri 'self'; form-action 'self'"
+                            + (exchange.getRequestURI().getPath().equals("/api/github/begin") ? " https://github.com" : "") + "; "
                             + "object-src 'none'; upgrade-insecure-requests");
         }
         exchange.sendResponseHeaders(status, data.length);

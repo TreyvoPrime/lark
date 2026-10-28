@@ -30,6 +30,11 @@ body { font-family: var(--ui-font); font-size: 13px; }
 button, input, select, textarea { border-radius: var(--radius-control); }
 button { background: var(--bg-elev); border: 1px solid var(--line); padding: 4px 8px; }
 button:hover { background: var(--hover); }
+#setting-zoom-reset { color: var(--text); background: var(--bg-sunken); border: 1px solid var(--line); }
+#setting-zoom-reset:hover { background: var(--select); }
+#setting-display-reset.primary { color: #fff; background: #126c61; border-color: #126c61; }
+#setting-display-reset.primary:hover { background: #0d5b52; }
+button:active:not(:disabled) { transition: none; filter: brightness(.92); }
 button, select, a.as-button { transition: background-color 90ms ease, border-color 90ms ease, color 90ms ease; }
 button:active, a.as-button:active { transform: none; }
 :is(button, input, select, textarea, summary, [tabindex]):focus-visible {
@@ -47,7 +52,8 @@ input:not([type="checkbox"]):not([type="range"]), select { min-height: var(--con
   letter-spacing: 0; text-transform: none; box-shadow: none;
 }
 #top .brand { border: 0; background: transparent; padding-left: 0; }
-#top .brand svg { width: 18px; height: 18px; }
+#top .brand img { width: 24px; height: 24px; object-fit: contain; }
+.welcome-brand img { width: 42px; height: 42px; object-fit: contain; }
 #top .brand .word { font-size: 15px; font-weight: 650; }
 #top .brand .ver { font-size: 10px; color: var(--muted); }
 #top .top-sep { height: 18px; margin: 0 2px; }
