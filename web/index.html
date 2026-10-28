@@ -10,16 +10,14 @@
   <link rel="stylesheet" href="vendor/codemirror/addon/hint/show-hint.css">
   <link rel="stylesheet" href="css/fonts.css">
   <link rel="stylesheet" href="css/app.css?v=__LARK_V__">
+  <link rel="stylesheet" href="css/ide-polish.css?v=__LARK_V__">
   <script src="js/theme-boot.js?v=__LARK_V__"></script>
 </head>
 <body>
   <div id="shell">
     <header id="top">
       <button type="button" class="brand" id="brand-home" title="Home" aria-label="Lark home">
-        <svg viewBox="0 0 24 24" aria-hidden="true">
-          <path d="M3 16c4.2-.7 6-6 9-11 2.8 5 4.8 10.2 9 11" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/>
-          <path d="M7 16.5h10" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/>
-        </svg>
+        <img src="favicon.png" alt="" aria-hidden="true">
         <span class="word">Lark <em class="ver">__LARK_V__</em></span>
       </button>
 
@@ -64,7 +62,7 @@
       <span class="top-sep" aria-hidden="true"></span>
 
       <div class="top-group top-group-prefs" role="group" aria-label="Preferences">
-        <button id="theme" type="button" title="Themes">Desk</button>
+        <button id="theme" type="button" title="Themes">Themes</button>
         <button id="settings" type="button" data-pop="menu-settings" title="Settings" aria-label="Settings">Aa</button>
         <button id="help" type="button" data-pop="menu-help" aria-label="Keyboard shortcuts">?</button>
       </div>
@@ -121,10 +119,7 @@
           <div id="welcome" hidden>
             <div class="welcome-inner">
               <div class="welcome-brand">
-                <svg viewBox="0 0 24 24" aria-hidden="true">
-                  <path d="M3 16c4.2-.7 6-6 9-11 2.8 5 4.8 10.2 9 11" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/>
-                  <path d="M7 16.5h10" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/>
-                </svg>
+                <img src="favicon.png" alt="" aria-hidden="true">
                 <h1>Lark</h1>
               </div>
               <p class="welcome-kicker">Lark 4.0</p>
@@ -275,7 +270,7 @@
   <div id="menu-assist" class="popover menu menu-panel menu-panel-assist" hidden>
     <div class="menu-panel-head">
       <strong>Assist</strong>
-      <p class="path-note">Drag a block over the editor — green lines preview the insert range before you drop.</p>
+      <p class="path-note">Drag to preview. Click a name to insert.</p>
     </div>
     <div class="assist-tabs" role="tablist" aria-label="Assist modes">
       <button type="button" class="assist-tab is-active" role="tab" aria-selected="true" data-assist-tab="blocks">Blocks</button>
@@ -436,6 +431,13 @@
       <label class="settings-check"><input id="setting-indent-tabs" type="checkbox"> Indent with tabs</label>
       <label class="settings-check"><input id="setting-line-wrap" type="checkbox"> Line wrap</label>
       <label class="settings-check"><input id="setting-line-numbers" type="checkbox" checked> Show line numbers</label>
+      <h4 class="settings-subheading">Code minimap</h4>
+      <label class="settings-check"><input id="setting-minimap" type="checkbox"> Show code minimap</label>
+      <label class="settings-row">Width <select id="setting-minimap-width"><option value="64">Compact · 64 px</option><option value="96">Normal · 96 px</option><option value="128">Wide · 128 px</option></select></label>
+      <label class="settings-row">Position <select id="setting-minimap-side"><option value="right">Right</option><option value="left">Left</option></select></label>
+      <label class="settings-check"><input id="setting-minimap-syntax" type="checkbox" checked> Syntax colors</label>
+      <label class="settings-check"><input id="setting-minimap-markers" type="checkbox" checked> Error and warning markers</label>
+      <p class="path-note">Click the overview to jump, or drag its viewport. Search matches appear alongside the code.</p>
     </section>
     <section class="menu-panel-section" aria-label="Save">
       <h3 class="menu-panel-label">Save</h3>
@@ -751,6 +753,8 @@
   <script src="js/shell-guard.js?v=__LARK_V__"></script>
   <script src="js/java.js?v=__LARK_V__"></script>
   <script src="js/extras.js?v=__LARK_V__"></script>
+  <script src="js/assist.js?v=__LARK_V__"></script>
+  <script src="js/minimap.js?v=__LARK_V__"></script>
   <script src="js/app.js?v=__LARK_V__"></script>
 </body>
 </html>

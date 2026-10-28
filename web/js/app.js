@@ -245,7 +245,10 @@
     if (!THEME_NAMES[theme] || !THEME_IDS.includes(theme)) theme = "slate";
     document.documentElement.dataset.theme = theme;
     try { localStorage.setItem("lark-theme", theme); } catch (e) {}
-    if ($("theme")) $("theme").textContent = themeName(theme);
+    if ($("theme")) {
+      $("theme").textContent = "Themes";
+      $("theme").title = "Themes · " + themeName(theme);
+    }
     if (save && state.settings) {
       api("PUT", "/api/settings", { theme: theme }).catch((err) => toast(err.message));
     }
@@ -1338,6 +1341,17 @@
     state.settings.autoSave = autoSave;
     state.settings.autoSaveDelayMs = delay;
     state.settings.formatOnSave = formatOnSave;
+    state.settings.minimapEnabled = !!next.minimapEnabled;
+    state.settings.minimapWidth = [64, 96, 128].includes(Number(next.minimapWidth)) ? Number(next.minimapWidth) : 96;
+    state.settings.minimapSide = next.minimapSide === "left" ? "left" : "right";
+    state.settings.minimapSyntax = next.minimapSyntax !== false;
+    state.settings.minimapMarkers = next.minimapMarkers !== false;
+    $("setting-minimap").checked = state.settings.minimapEnabled;
+    $("setting-minimap-width").value = state.settings.minimapWidth;
+    $("setting-minimap-side").value = state.settings.minimapSide;
+    $("setting-minimap-syntax").checked = state.settings.minimapSyntax;
+    $("setting-minimap-markers").checked = state.settings.minimapMarkers;
+    for (const ed of [cm, cmB]) if (ed && ed._larkMinimap) ed._larkMinimap.configure(minimapOptions());
 
     document.documentElement.dataset.font = family;
     document.documentElement.style.setProperty("--mono", FONT_STACKS[family]);
@@ -1396,6 +1410,11 @@
         indentWithTabs: indentWithTabs,
         lineWrapping: lineWrapping,
         lineNumbers: lineNumbers,
+        minimapEnabled: state.settings.minimapEnabled,
+        minimapWidth: state.settings.minimapWidth,
+        minimapSide: state.settings.minimapSide,
+        minimapSyntax: state.settings.minimapSyntax,
+        minimapMarkers: state.settings.minimapMarkers,
         trayOutlines: trayOutlines,
         autoSave: autoSave,
         autoSaveDelayMs: delay,
@@ -1612,6 +1631,12 @@
     });
     editor.on("focus", () => { focusedEditor = which; });
     wireAssistDrop(editor);
+    editor._larkMinimap = new window.LarkMinimap(editor, minimapOptions());
+  }
+
+  function minimapOptions() {
+    const s = state.settings || {};
+    return { enabled: !!s.minimapEnabled, width: s.minimapWidth || 96, side: s.minimapSide || "right", syntax: s.minimapSyntax !== false, markers: s.minimapMarkers !== false };
   }
 
   function activeCm() {
@@ -1666,7 +1691,11 @@
   function collectBreakpoints() {
     const out = [];
     state.breakpoints.forEach((set, file) => {
-      set.forEach((line) => out.push({ file: file, line: line }));
+      const source = fileByPath(file);
+      const pkg = source && file.endsWith(".java") ? parsedFile(source).pkg : "";
+      // jdb needs the qualified class name; a source path loses its package.
+      const target = pkg ? pkg + "." + file.split("/").pop().replace(/\.java$/, "") : file;
+      set.forEach((line) => out.push({ file: target, line: line }));
     });
     return out;
   }
@@ -2393,6 +2422,7 @@
     $("empty").hidden = false;
     if ($("editors-row")) $("editors-row").hidden = true;
     $("editor").hidden = true;
+    for (const ed of [cm, cmB]) if (ed && ed._larkMinimap) ed._larkMinimap.cancel();
     renderStructure();
     $("status-path").textContent = state.project ? state.project.name : "Lark";
   }
@@ -2403,6 +2433,7 @@
     $("empty").hidden = true;
     if ($("editors-row")) $("editors-row").hidden = true;
     $("editor").hidden = true;
+    for (const ed of [cm, cmB]) if (ed && ed._larkMinimap) ed._larkMinimap.cancel();
     welcome.hidden = false;
     state.active = null;
     renderTabs();
@@ -2821,18 +2852,26 @@
   }
 
   function resetSplitWidths() {
+    let ratio = 50;
+    try { ratio = Math.max(10, Math.min(90, Number(localStorage.getItem("lark-split-ratio")) || 50)); } catch (e) {}
+    applySplitRatio(ratio);
+  }
+
+  function applySplitRatio(ratio) {
     const colA = $("editor-col-a");
     const colB = $("editor-col-b");
     if (colA) {
-      colA.style.flex = "1 1 50%";
+      colA.style.flex = "1 1 " + ratio + "%";
       colA.style.width = "";
       colA.style.maxWidth = "";
     }
     if (colB) {
-      colB.style.flex = "1 1 50%";
+      colB.style.flex = "1 1 " + (100 - ratio) + "%";
       colB.style.width = "";
       colB.style.maxWidth = "";
     }
+    const bar = $("editor-split-bar");
+    if (bar) bar.setAttribute("aria-valuenow", String(Math.round(ratio)));
   }
 
   /** keepSide: "a" keeps the left file as primary; "b" promotes the right file. */
@@ -2847,6 +2886,7 @@
       const colB = $("editor-col-b");
       const bar = $("editor-split-bar");
       if (colB) colB.hidden = true;
+      if (cmB && cmB._larkMinimap) cmB._larkMinimap.cancel();
       if (bar) bar.hidden = true;
       resetSplitWidths();
       updateSplitButton();
@@ -2917,6 +2957,22 @@
     const colB = $("editor-col-b");
     if (!bar || !row || !colA || !colB || bar._larkBound) return;
     bar._larkBound = true;
+    bar.tabIndex = 0;
+    bar.setAttribute("role", "separator");
+    bar.setAttribute("aria-label", "Resize editors");
+    bar.setAttribute("aria-orientation", "vertical");
+    bar.setAttribute("aria-valuemin", "10");
+    bar.setAttribute("aria-valuemax", "90");
+    bar.addEventListener("keydown", event => {
+      if (!state.split || !["ArrowLeft", "ArrowRight"].includes(event.key)) return;
+      event.preventDefault();
+      const total = colA.clientWidth + colB.clientWidth;
+      const step = (event.shiftKey ? 10 : 2) * (event.key === "ArrowLeft" ? -1 : 1);
+      const ratio = Math.max(10, Math.min(90, colA.clientWidth / total * 100 + step));
+      applySplitRatio(ratio);
+      try { localStorage.setItem("lark-split-ratio", String(ratio)); } catch (e) {}
+      refreshAllEditors();
+    });
     const CLOSE_PX = 72;
     bar.addEventListener("pointerdown", (event) => {
       if (!state.split) return;
@@ -2970,12 +3026,11 @@
           toast("Closed split.");
           return;
         }
-        // Keep a stable 50/50-ish flex from the dragged sizes.
+        // Keep the chosen proportion through window resizing and reopening a split.
         const total = Math.max(1, aW + bW);
-        colA.style.flex = "1 1 " + Math.round((aW / total) * 100) + "%";
-        colB.style.flex = "1 1 " + Math.round((bW / total) * 100) + "%";
-        colA.style.width = "";
-        colB.style.width = "";
+        const ratio = aW / total * 100;
+        applySplitRatio(ratio);
+        try { localStorage.setItem("lark-split-ratio", String(ratio)); } catch (e) {}
         refreshAllEditors();
       };
       bar.addEventListener("pointermove", move);
@@ -3183,8 +3238,8 @@
 
   /**
    * Assist Blocks — drag titles into the editor.
-   * Preview paints green on the line range that will receive the block (document is NOT mutated).
-   * place: "body" follows the pointer inside a method; "member" snaps before the class closing brace.
+   * The placement controller renders ghost code without modifying the document.
+   * Both statement and member snippets follow the pointer at structural line boundaries.
    */
   const ASSIST_BLOCK_GROUPS = [
     {
@@ -3223,8 +3278,6 @@
 
   let assistDragPayload = null;
   let assistDidDrag = false;
-  /** Non-mutating preview: { editor, startLine, lineCount, painted, widget } */
-  let assistPreview = null;
 
   function assistSnippetById(id) {
     const snips = (window.LarkJava && window.LarkJava.snippets) || [];
@@ -3240,207 +3293,37 @@
       label: snip.label,
       code: snip.text,
       place: member ? "member" : "body",
-      where: member ? "Drops before the class closing }" : "Drops on the green lines (inside a method)",
+      where: member ? "Drag to a class member boundary" : "Drag to a statement boundary inside a method",
       imports: ASSIST_IMPORTS[id] || []
     };
   }
 
-  function editorIndentUnit(editor) {
-    if (editor.getOption("indentWithTabs")) return "\t";
-    const n = Number(editor.getOption("indentUnit")) || 4;
-    return " ".repeat(n);
-  }
 
-  function dedentAssistCode(code) {
-    const raw = String(code || "").replace(/\r\n/g, "\n").replace(/\r/g, "\n");
-    const lines = raw.split("\n");
-    while (lines.length && lines[lines.length - 1] === "") lines.pop();
-    let min = null;
-    lines.forEach((line) => {
-      if (!line.trim()) return;
-      const m = line.match(/^[ \t]*/)[0].length;
-      min = min == null ? m : Math.min(min, m);
-    });
-    if (!min) return lines.join("\n");
-    return lines.map((line) => (line.trim() ? line.slice(min) : "")).join("\n");
-  }
-
-  function countCodeLines(code) {
-    const text = String(code || "");
-    if (!text) return 1;
-    const parts = text.split("\n");
-    if (parts.length && parts[parts.length - 1] === "") return Math.max(1, parts.length - 1);
-    return Math.max(1, parts.length);
-  }
-
-  /** Brace depth at the start of `line` (0 = top-level / outside class body content). */
-  function braceDepthAtLine(editor, line) {
-    const end = editor.indexFromPos({ line: Math.max(0, line), ch: 0 });
-    const text = editor.getValue().slice(0, end);
-    let depth = 0;
-    let i = 0;
-    while (i < text.length) {
-      const c = text[i];
-      const n = text[i + 1];
-      if (c === "/" && n === "/") {
-        i += 2;
-        while (i < text.length && text[i] !== "\n") i++;
-        continue;
-      }
-      if (c === "/" && n === "*") {
-        i += 2;
-        while (i + 1 < text.length && !(text[i] === "*" && text[i + 1] === "/")) i++;
-        i += 2;
-        continue;
-      }
-      if (c === '"' || c === "'") {
-        const q = c;
-        i++;
-        while (i < text.length && text[i] !== q) {
-          if (text[i] === "\\") i++;
-          i++;
-        }
-        i++;
-        continue;
-      }
-      if (c === "{") depth++;
-      else if (c === "}") depth = Math.max(0, depth - 1);
-      i++;
+  const assistPlacement = window.LarkAssist.controller(() => assistDragPayload, (editor, prepared, meta) => {
+    if (window.LarkAssist.commit(editor, prepared, meta)) {
+      assistDragPayload = null;
+      afterEdit();
+      closePopovers();
     }
-    return depth;
-  }
+  }, () => { assistDragPayload = null; document.body.classList.remove("assist-dragging"); });
 
-  function indentAssistCode(editor, baseDepth, code) {
-    const unit = editorIndentUnit(editor);
-    const base = unit.repeat(Math.max(0, baseDepth));
-    const dedented = dedentAssistCode(code);
-    const lines = dedented.split("\n");
-    const out = lines.map((line) => {
-      if (!line.trim()) return "";
-      // Snippet internal indent is 4 spaces from generators — normalize to editor unit.
-      const lead = line.match(/^[ ]*/)[0].length;
-      const levels = Math.floor(lead / 4);
-      const rest = line.replace(/^[ \t]+/, "");
-      return base + unit.repeat(levels) + rest;
-    });
-    return out.join("\n") + "\n";
-  }
-
-  function classMemberInsertPos(editor) {
-    const text = editor.getValue();
-    let insertPos = -1;
-    if (window.LarkJava && typeof window.LarkJava.classCloseIndex === "function") {
-      insertPos = window.LarkJava.classCloseIndex(text);
-    }
-    if (insertPos < 0) return null;
-    return editor.posFromIndex(insertPos);
-  }
+  function clearAssistDropPreview() { assistPlacement.clear(); }
 
   function resolveAssistTarget(editor, pointerPos, place) {
-    if (place === "member") {
-      const at = classMemberInsertPos(editor);
-      if (!at) return null;
-      return { line: at.line, ch: 0, depth: 1 };
-    }
-    const line = Math.max(0, Math.min(editor.lastLine(), pointerPos.line));
-    return { line: line, ch: 0, depth: braceDepthAtLine(editor, line) };
+    return { line: pointerPos.line, ch: 0, place };
   }
 
-  function clearAssistDropPreview() {
-    const preview = assistPreview;
-    assistPreview = null;
-    if (!preview || !preview.editor) return;
-    const editor = preview.editor;
-    const wrap = editor.getWrapperElement();
-    if (wrap) wrap.classList.remove("assist-drop-over");
-    (preview.painted || []).forEach((line) => {
-      try {
-        editor.removeLineClass(line, "background", "cm-assist-drop-line");
-        editor.removeLineClass(line, "gutter", "cm-assist-drop-gutter");
-      } catch (e) { /* gone */ }
-    });
-    if (preview.widget) {
-      try { preview.widget.clear(); } catch (e) { /* gone */ }
-    }
-  }
-
-  function showAssistDropPreview(editor, target, lineCount) {
-    if (!editor || !target || lineCount < 1) return;
-    if (
-      assistPreview &&
-      assistPreview.editor === editor &&
-      assistPreview.startLine === target.line &&
-      assistPreview.lineCount === lineCount
-    ) {
-      return;
-    }
-    clearAssistDropPreview();
-
-    const last = editor.lastLine();
-    const start = Math.max(0, Math.min(last, target.line));
-    const painted = [];
-    const endPaint = Math.min(last, start + lineCount - 1);
-    for (let line = start; line <= endPaint; line++) {
-      editor.addLineClass(line, "background", "cm-assist-drop-line");
-      editor.addLineClass(line, "gutter", "cm-assist-drop-gutter");
-      painted.push(line);
-    }
-
-    let widget = null;
-    const paintedCount = painted.length;
-    if (paintedCount < lineCount) {
-      const extra = lineCount - paintedCount;
-      const band = document.createElement("div");
-      band.className = "cm-assist-drop-band";
-      band.style.height = Math.round(extra * (editor.defaultTextHeight() || 16)) + "px";
-      widget = editor.addLineWidget(start, band, { coverGutter: false, noHScroll: true, above: true });
-    }
-
-    editor.getWrapperElement().classList.add("assist-drop-over");
-    assistPreview = {
-      editor: editor,
-      startLine: start,
-      lineCount: lineCount,
-      depth: target.depth,
-      placeLine: start,
-      painted: painted,
-      widget: widget
-    };
-  }
-
-  function applyAssistImports(editor, imports) {
-    if (!imports || !imports.length || !window.LarkJava || !window.LarkJava.ensureImports) return;
-    const next = window.LarkJava.ensureImports(editor.getValue(), imports);
-    if (!next || next === editor.getValue()) return;
-    const cursor = editor.getCursor();
-    suppress = true;
-    editor.setValue(next);
-    editor.setCursor(cursor);
-    suppress = false;
-  }
-
-  function insertAssistBlock(editor, target, meta) {
-    if (!editor || !meta || !meta.code) return false;
-    const indented = indentAssistCode(editor, target.depth, meta.code);
-    const at = { line: target.line, ch: 0 };
-    // Keep a blank line separation when inserting before non-empty content.
-    let text = indented;
-    const lineText = editor.getLine(at.line) || "";
-    if (lineText.trim() && !text.endsWith("\n")) text += "\n";
-    suppress = true;
-    editor.replaceRange(text, at);
-    applyAssistImports(editor, meta.imports);
-    suppress = false;
-    afterEdit();
-    editor.setCursor({ line: at.line, ch: (editor.getLine(at.line) || "").length });
-    editor.focus();
-    return true;
+  function insertAssistBlock(editor, target, meta, replace) {
+    const prepared = window.LarkAssist.plan(editor, target, meta);
+    if (prepared.error) { toast(prepared.error); return false; }
+    const changed = window.LarkAssist.commit(editor, prepared, meta, replace);
+    if (changed) afterEdit();
+    return changed;
   }
 
   function insertCodeAt(editor, pos, code) {
     if (!editor || !code) return false;
-    const depth = braceDepthAtLine(editor, (pos && pos.line) || 0);
-    const target = { line: (pos && pos.line) || 0, ch: 0, depth: depth };
+    const target = { line: (pos && pos.line) || 0, ch: 0 };
     return insertAssistBlock(editor, target, { code: code, imports: [] });
   }
 
@@ -3451,76 +3334,10 @@
     insertCodeAt(editor, cur, code);
   }
 
-  function dropPosFromEvent(editor, event) {
-    return editor.coordsChar({ left: event.clientX, top: event.clientY }, "page");
-  }
-
-  function readAssistDragPayload(event) {
-    try {
-      const raw = event.dataTransfer && event.dataTransfer.getData("text/lark-assist");
-      if (raw) return JSON.parse(raw);
-    } catch (e) { /* ignore */ }
-    return assistDragPayload;
-  }
-
   function wireAssistDrop(editor) {
     if (!editor || editor._larkAssistDrop) return;
     editor._larkAssistDrop = true;
-    const wrap = editor.getWrapperElement();
-
-    wrap.addEventListener("dragenter", (event) => {
-      if (!assistDragPayload) return;
-      event.preventDefault();
-      if (event.dataTransfer) event.dataTransfer.dropEffect = "copy";
-    });
-
-    wrap.addEventListener("dragover", (event) => {
-      if (!assistDragPayload) return;
-      event.preventDefault();
-      if (event.dataTransfer) event.dataTransfer.dropEffect = "copy";
-      const meta = assistDragPayload;
-      const pointer = dropPosFromEvent(editor, event);
-      const target = resolveAssistTarget(editor, pointer, meta.place || "body");
-      if (!target) return;
-      const prepared = indentAssistCode(editor, target.depth, meta.code);
-      showAssistDropPreview(editor, target, countCodeLines(prepared));
-    });
-
-    wrap.addEventListener("dragleave", (event) => {
-      if (!wrap.contains(event.relatedTarget)) clearAssistDropPreview();
-    });
-
-    // Capture phase: CodeMirror's own drop handler sits on inner elements and
-    // would insert the text/plain copy before a bubbling listener ran, so the
-    // block landed twice. Only claim drops that carry an Assist block; plain text
-    // and file drops keep CodeMirror's default behaviour.
-    wrap.addEventListener("drop", (event) => {
-      const types = event.dataTransfer ? Array.from(event.dataTransfer.types || []) : [];
-      if (!assistDragPayload && types.indexOf("text/lark-assist") < 0) return;
-      event.preventDefault();
-      event.stopPropagation();
-      const payload = readAssistDragPayload(event);
-      assistDragPayload = null;
-      if (!payload || !payload.code) {
-        clearAssistDropPreview();
-        return;
-      }
-      const pointer = dropPosFromEvent(editor, event);
-      const target = (assistPreview && {
-        line: assistPreview.placeLine,
-        ch: 0,
-        depth: assistPreview.depth
-      }) || resolveAssistTarget(editor, pointer, payload.place || "body");
-      clearAssistDropPreview();
-      if (!target) {
-        toast("Couldn't find a place to drop that block.");
-        return;
-      }
-      if (insertAssistBlock(editor, target, payload)) {
-        closePopovers();
-        toast("Placed " + (payload.label || "block") + ".");
-      }
-    }, true);
+    assistPlacement.wire(editor);
   }
 
   function renderAssistBlocks() {
@@ -3543,23 +3360,46 @@
       group.ids.forEach((id) => {
         const meta = assistBlockMeta(id);
         if (!meta) return;
-        const card = document.createElement("button");
-        card.type = "button";
+        const card = document.createElement("div");
         card.className = "assist-block";
         card.draggable = true;
         card.dataset.assistBlock = meta.id;
         card.title = meta.where + " — drag to place";
-        const title = document.createElement("span");
+        const title = document.createElement("button");
+        title.type = "button";
+        title.title = "Insert at current line, or drag to place";
         title.className = "assist-block-title";
         title.textContent = meta.label;
         const where = document.createElement("span");
         where.className = "assist-block-where";
-        where.textContent = meta.place === "member" ? "Before class }" : "Inside method body";
-        card.append(title, where);
+        where.textContent = meta.place === "member" ? "Class member" : "Statement block";
+        const actions = document.createElement("select");
+        actions.className = "assist-block-actions";
+        actions.setAttribute("aria-label", "Actions for " + meta.label);
+        [["", "Actions…"], ["copy", "Copy"], ["replace", "Replace selection"]].forEach(([value, label]) => {
+          const option = document.createElement("option"); option.value = value; option.textContent = label; actions.append(option);
+        });
+        const editor = activeCm();
+        const locked = !editor || editor.getOption("readOnly") || editor.getOption("disableInput");
+        title.disabled = !!locked;
+        card.draggable = !locked;
+        actions.options[2].disabled = !!locked || !editor.somethingSelected() || editor.listSelections().length !== 1;
+        actions.addEventListener("change", async () => {
+          const action = actions.value; actions.value = "";
+          if (action === "copy") {
+            try { await navigator.clipboard.writeText(meta.code); } catch (err) { toast("Clipboard unavailable: " + err.message); }
+          } else if (action === "replace") {
+            const ed = activeCm();
+            if (!ed || !ed.somethingSelected()) return;
+            if (insertAssistBlock(ed, ed.getCursor("from"), meta, true)) closePopovers();
+          }
+        });
+        card.append(title, actions, where);
 
         card.addEventListener("dragstart", (event) => {
           assistDidDrag = true;
           assistDragPayload = meta;
+          document.body.classList.add("assist-dragging");
           card.classList.add("is-dragging");
           try {
             event.dataTransfer.effectAllowed = "copy";
@@ -3573,7 +3413,7 @@
           assistDragPayload = null;
           setTimeout(() => { assistDidDrag = false; }, 0);
         });
-        card.addEventListener("click", () => {
+        title.addEventListener("click", () => {
           if (assistDidDrag) return;
           const editor = activeCm() || cm;
           if (!editor) return;
@@ -4853,8 +4693,11 @@
     if (!cm && !cmB) return;
     // Red editor marks come ONLY from javac ERROR diagnostics of the most recent
     // compile (Run or live check, whichever finished last). Warnings and local
-    // Assist heuristics stay in the Problems list and never paint the editor.
+    // Assist heuristics stay in the Problems list. The minimap includes compiler warnings.
     const paint = state.markProblems || [];
+    for (const [ed, path] of [[cm, state.active], [cmB, state.activeB]]) {
+      if (ed && ed._larkMinimap) ed._larkMinimap.setDiagnostics(paint.filter(p => resolveProblemFile(p.file) === path));
+    }
     const byLine = new Map();
     paint.forEach((problem) => {
       if (!problem || problem.severity !== "error") return;
@@ -4899,7 +4742,10 @@
   }
 
   function closePopovers() {
+    assistDragPayload = null;
+    document.body.classList.remove("assist-dragging");
     document.querySelectorAll(".popover").forEach((el) => { el.hidden = true; });
+    document.querySelectorAll("[data-pop]").forEach(el => el.setAttribute("aria-expanded", "false"));
     $("context").hidden = true;
     if ($("tray-new")) $("tray-new").setAttribute("aria-expanded", "false");
     clearAssistDropPreview();
@@ -4915,6 +4761,8 @@
       renderAssistBlocks();
     }
     pop.hidden = false;
+    button.setAttribute("aria-expanded", "true");
+    button.setAttribute("aria-controls", pop.id);
     placePopover(pop, button);
   }
 
@@ -5272,13 +5120,21 @@
   }
 
   async function signIn() {
+    const button = $("gh-oauth") || $("gh-signin");
+    if (button.disabled) return;
+    button.disabled = true;
     const popup = window.open("", "lark-github", "width=540,height=760");
-    $("gh-wait").textContent = "GitHub is opening. Authorize Lark there, and choose All repositories.";
+    $("gh-wait").textContent = "GitHub is opening. Authorize Lark there and choose repository access.";
     try {
       const before = await api("GET", "/api/github/status");
       const data = await api("POST", "/api/github/login");
       if (popup) popup.location.href = data.url;
-      else window.open(data.url, "_blank", "noopener");
+      else {
+        const link = document.createElement("a");
+        link.href = data.url; link.target = "_blank"; link.rel = "noopener";
+        link.textContent = "Open GitHub sign-in";
+        $("gh-wait").replaceChildren("The browser blocked the sign-in window. ", link);
+      }
       window.clearInterval(githubPoll);
       let ticks = 0;
       githubPoll = window.setInterval(async () => {
@@ -5306,6 +5162,8 @@
     } catch (err) {
       if (popup) popup.close();
       $("gh-wait").textContent = err.message;
+    } finally {
+      button.disabled = false;
     }
   }
 
@@ -5519,6 +5377,21 @@
 
     function drag(handle, kind, onMove) {
       if (!handle) return;
+      handle.tabIndex = 0;
+      handle.setAttribute("role", "separator");
+      handle.setAttribute("aria-orientation", kind === "col" ? "vertical" : "horizontal");
+      handle.setAttribute("aria-label", "Resize " + (handle.dataset.split || "panel"));
+      handle.addEventListener("keydown", event => {
+        const keys = kind === "col" ? ["ArrowLeft", "ArrowRight"] : ["ArrowUp", "ArrowDown"];
+        if (!keys.includes(event.key)) return;
+        event.preventDefault();
+        const amount = (event.shiftKey ? 40 : 10) * (event.key === keys[0] ? -1 : 1);
+        const files = $("files").getBoundingClientRect();
+        const start = { x: 0, y: 0, files: files.width, filesH: files.height, console: $("console").getBoundingClientRect().height,
+          outline: $("structure").getBoundingClientRect().height, center: $("center").getBoundingClientRect().height };
+        onMove({ clientX: amount, clientY: amount }, start);
+        savePanels(); refreshAllEditors();
+      });
       handle.addEventListener("pointerdown", (event) => {
         if (event.button !== 0) return;
         event.preventDefault();
@@ -6203,10 +6076,19 @@
     const fontSize = parseFloat(style.fontSize);
     const measure = document.createElement("canvas").getContext("2d");
     measure.font = style.font;
+    const lineCount = editor.lineCount();
+    const path = activePath();
+    const fileName = path.split(/[\\/]/).pop();
+    const outerPadding = 24;
+    const headerHeight = 42;
+    const lineNumberFontSize = Math.max(10, Math.round(fontSize * 0.92));
+    const digitWidth = measure.measureText("0").width;
+    const gutterWidth = Math.ceil(Math.max(44, String(lineCount).length * digitWidth + 30));
+    const codeStart = outerPadding + gutterWidth + 16;
     let width = 0;
     const rows = [];
     try {
-      for (let line = 0; line < editor.lineCount(); line++) {
+      for (let line = 0; line < lineCount; line++) {
         let column = 0;
         let plain = "";
         const spans = editor.getLineTokens(line, true).map(token => {
@@ -6224,14 +6106,28 @@
           return '<tspan fill="' + escape(colors.get(type)) + '">' + escape(text) + '</tspan>';
         }).join("");
         width = Math.max(width, measure.measureText(plain).width);
-        rows.push('<text x="24" y="' + (24 + fontSize + line * lineHeight) + '">' + spans + '</text>');
+        const baseline = outerPadding + headerHeight + fontSize + line * lineHeight;
+        rows.push('<text class="line-number" x="' + (outerPadding + gutterWidth - 10) + '" y="' + baseline + '">' + (line + 1) + '</text>');
+        rows.push('<text x="' + codeStart + '" y="' + baseline + '">' + spans + '</text>');
       }
     } finally { probe.remove(); }
-    const svg = '<svg xmlns="http://www.w3.org/2000/svg" width="' + Math.ceil(width + 48) + '" height="' + (48 + editor.lineCount() * lineHeight) + '"><rect width="100%" height="100%" fill="' + escape(style.backgroundColor) + '"/><g xml:space="preserve" font-family="' + escape(style.fontFamily) + '" font-size="' + fontSize + '">' + rows.join("") + '</g></svg>';
+    const imageWidth = Math.ceil(Math.max(width + codeStart + outerPadding, 420));
+    const imageHeight = Math.ceil(outerPadding * 2 + headerHeight + lineCount * lineHeight);
+    const background = style.backgroundColor;
+    const foreground = style.color;
+    const divider = getComputedStyle(wrap.querySelector(".CodeMirror-gutters") || wrap).borderRightColor;
+    const svg = '<svg xmlns="http://www.w3.org/2000/svg" width="' + imageWidth + '" height="' + imageHeight + '" viewBox="0 0 ' + imageWidth + ' ' + imageHeight + '">' +
+      '<rect width="100%" height="100%" fill="' + escape(background) + '"/>' +
+      '<rect x="' + outerPadding + '" y="' + outerPadding + '" width="' + (imageWidth - outerPadding * 2) + '" height="' + (imageHeight - outerPadding * 2) + '" rx="6" fill="' + escape(background) + '" stroke="' + escape(divider) + '"/>' +
+      '<path d="M ' + outerPadding + ' ' + (outerPadding + headerHeight) + ' H ' + (imageWidth - outerPadding) + ' M ' + (outerPadding + gutterWidth) + ' ' + (outerPadding + headerHeight) + ' V ' + (imageHeight - outerPadding) + '" stroke="' + escape(divider) + '"/>' +
+      '<circle cx="' + (outerPadding + 16) + '" cy="' + (outerPadding + headerHeight / 2) + '" r="5" fill="' + escape(foreground) + '" opacity=".55"/>' +
+      '<text x="' + (outerPadding + 30) + '" y="' + (outerPadding + 27) + '" fill="' + escape(foreground) + '" font-family="' + escape(style.fontFamily) + '" font-size="' + Math.max(12, fontSize * .9) + '">' + escape(fileName) + '</text>' +
+      '<g xml:space="preserve" font-family="' + escape(style.fontFamily) + '" font-size="' + fontSize + '">' + rows.join("") + '</g>' +
+      '<style>.line-number{fill:' + escape(foreground) + ';font-size:' + lineNumberFontSize + 'px;opacity:.58;text-anchor:end}</style></svg>';
     const url = URL.createObjectURL(new Blob([svg], { type: "image/svg+xml;charset=utf-8" }));
     const link = document.createElement("a");
     link.href = url;
-    link.download = activePath().split(/[\\/]/).pop() + ".svg";
+    link.download = fileName + ".svg";
     link.click();
     setTimeout(() => URL.revokeObjectURL(url), 1000);
     toast("Full-file code image exported as SVG.");
@@ -6506,6 +6402,11 @@
     bindPref("setting-indent-tabs", (el) => ({ indentWithTabs: el.checked }));
     bindPref("setting-line-wrap", (el) => ({ lineWrapping: el.checked }));
     bindPref("setting-line-numbers", (el) => ({ lineNumbers: el.checked }));
+    bindPref("setting-minimap", el => ({ minimapEnabled: el.checked }));
+    bindPref("setting-minimap-width", el => ({ minimapWidth: Number(el.value) }));
+    bindPref("setting-minimap-side", el => ({ minimapSide: el.value }));
+    bindPref("setting-minimap-syntax", el => ({ minimapSyntax: el.checked }));
+    bindPref("setting-minimap-markers", el => ({ minimapMarkers: el.checked }));
     bindPref("setting-tray-outlines", (el) => ({ trayOutlines: el.checked }));
     bindPref("setting-autosave", (el) => ({ autoSave: el.checked }));
     bindPref("setting-autosave-delay", (el) => ({ autoSaveDelayMs: Number(el.value) }));
@@ -6742,9 +6643,28 @@
       }
     });
     document.addEventListener("pointerdown", (event) => {
+      if (assistDragPayload) return;
       if (event.target.closest(".popover") || event.target.closest("[data-pop]") || event.target.closest("#context")) return;
       closePopovers();
     });
+    document.addEventListener("keydown", event => {
+      const pop = document.querySelector(".popover:not([hidden])");
+      if (!pop) return;
+      const trigger = document.querySelector('[data-pop="' + pop.id + '"]');
+      if (event.key === "Escape") {
+        event.preventDefault(); event.stopImmediatePropagation();
+        closePopovers(); if (trigger) trigger.focus(); return;
+      }
+      if (!pop.contains(event.target) && event.target !== trigger) return;
+      if (event.target.matches("input, select, textarea")) return;
+      if (!["ArrowDown", "ArrowUp", "Home", "End"].includes(event.key)) return;
+      const items = Array.from(pop.querySelectorAll("button:not(:disabled), input:not(:disabled), select:not(:disabled)")).filter(el => el.getClientRects().length);
+      if (!items.length) return;
+      event.preventDefault(); event.stopPropagation();
+      const index = items.indexOf(document.activeElement);
+      const next = event.key === "Home" ? 0 : event.key === "End" ? items.length - 1 : index < 0 ? (event.key === "ArrowDown" ? 0 : items.length - 1) : (index + (event.key === "ArrowDown" ? 1 : -1) + items.length) % items.length;
+      items[next].focus();
+    }, true);
     window.addEventListener("keyup", (event) => {
       if (event.code === "Space" || event.key === " ") spaceHeld = false;
     });
@@ -6752,6 +6672,8 @@
     window.addEventListener("keydown", (event) => {
       const key = event.key.toLowerCase();
       if (event.key === "Escape") {
+        assistDragPayload = null;
+        clearAssistDropPreview();
         if (projectOverlayOpen()) { closeProjectOverlay(); return; }
         if (themeOverlayOpen()) { closeThemeOverlay(); return; }
         if ($("extras-panel") && !$("extras-panel").hidden) { closeExtras(); return; }
