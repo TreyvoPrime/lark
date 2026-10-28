@@ -28,6 +28,6 @@ Do not replace `jdk/` or `app/lark.jar` with files from untrusted sources.
 
 ## What “safe” means
 
-No desktop app is literally impossible to attack. Lark aims to be a **safe default install**: local-only, integrity-checked updates, no surprise downloads, minimal attack surface on the loopback API.
+ Lark aims to be a **safe default install**: local-only, integrity-checked updates, no surprise downloads, minimal attack surface on the loopback API.
 
 Report issues via the GitHub repository security advisories or issues.
