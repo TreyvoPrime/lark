@@ -6203,10 +6203,19 @@
     const fontSize = parseFloat(style.fontSize);
     const measure = document.createElement("canvas").getContext("2d");
     measure.font = style.font;
+    const lineCount = editor.lineCount();
+    const path = activePath();
+    const fileName = path.split(/[\\/]/).pop();
+    const outerPadding = 24;
+    const headerHeight = 42;
+    const lineNumberFontSize = Math.max(10, Math.round(fontSize * 0.92));
+    const digitWidth = measure.measureText("0").width;
+    const gutterWidth = Math.ceil(Math.max(44, String(lineCount).length * digitWidth + 30));
+    const codeStart = outerPadding + gutterWidth + 16;
     let width = 0;
     const rows = [];
     try {
-      for (let line = 0; line < editor.lineCount(); line++) {
+      for (let line = 0; line < lineCount; line++) {
         let column = 0;
         let plain = "";
         const spans = editor.getLineTokens(line, true).map(token => {
@@ -6224,14 +6233,28 @@
           return '<tspan fill="' + escape(colors.get(type)) + '">' + escape(text) + '</tspan>';
         }).join("");
         width = Math.max(width, measure.measureText(plain).width);
-        rows.push('<text x="24" y="' + (24 + fontSize + line * lineHeight) + '">' + spans + '</text>');
+        const baseline = outerPadding + headerHeight + fontSize + line * lineHeight;
+        rows.push('<text class="line-number" x="' + (outerPadding + gutterWidth - 10) + '" y="' + baseline + '">' + (line + 1) + '</text>');
+        rows.push('<text x="' + codeStart + '" y="' + baseline + '">' + spans + '</text>');
       }
     } finally { probe.remove(); }
-    const svg = '<svg xmlns="http://www.w3.org/2000/svg" width="' + Math.ceil(width + 48) + '" height="' + (48 + editor.lineCount() * lineHeight) + '"><rect width="100%" height="100%" fill="' + escape(style.backgroundColor) + '"/><g xml:space="preserve" font-family="' + escape(style.fontFamily) + '" font-size="' + fontSize + '">' + rows.join("") + '</g></svg>';
+    const imageWidth = Math.ceil(Math.max(width + codeStart + outerPadding, 420));
+    const imageHeight = Math.ceil(outerPadding * 2 + headerHeight + lineCount * lineHeight);
+    const background = style.backgroundColor;
+    const foreground = style.color;
+    const divider = getComputedStyle(wrap.querySelector(".CodeMirror-gutters") || wrap).borderRightColor;
+    const svg = '<svg xmlns="http://www.w3.org/2000/svg" width="' + imageWidth + '" height="' + imageHeight + '" viewBox="0 0 ' + imageWidth + ' ' + imageHeight + '">' +
+      '<rect width="100%" height="100%" fill="' + escape(background) + '"/>' +
+      '<rect x="' + outerPadding + '" y="' + outerPadding + '" width="' + (imageWidth - outerPadding * 2) + '" height="' + (imageHeight - outerPadding * 2) + '" rx="6" fill="' + escape(background) + '" stroke="' + escape(divider) + '"/>' +
+      '<path d="M ' + outerPadding + ' ' + (outerPadding + headerHeight) + ' H ' + (imageWidth - outerPadding) + ' M ' + (outerPadding + gutterWidth) + ' ' + (outerPadding + headerHeight) + ' V ' + (imageHeight - outerPadding) + '" stroke="' + escape(divider) + '"/>' +
+      '<circle cx="' + (outerPadding + 16) + '" cy="' + (outerPadding + headerHeight / 2) + '" r="5" fill="' + escape(foreground) + '" opacity=".55"/>' +
+      '<text x="' + (outerPadding + 30) + '" y="' + (outerPadding + 27) + '" fill="' + escape(foreground) + '" font-family="' + escape(style.fontFamily) + '" font-size="' + Math.max(12, fontSize * .9) + '">' + escape(fileName) + '</text>' +
+      '<g xml:space="preserve" font-family="' + escape(style.fontFamily) + '" font-size="' + fontSize + '">' + rows.join("") + '</g>' +
+      '<style>.line-number{fill:' + escape(foreground) + ';font-size:' + lineNumberFontSize + 'px;opacity:.58;text-anchor:end}</style></svg>';
     const url = URL.createObjectURL(new Blob([svg], { type: "image/svg+xml;charset=utf-8" }));
     const link = document.createElement("a");
     link.href = url;
-    link.download = activePath().split(/[\\/]/).pop() + ".svg";
+    link.download = fileName + ".svg";
     link.click();
     setTimeout(() => URL.revokeObjectURL(url), 1000);
     toast("Full-file code image exported as SVG.");
