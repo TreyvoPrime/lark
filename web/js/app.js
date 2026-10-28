@@ -736,9 +736,10 @@
       indentWithTabs: !!(state.settings && state.settings.indentWithTabs),
       lineWrapping: true,
       matchBrackets: true,
-      autoCloseBrackets: { pairs: "()[]{}''\"\"", explode: "[]{}" },
+      autoCloseBrackets: { pairs: "()[]{}''\"\"", explode: "" },
       styleActiveLine: true,
       extraKeys: {
+        "Enter": enterBetweenBrackets,
         "Ctrl-Enter": () => { runScratch().catch((err) => toast(err.message)); },
         "Cmd-Enter": () => { runScratch().catch((err) => toast(err.message)); },
         "Esc": () => { closeScratchMenu(); closeScratch(); }
@@ -1458,7 +1459,7 @@
       lineWrapping: !!(state.settings && state.settings.lineWrapping),
       matchBrackets: true,
       // Do not auto-pair /* */ — that fights IntelliJ-style /** Javadoc expansion.
-      autoCloseBrackets: { pairs: "()[]{}''\"\"", explode: "[]{}" },
+      autoCloseBrackets: { pairs: "()[]{}''\"\"", explode: "" },
       styleActiveLine: true,
       hintOptions: { completeSingle: false, closeOnUnfocus: true },
       extraKeys: editorExtraKeys()
@@ -1501,6 +1502,46 @@
     });
   }
 
+  function enterBetweenBrackets(editor) {
+    if (editor.getOption("readOnly") || editor.getOption("disableInput")) return CodeMirror.Pass;
+    const selections = editor.listSelections();
+    const primary = editor.getCursor();
+    const primaryIndex = Math.max(0, selections.findIndex(({ head }) =>
+      head.line === primary.line && head.ch === primary.ch));
+    const pairs = { "{": "}", "[": "]", "(": ")" };
+    const increment = editor.getOption("indentWithTabs")
+      ? "\t" : " ".repeat(editor.getOption("indentUnit"));
+    const newline = editor.lineSeparator() || "\n";
+    const edits = selections.map(selection => {
+      if (!selection.empty()) return null;
+      const cursor = selection.head;
+      const line = editor.getLine(cursor.line);
+      const left = line.slice(0, cursor.ch).match(/([{\[(])[ \t]*$/);
+      const right = line.slice(cursor.ch).match(/^[ \t]*([}\])])/);
+      if (!left || !right || pairs[left[1]] !== right[1]) return null;
+      const type = editor.getTokenTypeAt(CodeMirror.Pos(cursor.line, left.index + 1)) || "";
+      if (/\b(string|comment)\b/.test(type)) return null;
+      const base = line.match(/^[ \t]*/)[0];
+      const inner = base + increment;
+      return {
+        from: CodeMirror.Pos(cursor.line, left.index + 1),
+        to: CodeMirror.Pos(cursor.line, cursor.ch + right[0].length - 1),
+        text: newline + inner + newline + base,
+        inner
+      };
+    });
+    if (edits.some(edit => !edit)) return CodeMirror.Pass;
+    editor.operation(() => {
+      editor.setSelections(edits.map(edit => ({ anchor: edit.from, head: edit.to })), primaryIndex);
+      editor.replaceSelections(edits.map(edit => edit.text), "end", "+input");
+      editor.setSelections(editor.listSelections().map((selection, index) => {
+        const position = CodeMirror.Pos(selection.head.line - 1, edits[index].inner.length);
+        return { anchor: position, head: position };
+      }), primaryIndex);
+      editor.scrollIntoView(null, 40);
+    });
+  }
+
   function editorExtraKeys() {
     return {
       "Tab": function (editor) {
@@ -1514,7 +1555,7 @@
       "Shift-Tab": "indentLess",
       "Enter": function (editor) {
         if (tryExpandJavadoc(editor)) return;
-        return CodeMirror.Pass;
+        return enterBetweenBrackets(editor);
       },
       "Ctrl-/": "toggleComment",
       "Cmd-/": "toggleComment",
@@ -2444,7 +2485,7 @@
       indentWithTabs: !!(state.settings && state.settings.indentWithTabs),
       lineWrapping: !!(state.settings && state.settings.lineWrapping),
       matchBrackets: true,
-      autoCloseBrackets: { pairs: "()[]{}''\"\"", explode: "[]{}" },
+      autoCloseBrackets: { pairs: "()[]{}''\"\"", explode: "" },
       styleActiveLine: true,
       extraKeys: editorExtraKeys()
     });
@@ -6021,7 +6062,51 @@
   }
 
 
+  function setupToolbarOverflow() {
+    const details = $("toolbar-more");
+    const overflow = $("toolbar-overflow");
+    const breakpoint = window.matchMedia("(max-width: 1280px)");
+    const actions = ["project-menu", "github", "java-assist", "extras", "beautify",
+      "run-config", "split-editor", "scratch", "theme", "settings", "help"].map(id => {
+      const button = $(id);
+      const placeholder = document.createComment("toolbar:" + id);
+      button.before(placeholder);
+      return { button, placeholder };
+    });
+    function update() {
+      const focused = document.activeElement;
+      details.open = false;
+      closePopovers();
+      actions.forEach(({ button, placeholder }) => {
+        if (breakpoint.matches) overflow.append(button);
+        else placeholder.after(button);
+      });
+      details.hidden = !breakpoint.matches;
+      if (actions.some(({ button }) => button === focused)) {
+        (breakpoint.matches ? details.querySelector("summary") : focused).focus();
+      }
+    }
+    document.addEventListener("pointerdown", event => {
+      if (!details.contains(event.target) && !event.target.closest(".popover")) details.open = false;
+    });
+    details.addEventListener("keydown", event => {
+      if (event.key !== "Escape") return;
+      event.preventDefault();
+      event.stopPropagation();
+      closePopovers();
+      details.open = false;
+      details.querySelector("summary").focus();
+    });
+    overflow.addEventListener("click", event => {
+      const button = event.target.closest("button");
+      if (button && !button.disabled && !button.hasAttribute("data-pop")) details.open = false;
+    });
+    breakpoint.addEventListener("change", update);
+    update();
+  }
+
   function bind() {
+    setupToolbarOverflow();
     $("run").addEventListener("click", () => {
       if ($("run").textContent === "Stop" && state.job && !state.job.done) {
         api("POST", "/api/run/" + state.job.id + "/stop", {}).catch((err) => toast(err.message));
