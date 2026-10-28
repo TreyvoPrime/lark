@@ -10,8 +10,8 @@ import java.util.Set;
 
 /** Preferences stored in the home folder. The GitHub token never leaves this machine except for GitHub. */
 public final class Settings {
-    /** Four-part build (3.9.7.1) — stay on 3.x until an intentional Lark 4.0. */
-    public static final String VERSION = "3.9.7.36";
+    /** Public release version. Lark 4 uses 4.0, then three-position patch/minor versions. */
+    public static final String VERSION = "4.0";
     /** Default public update feed — always the latest GitHub release JSON companion. */
     public static final String DEFAULT_UPDATE_FEED =
             "https://github.com/TreyvoPrime/lark/releases/latest/download/update.json";

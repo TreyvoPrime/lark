@@ -16,15 +16,22 @@
       const parsed = LarkJava.parseJava(file.content || "");
       const types = (parsed.symbols || []).filter((s) =>
         s.indent === 0 && (s.kind === "class" || s.kind === "interface" || s.kind === "enum" || s.kind === "record"));
-      types.forEach((t) => {
-        const fields = (parsed.symbols || []).filter((s) => s.kind === "field" && s.indent === 1);
+      types.forEach((t, typeIndex) => {
+        const startLine = Number(t.line) || 1;
+        const endLine = typeIndex + 1 < types.length ? (Number(types[typeIndex + 1].line) || Infinity) : Infinity;
+        const belongsToType = (s) => {
+          const line = Number(s.line) || startLine;
+          return s.indent === 1 && line >= startLine && line < endLine;
+        };
+        const fields = (parsed.symbols || []).filter((s) => s.kind === "field" && belongsToType(s));
         const methods = (parsed.symbols || []).filter((s) =>
-          (s.kind === "method" || s.kind === "ctor") && s.indent === 1);
+          (s.kind === "method" || s.kind === "ctor") && belongsToType(s));
         const src = file.content || "";
         const ext = src.match(new RegExp("\\b(?:class|interface)\\s+" + t.name + "\\s+extends\\s+([A-Za-z_]\\w*)"));
         const impl = src.match(new RegExp("\\bclass\\s+" + t.name + "[^{]*\\bimplements\\s+([^{]+)\\{"));
+        const cleanType = (value) => String(value || "").replace(/<.*>/, "").trim().split(".").pop();
         const interfaces = impl
-          ? impl[1].split(",").map((x) => x.trim()).filter(Boolean)
+          ? impl[1].split(",").map(cleanType).filter(Boolean)
           : [];
         classes.push({
           name: t.name,
@@ -33,7 +40,7 @@
           path: file.path,
           fields: fields,
           methods: methods,
-          extends: ext ? ext[1] : "",
+          extends: ext ? cleanType(ext[1]) : "",
           interfaces: interfaces
         });
       });
@@ -157,7 +164,7 @@
     return '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 ' + width + " " + height
       + '" width="' + width + '" height="' + height + '" class="uml-svg">'
       + "<defs><marker id=\"uml-arrow\" markerWidth=\"8\" markerHeight=\"8\" refX=\"6\" refY=\"3\" orient=\"auto\">"
-      + '<path d="M0,0 L6,3 L0,6 Z" fill="currentColor"/></marker></defs>'
+      + '<path d="M0,0 L6,3 L0,6 Z" fill="var(--bg, white)" stroke="currentColor" stroke-width="1.2"/></marker></defs>'
       + arrows + bodies + "</svg>";
   }
 
