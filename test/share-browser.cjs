@@ -132,9 +132,27 @@ async function start(home) {
     const run = await fetch(servers[0].url + '/api/run', { method: 'POST', headers: { 'Content-Type': 'application/json', 'X-Lark': '1' }, body: JSON.stringify({ project }) });
     check(run.status === 409, 'Host must review collaborator-modified code before execution');
     check(await fs.readFile(path.join(servers[0].home, '.lark', 'projects', project, current), 'utf8') === await value(host), 'Host disk equals converged source');
+    await insert(host, '// SCROLL-FIXTURE\n' + '// filler\n'.repeat(180));
+    for (const page of [host, viewer]) await page.waitForFunction(() => window.LarkEditorShare.editor().getValue().includes('// SCROLL-FIXTURE') && !window.LarkShareEditing.pending());
+    const scrollAway = page => page.evaluate(() => {
+      const cm = window.LarkEditorShare.editor(); cm.setCursor({ line: 0, ch: 0 }); cm.scrollTo(0, 1200);
+      return cm.getScrollInfo().top;
+    });
+    const scrolled = await Promise.all([scrollAway(host), scrollAway(viewer)]);
+    check(scrolled.every(top => top > 1000), 'Long shared files have a scrollable viewport');
+    await host.waitForTimeout(1400);
+    for (const [i, page] of [host, viewer].entries()) {
+      const top = await page.evaluate(() => window.LarkEditorShare.editor().getScrollInfo().top);
+      check(Math.abs(top - scrolled[i]) < 2, 'Idle Share polling preserves independently scrolled host/guest viewports');
+    }
+    await insert(viewer, '// SCROLL-REMOTE\n');
+    await host.waitForFunction(() => window.LarkEditorShare.editor().getValue().includes('// SCROLL-REMOTE'));
+    check(Math.abs(await host.evaluate(() => window.LarkEditorShare.editor().getScrollInfo().top) - scrolled[0]) < 2, 'Remote editing preserves the host viewport with its caret offscreen');
     const device = hostStatus.data.session.participants.find(p => p.name === 'Viewer');
     await endpoint(servers[0].url, { action: 'decide', device: device.id, approve: true, role: 'viewer' });
     await viewer.waitForFunction(() => window.LarkEditorShare.editor().getOption('readOnly') === true);
+    const viewerTop = await scrollAway(viewer); await viewer.waitForTimeout(1200);
+    check(Math.abs(await viewer.evaluate(() => window.LarkEditorShare.editor().getScrollInfo().top) - viewerTop) < 2, 'Read-only Share viewers can scroll freely');
     const forged = await endpoint(servers[1].url, { action: 'sync', writer: 'a'.repeat(32), path: current, since: 0, operation: { seq: 999, actor: 'forged', after: '', text: 'forged', remove: [] } });
     check(forged.status === 403, 'Viewer writes denied by Java backend');
     await host.locator('#share-open').click();

@@ -17,8 +17,7 @@
   function status(text) { document.dispatchEvent(new CustomEvent('lark-share-state', { detail: text })); }
   function paint(entry) {
     const doc = entry.doc, text = entry.model.text(), old = doc.getValue();
-    if (old === text) return;
-    const selections = doc.listSelections().map(s => ({ anchor: entry.model.anchor(Math.min(doc.indexFromPos(s.anchor), text.length)), head: entry.model.anchor(Math.min(doc.indexFromPos(s.head), text.length)) }));
+    if (old === text) return false;
     let prefix = 0, suffix = 0;
     while (prefix < old.length && prefix < text.length && old[prefix] === text[prefix]) prefix++;
     while (suffix < old.length - prefix && suffix < text.length - prefix && old[old.length - 1 - suffix] === text[text.length - 1 - suffix]) suffix++;
@@ -27,6 +26,7 @@
     finally { entry.remote = false; }
     // Cursor anchors captured before remote application are restored by pull(), below.
     window.LarkEditorShare?.updated(entry.path, text);
+    return true;
   }
   function offset(text, pos) { const lines = text.split('\n'); let result = 0; for (let i = 0; i < pos.line; i++) result += (lines[i]?.length || 0) + 1; return result + pos.ch; }
   function enqueue(entry, operations) { entry.pending.push(...operations); clearTimeout(entry.recoveryTimer); entry.recoveryTimer = setTimeout(() => { if (entry.pending.length) recover(entry); }, 350); status('Synchronizing'); }
@@ -63,15 +63,28 @@
     return true;
   }
   async function pull(entry) {
-    const selections = entry.doc.listSelections().map(s => ({ anchor: entry.model.anchor(entry.doc.indexFromPos(s.anchor)), head: entry.model.anchor(entry.doc.indexFromPos(s.head)) }));
     const operation = entry.pending[0];
     const data = await request('sync', { path: entry.path, since: entry.revision, ...(operation ? { operation } : {}) });
+    // Read the user's current view AFTER the request: they may have scrolled,
+    // moved the caret, switched files, or typed while waiting for the network.
+    const ranges = entry.doc.listSelections(), primaryHead = entry.doc.getCursor('head'), primaryAnchor = entry.doc.getCursor('anchor');
+    const primary = Math.max(0, ranges.findIndex(s => s.head.line === primaryHead.line && s.head.ch === primaryHead.ch && s.anchor.line === primaryAnchor.line && s.anchor.ch === primaryAnchor.ch));
+    const selections = ranges.map(s => ({ anchor: entry.model.anchor(entry.doc.indexFromPos(s.anchor)), head: entry.model.anchor(entry.doc.indexFromPos(s.head)) }));
+    const cm = window.LarkEditorShare?.editor();
+    const viewport = cm && window.LarkEditorShare?.current()?.doc === entry.doc ? cm.getScrollInfo() : null;
     if (operation) entry.pending.shift();
     data.operations.forEach(op => entry.model.apply(op)); entry.revision = data.revision; entry.role = data.role;
     presence = data.participants;
-    paint(entry);
-    entry.doc.setSelections(selections.map(s => ({ anchor: entry.doc.posFromIndex(entry.model.index(s.anchor)), head: entry.doc.posFromIndex(entry.model.index(s.head)) })));
-    if (entry.pending.length) { clearTimeout(entry.recoveryTimer); entry.recoveryTimer = setTimeout(() => { if (entry.pending.length) recover(entry); }, 350); } else { clearTimeout(entry.recoveryTimer); window.LarkEditorShare?.updated(entry.path, entry.model.text()); try { localStorage.removeItem(recoveryKey(entry.path)); } catch (_) {} }
+    let changed = false;
+    const apply = () => {
+      changed = paint(entry);
+      // An idle poll must not reset selections or scroll the caret into view.
+      if (!changed) return;
+      entry.doc.setSelections(selections.map(s => ({ anchor: entry.doc.posFromIndex(entry.model.index(s.anchor)), head: entry.doc.posFromIndex(entry.model.index(s.head)) })), primary, { scroll: false });
+      if (viewport) cm.scrollTo(viewport.left, viewport.top);
+    };
+    if (viewport) cm.operation(apply); else apply();
+    if (entry.pending.length) { clearTimeout(entry.recoveryTimer); entry.recoveryTimer = setTimeout(() => { if (entry.pending.length) recover(entry); }, 350); } else { clearTimeout(entry.recoveryTimer); if (operation && !changed) window.LarkEditorShare?.updated(entry.path, entry.model.text()); try { localStorage.removeItem(recoveryKey(entry.path)); } catch (_) {} }
   }
   async function tick() {
     if (!session || working) return; working = true;

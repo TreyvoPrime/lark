@@ -1,0 +1,53 @@
+<!doctype html>
+<meta charset="utf-8">
+<title>Lark Share scrolling regression</title>
+<link rel="stylesheet" href="../web/vendor/codemirror/codemirror.min.css">
+<style>body{font:16px system-ui;margin:30px;background:#171b22;color:#edf2fa} .CodeMirror{height:340px;font-size:14px;margin:20px 0}pre{white-space:pre-wrap}button{padding:12px}</style>
+<h1>Lark Share scrolling regression</h1>
+<p>Real bundled CodeMirror and Share synchronization, with a controlled network response.</p>
+<button id="start">Run scrolling checks</button>
+<pre id="result">Ready.</pre><textarea id="editor"></textarea>
+<script src="../web/vendor/codemirror/codemirror.min.js"></script>
+<script src="../web/js/share-document.js"></script>
+<script>
+const seed = Array.from({length:400},(_,i)=>'// line '+i+' '+'.'.repeat(180)).join('\n');
+const cm = CodeMirror.fromTextArea(document.getElementById('editor'),{lineNumbers:true});
+cm.setValue(seed);
+const server = new LarkShareDocument(seed); let operations=[],holdNext=false,resumeRequest,requestWaiting=false;
+window.LarkEditorShare={editor:()=>cm,current:()=>({path:'Main.java',doc:cm.getDoc()}),flush:async()=>{},prepareHost:async()=>{},updated(){},notice(){}};
+window.fetch=async(_,options)=>{
+ const request=JSON.parse(options.body);let response={ok:true};
+ if(request.action==='files')response.files=[{path:'Main.java'}];
+ else if(request.action==='open')Object.assign(response,{seed,actor:'local',role:'editor',revision:0,head:0,operations:[]});
+ else if(request.action==='sync'){
+  if(holdNext){holdNext=false;requestWaiting=true;await new Promise(resolve=>resumeRequest=resolve);requestWaiting=false;}
+  Object.assign(response,{operations:operations.slice(request.since),revision:operations.length,role:'editor',participants:[]});
+ }else if(request.action==='presence')response.participants=[];
+ return {ok:true,json:async()=>response};
+};
+</script>
+<script src="../web/js/share-editor.js"></script>
+<script>
+const wait=ms=>new Promise(resolve=>setTimeout(resolve,ms));
+async function until(test){for(let i=0;i<100;i++){if(test())return;await wait(50);}throw Error('Timed out waiting for synchronization');}
+document.getElementById('start').onclick=async()=>{
+ const output=document.getElementById('result');const passed=[];
+ function check(ok,label){if(!ok)throw Error(label);passed.push('PASS: '+label);output.textContent=passed.join('\n');}
+ try{
+  await LarkShareEditing.start({id:'scroll-browser',identity:'host',hosting:true,project:'test'});
+  cm.setCursor({line:0,ch:0});cm.scrollTo(180,2200);const first=cm.getScrollInfo();
+  check(first.top>2000&&first.left>0,'Long shared file scrolls vertically and horizontally away from the caret');
+  await wait(1400);let view=cm.getScrollInfo();
+  check(Math.abs(view.top-first.top)<2&&Math.abs(view.left-first.left)<2,'Idle Share polling preserves the scrolled viewport');
+  holdNext=true;await until(()=>requestWaiting);
+  cm.setCursor({line:140,ch:3});cm.scrollTo(220,3000);const latest=cm.getScrollInfo();
+  operations.push(...server.edit(0,0,'// remote\n','peer'));resumeRequest();
+  await until(()=>cm.getValue().startsWith('// remote\n'));
+  await wait(600);view=cm.getScrollInfo();
+  check(Math.abs(view.top-latest.top)<2&&Math.abs(view.left-latest.left)<2,'Remote updates preserve the latest viewport after an in-flight scroll');
+  check(cm.getCursor().line===141&&cm.getCursor().ch===3,'Remote updates preserve the latest caret using CRDT anchors');
+  check(!LarkShareEditing.pending(),'Scroll and cursor restoration produce no local edits');
+  output.textContent=passed.join('\n')+'\nALL CHECKS PASSED';document.title='PASS — Lark Share scrolling';
+ }catch(error){output.textContent+='\nFAIL: '+error.stack;document.title='FAIL — Lark Share scrolling';}
+};
+</script>

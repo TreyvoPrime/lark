@@ -1,4 +1,4 @@
-# Lark Share — Lark 4.0.3
+# Lark Share — Lark 4.0.4
 
 Lark Share connects desktop Lark installations on a local network using a dedicated,
 restricted TLS server. It supports simultaneous editing of existing Java source,
@@ -186,6 +186,7 @@ java -cp build lark.Check
 java -cp build lark.FlowCheck
 java -cp build lark.GitHubAuthCheck
 node test/share-document.test.cjs
+node test/share-scroll.test.cjs
 node test/java-parse.test.js
 node test/site-releases.test.cjs
 node test/site-structure.test.cjs
