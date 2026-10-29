@@ -71,6 +71,13 @@ Do not open launchers from inside a zip preview / Temp folder.
 
 Requires JDK 17+, Go (Windows launchers), NSIS (`makensis`) for `LarkDesktopSetup.exe`, and network once to cache portable JDKs.
 
+## Lark Share preview
+
+The desktop **Share** control supports encrypted LAN source review with private
+invitations, host approval and revocation. This first milestone shares a read-only
+Java source snapshot; real-time editing and discovery are not implemented yet.
+See [Lark Share setup, security and limitations](docs/lark-share.md).
+
 ## License
 
 See [LICENSE](LICENSE).

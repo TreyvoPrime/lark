@@ -1,0 +1,25 @@
+.share-dialog {
+  width: min(580px, calc(100vw - 32px)); max-height: calc(100dvh - 48px);
+  box-sizing: border-box; padding: 20px; overflow: auto;
+  border: 1px solid var(--line); border-radius: 10px; background: var(--bg-elev);
+  color: var(--text); box-shadow: var(--shadow); font: inherit;
+}
+.share-dialog::backdrop { background: #0008; }
+.share-dialog h2, .share-dialog h3 { margin: 0 0 12px; }
+.share-dialog p { line-height: 1.6; font-size: 12px; }
+.share-heading, .share-actions, .share-device { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; }
+.share-heading { justify-content: space-between; }
+.share-actions { margin: 14px 0; }
+.share-dialog label { display: flex; flex-direction: column; gap: 6px; margin: 12px 0; font-size: 12px; }
+.share-dialog input, .share-dialog select, .share-dialog textarea {
+  width: 100%; box-sizing: border-box; padding: 8px; background: var(--bg-sunken);
+  color: var(--text); border: 1px solid var(--line); border-radius: 4px; font: inherit;
+}
+.share-dialog input[type=checkbox] { width: auto; align-self: start; }
+.share-dialog textarea { min-height: 88px; overflow-wrap: anywhere; resize: vertical; }
+.share-dialog .share-error { color: var(--red); }
+.share-device { border-bottom: 1px solid var(--line); padding: 12px 0; }
+.share-device span { font-size: 12px; color: var(--muted); }
+.share-fingerprint { overflow-wrap: anywhere; font-family: var(--mono); }
+.share-source { max-height: 45vh; padding: 12px; overflow: auto; background: var(--bg-sunken); font: 12px/1.6 var(--mono); tab-size: 4; }
+.share-dialog :focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }

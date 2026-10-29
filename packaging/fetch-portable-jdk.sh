@@ -73,6 +73,11 @@ if [ ! -e "$out/jdk/bin/javac" ] && [ ! -e "$out/jdk/bin/javac.exe" ]; then
   echo "javac missing in staged JDK" >&2
   exit 1
 fi
+# Share generates ephemeral TLS identities with the bundled JDK's keytool.
+if [ ! -e "$out/jdk/bin/keytool" ] && [ ! -e "$out/jdk/bin/keytool.exe" ]; then
+  echo "keytool missing in staged JDK (required by Lark Share)" >&2
+  exit 1
+fi
 # Run -version only when the binary matches this OS.
 if [ -x "$out/jdk/bin/java" ] && file "$out/jdk/bin/java" 2>/dev/null | grep -qiE "ELF|Mach-O.*$(uname -m)|executable"; then
   case "$(uname -s)" in

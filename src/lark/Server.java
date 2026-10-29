@@ -35,6 +35,7 @@ public final class Server {
     private final Updates updates;
     private final Terminal terminal;
     private final Recovery recovery;
+    private final Share share;
     private final Settings settings;
     private final Path webDir;
     private final boolean lan;
@@ -73,6 +74,7 @@ public final class Server {
         this.updates = updates;
         this.terminal = terminal;
         this.recovery = new Recovery();
+        this.share = new Share(projects);
         this.settings = settings;
         this.webDir = webDir;
         this.lan = lan;
@@ -140,6 +142,7 @@ public final class Server {
     }
 
     public void stop() {
+        share.close();
         try {
             terminal.shutdown();
         } catch (Exception ignored) {
@@ -202,6 +205,19 @@ public final class Server {
     }
 
     private void api(HttpExchange exchange, String method, String path) throws IOException {
+        if ("/api/share".equals(path)) {
+            // Even paired Mobile LAN clients must never control a Share host or obtain invitations.
+            if (!isLoopbackPeer(exchange)) throw new RequestFail(403, "Share controls are local-only.");
+            if (!"POST".equals(method)) throw new RequestFail(405, "Use a local Share control request.");
+            try {
+                byte[] data = exchange.getRequestBody().readNBytes(16 * 1024 + 1);
+                if (data.length > 16 * 1024) throw new RequestFail(413, "Share control request is too large.");
+                sendJson(exchange, 200, share.control(ShareTransport.parse(data)));
+            } catch (RequestFail e) { throw e; }
+            catch (javax.net.ssl.SSLException e) { throw new RequestFail(502, "Share host identity verification failed. Verify a fresh invitation with the host."); }
+            catch (Exception e) { throw new RequestFail(400, "Share could not complete the request. Check the invitation, selected interface, and firewall. No insecure fallback is available."); }
+            return;
+        }
         String[] parts = path.split("/");
         if ("GET".equals(method) && "/api/health".equals(path)) {
             sendJson(exchange, 200, new Json.Obj()
