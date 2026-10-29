@@ -382,6 +382,10 @@ public final class Server {
             sendJson(exchange, 200, new Json.Obj().put("ok", true).put("id", id));
             return;
         }
+        if ("/api/flow".equals(path) && "POST".equals(method)) {
+            sendJson(exchange, 200, Flow.analyze(body(exchange).arr("files")));
+            return;
+        }
         if ("/api/check".equals(path) && "POST".equals(method)) {
             Json.Obj body = body(exchange);
             sendJson(exchange, 200, checker.check(projects.projectDir(body.str("project", ""))));

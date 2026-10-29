@@ -1017,7 +1017,25 @@
     canvas.innerHTML = result.svg;
   }
 
+  function openFlow(path, preferCursor = false) {
+    closeExtras();
+    if (path) { focusedEditor = "a"; openPath(path); }
+    window.LarkFlow.open({
+      project: () => state.project?.id || "scratch",
+      files: () => state.files.filter(f => f.path.endsWith(".java")).map(f => ({ path: f.path, content: docs.get(f.path)?.getValue() ?? f.content ?? "" })),
+      cursor: () => ({ path: activePath(), offset: activeCm()?.indexFromPos(activeCm().getCursor()) || 0 }),
+      navigate: (file, start, end) => {
+        focusedEditor = "a"; openPath(file);
+        if (!cm) return;
+        cm.setSelection(cm.posFromIndex(start), cm.posFromIndex(end));
+        cm.scrollIntoView(cm.posFromIndex(start), 60);
+      },
+      resize: () => requestAnimationFrame(() => { cm?.refresh(); cmB?.refresh(); })
+    }, preferCursor || !!path);
+  }
+
   function openExtras(kind) {
+    if (kind === "flow") return openFlow();
     const panel = $("extras-panel");
     if (!panel) return;
     panel.hidden = false;
@@ -1595,6 +1613,8 @@
       "Cmd-Alt-F": "replace",
       "Shift-Alt-F": () => beautifyActiveFile(),
       "Ctrl-Alt-L": () => beautifyActiveFile(),
+      "Shift-Ctrl-L": () => openFlow(null, true),
+      "Shift-Cmd-L": () => openFlow(null, true),
       "Cmd-Alt-L": () => beautifyActiveFile(),
       "Ctrl-Space": (editor) => CodeMirror.showHint(editor, completeHintFull, {
         completeSingle: false,
@@ -1624,6 +1644,8 @@
   function wireEditor(editor, which) {
     if (!editor || editor._larkWired) return;
     editor._larkWired = true;
+    editor.on("changes", () => window.LarkFlow?.changed());
+    editor.on("cursorActivity", () => window.LarkFlow?.cursor());
     editor.on("gutterClick", (ed, line, gutter) => {
       if (gutter !== "breakpoints" && gutter !== "CodeMirror-linenumbers") return;
       const path = which === "b" ? state.activeB : state.active;
@@ -1676,15 +1698,16 @@
 
   function paintBreakpoints(path, editor) {
     if (!editor || !path) return;
-    const info = editor.lineCount();
-    for (let i = 0; i < info; i++) editor.setGutterMarker(i, "breakpoints", null);
-    const set = state.breakpoints.get(path);
-    if (!set) return;
-    set.forEach((line) => {
-      const el = document.createElement("div");
-      el.className = "cm-breakpoint";
-      el.textContent = "●";
-      editor.setGutterMarker(line - 1, "breakpoints", el);
+    editor.operation(() => {
+      editor.clearGutter("breakpoints");
+      const set = state.breakpoints.get(path);
+      if (!set) return;
+      set.forEach((line) => {
+        const el = document.createElement("div");
+        el.className = "cm-breakpoint";
+        el.textContent = "●";
+        editor.setGutterMarker(line - 1, "breakpoints", el);
+      });
     });
   }
 
@@ -2332,7 +2355,8 @@
       label.type = "button";
       label.className = "tab-name";
       label.textContent = path.slice(path.lastIndexOf("/") + 1);
-      label.addEventListener("click", () => openPath(path));
+      // The whole tab, including its padding and error marker, selects the file.
+      tab.addEventListener("click", () => openPath(path));
       if (state.problems.some((problem) => problem.file === path && problem.severity === "error")) {
         const dot = document.createElement("span");
         dot.className = "dot";
@@ -2510,9 +2534,11 @@
     renderTree();
   }
 
+  let openPathRevision = 0;
   function openPath(path, opts) {
     const file = fileByPath(path);
     if (!file) return;
+    const editorWasHidden = $("editor").hidden || ($("editors-row") && $("editors-row").hidden);
     hideWelcome();
     ensureEditor();
     const intoB = opts && opts.side === "b" && state.split;
@@ -2542,22 +2568,33 @@
     $("empty").hidden = true;
     if ($("editors-row")) $("editors-row").hidden = false;
     $("editor").hidden = false;
-    target.setOption("mode", modeFor(path));
-    target.refresh();
+    const mode = modeFor(path);
+    if (target.getOption("mode") !== mode) target.setOption("mode", mode);
+    if (editorWasHidden || intoB) target.refresh();
     paintBreakpoints(path, target);
     renderTabs();
     renderTabsB();
-    renderTree();
-    renderStructure();
     const cursor = target.getCursor();
     $("status-cursor").textContent = "Ln " + (cursor.line + 1) + ", Col " + (cursor.ch + 1);
     const crumbs = path.split("/").join(" / ");
-    const pkg = path.endsWith(".java") ? parsedFile(file).pkg : "";
-    $("status-path").textContent = (pkg ? "package " + pkg + "  ·  " : "") + crumbs;
+    $("status-path").textContent = crumbs;
     document.title = "Lark — " + (state.project ? state.project.name : path);
-    refreshLocalProblems();
-    markErrors();
-    updateSignatureHelp();
+    // Let the selected tab and editor paint before rebuilding supporting panels.
+    const revision = ++openPathRevision;
+    const project = state.project;
+    requestAnimationFrame(() => setTimeout(() => {
+      if (revision !== openPathRevision || state.project !== project ||
+          (intoB ? state.activeB : state.active) !== path) return;
+      renderTree();
+      renderStructure();
+      const currentFile = fileByPath(path);
+      if (!currentFile) return;
+      const pkg = path.endsWith(".java") ? parsedFile(currentFile).pkg : "";
+      $("status-path").textContent = (pkg ? "package " + pkg + "  ·  " : "") + crumbs;
+      refreshLocalProblems();
+      markErrors();
+      updateSignatureHelp();
+    }, 0));
   }
 
   function ensureSplitEditor() {
@@ -3133,6 +3170,7 @@
   }
 
   async function openProject(id) {
+    window.LarkFlow?.projectChanged();
     hideWelcome();
     try { localStorage.setItem("lark-skip-welcome", "1"); } catch (e) {}
     const data = await api("GET", "/api/projects/" + encodeURIComponent(id));
@@ -4063,6 +4101,7 @@
     const menu = $("context");
     menu.replaceChildren();
     const items = [
+      ...(!node.dir && node.path.endsWith(".java") ? [["Open in Lark Flow", () => openFlow(node.path)]] : []),
       ["New Class", () => { state.selected = node.dir ? node.path : parentDir(node.path); createClass(); }],
       ["New File", () => { state.selected = node.dir ? node.path : parentDir(node.path); createFile(); }],
       ...(node.dir ? [["Folder icon…", () => chooseFolderIcon(node.path)]] : []),
@@ -4870,6 +4909,13 @@
     }
     const q = (query || "").trim();
     const items = [];
+    [
+      ["Lark Flow: Open current method", () => openFlow(null, true)],
+      ["Lark Flow: Refresh diagram", () => { openFlow(); window.LarkFlow.refresh(); }],
+      ["Lark Flow: Fit diagram", () => { openFlow(); window.LarkFlow.fit(); }]
+    ].forEach(([label, action]) => {
+      if (!q || label.toLowerCase().includes(q.toLowerCase())) items.push({ kind: "command", label, action, score: 100, meta: "Extras" });
+    });
     const recentSet = new Set(state.recent);
     state.recent.forEach((path) => {
       if (!fileByPath(path)) return;
@@ -4935,6 +4981,7 @@
   function pickPaletteItem(item) {
     $("palette").hidden = true;
     if (!item) return;
+    if (item.action) { item.action(); return; }
     if (item.path) {
       openPath(item.path);
       if (item.line) jumpTo(item.path, item.line, item.column || 1);
@@ -7273,6 +7320,7 @@
     };
     document.addEventListener("contextmenu", (event) => {
       const inEditor = event.target.closest && event.target.closest(".CodeMirror, #scratch-editor, #console-out, #terminal-out, textarea, input");
+      if ($("ctx-flow")) $("ctx-flow").hidden = !event.target.closest("#editor, #editor-b");
       event.preventDefault();
       if (!inEditor) {
         hide();
@@ -7284,6 +7332,7 @@
     document.addEventListener("keydown", (event) => {
       if (event.key === "Escape") hide();
     });
+    if ($("ctx-flow")) $("ctx-flow").addEventListener("click", () => { hide(); openFlow(null, true); });
     if ($("ctx-copy")) {
       $("ctx-copy").addEventListener("click", async () => {
         hide();

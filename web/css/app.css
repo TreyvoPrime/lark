@@ -2230,7 +2230,7 @@ body.split-on #split-editor { color: var(--accent, var(--moss, #6f8f5c)); }
   white-space: nowrap;
   border-radius: 8px;
   transition: background 120ms ease, color 120ms ease, border-color 120ms ease, box-shadow 120ms ease;
-  cursor: grab;
+  cursor: pointer;
   user-select: none;
   box-shadow: 0 1px 0 color-mix(in srgb, #000 18%, transparent);
   flex: none;

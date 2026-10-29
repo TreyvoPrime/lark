@@ -11,6 +11,7 @@
   <link rel="stylesheet" href="css/fonts.css">
   <link rel="stylesheet" href="css/app.css?v=__LARK_V__">
   <link rel="stylesheet" href="css/ide-polish.css?v=__LARK_V__">
+  <link rel="stylesheet" href="css/flow.css?v=__LARK_V__">
   <script src="js/theme-boot.js?v=__LARK_V__"></script>
 </head>
 <body>
@@ -261,6 +262,7 @@
     <section class="menu-panel-section" aria-label="Helpers">
       <h3 class="menu-panel-label">Helpers</h3>
       <div class="menu-panel-grid">
+        <button type="button" data-extra="flow" title="Visualize Java control flow">Lark Flow…</button>
         <button type="button" data-extra="uml" title="UML class diagram">UML diagram…</button>
         <button type="button" data-extra="assign" title="Assignment helper">Assignment…</button>
         <button type="button" id="code-image">Export code image…</button>
@@ -711,6 +713,7 @@
     </div>
   </aside>
   <div id="editor-context" class="editor-context" hidden role="menu">
+    <button type="button" id="ctx-flow" role="menuitem">Open method in Lark Flow</button>
     <button type="button" id="ctx-copy" role="menuitem">Copy</button>
     <button type="button" id="ctx-paste" role="menuitem">Paste</button>
   </div>
@@ -753,6 +756,7 @@
   <script src="js/shell-guard.js?v=__LARK_V__"></script>
   <script src="js/java.js?v=__LARK_V__"></script>
   <script src="js/extras.js?v=__LARK_V__"></script>
+  <script src="js/flow.js?v=__LARK_V__"></script>
   <script src="js/assist.js?v=__LARK_V__"></script>
   <script src="js/minimap.js?v=__LARK_V__"></script>
   <script src="js/app.js?v=__LARK_V__"></script>
