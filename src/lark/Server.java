@@ -296,6 +296,11 @@ public final class Server {
                 if (body.has("indentWithTabs")) settings.indentWithTabs = body.bool("indentWithTabs");
                 if (body.has("lineWrapping")) settings.lineWrapping = body.bool("lineWrapping");
                 if (body.has("lineNumbers")) settings.lineNumbers = body.bool("lineNumbers");
+                if (body.has("minimapEnabled")) settings.minimapEnabled = body.bool("minimapEnabled");
+                if (body.has("minimapWidth")) { int w = (int) body.longVal("minimapWidth"); settings.minimapWidth = w == 64 || w == 128 ? w : 96; }
+                if (body.has("minimapSide")) settings.minimapSide = "left".equals(body.str("minimapSide", "right")) ? "left" : "right";
+                if (body.has("minimapSyntax")) settings.minimapSyntax = body.bool("minimapSyntax");
+                if (body.has("minimapMarkers")) settings.minimapMarkers = body.bool("minimapMarkers");
                 if (body.has("trayOutlines")) settings.trayOutlines = body.bool("trayOutlines");
                 if (body.has("autoSave")) settings.autoSave = body.bool("autoSave");
                 if (body.has("autoSaveDelayMs")) {
@@ -375,6 +380,10 @@ public final class Server {
             if (!Projects.TEMPLATES.contains(template)) template = "empty";
             String id = projects.create(body.str("name", ""), template);
             sendJson(exchange, 200, new Json.Obj().put("ok", true).put("id", id));
+            return;
+        }
+        if ("/api/flow".equals(path) && "POST".equals(method)) {
+            sendJson(exchange, 200, Flow.analyze(body(exchange).arr("files")));
             return;
         }
         if ("/api/check".equals(path) && "POST".equals(method)) {
@@ -630,6 +639,11 @@ public final class Server {
                 .put("indentWithTabs", settings.indentWithTabs)
                 .put("lineWrapping", settings.lineWrapping)
                 .put("lineNumbers", settings.lineNumbers)
+                .put("minimapEnabled", settings.minimapEnabled)
+                .put("minimapWidth", settings.minimapWidth)
+                .put("minimapSide", settings.minimapSide)
+                .put("minimapSyntax", settings.minimapSyntax)
+                .put("minimapMarkers", settings.minimapMarkers)
                 .put("trayOutlines", settings.trayOutlines)
                 .put("autoSave", settings.autoSave)
                 .put("autoSaveDelayMs", settings.autoSaveDelayMs)
@@ -996,7 +1010,8 @@ public final class Server {
             exchange.getResponseHeaders().set("Content-Security-Policy",
                     "default-src 'self'; script-src 'self' 'unsafe-eval'; style-src 'self' 'unsafe-inline'; "
                             + "font-src 'self' data:; img-src 'self' data:; "
-                            + "connect-src 'self'; frame-ancestors 'none'; base-uri 'self'; form-action 'self'; "
+                            + "connect-src 'self'; frame-ancestors 'none'; base-uri 'self'; form-action 'self'"
+                            + (exchange.getRequestURI().getPath().equals("/api/github/begin") ? " https://github.com" : "") + "; "
                             + "object-src 'none'; upgrade-insecure-requests");
         }
         exchange.sendResponseHeaders(status, data.length);

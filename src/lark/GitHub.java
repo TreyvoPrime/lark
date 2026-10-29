@@ -44,7 +44,9 @@ public final class GitHub {
         }
     }
 
-    public Json.Obj saveToken(String token) {
+    public synchronized Json.Obj saveToken(String token) {
+        pendingState = "";
+        pendingUntil = 0;
         if (token == null || token.isBlank()) {
             settings.clearGithubSession();
             settings.save();
@@ -135,7 +137,7 @@ public final class GitHub {
                 .put("request_oauth_on_install", true)
                 .put("default_events", new Json.Arr())
                 .put("default_permissions", new Json.Obj().put("contents", "write").put("metadata", "read"))
-                .put("hook_attributes", new Json.Obj().put("active", false));
+                .put("hook_attributes", new Json.Obj().put("url", "https://lark.rocks/").put("active", false));
         return """
                 <!DOCTYPE html>
                 <html lang="en"><head><meta charset="utf-8"><title>Sign in to GitHub</title>
@@ -145,12 +147,11 @@ public final class GitHub {
                 p{color:#a3988a;line-height:1.5}button{background:#e3a45a;color:#2a1c0c;border:0;border-radius:10px;padding:12px 16px;font-weight:700;cursor:pointer}</style>
                 </head><body><main>
                 <h1>Continue on GitHub</h1>
-                <p>GitHub will ask you to add Lark to your account, then to authorize it. Choose <strong>All repositories</strong> so every repo you can clone shows up. Lark never sees your GitHub password.</p>
+                <p>GitHub will ask you to add Lark to your account, then to authorize it. Choose the repositories you want Lark to access. Lark never sees your GitHub password.</p>
                 <form method="post" action="https://github.com/settings/apps/new">
                 <input type="hidden" name="manifest" value="__MANIFEST__">
                 <button type="submit">Continue to GitHub</button>
                 </form></main>
-                <script>document.forms[0].submit()</script>
                 </body></html>
                 """.replace("__MANIFEST__", esc(manifest.write()));
     }
@@ -177,14 +178,15 @@ public final class GitHub {
         expectInstall = true;
         String install = "https://github.com/apps/" + slug + "/installations/new?state=" + enc(state);
         return page("Choose your repositories", """
-                <p>On the next GitHub page, choose <strong>All repositories</strong> and authorize Lark. Then this window can close.</p>
+                <p>On the next GitHub page, choose the repositories you want Lark to access and authorize Lark. Then this window can close.</p>
                 <p><a href="%s">Continue to GitHub</a></p>
-                <script>location.replace("%s")</script>
-                """.formatted(esc(install), esc(install)));
+                """.formatted(esc(install)));
     }
 
     public synchronized String oauthPage(String code, String state, String error, String description) {
+        if (!fresh(state)) return page("Sign-in expired", "<p>Close this window and click Sign in with GitHub again.</p>");
         if (error != null && !error.isBlank()) {
+            pendingState = "";
             String extra = "";
             if (settings.githubAppSlug != null && settings.githubAppSlug.matches("[A-Za-z0-9-]{1,80}")) {
                 extra = "<p><a href=\"https://github.com/apps/" + settings.githubAppSlug
@@ -193,11 +195,10 @@ public final class GitHub {
             String why = description == null || description.isBlank() ? "Authorization was cancelled." : description;
             return page("Not signed in", "<p>" + esc(why) + "</p>" + extra);
         }
-        boolean stateOk = fresh(state) || (expectInstall && System.currentTimeMillis() <= pendingUntil);
-        if (!stateOk) return page("Sign-in expired", "<p>Close this window and click Sign in with GitHub again.</p>");
         if (code == null || code.isBlank()) {
             return page("GitHub didn't finish", "<p>Close this window and click Sign in with GitHub again.</p>");
         }
+        pendingState = "";
         Json.Obj body = new Json.Obj()
                 .put("client_id", settings.githubClientId)
                 .put("client_secret", settings.githubClientSecret)
@@ -261,7 +262,7 @@ public final class GitHub {
     }
 
     private boolean fresh(String state) {
-        return state != null && state.equals(pendingState) && System.currentTimeMillis() <= pendingUntil;
+        return state != null && !state.isBlank() && state.equals(pendingState) && System.currentTimeMillis() <= pendingUntil;
     }
 
     private String newState() {
