@@ -34,6 +34,13 @@ export LARK_UPDATE_BASE="https://github.com/${REPO}/releases/download/${TAG}"
 export LARK_UPDATE_NOTES="$NOTES"
 ./packaging/make-release.sh
 
+# Never publish a release from source that reports a different version.
+manifest_version=$(python3 -c 'import json; print(json.load(open("release/update.json"))["version"])')
+if [ "$manifest_version" != "$VERSION" ]; then
+  echo "ERROR: update.json version $manifest_version differs from source $VERSION" >&2
+  exit 1
+fi
+
 # Point the GitHub Pages download site at this release.
 if [ -f docs/index.html ]; then
   BASE="https://github.com/${REPO}/releases/download/${TAG}"
@@ -78,6 +85,33 @@ assets=(
   release/lark-update.zip
   release/update.json
 )
+# A release must contain all three update channels and a full Windows installer.
+# Fail before uploading anything instead of silently publishing partial packages.
+required_assets=(
+  release/LarkDesktopSetup.exe
+  release/lark-desktop-update.zip
+  release/lark-executable-update.zip
+  release/lark-mobile-update.zip
+  release/update.json
+)
+for asset in "${required_assets[@]}"; do
+  if [ ! -s "$asset" ]; then
+    echo "ERROR: Missing or empty required release asset: $asset" >&2
+    exit 1
+  fi
+done
+python3 - <<'PY'
+import json
+from pathlib import Path
+data = json.loads(Path("release/update.json").read_text())
+required = ["desktop", "executable", "mobile"]
+for key in required:
+    url = data.get("downloads", {}).get(key, "")
+    if not url or not data.get("sha256", {}).get(Path(url).name):
+        raise SystemExit(f"ERROR: Missing download URL or checksum for {key}")
+print("Validated all update channels and checksums.")
+PY
+
 # Optional Linux app-image zip from jpackage.
 if [ -f release/lark-desktop-linux-appimage.zip ]; then
   assets+=(release/lark-desktop-linux-appimage.zip)
