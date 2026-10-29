@@ -16,6 +16,7 @@ import java.util.concurrent.*;
 final class ShareTransport implements AutoCloseable {
     private static final ScheduledThreadPoolExecutor CLIENT_DEADLINES = clientDeadlines();
     private final ShareSession session;
+    private final int connectionLimit;
     private final SSLServerSocket listener;
     private final ThreadPoolExecutor workers;
     private final ScheduledExecutorService timer;
@@ -25,6 +26,12 @@ final class ShareTransport implements AutoCloseable {
     private volatile boolean closed;
 
     ShareTransport(ShareSession session, InetAddress bind, int port) throws Exception {
+        this(session, bind, port, 1200);
+    }
+    // A lower bound lets integration tests exercise the real limiter without a minute-long flood.
+    ShareTransport(ShareSession session, InetAddress bind, int port, int connectionLimit) throws Exception {
+        if (connectionLimit < 1 || connectionLimit > 1200) throw new IllegalArgumentException("Invalid connection limit");
+        this.connectionLimit = connectionLimit;
         this.session = session;
         Identity identity = identity();
         fingerprint = identity.fingerprint;
@@ -59,7 +66,7 @@ final class ShareTransport implements AutoCloseable {
         if (!rates.containsKey(key) && rates.size() >= 256) rates.remove(rates.keySet().iterator().next());
         long[] slot = rates.computeIfAbsent(key, k -> new long[]{now, 0});
         if (now - slot[0] >= 60_000) { slot[0] = now; slot[1] = 0; }
-        return ++slot[1] <= 120;
+        return ++slot[1] <= connectionLimit;
     }
     private void serve(SSLSocket socket) {
         ScheduledFuture<?> deadline = null;

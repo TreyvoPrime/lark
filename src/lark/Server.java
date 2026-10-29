@@ -431,6 +431,7 @@ public final class Server {
         }
         if ("/api/run".equals(path) && "POST".equals(method)) {
             Json.Obj body = body(exchange);
+            share.guardRun(body.str("project", ""));
             String args = body.str("args", "");
             String stdin = body.str("stdin", "");
             if (args.length() > 2_000) throw new RequestFail(400, "Those arguments are too long.");
@@ -469,6 +470,7 @@ public final class Server {
         }
         if ("/api/debug".equals(path) && "POST".equals(method)) {
             Json.Obj body = body(exchange);
+            share.guardRun(body.str("project", ""));
             java.util.ArrayList<String> bps = new java.util.ArrayList<>();
             Json.Arr arr = body.arr("breakpoints");
             if (arr != null) {
@@ -513,6 +515,7 @@ public final class Server {
         }
         if ("/api/tests".equals(path) && "POST".equals(method)) {
             Json.Obj body = body(exchange);
+            share.guardRun(body.str("project", ""));
             sendJson(exchange, 200, tests.start(
                     projects.projectDir(body.str("project", "")),
                     body.str("className", ""),
@@ -525,6 +528,7 @@ public final class Server {
         }
         if ("/api/terminal".equals(path) && "POST".equals(method)) {
             Json.Obj body = body(exchange);
+            share.guardRun(body.str("project", ""));
             String projectId = body.str("project", "");
             Path cwd = projectId.isBlank()
                     ? settings.projectsDir()
@@ -604,12 +608,14 @@ public final class Server {
                 return;
             }
             if (parts.length == 4 && "DELETE".equals(method)) {
+                share.guardWrite(id, null);
                 projects.delete(id);
                 sendJson(exchange, 200, new Json.Obj().put("ok", true));
                 return;
             }
             if ("file".equals(tail) && parts.length == 5 && "PUT".equals(method)) {
                 Json.Obj body = body(exchange);
+                share.guardWrite(id, body.str("path", ""));
                 projects.writeFile(id, body.str("path", ""), body.str("content", ""));
                 sendJson(exchange, 200, new Json.Obj().put("ok", true));
                 return;
@@ -617,6 +623,7 @@ public final class Server {
             if ("file".equals(tail) && parts.length == 5 && "DELETE".equals(method)) {
                 String rel = query(exchange, "path");
                 if (rel == null) throw new RequestFail(400, "Missing a path.");
+                share.guardWrite(id, null);
                 projects.deletePath(id, rel);
                 sendJson(exchange, 200, new Json.Obj().put("ok", true));
                 return;
@@ -628,6 +635,7 @@ public final class Server {
             }
             if ("move".equals(tail) && "POST".equals(method)) {
                 Json.Obj body = body(exchange);
+                share.guardWrite(id, null);
                 projects.move(id, body.str("from", ""), body.str("to", ""));
                 sendJson(exchange, 200, new Json.Obj().put("ok", true));
                 return;

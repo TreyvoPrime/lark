@@ -10,8 +10,11 @@ final class Share implements AutoCloseable {
     private final Projects projects;
     private ShareSession hosting;
     private ShareTransport transport;
+    private ShareDiscovery discovery;
+    private InetAddress bindAddress;
+    private String discoveryError = "";
     private Json.Obj target, hostInvitation;
-    private String device, credential;
+    private String device, credential, projectId, reviewed;
     private String connection = "Disconnected";
 
     Share(Projects projects) { this.projects = projects; }
@@ -19,6 +22,11 @@ final class Share implements AutoCloseable {
     synchronized Json.Obj control(Json.Obj body) throws Exception {
         String action = body.str("action", "status");
         switch (action) {
+            case "nearby" -> {
+                String address = body.str("address", "");
+                if (address.isBlank()) address = Mobile.lanAddresses().stream().findFirst().orElseThrow(() -> new RequestFail(400, "No LAN interface is available. Use a private invitation."));
+                return ShareSession.ok().put("sessions", ShareDiscovery.nearby(ShareTransport.lanAddress(address)));
+            }
             case "interfaces" -> {
                 Json.Arr addresses = new Json.Arr();
                 addresses.add(new Json.Obj().put("address", "127.0.0.1"));
@@ -35,8 +43,10 @@ final class Share implements AutoCloseable {
                 ShareSession session = new ShareSession(projects.projectDir(body.str("project", "")), body.str("name", ""), body.str("displayName", ""));
                 try { transport = new ShareTransport(session, bind, (int) port); }
                 catch (Exception e) { session.close(); throw e; }
-                hosting = session;
+                hosting = session; bindAddress = bind; projectId = body.str("project", "");
                 connection = "Connected";
+                if (!body.has("discovery") || body.bool("discovery")) discoverable(true);
+                session.onClose = () -> { if (discovery != null) discovery.close(); };
                 hostInvitation = new Json.Obj().put("version", ShareSession.VERSION).put("address", bind.getHostAddress())
                         .put("port", transport.port()).put("fingerprint", transport.fingerprint)
                         .put("session", session.id()).put("invitation", session.invitation());
@@ -70,10 +80,34 @@ final class Share implements AutoCloseable {
             }
             case "decide" -> {
                 if (hosting == null) throw new RequestFail(403, "Only the host can approve or revoke devices.");
-                hosting.decide(body.str("device", ""), body.bool("approve"));
+                hosting.decide(body.str("device", ""), body.bool("approve"), body.str("role", "editor"));
                 return status();
             }
+            case "open", "sync", "presence" -> {
+                if (hosting != null) return hosting.hostCommand(body);
+                if (target == null) throw new RequestFail(409, "Join a Share session first.");
+                Json.Obj request = request(target, action).put("device", device).put("credential", credential)
+                        .put("path", body.str("path", "")).put("writer", body.str("writer", "")).put("since", body.longVal("since"))
+                        .put("anchor", body.str("anchor", "")).put("head", body.str("head", ""));
+                if (body.obj("operation") != null) request.put("operation", body.obj("operation"));
+                return send(target, request);
+            }
+            case "review" -> {
+                if (hosting == null) throw new RequestFail(403, "Only the host can review shared changes.");
+                Json.Obj review = hosting.review(); reviewed = review.write();
+                return review;
+            }
+            case "acknowledge" -> {
+                if (hosting == null || reviewed == null || !reviewed.equals(hosting.review().write())) throw new RequestFail(409, "Source changed. Review again before running.");
+                hosting.acknowledgeRun(); reviewed = null; return status();
+            }
+            case "security" -> {
+                if (hosting == null) throw new RequestFail(403, "Only the host can change security settings.");
+                hosting.settings(body.str("role", "editor"), body.longVal("minutes"));
+                if (body.has("discovery")) discoverable(body.bool("discovery")); return status();
+            }
             case "files" -> {
+                if (hosting != null) return hosting.hostCommand(body);
                 if (target == null) throw new RequestFail(409, "Join a Share session first.");
                 return peer(action);
             }
@@ -115,8 +149,8 @@ final class Share implements AutoCloseable {
     private Json.Obj status() throws Exception {
         if (hosting != null && hosting.expired()) close();
         Json.Obj result = ShareSession.ok().put("connection", connection).put("hosting", hosting != null)
-                .put("joined", target != null).put("mode", "Read-only source snapshot — editing and discovery are not available in this milestone.");
-        if (hosting != null) result.put("session", hosting.localStatus()).put("port", transport.port()).put("fingerprint", transport.fingerprint);
+                .put("joined", target != null).put("mode", "collaborative").put("project", projectId).put("sessionId", hosting != null ? hosting.id() : target != null ? target.str("session") : "").put("identity", hosting != null ? "host" : device);
+        if (hosting != null) result.put("discovery", discovery != null).put("discoveryError", discoveryError).put("session", hosting.localStatus()).put("port", transport.port()).put("fingerprint", transport.fingerprint);
         if (target != null) {
             try {
                 Json.Obj remote = peer("poll");
@@ -130,10 +164,28 @@ final class Share implements AutoCloseable {
         }
         return result;
     }
+    private void discoverable(boolean enabled) {
+        if (discovery != null) { discovery.close(); discovery = null; }
+        discoveryError = "";
+        if (enabled) {
+            try { discovery = new ShareDiscovery(bindAddress, transport.port(), hosting.id(), hosting::discoveryInfo); }
+            catch (Exception e) { discoveryError = "LAN discovery unavailable on this interface. Use the private invitation; check multicast/firewall settings."; }
+        }
+    }
+    synchronized void guardWrite(String id, String path) {
+        if (hosting != null && id.equals(projectId) && (path == null || hosting.shares(path)))
+            throw new RequestFail(409, "This project is shared. Use synchronized documents; file structure changes are locked until Share ends.");
+    }
+    synchronized void guardRun(String id) {
+        if (hosting != null && id.equals(projectId)) hosting.saveForRun();
+        if (hosting != null && id.equals(projectId) && hosting.needsReview())
+            throw new RequestFail(409, "Collaborators changed this project. Open Share → Review Changes before running, debugging, testing or opening a terminal.");
+    }
     @Override public synchronized void close() {
+        if (discovery != null) discovery.close(); discovery = null;
         if (transport != null) transport.close();
         else if (hosting != null) hosting.close();
         transport = null; hosting = null; target = null; hostInvitation = null; device = null; credential = null;
-        connection = "Disconnected";
+        connection = "Disconnected"; projectId = null; reviewed = null;
     }
 }

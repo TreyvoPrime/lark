@@ -23,3 +23,9 @@
 .share-fingerprint { overflow-wrap: anywhere; font-family: var(--mono); }
 .share-source { max-height: 45vh; padding: 12px; overflow: auto; background: var(--bg-sunken); font: 12px/1.6 var(--mono); tab-size: 4; }
 .share-dialog :focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+#share-avatars { display: flex; align-items: center; gap: 3px; }
+#share-avatars .share-avatar { width: 26px; height: 26px; padding: 0; border: 2px solid; border-radius: 50%; font-size: 10px; }
+#share-explorer { padding: 10px; border-bottom: 1px solid var(--line); font-size: 11px; }
+#share-explorer button { display: block; max-width: 100%; overflow: hidden; text-overflow: ellipsis; font-size: 11px; margin: 5px 0; }
+.share-cursor { border-left: 2px solid; position: relative; padding: 0 3px; font-size: 9px; background: var(--bg-elev); vertical-align: top; pointer-events: none; }
+#share-open[data-connection="Reconnecting"], #share-open[data-connection="Connection Lost"] { color: var(--warn); }

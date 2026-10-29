@@ -5,7 +5,7 @@ cd "$(dirname "$0")/.."
 ./package.sh
 root=$(pwd)
 version=$(sed -n 's/.*VERSION = "\([^"]*\)".*/\1/p' src/lark/Settings.java | head -n 1)
-notes=${LARK_UPDATE_NOTES:-"Lark ${version}: three tracks — Desktop (Setup install), Executable (Lark.exe zip), Mobile. Hardened launchers, buried runtime, SHA-256 updates."}
+notes=${LARK_UPDATE_NOTES:-"Lark ${version}: Lark Share encrypted LAN collaboration, concurrent Java editing, live cursors, host approval and recovery. Desktop, Executable and Mobile packages; verified portable JDKs."}
 feed_base=${LARK_UPDATE_BASE:-}
 cache=${LARK_JDK_CACHE:-"$root/release/.jdk-cache"}
 mkdir -p "$cache" release

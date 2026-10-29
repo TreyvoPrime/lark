@@ -157,7 +157,7 @@ public final class Json {
                     case '\r' -> out.append("\\r");
                     case '\t' -> out.append("\\t");
                     default -> {
-                        if (c < 0x20) out.append(String.format("\\u%04x", (int) c));
+                        if (c < 0x20 || Character.isSurrogate(c)) out.append(String.format("\\u%04x", (int) c));
                         else out.append(c);
                     }
                 }

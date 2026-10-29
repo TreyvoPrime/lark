@@ -36,7 +36,7 @@ public final class ShareCheck {
             sessionContracts(root);
             transportContracts(root);
             packagedAssets();
-            System.out.println("ShareCheck: " + checks + " checks passed (real TLS, five concurrent viewers; read-only milestone).");
+            System.out.println("ShareCheck: " + checks + " checks passed (real TLS, five concurrent viewers; protocol v2).");
         } finally { Projects.deleteTree(root); }
     }
     static void sessionContracts(Path root) throws Exception {
@@ -94,7 +94,7 @@ public final class ShareCheck {
     }
     static void transportContracts(Path root) throws Exception {
         try (ShareSession session = new ShareSession(root, "TLS test", "Host");
-             ShareTransport server = new ShareTransport(session, ShareTransport.lanAddress("127.0.0.1"), 0)) {
+             ShareTransport server = new ShareTransport(session, ShareTransport.lanAddress("127.0.0.1"), 0, 40)) {
             String host = "127.0.0.1"; int port = server.port();
             Json.Obj join = request(session, "join").put("invitation", session.invitation()).put("name", "TLS Viewer");
             String wrongPin = (server.fingerprint.startsWith("0") ? "1" : "0") + server.fingerprint.substring(1);
@@ -102,7 +102,7 @@ public final class ShareCheck {
             catch (SSLException expected) { check(true, "Certificate pin mismatch rejected"); }
             Json.Obj bad = ShareTransport.exchange(host, port, server.fingerprint, request(session, "join").put("invitation", "bad").put("name", "Bad"));
             check(!bad.bool("ok") && bad.longVal("code") == 403, "TLS authentication failure");
-            check(ShareTransport.exchange(host, port, server.fingerprint, join.put("version", 2)).longVal("code") == 409, "Wire version mismatch");
+            check(ShareTransport.exchange(host, port, server.fingerprint, join.put("version", 3)).longVal("code") == 409, "Wire version mismatch");
             List<Json.Obj> devices = new ArrayList<>();
             for (int i = 0; i < 5; i++) {
                 Json.Obj device = ShareTransport.exchange(host, port, server.fingerprint, request(session, "join").put("invitation", session.invitation()).put("name", "Viewer " + i));
@@ -123,7 +123,7 @@ public final class ShareCheck {
             session.decide(first.str("device"), false);
             check(ShareTransport.exchange(host, port, server.fingerprint, authenticated(session, first, "files")).longVal("code") == 403, "Revocation enforced on wire");
             check(ShareTransport.exchange(host, port, server.fingerprint, authenticated(session, devices.get(1), "terminal")).longVal("code") == 403, "Remote execution unavailable");
-            for (int i = 0; i < 121; i++) {
+            for (int i = 0; i < 45; i++) {
                 try (java.net.Socket socket = new java.net.Socket(host, port)) { socket.setSoTimeout(100); }
             }
             try { ShareTransport.exchange(host, port, server.fingerprint, authenticated(session, devices.get(1), "files")); throw new AssertionError("Flood not limited"); }

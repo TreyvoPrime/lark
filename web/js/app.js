@@ -185,6 +185,7 @@
     dragTab: null
   };
   const docs = new Map();
+  let sharedGuest = false, sharePreviousProject = null;
   const parsedCache = new Map();
   const lineMarks = [];
   let cm = null;
@@ -213,6 +214,9 @@
   const $ = (id) => document.getElementById(id);
 
   async function api(method, path, body) {
+    if (sharedGuest && (/^\/api\/(run|debug|tests|terminal|check|github|recovery)(\/|$)/.test(path) || (path.startsWith("/api/projects/") && method !== "GET")))
+      throw new Error("Shared guests cannot execute host tools or change the shared file structure.");
+    if (method === "POST" && /^\/api\/(run|debug|tests|terminal)$/.test(path) && window.LarkShareEditing?.sessionActive()) await window.LarkShareEditing.flush();
     const res = await fetch(path, {
       method: method,
       headers: { "Content-Type": "application/json", "X-Lark": "1" },
@@ -1528,7 +1532,7 @@
     });
     cm.on("change", (editor, change) => {
       if (suppress || !state.active) return;
-      maybeExpandJavadoc(editor, change);
+      if (change.origin !== "+share") maybeExpandJavadoc(editor, change);
       const path = state.active;
       const file = fileByPath(path);
       if (file) file.content = cm.getValue();
@@ -1899,6 +1903,7 @@
   }
 
   function scheduleSave(path) {
+    if (window.LarkShareEditing?.active(path)) { setSaveStatus("Synchronizing"); return; }
     clearTimeout(state.timers.get(path));
     scheduleRecovery();
     if (!state.settings || state.settings.autoSave === false) {
@@ -1913,6 +1918,7 @@
   }
 
   async function saveFile(path, fromAutosave) {
+    if (window.LarkShareEditing?.active(path)) { setSaveStatus("Shared document"); return; }
     const doc = docs.get(path);
     let content = doc ? doc.getValue() : (fileByPath(path) || {}).content;
     if (content == null || !state.project) return;
@@ -2565,6 +2571,12 @@
     suppress = true;
     target.swapDoc(viewDoc);
     suppress = false;
+    target.state.larkShare = null;
+    target.setOption("readOnly", false);
+    if (window.LarkShareEditing?.active(path)) {
+      target.setOption("readOnly", true);
+      window.LarkShareEditing.open(path, doc).catch(error => toast(error.message));
+    }
     $("empty").hidden = true;
     if ($("editors-row")) $("editors-row").hidden = false;
     $("editor").hidden = false;
@@ -2706,6 +2718,7 @@
   }
 
   function scheduleCompileCheck() {
+    if (sharedGuest || window.LarkShareEditing?.active(state.active)) return;
     ++state.checkSeq;
     if (state.checkTimer) clearTimeout(state.checkTimer);
     state.checkTimer = setTimeout(() => {
@@ -3170,6 +3183,7 @@
   }
 
   async function openProject(id) {
+    if (window.LarkShareEditing?.sessionActive() && (sharedGuest || (window.LarkShareEditing.project() !== id))) throw new Error("Leave or end Share before switching projects.");
     window.LarkFlow?.projectChanged();
     hideWelcome();
     try { localStorage.setItem("lark-skip-welcome", "1"); } catch (e) {}
@@ -7267,6 +7281,7 @@
   }
 
   function scheduleRecovery() {
+    if (window.LarkShareEditing?.sessionActive()) return;
     if (recoveryTimer) clearTimeout(recoveryTimer);
     recoveryTimer = setTimeout(() => {
       flushRecovery(false).catch(() => {});
@@ -7444,5 +7459,28 @@
     }
   }
 
+  window.LarkEditorShare = {
+    editor: () => cm,
+    current: () => ({ path: state.active, doc: docs.get(state.active), project: state.project?.id }),
+    notice: toast,
+    flush: flushSaves,
+    async prepareHost(id) { if (state.project?.id !== id) await openProject(id); setSplit(false, "a"); },
+    async guest(name, files) {
+      await flushSaves(); sharePreviousProject = state.project?.id; sharedGuest = true;
+      state.project = { id: "share-remote", name: "Share · " + name, mainClass: "", path: "Encrypted LAN session" };
+      state.files = files.map(file => ({ path: file.path, content: "" })); state.dirs = [];
+      state.open = []; state.active = null; state.selected = null; state.dirty.clear();
+      state.timers.forEach(clearTimeout); state.timers.clear(); docs.clear(); parsedCache.clear();
+      setSplit(false, "a"); hideWelcome(); renderTree(); renderMains(); renderTabs();
+      if (state.files.length) openPath(state.files[0].path);
+    },
+    async leave() {
+      state.dirty.clear();
+      if (sharedGuest) { sharedGuest = false; const prior = sharePreviousProject; sharePreviousProject = null; if (prior) await openProject(prior); else { state.project = null; state.files = []; showWelcome(); renderTree(); } }
+      else if (state.project) await openProject(state.project.id);
+    },
+    open: path => openPath(path),
+    updated(path, text) { const file = fileByPath(path); if (file) file.content = text; state.dirty.delete(path); renderTabs(); setSaveStatus("Shared · synchronized"); }
+  };
   boot();
 })();

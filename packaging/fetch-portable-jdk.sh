@@ -14,14 +14,35 @@ case "$os" in
   *) echo "Unsupported OS: $os" >&2; exit 1 ;;
 esac
 
-url="https://api.adoptium.net/v3/binary/latest/21/ga/${os}/${arch}/jdk/hotspot/normal/eclipse?project=jdk"
+# Pin a release and verify its official SHA-256 sidecar before extraction.
+version=21.0.13
+build=9
+filename="OpenJDK21U-jdk_${arch}_${os}_hotspot_${version}_${build}.${ext}"
+url="https://github.com/adoptium/temurin21-binaries/releases/download/jdk-${version}%2B${build}/${filename}"
 echo "Downloading Temurin 21 for ${os}/${arch}..."
 archive="$tmp/jdk.${ext}"
+checksum="$tmp/jdk.sha256"
 if command -v curl >/dev/null 2>&1; then
-  curl -fL --retry 5 --retry-delay 2 -o "$archive" "$url"
+  curl -fL --retry 3 --retry-delay 2 --max-time 180 -o "$archive" "$url"
+  curl -fL --retry 3 --retry-delay 2 --max-time 30 -o "$checksum" "$url.sha256.txt"
 else
   wget -O "$archive" "$url"
+  wget -O "$checksum" "$url.sha256.txt"
 fi
+python3 - "$archive" "$checksum" <<'PYVERIFY'
+import hashlib, pathlib, re, sys
+archive, sidecar = map(pathlib.Path, sys.argv[1:])
+expected = sidecar.read_text().split()[0]
+if not re.fullmatch(r"[a-fA-F0-9]{64}", expected):
+    raise SystemExit("Invalid official JDK SHA-256 sidecar")
+with archive.open("rb") as stream:
+    digest = hashlib.sha256()
+    for chunk in iter(lambda: stream.read(1024 * 1024), b""): digest.update(chunk)
+    actual = digest.hexdigest()
+if actual.lower() != expected.lower():
+    raise SystemExit("JDK SHA-256 mismatch; refusing to extract")
+print("Official JDK SHA-256 verified")
+PYVERIFY
 size=$(wc -c <"$archive" | tr -d ' ')
 if [ "$size" -lt 40000000 ]; then
   echo "JDK download looks truncated ($size bytes)" >&2
