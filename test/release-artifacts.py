@@ -38,7 +38,7 @@ for name in required:
                 for asset in ['lark/ShareDocument.class', 'lark/ShareStore.class', 'lark/ShareDiscovery.class',
                               'web/js/share-document.js', 'web/js/share-editor.js', 'web/js/share.js', 'web/css/share.css']:
                     assert asset in app.namelist(), name + ': missing ' + asset
-                assert b'4.1.0' in app.read('lark/Settings.class'), name + ': wrong app version'
+                assert b'4.0.3' in app.read('lark/Settings.class'), name + ': wrong app version'
         bundled = [entry for entry in archive.namelist() if entry.endswith('jdk/bin/java') or entry.endswith('jdk/bin/java.exe')]
         if bundled:
             assert any(entry.endswith('jdk/bin/keytool') or entry.endswith('jdk/bin/keytool.exe') for entry in archive.namelist()), name + ': keytool missing'
@@ -58,7 +58,7 @@ installed_jar = subprocess.run([sevenzip, 'x', '-so', str(setup), 'app/lark.jar'
 assert hashlib.sha256(installed_jar).hexdigest() == expected, 'Installer embedded a stale jar'
 
 metadata = json.loads((release / 'update.json').read_text())
-assert metadata['version'] == '4.1.0'
+assert metadata['version'] == '4.0.3'
 for key, value in metadata['sha256'].items():
     filename = key if (release / key).is_file() else metadata.get('downloads', {}).get(key, '').rsplit('/', 1)[-1]
     assert filename and (release / filename).is_file(), 'Unknown hash target: ' + key
