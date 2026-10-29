@@ -2,6 +2,7 @@
 # Pack Lark into one jar. Running it still needs a JDK.
 set -euo pipefail
 cd "$(dirname "$0")"
+rm -rf build
 mkdir -p build dist
 find src -name '*.java' > build/sources.list
 javac --release 17 -encoding UTF-8 -d build @build/sources.list
