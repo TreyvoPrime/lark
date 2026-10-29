@@ -44,14 +44,14 @@
     "desktop-linux": "52d203da634c858786b2aebf1a87fd61d0ad075af8cf567b41942cc03f03ced6",
     "lark-desktop-update.zip": "52d203da634c858786b2aebf1a87fd61d0ad075af8cf567b41942cc03f03ced6",
     "lark-update.zip": "52d203da634c858786b2aebf1a87fd61d0ad075af8cf567b41942cc03f03ced6",
-    "executable": "7df071c3d954f10fdbc8b2ffb6d933b51040ac3ab327df44745a5fc11b3d453f",
-    "executable-windows": "7df071c3d954f10fdbc8b2ffb6d933b51040ac3ab327df44745a5fc11b3d453f",
-    "lark-executable-update.zip": "7df071c3d954f10fdbc8b2ffb6d933b51040ac3ab327df44745a5fc11b3d453f",
-    "mobile": "510129a2e32b3a9c1c30a07c794f564c63c388e4663fe44958d83bc3689ad0f2",
-    "mobile-windows": "510129a2e32b3a9c1c30a07c794f564c63c388e4663fe44958d83bc3689ad0f2",
-    "mobile-mac": "510129a2e32b3a9c1c30a07c794f564c63c388e4663fe44958d83bc3689ad0f2",
-    "mobile-linux": "510129a2e32b3a9c1c30a07c794f564c63c388e4663fe44958d83bc3689ad0f2",
-    "lark-mobile-update.zip": "510129a2e32b3a9c1c30a07c794f564c63c388e4663fe44958d83bc3689ad0f2",
+    "executable": "1c02eebb1b3f61382d46dd9faedffd8ff6e933a20b565be07fc988e6cb5f796b",
+    "executable-windows": "1c02eebb1b3f61382d46dd9faedffd8ff6e933a20b565be07fc988e6cb5f796b",
+    "lark-executable-update.zip": "1c02eebb1b3f61382d46dd9faedffd8ff6e933a20b565be07fc988e6cb5f796b",
+    "mobile": "f2233c2da23078b0aa42f355700062295b68b2228dc6bb7cebe544786ec13e12",
+    "mobile-windows": "f2233c2da23078b0aa42f355700062295b68b2228dc6bb7cebe544786ec13e12",
+    "mobile-mac": "f2233c2da23078b0aa42f355700062295b68b2228dc6bb7cebe544786ec13e12",
+    "mobile-linux": "f2233c2da23078b0aa42f355700062295b68b2228dc6bb7cebe544786ec13e12",
+    "lark-mobile-update.zip": "f2233c2da23078b0aa42f355700062295b68b2228dc6bb7cebe544786ec13e12",
     "LarkDesktopSetup.exe": "0c73e5244d74a9a16a90a32dd6c52260aa42aef20719788542764c1bbb5216ee"
   }
 }
