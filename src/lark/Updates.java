@@ -720,7 +720,16 @@ public final class Updates {
     }
 
     String resolveFeed() {
-        if (settings.updateFeed != null && !settings.updateFeed.isBlank()) return settings.updateFeed.trim();
+        if (settings.updateFeed != null && !settings.updateFeed.isBlank()) {
+            String saved = settings.updateFeed.trim();
+            // Migrate persisted version-pinned official feeds, preserving custom feeds.
+            if (saved.matches("(?i)https://github\\.com/TreyvoPrime/lark/releases/download/v?[0-9][0-9.]*/update\\.json")) {
+                settings.updateFeed = Settings.DEFAULT_UPDATE_FEED;
+                settings.save();
+                return Settings.DEFAULT_UPDATE_FEED;
+            }
+            return saved;
+        }
         String env = System.getenv("LARK_UPDATE_FEED");
         if (env != null && !env.isBlank()) return env.trim();
         Path beside = installDir();
