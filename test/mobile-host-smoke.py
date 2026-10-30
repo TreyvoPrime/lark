@@ -5,17 +5,18 @@ with tempfile.TemporaryDirectory(prefix='lark-mobile-test-') as home:
     with socket.socket() as probe:
         probe.bind(('127.0.0.1', 0)); port = probe.getsockname()[1]
     env = dict(os.environ, LARK_HOME=home)
+    lan_address = socket.gethostbyname(socket.gethostname()) if os.environ.get('LARK_SMOKE_LAN') == '1' else None
     options = []
     scheme = 'http'
     if os.environ.get('LARK_SMOKE_TLS') == '1':
         store = str(pathlib.Path(home)/'identity.p12'); cert = str(pathlib.Path(home)/'identity.pem')
         password = 'test-only-ephemeral-password'
-        subprocess.run(['keytool','-genkeypair','-alias','mobile','-keyalg','EC','-groupname','secp256r1','-storetype','PKCS12','-keystore',store,'-storepass',password,'-dname','CN=localhost','-ext','SAN=ip:127.0.0.1,dns:localhost','-validity','1','-noprompt'],check=True,stdout=subprocess.DEVNULL,stderr=subprocess.DEVNULL)
+        subprocess.run(['keytool','-genkeypair','-alias','mobile','-keyalg','EC','-groupname','secp256r1','-storetype','PKCS12','-keystore',store,'-storepass',password,'-dname','CN=localhost','-ext','SAN=ip:127.0.0.1,dns:localhost'+(',ip:'+lan_address if lan_address else ''),'-validity','1','-noprompt'],check=True,stdout=subprocess.DEVNULL,stderr=subprocess.DEVNULL)
         subprocess.run(['keytool','-exportcert','-rfc','-alias','mobile','-keystore',store,'-storepass',password,'-file',cert],check=True,stdout=subprocess.DEVNULL,stderr=subprocess.DEVNULL)
         urllib.request.install_opener(urllib.request.build_opener(urllib.request.HTTPSHandler(context=ssl.create_default_context(cafile=cert))))
         env['LARK_MOBILE_KEYSTORE_PASSWORD'] = password
         options = ['-Dlark.mobile.keystore='+store]; scheme = 'https'
-    process = subprocess.Popen(['java', *options, '-Dlark.ui=jar', '-cp', str(root/'dist/lark.jar'), 'lark.Mobile', '--local-only', '--no-browser', '--port', str(port)], env=env, stdout=subprocess.DEVNULL, stderr=subprocess.PIPE)
+    process = subprocess.Popen(['java', *options, '-Dlark.ui=jar', '-cp', str(root/'dist/lark.jar'), 'lark.Mobile', '--lan' if lan_address else '--local-only', '--no-browser', '--port', str(port)], env=env, stdout=subprocess.DEVNULL, stderr=subprocess.PIPE)
     def api(path, body=None, method=None):
         request = urllib.request.Request(scheme+'://127.0.0.1:'+str(port)+path, data=None if body is None else json.dumps(body).encode(), method=method or ('POST' if body is not None else 'GET'), headers={'Content-Type':'application/json','X-Lark':'1'})
         with urllib.request.urlopen(request, timeout=10) as response: return json.load(response)
@@ -24,7 +25,26 @@ with tempfile.TemporaryDirectory(prefix='lark-mobile-test-') as home:
             try: health=api('/api/health'); break
             except OSError: time.sleep(.1)
         else: raise AssertionError('Mobile startup failed')
-        assert health['mobile'] and not health['lan']
+        assert health['mobile'] and health['lan'] == bool(lan_address)
+        if lan_address:
+            assert scheme == 'https'
+            info = api('/api/mobile/info')
+            remote = urllib.request.build_opener(urllib.request.ProxyHandler({}), urllib.request.HTTPSHandler(context=ssl.create_default_context(cafile=cert)))
+            address = 'https://'+lan_address+':'+str(port)
+            try:
+                remote.open(address+'/api/health', timeout=5)
+                raise AssertionError('Unpaired LAN request was allowed')
+            except urllib.error.HTTPError as error:
+                assert error.code == 403
+            headers={'X-Lark-Pair':info['pair'], 'X-Lark':'1','Content-Type':'application/json'}
+            with remote.open(urllib.request.Request(address+'/api/health',headers=headers)) as response:
+                assert json.load(response)['ok']
+            try:
+                remote.open(urllib.request.Request(address+'/api/github/status',headers=headers))
+                raise AssertionError('Remote client accessed host GitHub API')
+            except urllib.error.HTTPError as error:
+                assert error.code == 403
+            print('HTTPS LAN pairing checks passed: unauthenticated denial, authenticated access, host credential API denial.')
         project=api('/api/projects', {'name':'Mobile smoke','template':'empty'})['id']
         source='public class Main { public static void main(String[] args) { java.util.Scanner s = new java.util.Scanner(System.in); System.out.println("MOBILE:" + s.nextLine()); } }'
         api('/api/projects/'+project+'/file', {'path':'src/Main.java','content':source}, 'PUT')
