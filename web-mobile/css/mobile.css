@@ -493,3 +493,16 @@ button, .ghost, .accent {
   #stage { padding-top: 22px; }
   .hero-sheet h1 { font-size: 2.6rem; }
 }
+
+/* Compact IDE chrome and touch targets, shared with the desktop visual language. */
+:root { --radius: 10px; --font-ui: "Segoe UI", sans-serif; --font-display: "Segoe UI", sans-serif; --font-code: "JetBrains Mono", monospace; }
+@font-face { font-family: "JetBrains Mono"; src: url('../fonts/JetBrainsMono-Regular.woff2') format('woff2'); font-display: swap; }
+body { background: var(--bg0); }
+body::before { display: none; }
+.top, .tabbar { background: var(--bg1); }
+.edit-tools { display: flex; flex-wrap: wrap; gap: 6px; }
+.edit-tools button { min-height: 44px; }
+#symbols { position: sticky; bottom: var(--tab-h); padding: 8px; background: var(--bg1); border-top: 1px solid var(--line); }
+#editor-host .CodeMirror { min-height: 45dvh; font-family: var(--font-code); }
+@media (min-width: 900px) { #stage { max-width: 1200px; margin: auto; } #editor-host .CodeMirror { min-height: 60dvh; } }
+@media (prefers-reduced-motion: reduce) { * { animation: none !important; } }

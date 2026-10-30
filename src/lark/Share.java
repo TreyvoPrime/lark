@@ -28,10 +28,33 @@ final class Share implements AutoCloseable {
                 return ShareSession.ok().put("sessions", ShareDiscovery.nearby(ShareTransport.lanAddress(address)));
             }
             case "interfaces" -> {
-                Json.Arr addresses = new Json.Arr();
-                addresses.add(new Json.Obj().put("address", "127.0.0.1"));
-                Mobile.lanAddresses().forEach(ip -> addresses.add(new Json.Obj().put("address", ip)));
-                return ShareSession.ok().put("addresses", addresses);
+                return ShareSession.ok().put("addresses", LanInterfaces.list());
+            }
+            case "test" -> {
+                String encoded = body.str("invitation", "");
+                if (encoded.length() > 2048) throw new RequestFail(400, "Invalid invitation.");
+                Json.Obj parsed;
+                try { parsed = ShareTransport.parse(Base64.getUrlDecoder().decode(encoded)); }
+                catch (Exception e) { throw new RequestFail(400, "Invalid invitation."); }
+                if (parsed.longVal("version") != ShareSession.VERSION) throw new RequestFail(409, "Incompatible Lark Share protocol.");
+                try {
+                    Json.Obj reply = send(parsed, request(parsed, "probe"));
+                    Json.Arr suggestions = new Json.Arr();
+                    for (Json.Value v : LanInterfaces.list().values()) {
+                        Json.Obj adapter = (Json.Obj) v;
+                        if (adapter.bool("active") && LanInterfaces.sameSubnet(adapter.str("address"), parsed.str("address"), (int) adapter.longVal("prefix")))
+                            suggestions.add(adapter.str("address"));
+                    }
+                    return reply.put("matchingInterfaces", suggestions).put("message", "Host and port reachable. TLS identity matches the invitation; verify the fingerprint directly with the host. Protocol compatible. Authentication and host approval required. Subnet matches are suggestions, not connectivity guarantees.");
+                } catch (javax.net.ssl.SSLException e) {
+                    throw new RequestFail(409, "Host identity could not be verified. Ask the intended host for a fresh invitation; do not bypass certificate verification.");
+                } catch (java.net.ConnectException e) {
+                    throw new RequestFail(409, "Connection refused. Check that the host session is running and the selected port is allowed by its firewall.");
+                } catch (java.net.SocketTimeoutException e) {
+                    throw new RequestFail(408, "Connection timed out. Check the selected adapter, Wi-Fi client isolation, VPN and firewall.");
+                } catch (java.io.IOException e) {
+                    throw new RequestFail(409, "Host unreachable or connection closed. Check the host address, port and session protocol.");
+                }
             }
             case "host" -> {
                 if (hosting != null || target != null) throw new RequestFail(409, "End or leave your current Share session first.");

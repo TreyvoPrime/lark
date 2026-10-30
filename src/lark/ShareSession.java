@@ -131,6 +131,7 @@ final class ShareSession implements AutoCloseable {
         if (request.longVal("version") != VERSION) throw new RequestFail(409, "Incompatible Lark Share protocol.");
         if (!equal(id, request.str("session"))) throw new RequestFail(403, "Unknown Share session.");
         String action = request.str("action", "");
+        if (action.equals("probe")) return ok().put("approvalRequired", true).put("authenticated", false);
         if (action.equals("join")) {
             if (!equal(invitation, request.str("invitation"))) throw new RequestFail(403, "Invalid invitation.");
             if (devices.size() >= 32) throw new RequestFail(429, "Session device limit reached. End the session to clear requests.");

@@ -208,7 +208,12 @@
       matchBrackets: true,
       autoCloseBrackets: true,
       styleActiveLine: true,
-      viewportMargin: Infinity
+      viewportMargin: 12
+    });
+    state.cm.setOption("extraKeys", { "Ctrl-Space": cm => cm.showHint({ hint: window.LarkTyping.hint, completeSingle: false }), "Tab": "indentMore", "Shift-Tab": "indentLess" });
+    state.cm.on("inputRead", (cm, change) => {
+      if (!change.text || !/[\w$.]/.test(change.text.join("")) || cm.state.completionActive) return;
+      cm.showHint({ hint: window.LarkTyping.hint, completeSingle: false });
     });
     state.cm.on("change", () => {
       if (!state.path) return;
@@ -266,9 +271,10 @@
   }
 
   async function openProject(id) {
+    if (state.dirty) await saveFile();
     const data = await api("GET", "/api/projects/" + encodeURIComponent(id));
     state.project = data.project || data;
-    state.files = data.files || [];
+    state.files = (data.project || data).files || [];
     state.path = null;
     state.dirty = false;
     if (state.settings) {
@@ -311,18 +317,16 @@
 
   async function openFile(path) {
     if (state.dirty && state.path && state.path !== path) {
-      if (!confirm("Save changes to " + state.path + "?")) {
-        /* keep going without save */
-      } else {
-        await saveFile();
-      }
+      await saveFile();
     }
     const file = state.files.find((f) => f.path === path);
     if (!file) throw new Error("File not found.");
     const cm = ensureEditor();
+    state.path = null;
+    cm.setValue(file.content || "");
+    cm.clearHistory();
     state.path = path;
     state.dirty = false;
-    cm.setValue(file.content || "");
     $("edit-path").textContent = path;
     $("edit-status").textContent = "Saved";
     $("edit-status").className = "ok";
@@ -392,13 +396,15 @@
 
   async function saveFile() {
     if (!state.project || !state.path || !state.cm) return;
-    const content = state.cm.getValue();
+    const content = state.cm.getValue(), savedPath = state.path, savedProject = state.project.id;
     await api("PUT", "/api/projects/" + encodeURIComponent(state.project.id) + "/file", {
       path: state.path,
       content: content
     });
-    const file = state.files.find((f) => f.path === state.path);
+    if (state.project.id !== savedProject || state.path !== savedPath) return;
+    const file = state.files.find((f) => f.path === savedPath);
     if (file) file.content = content;
+    if (state.cm.getValue() !== content) return;
     state.dirty = false;
     $("edit-status").textContent = "Saved";
     $("edit-status").className = "ok";
@@ -496,15 +502,17 @@
     const name = prompt("New file path", "src/Main.java");
     if (!name) return;
     const path = name.replace(/^\/+/, "");
+    if (state.files.some(file => file.path === path)) return toast("That file already exists. Open it from Files.");
+    if (state.dirty) await saveFile();
     const stub = path.endsWith(".java")
-      ? "public class " + (path.split("/").pop() || "Main").replace(/\\.java$/, "") + " {\n    public static void main(String[] args) {\n        System.out.println(\"Hello from Lark Mobile\");\n    }\n}\n"
+      ? "public class " + (path.split("/").pop() || "Main").replace(/\.java$/, "") + " {\n    public static void main(String[] args) {\n        System.out.println(\"Hello from Lark Mobile\");\n    }\n}\n"
       : "";
     await api("PUT", "/api/projects/" + encodeURIComponent(state.project.id) + "/file", {
       path: path,
       content: stub
     });
     const data = await api("GET", "/api/projects/" + encodeURIComponent(state.project.id));
-    state.files = data.files || [];
+    state.files = (data.project || data).files || [];
     await openFile(path);
     setView("edit");
   }
@@ -570,6 +578,30 @@
   }
 
   function bind() {
+    ["undo", "redo", "find"].forEach(command => $("btn-" + command).onclick = () => { if (state.path) ensureEditor().execCommand(command); });
+    $("btn-complete").onclick = () => { if (state.path) ensureEditor().showHint({ hint: window.LarkTyping.hint, completeSingle: false }); };
+    $("btn-rename").onclick = async () => {
+      try {
+        if (!state.path) return;
+        const from = state.path, to = prompt("New file path", from);
+        if (!to || to === from) return;
+        if (state.dirty) await saveFile();
+        await api("POST", "/api/projects/" + encodeURIComponent(state.project.id) + "/move", { from, to });
+        await openProject(state.project.id); await openFile(to); setView("edit");
+      } catch (e) { toast(e.message); }
+    };
+    $("btn-delete").onclick = async () => {
+      try {
+        if (!state.path || !confirm("Delete " + state.path + "? This cannot be undone.")) return;
+        await api("DELETE", "/api/projects/" + encodeURIComponent(state.project.id) + "/file?path=" + encodeURIComponent(state.path));
+        state.dirty = false; state.path = null; await openProject(state.project.id);
+      } catch (e) { toast(e.message); }
+    };
+    ['{', '}', '(', ')', '[', ']', ';', '"', '=', '<', '>'].forEach(symbol => {
+      const button = document.createElement("button"); button.className = "ghost"; button.textContent = symbol;
+      button.onclick = () => { if (state.path) { state.cm.replaceSelection(symbol, "end", "+input"); state.cm.focus(); } };
+      $("symbols").appendChild(button);
+    });
     document.querySelectorAll(".tab").forEach((tab) => {
       tab.addEventListener("click", () => setView(tab.dataset.tab));
     });
@@ -651,5 +683,6 @@
     }
   }
 
+  window.addEventListener("beforeunload", event => { if (state.dirty) { event.preventDefault(); event.returnValue = ""; } });
   boot();
 })();

@@ -13,6 +13,8 @@
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,600;9..144,700&family=Source+Sans+3:wght@400;500;600;700&family=IBM+Plex+Mono:wght@450;500&display=swap" rel="stylesheet">
   <link rel="stylesheet" href="./vendor/codemirror/codemirror.min.css?v=__LARK_V__">
+  <link rel="stylesheet" href="./vendor/codemirror/addon/hint/show-hint.css">
+  <link rel="stylesheet" href="./vendor/codemirror/addon/dialog/dialog.css">
   <link rel="stylesheet" href="./css/mobile.css?v=__LARK_V__">
 </head>
 <body>
@@ -39,7 +41,7 @@
         <div class="hero-sheet">
           <p class="eyebrow">Lark Mobile</p>
           <h1>Code with your thumbs.</h1>
-          <p class="lede">A separate Mobile edition — big taps, one screen at a time. Run on this device, or pair a phone to the host on Wi‑Fi.</p>
+          <p class="lede">Your Java workspace, adapted for touch. Compilation and execution use the connected Lark host and its JDK. Keep the host running while you work.</p>
         </div>
         <div class="pair-card" id="pair-card" hidden>
           <p class="pair-label">Phone pair</p>
@@ -71,12 +73,14 @@
           <p id="edit-status">Ready</p>
         </div>
         <div class="edit-tools">
+          <button id="btn-undo" class="ghost">Undo</button><button id="btn-redo" class="ghost">Redo</button><button id="btn-find" class="ghost">Find</button><button id="btn-complete" class="ghost">Complete</button><button id="btn-rename" class="ghost">Rename</button><button id="btn-delete" class="ghost">Delete</button>
           <button type="button" id="btn-blocks" class="ghost wide">Insert homework block…</button>
           <button type="button" id="btn-matrix" class="ghost wide">Insert matrix print loops</button>
           <button type="button" id="btn-quickfix" class="ghost wide" hidden>Quick fix</button>
         </div>
         <p id="edit-problem" class="hint" hidden></p>
         <div id="editor-host"></div>
+        <div id="symbols" class="edit-tools" aria-label="Code symbols"></div>
       </section>
 
       <section id="view-run" class="view" data-view="run" hidden>
@@ -169,6 +173,11 @@
   <script src="./vendor/fengari/fengari-web.js"></script>
   <script src="./js/java-lua-mode.js?v=__LARK_V__"></script>
   <script src="./js/java.js?v=__LARK_V__"></script>
+  <script src="./js/typing.js?v=__LARK_V__"></script>
+  <script src="./vendor/codemirror/addon/hint/show-hint.min.js"></script>
+  <script src="./vendor/codemirror/addon/search/searchcursor.min.js"></script>
+  <script src="./vendor/codemirror/addon/dialog/dialog.min.js"></script>
+  <script src="./vendor/codemirror/addon/search/search.min.js"></script>
   <script src="./js/mobile.js?v=__LARK_V__"></script>
 </body>
 </html>

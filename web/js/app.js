@@ -1834,6 +1834,9 @@
   }
 
   function completeHintSuggest(editor) {
+    if (/comment|string/.test(editor.getTokenTypeAt(editor.getCursor()) || "")) return null;
+    const members = window.LarkTyping?.hint(editor);
+    if (members) return members;
     const cursor = editor.getCursor();
     const token = editor.getTokenAt(cursor);
     let prefix = token.string || "";
@@ -1853,6 +1856,9 @@
   }
 
   function completeHintFull(editor) {
+    if (/comment|string/.test(editor.getTokenTypeAt(editor.getCursor()) || "")) return null;
+    const members = window.LarkTyping?.hint(editor);
+    if (members) return members;
     const cursor = editor.getCursor();
     const token = editor.getTokenAt(cursor);
     let prefix = token.string || "";

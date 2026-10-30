@@ -629,6 +629,7 @@ public final class Server {
                 return;
             }
             if ("mkdir".equals(tail) && "POST".equals(method)) {
+                share.guardWrite(id, null);
                 projects.mkdir(id, body(exchange).str("path", ""));
                 sendJson(exchange, 200, new Json.Obj().put("ok", true));
                 return;
