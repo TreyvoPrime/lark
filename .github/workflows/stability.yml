@@ -1,0 +1,40 @@
+name: Lark stability checks
+on:
+  pull_request:
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  regression:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - run: bash package.sh
+      - run: |
+          javac --release 17 -cp build -d build test/ShareCheck.java test/ShareEditingCheck.java test/GitHubAuthCheck.java test/FlowCheck.java
+          java -cp build lark.ShareCheck
+          java -cp build lark.ShareEditingCheck
+          java -cp build lark.GitHubAuthCheck
+          java -cp build lark.FlowCheck
+          node test/share-document.test.cjs
+          node test/share-scroll.test.cjs
+          node test/java-parse.test.js
+          node test/typing.test.cjs
+      - run: npm install --no-save playwright
+      - run: npx playwright install --with-deps chromium
+      - name: Real browser collaboration regression
+        run: |
+          export CHROMIUM_PATH="$(node -e "console.log(require('playwright').chromium.executablePath())")"
+          node test/share-browser.cjs
+      - uses: actions/upload-artifact@v4
+        if: success()
+        with:
+          name: tested-development-jar
+          path: dist/lark.jar
