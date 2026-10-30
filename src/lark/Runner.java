@@ -201,6 +201,7 @@ public final class Runner {
         List<String> run = new ArrayList<>();
         run.add(tool("java").toString());
         // Keep emoji and other Unicode readable on Windows and Linux.
+        if (Mobile.isMobile()) { run.add("-Xmx256m"); run.add("-XX:ActiveProcessorCount=2"); }
         run.add("-Dfile.encoding=UTF-8");
         run.add("-Dstdout.encoding=UTF-8");
         run.add("-Dstderr.encoding=UTF-8");
@@ -216,7 +217,7 @@ public final class Runner {
         if (stdin == null || stdin.isBlank()) {
             job.append("(Type under Output if the program asks a question.)\n");
         }
-        int exit = executeProcess(run, project, stdin, 300, job, null, null, true);
+        int exit = executeProcess(run, project, stdin, Mobile.isMobile() ? 60 : 300, job, null, null, true);
         if (!job.cancelled) job.append("\n— exited " + exit + "\n");
         job.finish(exit);
     }

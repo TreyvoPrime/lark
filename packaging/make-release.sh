@@ -22,7 +22,7 @@ cat > release/update.json <<EOF
 {
   "version": "$version",
   "notes": "$notes",
-  "page": "https://treyvoprime.github.io/lark-download/",
+  "page": "https://lark.rocks/",
   "downloads": {
     "windows": "$feed_base/lark-desktop-update.zip",
     "mac": "$feed_base/lark-desktop-update.zip",

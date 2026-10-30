@@ -506,3 +506,17 @@ body::before { display: none; }
 #editor-host .CodeMirror { min-height: 45dvh; font-family: var(--font-code); }
 @media (min-width: 900px) { #stage { max-width: 1200px; margin: auto; } #editor-host .CodeMirror { min-height: 60dvh; } }
 @media (prefers-reduced-motion: reduce) { * { animation: none !important; } }
+#app { min-height: 100dvh; }
+.hero-sheet { padding: 20px 0; }
+.hero-sheet h1 { font-size: clamp(25px, 5vw, 38px); letter-spacing: -.04em; }
+.row { border-radius: 8px; border: 1px solid var(--line); }
+.top .brand-text { flex-direction: row; gap: 8px; align-items: baseline; }
+.top .brand-text span { text-transform: none; letter-spacing: 0; }
+.CodeMirror { background: var(--bg0); color: var(--ink); }
+.CodeMirror-gutters { background: var(--bg1); border-color: var(--line); }
+.CodeMirror-cursor { border-left-color: var(--ink); }
+.cm-keyword { color: var(--syn-keyword, #cc7832); }
+.cm-string { color: var(--syn-string, #6a8759); }
+.cm-comment { color: var(--syn-comment, #808080); }
+.cm-number { color: var(--syn-number, #6897bb); }
+.cm-def { color: var(--syn-def, #ffc66d); }

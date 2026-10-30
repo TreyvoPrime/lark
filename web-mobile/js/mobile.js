@@ -31,7 +31,8 @@
     job: null,
     poll: null,
     updateDownload: "",
-    view: "home"
+    view: "home",
+    docs: new Map(), breakpoints: new Map(), debug: null, debugPoll: null
   };
 
   const $ = (id) => document.getElementById(id);
@@ -50,6 +51,7 @@
     if (fromUrl) {
       state.pair = fromUrl;
       try { sessionStorage.setItem("lark-pair", fromUrl); } catch (e) {}
+      try { const clean = new URL(location.href); clean.searchParams.delete("pair"); history.replaceState(null, "", clean); } catch (_) {}
       return;
     }
     try {
@@ -206,14 +208,24 @@
       lineWrapping: true,
       indentUnit: 4,
       matchBrackets: true,
-      autoCloseBrackets: true,
+      autoCloseBrackets: localStorage.getItem("lark-mobile-pairing") !== "off",
       styleActiveLine: true,
       viewportMargin: 12
     });
     state.cm.setOption("extraKeys", { "Ctrl-Space": cm => cm.showHint({ hint: window.LarkTyping.hint, completeSingle: false }), "Tab": "indentMore", "Shift-Tab": "indentLess" });
     state.cm.on("inputRead", (cm, change) => {
+      if (localStorage.getItem("lark-mobile-suggestions") === "off") return;
       if (!change.text || !/[\w$.]/.test(change.text.join("")) || cm.state.completionActive) return;
       cm.showHint({ hint: window.LarkTyping.hint, completeSingle: false });
+    });
+    state.cm.setOption("gutters", ["CodeMirror-linenumbers", "breakpoints"]);
+    state.cm.on("gutterClick", (cm, line) => {
+      if (!state.path?.endsWith(".java")) return;
+      const lines = state.breakpoints.get(state.path) || new Set();
+      if (lines.has(line + 1)) lines.delete(line + 1); else lines.add(line + 1);
+      state.breakpoints.set(state.path, lines);
+      const marker = document.createElement("span"); marker.textContent = "●"; marker.style.color = "#e08080";
+      cm.setGutterMarker(line, "breakpoints", lines.has(line + 1) ? marker : null);
     });
     state.cm.on("change", () => {
       if (!state.path) return;
@@ -273,6 +285,8 @@
   async function openProject(id) {
     if (state.dirty) await saveFile();
     const data = await api("GET", "/api/projects/" + encodeURIComponent(id));
+    state.docs.clear();
+    state.breakpoints.clear();
     state.project = data.project || data;
     state.files = (data.project || data).files || [];
     state.path = null;
@@ -322,9 +336,11 @@
     const file = state.files.find((f) => f.path === path);
     if (!file) throw new Error("File not found.");
     const cm = ensureEditor();
+    if (file.binary || file.tooBig) return toast("This file cannot be edited: binary data or exceeds the editor size limit.");
     state.path = null;
-    cm.setValue(file.content || "");
-    cm.clearHistory();
+    let doc = state.docs.get(path);
+    if (!doc) { doc = CodeMirror.Doc(file.content || "", path.endsWith(".java") ? "text/x-java" : "text/plain"); state.docs.set(path, doc); }
+    cm.swapDoc(doc);
     state.path = path;
     state.dirty = false;
     $("edit-path").textContent = path;
@@ -577,7 +593,49 @@
     }
   }
 
+  async function newFolder() {
+    if (!state.project) return toast("Open a project first.");
+    const path = prompt("New folder path", "src/package"); if (!path) return;
+    await api("POST", "/api/projects/" + encodeURIComponent(state.project.id) + "/mkdir", { path });
+    toast("Folder created: " + path);
+  }
+  async function startDebug() {
+    if (!state.project) return toast("Open a project first.");
+    if (state.dirty) await saveFile();
+    const mainClass = prompt("Main class to debug (include package)", state.project.mainClass || "Main");
+    if (!mainClass) return;
+    if (state.debug) await api("POST", "/api/debug/" + state.debug + "/stop", {});
+    clearInterval(state.debugPoll);
+    const breakpoints = [];
+    state.breakpoints.forEach((lines, file) => lines.forEach(line => breakpoints.push({ file, line })));
+    const data = await api("POST", "/api/debug", { project: state.project.id, mainClass, breakpoints });
+    state.debug = data.id; setView("run");
+    state.debugPoll = setInterval(async () => {
+      try {
+        const snap = await api("GET", "/api/debug/" + state.debug);
+        $("run-out").textContent = snap.output || "";
+        $("debug-locals").textContent = (snap.locals || []).join("\n");
+        $("run-state").textContent = snap.phase + (snap.currentLine ? " · " + snap.currentClass + ":" + snap.currentLine : "");
+        if (snap.done) { clearInterval(state.debugPoll); state.debugPoll = null; state.debug = null; }
+      } catch(e) { clearInterval(state.debugPoll); state.debugPoll = null; toast(e.message); }
+    }, 500);
+  }
   function bind() {
+    $("auto-pair").checked = localStorage.getItem("lark-mobile-pairing") !== "off";
+    $("auto-suggest").checked = localStorage.getItem("lark-mobile-suggestions") !== "off";
+    $("auto-pair").onchange = event => { localStorage.setItem("lark-mobile-pairing", event.target.checked ? "on" : "off"); ensureEditor().setOption("autoCloseBrackets", event.target.checked); };
+    $("auto-suggest").onchange = event => localStorage.setItem("lark-mobile-suggestions", event.target.checked ? "on" : "off");
+    $("btn-new-folder").onclick = () => newFolder().catch(e => toast(e.message));
+    $("btn-debug").onclick = () => startDebug().catch(e => toast(e.message));
+    document.querySelectorAll('[data-debug]').forEach(button => button.onclick = async () => {
+      try { if (!state.debug) return toast("Start debugging first."); await api("POST", "/api/debug/" + state.debug + "/command", { command: button.dataset.debug }); }
+      catch(e) { toast(e.message); }
+    });
+    $("btn-debug-stop").onclick = async () => { try { if (state.debug) await api("POST", "/api/debug/" + state.debug + "/stop", {}); } catch(e) { toast(e.message); } };
+    $("btn-send-input").onclick = async () => {
+      try { if (!state.job) return toast("Run a program first."); await api("POST", "/api/run/" + state.job + "/input", { text: $("live-input").value + "\n" }); $("live-input").value = ""; }
+      catch(e) { toast(e.message); }
+    };
     ["undo", "redo", "find"].forEach(command => $("btn-" + command).onclick = () => { if (state.path) ensureEditor().execCommand(command); });
     $("btn-complete").onclick = () => { if (state.path) ensureEditor().showHint({ hint: window.LarkTyping.hint, completeSingle: false }); };
     $("btn-rename").onclick = async () => {

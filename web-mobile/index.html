@@ -16,6 +16,7 @@
   <link rel="stylesheet" href="./vendor/codemirror/addon/hint/show-hint.css">
   <link rel="stylesheet" href="./vendor/codemirror/addon/dialog/dialog.css">
   <link rel="stylesheet" href="./css/mobile.css?v=__LARK_V__">
+<link rel="stylesheet" href="./css/desktop-themes.css?v=__LARK_V__">
 </head>
 <body>
   <div id="app">
@@ -61,6 +62,7 @@
       <section id="view-files" class="view" data-view="files" hidden>
         <div class="section-head">
           <h2 id="files-title">Files</h2>
+          <button id="btn-new-folder" class="ghost">+ Folder</button>
           <button type="button" id="btn-new-file" class="ghost">+ File</button>
         </div>
         <div id="file-list" class="list"></div>
@@ -87,12 +89,14 @@
         <div class="run-bar">
           <button type="button" id="btn-run" class="accent">Run</button>
           <button type="button" id="btn-stop" class="ghost">Stop</button>
-          <span id="run-state">Idle</span>
+          <button id="btn-debug" class="ghost">Debug on host</button><span id="run-state">Idle</span>
         </div>
         <label class="field">
           <span>Program input</span>
           <textarea id="run-stdin" rows="3" placeholder="Typed into System.in while the program runs"></textarea>
         </label>
+        <div class="edit-tools"><button class="ghost" data-debug="next">Step over</button><button class="ghost" data-debug="step">Step into</button><button class="ghost" data-debug="cont">Continue</button><button class="ghost" data-debug="locals">Variables</button><button class="ghost" id="btn-debug-stop">Stop debug</button></div><pre id="debug-locals" aria-label="Debug variables"></pre>
+        <label class="field"><span>Send input to running program</span><input id="live-input" autocomplete="off"></label><button id="btn-send-input" class="ghost">Send input</button>
         <pre id="run-out" class="console" aria-live="polite"></pre>
       </section>
 
@@ -113,6 +117,7 @@
           </label>
           <button type="button" id="btn-blocks-more" class="ghost wide">Insert homework block…</button>
           <button type="button" id="btn-matrix-more" class="ghost wide">Insert matrix print loops</button>
+          <label class="field check"><span>Automatic bracket pairing</span><input id="auto-pair" type="checkbox" checked></label><label class="field check"><span>Automatic suggestions</span><input id="auto-suggest" type="checkbox" checked></label>
           <button type="button" id="btn-check-update" class="ghost wide">Check for updates</button>
           <p id="update-msg" class="muted"></p>
           <button type="button" id="btn-install-update" class="accent wide" hidden>Install update</button>

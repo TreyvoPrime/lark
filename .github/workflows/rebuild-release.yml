@@ -27,9 +27,9 @@ jobs:
           sudo apt-get install -y nsis p7zip-full python3-pil zip
       - name: Build all release packages
         env:
-          LARK_UPDATE_BASE: https://github.com/TreyvoPrime/lark/releases/download/v4.0.4
+          LARK_UPDATE_BASE: https://github.com/TreyvoPrime/lark/releases/download/v4.0.5
         run: |
-          test "$(sed -n 's/.*VERSION = "\([^"]*\)".*/\1/p' src/lark/Settings.java | head -1)" = 4.0.4
+          test "$(sed -n 's/.*VERSION = "\([^"]*\)".*/\1/p' src/lark/Settings.java | head -1)" = 4.0.5
           ./packaging/make-release.sh
       - name: Verify actual packages and updater regression tests
         run: |
@@ -83,7 +83,7 @@ jobs:
             for ($attempt = 0; $attempt -lt 30; $attempt++) {
               try { $health = Invoke-RestMethod http://127.0.0.1:43123/api/health; break } catch { Start-Sleep 1 }
             }
-            if (!$health.ok -or $health.version -ne '4.0.4') { throw 'Installed server did not report 4.0.4' }
+            if (!$health.ok -or $health.version -ne '4.0.5') { throw 'Installed server did not report 4.0.5' }
             $health | ConvertTo-Json
             & (Join-Path $install 'jdk/bin/javac.exe') -cp $jar -d build/test test/Check.java
             if ($LASTEXITCODE -ne 0) { throw 'Regression test compile failed' }
@@ -95,20 +95,4 @@ jobs:
         with:
           name: windows-smoke-logs
           path: server*.log
-  publish:
-    needs: [build, windows]
-    runs-on: ubuntu-latest
-    permissions:
-      contents: write
-    steps:
-      - uses: actions/download-artifact@v4
-        with:
-          name: verified-release
-          path: release
-      - name: Replace verified binaries, then update metadata
-        env:
-          GH_TOKEN: ${{ github.token }}
-        run: |
-          gh release view v4.0.4 --repo TreyvoPrime/lark
-          gh release upload v4.0.4 release/*.zip release/*.exe release/*.sha256 release/SHA256SUMS.txt --repo TreyvoPrime/lark --clobber
-          gh release upload v4.0.4 release/update.json --repo TreyvoPrime/lark --clobber
+  # Publication is a separate, explicitly approved action after reviewing artifacts.
