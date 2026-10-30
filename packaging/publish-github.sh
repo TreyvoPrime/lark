@@ -112,6 +112,11 @@ for key in required:
 print("Validated all update channels and checksums.")
 PY
 
+# Fail closed: validate the actual installer payload, bundled Java runtime, all ZIPs,
+# application version, and the update SHA-256 mapping before publishing.
+# This catches releases that would download but run an older Lark build.
+python3 test/release-artifacts.py
+
 # Optional Linux app-image zip from jpackage.
 if [ -f release/lark-desktop-linux-appimage.zip ]; then
   assets+=(release/lark-desktop-linux-appimage.zip)
