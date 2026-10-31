@@ -10,7 +10,8 @@ for (const name of ['index.html', 'guide/index.html']) {
     const url = match[2];
     assert(!/^javascript:/.test(url) && url !== '#', 'no placeholder link');
     if (/^(https:|mailto:)/.test(url)) continue;
-    const [pathname, hash] = url.split('#');
+    const [pathWithQuery, hash] = url.split('#');
+    const pathname = pathWithQuery.split('?')[0];
     let target = pathname ? path.resolve(path.dirname(file), pathname) : file;
     assert(target.startsWith(root), 'local link stays in site');
     if (fs.existsSync(target) && fs.statSync(target).isDirectory()) target = path.join(target, 'index.html');
