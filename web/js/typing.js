@@ -1,6 +1,7 @@
 /* Lightweight Java member assistance; deliberately not a language server. */
 (function(root) {
   const members = {
+    Array: ['length', 'clone()'],
     System: ['out', 'err', 'in', 'currentTimeMillis()', 'nanoTime()', 'arraycopy()'],
     PrintStream: ['println()', 'print()', 'printf()', 'flush()'],
     String: ['length()', 'charAt()', 'substring()', 'equals()', 'equalsIgnoreCase()', 'trim()', 'toUpperCase()', 'toLowerCase()', 'contains()', 'split()', 'isEmpty()'],
@@ -9,17 +10,28 @@
     List: ['add()', 'get()', 'set()', 'remove()', 'size()', 'clear()', 'contains()', 'isEmpty()'],
     Math: ['abs()', 'max()', 'min()', 'sqrt()', 'pow()', 'random()', 'round()', 'PI', 'E']
   };
+  // Preserve positions while excluding comments/literals from declaration scans.
+  function codeOnly(source) {
+    return source.replace(/\/\*[\s\S]*?(?:\*\/|$)|\/\/[^\n]*|"""[\s\S]*?(?:"""|$)|"(?:\\[\s\S]|[^"\\])*(?:"|$)|'(?:\\[\s\S]|[^'\\])*(?:'|$)/g,
+      value => value.replace(/[^\n]/g, ' '));
+  }
+  function visibleDeclarations(source) {
+    const scopes = [new Map()];
+    const tokens = codeOnly(source).matchAll(/([{}])|\b([A-Za-z_$][\w$]*(?:\.[A-Za-z_$][\w$]*)*)(?:\s*<[^;{}]+>)?(\s*\[\s*\])?\s+([A-Za-z_$][\w$]*)(\s*\[\s*\])?(?=\s*(?:[=;,:)]|$))/g);
+    const excluded = new Set(['return', 'throw', 'new', 'case', 'break', 'continue', 'package', 'import']);
+    for (const token of tokens) {
+      if (token[1] === '{') scopes.push(new Map());
+      else if (token[1] === '}') { if (scopes.length > 1) scopes.pop(); }
+      else if (!excluded.has(token[2])) scopes.at(-1).set(token[4], token[3] || token[5] ? 'Array' : token[2].split('.').at(-1));
+    }
+    return new Map(scopes.flatMap(scope => [...scope]));
+  }
   function suggest(source, before) {
     const match = before.match(/([\w$]+(?:\.[\w$]+)*)\.([\w$]*)$/);
     if (!match) return null;
     let type = match[1], prefix = match[2];
     if (/^System\.(out|err)$/.test(type)) type = 'PrintStream';
-    if (!members[type] && /^[\w$]+$/.test(type)) {
-      const escaped = type.replace(/\$/g, '\\$');
-      const declaration = new RegExp('\\b(String|Scanner|ArrayList|List)(?:\\s*<[^>]+>)?\\s+' + escaped + '\\b', 'g');
-      const matches = [...source.matchAll(declaration)];
-      if (matches.length) type = matches.at(-1)[1];
-    }
+    if (/^[\w$]+$/.test(type)) type = visibleDeclarations(source).get(type) || type;
     return (members[type] || []).filter(name => name.startsWith(prefix)).map(name => ({ text: name, displayText: name + '  ' + type, prefix }));
   }
   function hint(cm) {
@@ -32,13 +44,13 @@
     if (!prefix) return null;
     const names = new Set([...(root.LarkJava?.keywords || []), ...(root.LarkJava?.typeWords || [])]);
     const source = cm.getValue();
-    // Bounded lexical variable assistance; no claim of full scope/type resolution.
-    for (const match of source.slice(0, cm.indexFromPos(cursor)).matchAll(/\b(?:[A-Z][\w$]*(?:<[^>]+>)?|int|double|float|long|boolean|char|byte|short)\s+([a-zA-Z_$][\w$]*)/g)) names.add(match[1]);
+    // Completed blocks and comments cannot contribute local variable names.
+    for (const name of visibleDeclarations(source.slice(0, cm.indexFromPos(cursor))).keys()) names.add(name);
     (root.LarkJava?.parseJava(source).symbols || []).forEach(symbol => names.add(symbol.name));
     const choices = [...names].filter(name => name.startsWith(prefix)).sort().slice(0, 40).map(text => ({ text, displayText: text }));
     return choices.length ? { list: choices, from: { line: cursor.line, ch: cursor.ch - prefix.length }, to: cursor } : null;
   }
-  const api = { suggest, hint };
+  const api = { suggest, hint, visibleDeclarations };
   if (typeof module !== 'undefined') module.exports = api;
   else root.LarkTyping = api;
 })(typeof window !== 'undefined' ? window : globalThis);
