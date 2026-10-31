@@ -3,11 +3,11 @@ const {fallback,selectPackages,fromReleases,fetchReleases} = require('../docs/re
 const release = (tag, assets, date = '2026-10-28T23:00:00Z') => ({tag_name:tag,published_at:date,draft:false,prerelease:false,assets});
 const asset = (name, tag, size = 10) => ({name,size,state:'uploaded',browser_download_url:`https://github.com/TreyvoPrime/lark/releases/download/${tag}/${name}`});
 async function run() {
-  assert.equal(fallback.latest.version,'4.0.1');
-  assert.equal(fallback.latest.updateOnly,true);
+  assert.equal(fallback.latest.version,'4.0.5');
+  assert.equal(fallback.latest.updateOnly,false);
   assert.equal(selectPackages(fallback,'windows').length,3);
   assert.equal(selectPackages(fallback,'macos')[0].architecture,'x64');
-  assert.equal(selectPackages(fallback,'windows')[0].version,'3.9.7.36');
+  assert.equal(selectPackages(fallback,'windows')[0].version,'4.0.5');
   assert.equal(selectPackages(fallback,'windows',{mobile:true}).length,1);
   assert(!fallback.packages.some(p=>p.name.includes('update')));
   const old=release('4.0',[asset('LarkDesktopSetup.exe','4.0',47622522)],'2026-10-28T20:00:00Z');
@@ -29,7 +29,7 @@ async function run() {
   assert.equal(fromReleases([release('4.0',[asset('evil.exe','4.0')])]).packages.length,0);
   const pre={...future,prerelease:true};assert.equal(fromReleases([old,pre]).latest.version,'4.0');
   const failed=await fetchReleases(async()=>{throw new Error('Offline');});
-  assert.equal(failed.source,'verified snapshot');assert.equal(failed.packages.length,6);
+  assert.equal(failed.source,'verified snapshot');assert.equal(failed.packages.length,8);
   const limited=await fetchReleases(async()=>({ok:false,status:403}));assert.equal(limited.stale,true);
   let requests=0;
   const many=Array.from({length:20},(_,i)=>release('v1.'+i,[]));

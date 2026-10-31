@@ -77,7 +77,7 @@
     document.getElementById('latest-version').textContent = data.latest.version;
     document.getElementById('latest-notes').href = data.latest.url;
     document.getElementById('update-description').textContent = data.latest.updateOnly ? 'It contains updates for existing installations. Install a full package above, then update in Lark.' : 'Read the release notes for changes and installation instructions.';
-    document.getElementById('release-status').textContent = data.stale ? 'Showing verified package details from October 28, 2026. Live release information is unavailable.' : 'Release availability checked with GitHub. Package sizes come from the published assets.';
+    document.getElementById('release-status').textContent = data.stale ? 'Showing verified package details from October 31, 2026. Live release information is unavailable.' : 'Release availability checked with GitHub. Package sizes come from the published assets.';
     const hero = document.querySelector('#hero-download span'); if (hero) hero.textContent = phone ? 'Choose a download' : 'Download for ' + names[selected];
     if (focusedHref) {
       const next = [...packageList.querySelectorAll('a')].find(a => a.href === focusedHref);

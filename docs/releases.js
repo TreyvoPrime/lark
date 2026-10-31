@@ -8,6 +8,8 @@
     'lark-desktop-windows.zip': { platform: 'windows', kind: 'desktop', label: 'Windows desktop ZIP', requirements: 'Extract all files and open Lark Desktop.exe. Includes Java.' },
     'lark-desktop-mac.zip': { platform: 'macos', kind: 'desktop', label: 'macOS desktop ZIP', requirements: 'Intel Mac (x64). Extract, then run Launch Lark Desktop.command. Includes Java. No native Apple Silicon package is verified.' },
     'lark-desktop-linux.zip': { platform: 'linux', kind: 'desktop', label: 'Linux desktop ZIP', requirements: 'Linux x64 with GNU libc. Extract, then run sh start-lark-desktop.sh. Includes Java.' },
+    'lark-mobile-mac.zip': { platform: 'macos', kind: 'mobile', label: 'Lark Mobile host for macOS', requirements: 'Intel Mac x64. Java included. LAN execution requires a supported Linux sandbox host.' },
+    'lark-mobile-linux.zip': { platform: 'linux', kind: 'mobile', label: 'Lark Mobile host for Linux', requirements: 'Linux x64. Java included. For LAN execution, install bubblewrap and util-linux and enable user namespaces.' },
     'lark-mobile-windows.zip': { platform: 'windows', kind: 'mobile', label: 'Lark Mobile host for Windows', requirements: 'Extract and run Start Lark Mobile. Connect your phone using the pairing URL on the same Wi-Fi.' }
   };
   const audited = [
@@ -19,13 +21,19 @@
     ['v3.9.7.36', 'lark-mobile-windows.zip', 77987948]
   ];
   const assetUrl = (tag, name) => repo + '/releases/download/' + encodeURIComponent(tag) + '/' + encodeURIComponent(name);
-  const fallback = {
+  const legacyFallback = {
     latest: { tag: 'v4.0.1', version: '4.0.1', url: repo + '/releases/tag/v4.0.1', updateOnly: true },
     packages: audited.map(([tag, name, bytes]) => ({ ...definitions[name], name, bytes, url: assetUrl(tag, name), releaseTag: tag, releaseUrl: repo + '/releases/tag/' + tag,
       // The Windows binaries on release 4.0 are byte-identical to 3.9.7.36.
       // Settings.VERSION in the downloaded Windows/macOS/Linux jars confirms this base version.
       version: '3.9.7.36', packageVersion: '3.9.7.36', architecture: 'x64', verified: true, recommended: name === 'LarkDesktopSetup.exe' })),
     checkedAt: '2026-10-29T00:46:00Z', source: 'verified snapshot', stale: true
+  };
+  const currentAssets = [["LarkDesktopSetup.exe", 47727909], ["lark-executable-windows.zip", 89212699], ["lark-desktop-windows.zip", 76457490], ["lark-desktop-mac.zip", 67614814], ["lark-desktop-linux.zip", 79364413], ["lark-mobile-windows.zip", 88438254], ["lark-mobile-mac.zip", 121856829], ["lark-mobile-linux.zip", 132403052]];
+  const fallback = {
+    latest: { tag: 'v4.0.5', version: '4.0.5', url: repo + '/releases/tag/v4.0.5', updateOnly: false },
+    packages: currentAssets.map(([name, bytes]) => ({ ...definitions[name], name, bytes, url: assetUrl('v4.0.5', name), releaseTag: 'v4.0.5', releaseUrl: repo + '/releases/tag/v4.0.5', version: '4.0.5', packageVersion: '4.0.5', architecture: 'x64', verified: true, recommended: name === 'LarkDesktopSetup.exe' })),
+    checkedAt: '2026-10-31T12:44:16Z', source: 'verified snapshot', stale: true
   };
   function validUrl(value, tag, name) {
     return typeof value === 'string' && value === assetUrl(tag, name);
@@ -39,7 +47,7 @@
     for (const release of stable) {
       for (const asset of release.assets) {
         if (!asset || !Object.hasOwn(definitions, asset.name) || found.has(asset.name) || asset.state !== 'uploaded' || !Number.isSafeInteger(asset.size) || asset.size <= 0 || !validUrl(asset.browser_download_url, release.tag_name, asset.name)) continue;
-        const verified = fallback.packages.find(p => p.url === asset.browser_download_url && p.bytes === asset.size);
+        const verified = [...fallback.packages, ...legacyFallback.packages].find(p => p.url === asset.browser_download_url && p.bytes === asset.size);
         found.set(asset.name, { ...definitions[asset.name], name: asset.name, bytes: asset.size, url: asset.browser_download_url,
           releaseTag: release.tag_name, releaseUrl: repo + '/releases/tag/' + encodeURIComponent(release.tag_name),
           version: verified?.version || release.tag_name.replace(/^v/, ''), packageVersion: verified?.packageVersion || null, architecture: verified?.architecture || 'Not specified', verified: !!verified, recommended: asset.name === 'LarkDesktopSetup.exe',

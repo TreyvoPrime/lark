@@ -1,3 +1,9 @@
+# Current release — October 31, 2026
+
+Lark 4.0.5 is publicly released with full Windows, macOS (Intel x64), Linux, Mobile host packages and the development-signed Android client. Published filenames and byte sizes were checked against GitHub release metadata. The installer and 16 archives passed build-time content, CRC and updater-hash checks. Physical platform installation and sandbox runtime testing remain limited. The current fallback snapshot in releases.js uses the published 4.0.5 asset sizes. No private Library links are used for public downloads.
+
+The historical audit below describes older packages and is retained for provenance.
+
 # Download audit — October 28, 2026 (America/New_York)
 
 Verified against the GitHub release API and direct HTTP HEAD requests. Every URL below returned **200**, with Content-Length matching the release API. ZIP downloads were inspected without running their contents.
