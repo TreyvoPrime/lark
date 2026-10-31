@@ -133,8 +133,13 @@ jobs:
         run: |
           set -eu
           test "$(git rev-parse HEAD)" = "$GITHUB_SHA" || { echo 'main changed during the build; refusing to publish a stale release'; exit 1; }
-          if gh release view v4.0.6 >/dev/null 2>&1; then echo 'v4.0.6 already exists; refusing to replace it'; exit 1; fi
-          gh release create v4.0.6 release/*.zip release/*.exe release/*.sha256 release/SHA256SUMS.txt release/update.json --target "$GITHUB_SHA" --title 'Lark 4.0.6' --notes-file RELEASE_NOTES_4.0.6.md --draft
+          if gh release view v4.0.6 >/dev/null 2>&1; then
+            test "$(gh release view v4.0.6 --json isDraft --jq .isDraft)" = true || { echo 'v4.0.6 is already published; refusing to replace it'; exit 1; }
+            gh release edit v4.0.6 --target "$GITHUB_SHA" --title 'Lark 4.0.6' --notes-file RELEASE_NOTES_4.0.6.md
+            gh release upload v4.0.6 release/*.zip release/*.exe release/*.sha256 release/SHA256SUMS.txt release/update.json
+          else
+            gh release create v4.0.6 release/*.zip release/*.exe release/*.sha256 release/SHA256SUMS.txt release/update.json --target "$GITHUB_SHA" --title 'Lark 4.0.6' --notes-file RELEASE_NOTES_4.0.6.md --draft
+          fi
           gh release edit v4.0.6 --draft=false --latest
       - name: Update verified website download snapshot
         env:
