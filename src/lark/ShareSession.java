@@ -34,7 +34,7 @@ final class ShareSession implements AutoCloseable {
     private static final class Device {
         final String id = token(), credential = token(), name;
         final String color;
-        String status = "pending", role = "viewer", file = "", anchor = "", head = "";
+        String status = "pending", role = "viewer", file = "", anchor = "", head = "", bird = "classic";
         long seen;
         Device(String name, int index) {
             this.name = name;
@@ -42,7 +42,7 @@ final class ShareSession implements AutoCloseable {
             color = index < colors.length ? colors[index] : String.format("#%06x", java.awt.Color.HSBtoRGB((float)((index * 0.61803398875) % 1), 0.55f, 0.9f) & 0xffffff);
         }
         Json.Obj publicInfo() { return new Json.Obj().put("id", id).put("name", name)
-                .put("status", status).put("role", role).put("color", color).put("file", file).put("anchor", anchor).put("head", head)
+                .put("status", status).put("role", role).put("bird", bird).put("color", color).put("file", file).put("anchor", anchor).put("head", head)
                 .put("connected", System.currentTimeMillis() - seen < 15_000); }
     }
 
@@ -135,6 +135,7 @@ final class ShareSession implements AutoCloseable {
             if (!equal(invitation, request.str("invitation"))) throw new RequestFail(403, "Invalid invitation.");
             if (devices.size() >= 32) throw new RequestFail(429, "Session device limit reached. End the session to clear requests.");
             Device device = new Device(label(request.str("name", "")), devices.size()); device.seen = clock.getAsLong();
+            device.bird = bird(request.str("bird", "classic"));
             devices.put(device.id, device);
             return ok().put("device", device.id).put("credential", device.credential).put("status", device.status);
         }
@@ -142,6 +143,7 @@ final class ShareSession implements AutoCloseable {
         if (device == null || !equal(device.credential, request.str("credential")) || device.status.equals("revoked"))
             throw new RequestFail(403, "Access revoked or unknown device.");
         device.seen = clock.getAsLong();
+        if (action.equals("avatar")) { device.bird = bird(request.str("bird", "classic")); return ok(); }
         if (action.equals("leave")) { device.status = "revoked"; return ok(); }
         if (action.equals("poll")) {
             if (device.status.equals("approved")) active = clock.getAsLong();
@@ -220,7 +222,11 @@ final class ShareSession implements AutoCloseable {
         return document.page(request.longVal("since"), request.str("action", "").equals("open"))
                 .put("actor", identity + "." + writer).put("role", role).put("participants", participants(false));
     }
-    private String hostFile = "", hostAnchor = "", hostHead = "";
+    private String hostFile = "", hostAnchor = "", hostHead = "", hostBird = "classic";
+    synchronized void avatar(String value) { requireLive(); hostBird = bird(value); }
+    static String bird(String value) {
+        return Set.of("classic", "blue-jay", "cardinal", "goldfinch", "robin", "snow-owl", "hummingbird", "raven", "eagle", "falcon").contains(value) ? value : "classic";
+    }
     synchronized Json.Obj discoveryInfo() { requireLive(); return new Json.Obj().put("name", name).put("host", host).put("status", devices.size() < 32 ? "available" : "full").put("count", 1 + devices.values().stream().filter(d -> d.status.equals("approved")).count()); }
     synchronized void settings(String role, long minutes) {
         requireLive(); if (!Set.of("editor", "viewer").contains(role) || minutes < 5 || minutes > 120) throw new RequestFail(400, "Choose a role and 5–120 minute inactivity limit.");
@@ -247,7 +253,7 @@ final class ShareSession implements AutoCloseable {
     private Json.Arr participants(boolean includePending) {
         Json.Arr out = new Json.Arr();
         out.add(new Json.Obj().put("id", "host").put("color", "#6495ed").put("name", host).put("status", "approved").put("role", "host").put("connected", true)
-                .put("file", hostFile).put("anchor", hostAnchor).put("head", hostHead));
+                .put("bird", hostBird).put("file", hostFile).put("anchor", hostAnchor).put("head", hostHead));
         devices.values().stream().filter(d -> includePending || d.status.equals("approved")).forEach(d -> out.add(d.publicInfo()));
         return out;
     }

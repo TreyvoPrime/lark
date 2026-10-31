@@ -1,0 +1,21 @@
+/* Update the verified website snapshot only after the actual release files exist. */
+const fs = require('node:fs'), path = require('node:path');
+const version = process.argv[2], release = process.argv[3] || 'release';
+if (!/^\d+\.\d+\.\d+$/.test(version || '')) throw new Error('Supply a three-part release version');
+const names = ['LarkDesktopSetup.exe','lark-executable-windows.zip','lark-desktop-windows.zip','lark-desktop-mac.zip','lark-desktop-linux.zip','lark-mobile-windows.zip','lark-mobile-mac.zip','lark-mobile-linux.zip'];
+const assets = names.map(name => { const file = path.join(release, name); const bytes = fs.statSync(file).size; if (bytes <= 0) throw new Error('Empty release asset: ' + name); return [name, bytes]; });
+const tag = 'v' + version;
+let file = 'docs/releases.js', text = fs.readFileSync(file, 'utf8');
+const oldAssets = /  const currentAssets = \[[^\n]+\];/;
+if (!oldAssets.test(text)) throw new Error('Cannot find verified asset snapshot');
+text = text.replace(oldAssets, '  const currentAssets = ' + JSON.stringify(assets) + ';');
+const begin = text.indexOf('  const fallback = {'), end = text.indexOf('  function validUrl', begin);
+if (begin < 0 || end < 0) throw new Error('Cannot find release fallback');
+let block = text.slice(begin, end).replaceAll('v4.0.5', tag).replaceAll("'4.0.5'", "'" + version + "'").replace(/checkedAt: '[^']+'/, "checkedAt: '" + new Date().toISOString() + "'");
+if (!block.includes(tag)) throw new Error('Unexpected prior snapshot version');
+text = text.slice(0, begin) + block + text.slice(end); fs.writeFileSync(file, text);
+file = 'docs/index.html'; text = fs.readFileSync(file, 'utf8').replaceAll('releases.js?v=4.0.5', 'releases.js?v=' + version).replaceAll('site.js?v=4.0.5', 'site.js?v=' + version).replaceAll('/releases/download/v4.0.5/', '/releases/download/' + tag + '/').replaceAll('/releases/tag/v4.0.5', '/releases/tag/' + tag).replace('Published under release 4.0.5.', 'Published under release ' + version + '.').replace('<span id="latest-version">4.0.5</span>', '<span id="latest-version">' + version + '</span>').replace('These packages include Lark 4.0.5 and Java;', 'These packages include Lark ' + version + ' and Java;').replace('Lark 4.0.5 is available with Share reliability fixes, improved Java editing and the new Mobile workspace.', 'Lark ' + version + ' adds bird avatars, terminal improvements, an enabled-by-default minimap, and new light themes.');
+fs.writeFileSync(file, text);
+file = 'docs/site.js'; text = fs.readFileSync(file, 'utf8').replace('Showing verified package details from October 31, 2026. Live release information is unavailable.', 'Showing a verified release snapshot. Live release information is unavailable.'); fs.writeFileSync(file, text);
+file = 'test/site-releases.test.cjs'; text = fs.readFileSync(file, 'utf8').replaceAll("'4.0.5'", "'" + version + "'"); fs.writeFileSync(file, text);
+console.log('Updated verified website snapshot for', tag);

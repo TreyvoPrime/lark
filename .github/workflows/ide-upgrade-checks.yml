@@ -1,0 +1,45 @@
+name: IDE upgrade checks
+on:
+  pull_request:
+  push:
+    branches: [main, master]
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  verify:
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, windows-latest, macos-latest]
+    runs-on: ${{ matrix.os }}
+    defaults:
+      run:
+        shell: bash
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+      - name: Build the packaged IDE
+        run: bash ./package.sh
+      - name: Compile and run isolated integration checks
+        run: |
+          mkdir -p build/test "$RUNNER_TEMP/lark-share-check"
+          javac --release 17 -encoding UTF-8 -cp dist/lark.jar -d build/test \
+            test/Check.java test/ShareCheck.java test/ShareEditingCheck.java \
+            test/ShareBirdCheck.java test/ShareLanBirdCheck.java \
+            test/TerminalGitCheck.java test/TerminalCancellationCheck.java \
+            test/SettingsMinimapCheck.java test/FlowCheck.java test/GitHubAuthCheck.java
+          case "$RUNNER_OS" in Windows) classpath='dist/lark.jar;build/test';; *) classpath='dist/lark.jar:build/test';; esac
+          export LARK_HOME="$RUNNER_TEMP/lark-share-check"
+          for check in Check ShareCheck ShareEditingCheck ShareBirdCheck ShareLanBirdCheck TerminalGitCheck TerminalCancellationCheck FlowCheck GitHubAuthCheck; do
+            java -cp "$classpath" "lark.$check"
+          done
+          LARK_HOME="$RUNNER_TEMP/lark-settings-check" java -cp "$classpath" lark.SettingsMinimapCheck
+      - name: Run editor and collaboration regressions
+        run: node --test test/java-parse.test.js test/share-document.test.cjs test/share-scroll.test.cjs test/theme-palettes.test.cjs test/terminal-input.test.cjs

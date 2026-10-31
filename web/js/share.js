@@ -18,6 +18,9 @@
   const close = element('button', 'Close', heading); close.type = 'button'; close.onclick = () => dialog.close();
   element('p', 'Encrypted LAN collaboration · Save and review source before running collaborator-modified code.', dialog);
   const status = element('p', 'Disconnected', dialog); status.setAttribute('role', 'status');
+  const notice = element('p', '', dialog); notice.setAttribute('role', 'status'); notice.className = 'share-presence-notice';
+  let knownPeople = null, noticeTimer = null;
+  const popup = element('div', '', document.body); popup.className = 'share-presence-popup'; popup.setAttribute('role', 'status'); popup.hidden = true;
   const error = element('p', '', dialog); error.className = 'share-error'; error.setAttribute('role', 'alert');
   const navigation = element('div', null, dialog); navigation.className = 'share-actions';
   const content = element('div', null, dialog);
@@ -86,7 +89,7 @@
       event.preventDefault(); if (busy) return; busy = true; submit.disabled = true;
       try {
         await window.LarkEditorShare.flush();
-        const data = await api('host', { discovery: discovery.checked, project: project.value, name: name.value, displayName: displayName.value, address: address.value, port: Number(port.value) });
+        const data = await api('host', { discovery: discovery.checked, project: project.value, name: name.value, displayName: displayName.value, bird: window.LarkBirds.selected(), address: address.value, port: Number(port.value) });
         latest = data; startPage('invitation'); showInvitation(data); await refresh();
       } catch (err) { report(err); } finally { busy = false; submit.disabled = false; }
     };
@@ -113,7 +116,7 @@
       event.preventDefault(); if (busy) return; busy = true; submit.disabled = true;
       try {
         status.textContent = 'Connecting';
-        latest = await api('join', { invitation: invitation.value.trim(), displayName: displayName.value, verified: verified.checked });
+        latest = await api('join', { invitation: invitation.value.trim(), displayName: displayName.value, bird: window.LarkBirds.selected(), verified: verified.checked });
         startPage('home'); await refresh();
       } catch (err) { report(err); status.textContent = 'Connection Lost'; }
       finally { busy = false; submit.disabled = false; }
@@ -129,6 +132,7 @@
     if (!list.length) element('p', 'No participants yet.', content);
     list.forEach(person => {
       const row = element('div', null, content); row.className = 'share-device';
+      row.append(window.LarkBirds.make(person.bird, 32));
       element('strong', person.name, row);
       element('span', `${person.status} · ${person.role} · ${person.connected ? 'Connected' : 'Connection Lost'}${person.file ? ' · ' + person.file + ' · ' + window.LarkShareEditing.position(person) : ''}`, row);
       if (latest.hosting && person.status === 'pending') action(row, 'Approve as Editor', async () => { latest = await api('decide', { device: person.id, approve: true, role: 'editor' }); await refresh(); });
@@ -137,6 +141,25 @@
       if (latest.hosting && person.id !== 'host' && person.status === 'approved') action(row, person.role === 'editor' ? 'Make Viewer' : 'Make Editor', async () => { latest = await api('decide', { device: person.id, approve: true, role: person.role === 'editor' ? 'viewer' : 'editor' }); await refresh(); });
       if (latest.hosting && person.id !== 'host' && person.status !== 'revoked') action(row, person.status === 'pending' ? 'Reject' : 'Revoke access', async () => { latest = await api('decide', { device: person.id, approve: false }); await refresh(); });
     });
+  }
+  function chooseBird() {
+    startPage('birds'); element('h3', 'Choose Your Bird', content);
+    const preview=element('div', null, content); preview.className='share-bird-preview';
+    const grid=element('div', null, content); grid.className='share-bird-grid';
+    function draw() {
+      const selected=window.LarkBirds.selected(); preview.replaceChildren(window.LarkBirds.make(selected, 64));
+      element('strong', window.LarkBirds.birds.find(b=>b[0]===selected)[1], preview);
+      grid.replaceChildren();
+      window.LarkBirds.birds.forEach(b => {
+        const tile=action(grid, '', async () => {
+          await api('avatar', {bird:b[0]});
+          window.LarkBirds.save(b[0]); draw(); grid.querySelector('[data-bird="' + b[0] + '"]')?.focus(); await refresh();
+        });
+        tile.className='share-bird-tile'; tile.dataset.bird=b[0]; tile.setAttribute('aria-pressed', String(selected===b[0]));
+        tile.append(window.LarkBirds.make(b[0], 48)); element('span',b[1],tile);
+      });
+    }
+    draw();
   }
   function security() {
     startPage('security');
@@ -215,6 +238,7 @@
     }
     if (latest.hosting) action(navigation, 'Invitation', async () => { const data = await api('invitation'); startPage('invitation'); showInvitation(data); });
     if (!latest.hosting && !latest.joined) action(navigation, 'Nearby Sessions', nearby);
+    action(navigation, 'Choose Your Bird', chooseBird);
     action(navigation, 'Recovery', recovery);
     action(navigation, 'Participants', participants); action(navigation, 'Security', security);
     if (latest.hosting) action(navigation, 'Review Changes', review);
@@ -230,7 +254,25 @@
     if (polling) return; polling = true;
     try {
       latest = await api('status');
-      const pending = latest.session?.participants?.filter(p => p.status === 'pending').length || 0;
+      window.LarkBirds.save(latest.bird || 'classic');
+      const people = latest.session?.participants;
+      if (people && (!latest.joined || latest.session?.status === 'approved')) {
+        const connected = new Map(people.filter(p => p.status === 'approved' && p.connected && p.id !== latest.identity).map(p => [p.id, p]));
+        if (knownPeople) {
+          const joined = [...connected.values()].filter(p => !knownPeople.has(p.id));
+          const left = [...knownPeople.values()].filter(p => !connected.has(p.id));
+          const changed = joined[0] || left[0];
+          if (changed) {
+            const message = [joined.length ? joined.map(p => p.name).join(', ') + ' joined' : '', left.length ? left.map(p => p.name).join(', ') + ' left' : ''].filter(Boolean).join(' · ') + ' Lark Share';
+            notice.replaceChildren(window.LarkBirds.make(changed.bird, 24), document.createTextNode(message));
+            popup.replaceChildren(window.LarkBirds.make(changed.bird, 32), document.createTextNode(message));
+            popup.hidden = false; clearTimeout(noticeTimer); noticeTimer = setTimeout(() => { popup.hidden = true; }, 4500);
+          }
+        }
+        knownPeople = connected;
+        document.dispatchEvent(new CustomEvent('lark-share-presence', { detail: people }));
+      } else if (!latest.hosting && (!latest.joined || latest.session?.status === 'pending')) { knownPeople = null; notice.replaceChildren(); document.dispatchEvent(new CustomEvent('lark-share-presence', { detail: [] })); }
+      const pending = people?.filter(p => p.status === 'pending').length || 0;
       button.textContent = 'Share' + (pending ? ` (${pending} requests)` : latest.hosting || latest.joined ? ' •' : '');
       button.title = 'Lark Share: ' + latest.connection;
       status.textContent = latest.connection + (latest.session?.name ? ' · ' + latest.session.name : '') + (latest.hosting ? ` · Port ${latest.port} · TLS 1.3` : '');
@@ -254,15 +296,25 @@
   element('summary', 'Lark Share', explorer); const explorerPeople = element('div', null, explorer);
   document.getElementById('tree')?.before(explorer);
   const unfollow = action(avatars, 'Stop following', () => { window.LarkShareEditing.follow(null); }); unfollow.hidden = true;
+  let peopleKey = '';
   document.addEventListener('lark-share-presence', event => {
-    avatars.querySelectorAll('.share-avatar').forEach(node => node.remove()); explorerPeople.replaceChildren(); explorer.hidden = event.detail.length === 0;
-    event.detail.filter(p => p.status === 'approved').forEach(person => {
-      let hash = 0; for (const c of person.id) hash = (hash * 31 + c.charCodeAt(0)) >>> 0;
-      const color = /^#[a-f0-9]{6}$/i.test(person.color) ? person.color : '#6495ed';
-      const avatar = action(avatars, person.name.slice(0, 2).toUpperCase(), () => { if (!dialog.open) dialog.showModal(); participants(); }); avatar.className = 'share-avatar'; avatar.style.borderColor = color; avatar.title = person.name + ' · ' + person.role + (person.file ? ' · ' + person.file : '');
-      const row = action(explorerPeople, person.name + (person.file ? ' — ' + person.file : ''), () => { window.LarkShareEditing.follow(person.id); unfollow.hidden = false; }); row.title = 'Follow participant';
+    const approved = event.detail.filter(p => p.status === 'approved');
+    const key = JSON.stringify(approved.map(p => [p.id, p.name, p.bird, p.role, p.color, p.file, p.connected]));
+    if (key !== peopleKey) {
+      peopleKey = key; avatars.querySelectorAll('.share-avatar').forEach(node => node.remove()); explorerPeople.replaceChildren(); explorer.hidden = approved.length === 0;
+      approved.forEach(person => {
+        const color = /^#[a-f0-9]{6}$/i.test(person.color) ? person.color : '#6495ed';
+        const avatar = action(avatars, '', () => { if (!dialog.open) dialog.showModal(); participants(); }); avatar.className = 'share-avatar'; avatar.append(window.LarkBirds.make(person.bird, 22)); avatar.style.borderColor = color; avatar.title = person.name + ' · ' + person.role + (person.file ? ' · ' + person.file : '') + (person.connected ? '' : ' · Connection lost'); avatar.setAttribute('aria-label', avatar.title);
+        const row = action(explorerPeople, person.name + (person.file ? ' — ' + person.file : ''), () => { window.LarkShareEditing.follow(person.id); unfollow.hidden = false; }); row.prepend(window.LarkBirds.make(person.bird, 24)); row.title = 'Follow participant';
+      });
+    }
+    document.querySelectorAll('.tree-row[data-path]').forEach(row => {
+      const editing = approved.filter(p => p.file === row.dataset.path && p.connected);
+      if (editing.length) {
+        if (!('shareOriginalTitle' in row.dataset)) row.dataset.shareOriginalTitle = row.title;
+        row.title = editing.map(p => p.name).join(', ') + (editing.length === 1 ? ' is' : ' are') + ' editing this file.';
+      } else if ('shareOriginalTitle' in row.dataset) { row.title = row.dataset.shareOriginalTitle; delete row.dataset.shareOriginalTitle; }
     });
-    document.querySelectorAll('.tree-row[data-path]').forEach(row => { const editing = event.detail.filter(p => p.file === row.dataset.path && p.connected); if (editing.length) row.title = editing.map(p => p.name).join(', ') + ' is editing this file.'; });
   });
   document.addEventListener('lark-share-follow', event => { unfollow.hidden = !event.detail; });
   document.addEventListener('lark-share-state', event => { button.dataset.connection = event.detail; button.title = 'Lark Share: ' + event.detail; });
@@ -271,4 +323,8 @@
     if (!dialog.open) dialog.showModal();
     try { await refresh(); home(); } catch (err) { report(err); }
   };
+  // Reattach to an active backend session after a page reload without waiting
+  // for the user to reopen the Share dialog.
+  if (window.LarkEditorReady) refresh().catch(report);
+  else document.addEventListener('lark-editor-ready', () => refresh().catch(report), { once: true });
 })();

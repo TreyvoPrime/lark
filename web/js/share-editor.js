@@ -113,10 +113,16 @@
     cm.state.larkShare = entry;
     presence.filter(p => p.file === entry.path && p.id !== session.identity && p.connected).forEach((person, i) => {
       const color = /^#[a-f0-9]{6}$/i.test(person.color) ? person.color : '#6495ed';
-      const head = entry.doc.posFromIndex(entry.model.index(person.head)), anchor = entry.doc.posFromIndex(entry.model.index(person.anchor));
-      const label = document.createElement('span'); label.className = 'share-cursor'; label.style.borderColor = color; label.style.color = color; label.textContent = person.name;
+      const headIndex = entry.model.index(person.head), anchorIndex = entry.model.index(person.anchor);
+      const head = entry.doc.posFromIndex(headIndex);
+      const label = document.createElement('span'); label.className = 'share-cursor'; label.style.borderColor = color;
+      const badge = document.createElement('span'); badge.className = 'share-cursor-badge';
+      badge.append(window.LarkBirds.make(person.bird, 24), document.createTextNode(person.name)); label.append(badge);
       marks.push(entry.doc.setBookmark(head, { widget: label, insertLeft: true }));
-      if (person.anchor !== person.head) marks.push(entry.doc.markText(anchor, head, { css: `background: ${color}30` }));
+      if (anchorIndex !== headIndex) {
+        const from = entry.doc.posFromIndex(Math.min(anchorIndex, headIndex)), to = entry.doc.posFromIndex(Math.max(anchorIndex, headIndex));
+        marks.push(entry.doc.markText(from, to, { css: `background: ${color}30` }));
+      }
     });
     document.dispatchEvent(new CustomEvent('lark-share-presence', { detail: presence }));
     const person = presence.find(p => p.id === following);

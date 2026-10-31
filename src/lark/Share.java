@@ -8,6 +8,7 @@ import java.util.Base64;
 /** Loopback-only control bridge; peer credentials never reach the browser or disk. */
 final class Share implements AutoCloseable {
     private final Projects projects;
+    private final Settings settings;
     private ShareSession hosting;
     private ShareTransport transport;
     private ShareDiscovery discovery;
@@ -16,8 +17,9 @@ final class Share implements AutoCloseable {
     private Json.Obj target, hostInvitation;
     private String device, credential, projectId, reviewed;
     private String connection = "Disconnected";
+    private boolean avatarDirty;
 
-    Share(Projects projects) { this.projects = projects; }
+    Share(Projects projects, Settings settings) { this.projects = projects; this.settings = settings; }
 
     synchronized Json.Obj control(Json.Obj body) throws Exception {
         String action = body.str("action", "status");
@@ -43,6 +45,7 @@ final class Share implements AutoCloseable {
                 ShareSession session = new ShareSession(projects.projectDir(body.str("project", "")), body.str("name", ""), body.str("displayName", ""));
                 try { transport = new ShareTransport(session, bind, (int) port); }
                 catch (Exception e) { session.close(); throw e; }
+                session.avatar(settings.shareBird);
                 hosting = session; bindAddress = bind; projectId = body.str("project", "");
                 connection = "Connected";
                 if (!body.has("discovery") || body.bool("discovery")) discoverable(true);
@@ -72,11 +75,18 @@ final class Share implements AutoCloseable {
                 if (!parsed.str("session", "").matches("[a-f0-9]{64}") || !parsed.str("invitation", "").matches("[a-f0-9]{64}"))
                     throw new RequestFail(400, "Invalid invitation credentials.");
                 Json.Obj result = send(parsed, request(parsed, "join").put("invitation", parsed.str("invitation"))
-                        .put("name", ShareSession.label(body.str("displayName", ""))));
+                        .put("name", ShareSession.label(body.str("displayName", ""))).put("bird", ShareSession.bird(settings.shareBird)));
                 device = result.str("device"); credential = result.str("credential");
                 target = parsed;
                 connection = "Waiting for Approval";
                 return status();
+            }
+            case "avatar" -> {
+                String bird = ShareSession.bird(body.str("bird", "classic"));
+                settings.shareBird = bird; settings.save();
+                if (hosting != null) hosting.avatar(bird);
+                else if (target != null) avatarDirty = true;
+                return ShareSession.ok();
             }
             case "decide" -> {
                 if (hosting == null) throw new RequestFail(403, "Only the host can approve or revoke devices.");
@@ -148,16 +158,27 @@ final class Share implements AutoCloseable {
     }
     private Json.Obj status() throws Exception {
         if (hosting != null && hosting.expired()) close();
-        Json.Obj result = ShareSession.ok().put("connection", connection).put("hosting", hosting != null)
+        Json.Obj result = ShareSession.ok().put("bird", ShareSession.bird(settings.shareBird)).put("connection", connection).put("hosting", hosting != null)
                 .put("joined", target != null).put("mode", "collaborative").put("project", projectId).put("sessionId", hosting != null ? hosting.id() : target != null ? target.str("session") : "").put("identity", hosting != null ? "host" : device);
         if (hosting != null) result.put("discovery", discovery != null).put("discoveryError", discoveryError).put("session", hosting.localStatus()).put("port", transport.port()).put("fingerprint", transport.fingerprint);
         if (target != null) {
             try {
+                if (avatarDirty) {
+                    try {
+                        send(target, request(target, "avatar").put("device", device).put("credential", credential).put("bird", ShareSession.bird(settings.shareBird)));
+                    } catch (RequestFail e) {
+                        // Protocol-v2 hosts predating birds reject this optional operation.
+                        // Continue polling them; authentication failures still propagate.
+                        if (e.status != 403 || !"Share does not allow that operation.".equals(e.getMessage())) throw e;
+                    }
+                    avatarDirty = false;
+                }
                 Json.Obj remote = peer("poll");
                 connection = remote.str("status", "pending").equals("approved") ? "Connected" : "Waiting for Approval";
                 result.put("session", remote);
             } catch (Exception e) {
                 // Keep the pinned target and credential for a subsequent retry; never auto-join anew.
+                connection = e instanceof RequestFail ? "Connection Lost" : "Reconnecting";
                 result.put("error", e instanceof RequestFail ? e.getMessage() : "Cannot reach the pinned host. Check Wi-Fi and firewall; retry or leave.");
             }
             result.put("connection", connection);
@@ -186,6 +207,6 @@ final class Share implements AutoCloseable {
         if (transport != null) transport.close();
         else if (hosting != null) hosting.close();
         transport = null; hosting = null; target = null; hostInvitation = null; device = null; credential = null;
-        connection = "Disconnected"; projectId = null; reviewed = null;
+        connection = "Disconnected"; projectId = null; reviewed = null; avatarDirty = false;
     }
 }

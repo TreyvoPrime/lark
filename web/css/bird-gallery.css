@@ -1,0 +1,31 @@
+:root { color-scheme: light; font-family: system-ui, -apple-system, sans-serif; color: #18314a; background: #f5f8fa; }
+* { box-sizing: border-box; }
+body { margin: 0; }
+header { display: flex; justify-content: space-between; align-items: center; max-width: 1440px; margin: auto; padding: 24px 6vw; border-bottom: 1px solid #dbe5eb; }
+a { color: inherit; text-decoration: none; }
+a:focus-visible { outline: 3px solid #3282e6; outline-offset: 4px; }
+.brand { display: flex; align-items: center; gap: 10px; font-weight: 750; font-size: 21px; letter-spacing: -.04em; }
+.brand img { width: 34px; height: 34px; object-fit: contain; }
+.back { font-size: 13px; font-weight: 700; border: 1px solid #d5e1e9; padding: 11px 14px; border-radius: 8px; background: #fff; }
+main { max-width: 1440px; margin: auto; padding: 0 6vw; }
+.intro { padding: clamp(60px, 10vw, 125px) 0 90px; max-width: 800px; }
+.eyebrow { margin: 0 0 20px; font-size: 11px; font-weight: 750; letter-spacing: .16em; color: #4585a5; }
+h1 { margin: 0; font-size: clamp(55px, 10vw, 112px); letter-spacing: -.075em; line-height: .92; font-weight: 760; }
+h1 em { color: #3893bf; font-style: normal; }
+.description { max-width: 480px; margin: 30px 0 0; line-height: 1.7; color: #526d7c; font-size: 16px; }
+.section-head { display: flex; justify-content: space-between; align-items: end; border-top: 1px solid #ccdae2; padding-top: 30px; margin-bottom: 25px; }
+.section-head .eyebrow { margin-bottom: 8px; }
+h2 { margin: 0; letter-spacing: -.04em; font-size: 29px; }
+.section-head > p { font-size: 12px; color: #6a8290; line-height: 1.5; text-align: right; }
+.grid { display: grid; grid-template-columns: repeat(auto-fit,minmax(190px,1fr)); gap: 12px; }
+.bird-card { min-width: 0; padding: 18px; border: 1px solid #dbe6ec; border-radius: 12px; background: #fff; }
+.card-top { display: flex; justify-content: space-between; color: #8ca2ad; font-size: 11px; font-weight: 700; letter-spacing: .1em; }
+.dot { width: 9px; height: 9px; border-radius: 50%; }
+.portrait { display: grid; place-items: center; height: 150px; }
+.share-bird { object-fit: contain; flex: none; }
+h3 { margin: 4px 0 3px; font-size: 16px; letter-spacing: -.025em; }
+.bird-card p { margin: 0; font-size: 11px; color: #758c98; }
+.sizes { display: flex; gap: 8px; align-items: center; justify-content: space-between; height: 66px; margin-top: 18px; border-top: 1px solid #edf1f3; padding-top: 8px; overflow-x: auto; overflow-y: hidden; }
+footer { display: flex; justify-content: space-between; gap: 20px; padding: 70px 0 30px; color: #6b8491; font-size: 12px; }
+footer a { font-weight: 700; color: #26769e; }
+@media(max-width: 520px) { .grid { grid-template-columns: repeat(2,minmax(0,1fr)); } .intro { padding-bottom: 65px; } .section-head > p { display: none; } .bird-card { padding: 12px; } .sizes { gap: 2px; } }

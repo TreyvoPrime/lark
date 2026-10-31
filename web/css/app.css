@@ -4592,3 +4592,82 @@ li.CodeMirror-hint-active { background: var(--select); color: var(--text); }
   #top .top-group-run { order: 2; width: 100%; margin-left: 0; justify-content: flex-start; }
   #toolbar-more { margin-left: auto; }
 }
+
+/* Light theme palettes use the semantic IDE tokens. */
+[data-theme="arctic-white"] {
+  color-scheme: light; --bg:#FFFFFF; --bg-elev:#F5F7FA; --bg-sunken:#F5F7FA; --line:#E2E7EF;
+  --text:#172438; --muted:#596779; --faint:#778494; --accent:#3282E6; --accent-ink:#000000;
+  --green:#267447; --red:#b5323d; --warn:#8b6200; --hover:#52657a14; --select:#cddff2; --shadow:0 12px 28px #26364a22;
+  --syn-keyword:#853b86; --syn-string:#246c44; --syn-comment:#5d6d79; --syn-number:#a34f17; --syn-type:#17658a;
+  --syn-annotation:#805c14; --syn-def:#27519a; --syn-atom:#77449d; --syn-operator:#405166; --syn-variable:#172438;
+}
+[data-theme="pearl"] {
+  color-scheme: light; --bg:#FCFCFD; --bg-elev:#F3F4F7; --bg-sunken:#F3F4F7; --line:#E0E1E8;
+  --text:#292B36; --muted:#596779; --faint:#778494; --accent:#7162B5; --accent-ink:#ffffff;
+  --green:#267447; --red:#b5323d; --warn:#8b6200; --hover:#52657a14; --select:#cddff2; --shadow:0 12px 28px #26364a22;
+  --syn-keyword:#853b86; --syn-string:#246c44; --syn-comment:#5d6d79; --syn-number:#a34f17; --syn-type:#17658a;
+  --syn-annotation:#805c14; --syn-def:#27519a; --syn-atom:#77449d; --syn-operator:#405166; --syn-variable:#292B36;
+}
+[data-theme="cloud-blue"] {
+  color-scheme: light; --bg:#F7FAFF; --bg-elev:#EDF4FF; --bg-sunken:#EDF4FF; --line:#D8E5F3;
+  --text:#1F344F; --muted:#596779; --faint:#778494; --accent:#3D85D8; --accent-ink:#000000;
+  --green:#267447; --red:#b5323d; --warn:#8b6200; --hover:#52657a14; --select:#cddff2; --shadow:0 12px 28px #26364a22;
+  --syn-keyword:#853b86; --syn-string:#246c44; --syn-comment:#5d6d79; --syn-number:#a34f17; --syn-type:#17658a;
+  --syn-annotation:#805c14; --syn-def:#27519a; --syn-atom:#77449d; --syn-operator:#405166; --syn-variable:#1F344F;
+}
+[data-theme="sakura"] {
+  color-scheme: light; --bg:#FFFAFC; --bg-elev:#FFF0F5; --bg-sunken:#FFF0F5; --line:#EEDBE4;
+  --text:#48313C; --muted:#596779; --faint:#778494; --accent:#C65D88; --accent-ink:#000000;
+  --green:#267447; --red:#b5323d; --warn:#8b6200; --hover:#52657a14; --select:#cddff2; --shadow:0 12px 28px #26364a22;
+  --syn-keyword:#853b86; --syn-string:#246c44; --syn-comment:#5d6d79; --syn-number:#a34f17; --syn-type:#17658a;
+  --syn-annotation:#805c14; --syn-def:#27519a; --syn-atom:#77449d; --syn-operator:#405166; --syn-variable:#48313C;
+}
+[data-theme="glacier-mint"] {
+  color-scheme: light; --bg:#F7FCFA; --bg-elev:#EAF7F1; --bg-sunken:#EAF7F1; --line:#D3E9DF;
+  --text:#20392F; --muted:#596779; --faint:#778494; --accent:#218A70; --accent-ink:#000000;
+  --green:#267447; --red:#b5323d; --warn:#8b6200; --hover:#52657a14; --select:#cddff2; --shadow:0 12px 28px #26364a22;
+  --syn-keyword:#853b86; --syn-string:#246c44; --syn-comment:#5d6d79; --syn-number:#a34f17; --syn-type:#17658a;
+  --syn-annotation:#805c14; --syn-def:#27519a; --syn-atom:#77449d; --syn-operator:#405166; --syn-variable:#20392F;
+}
+[data-theme="silverstone"] {
+  color-scheme: light; --bg:#F7F8FA; --bg-elev:#EBEEF2; --bg-sunken:#EBEEF2; --line:#D7DCE4;
+  --text:#252F3E; --muted:#596779; --faint:#778494; --accent:#5A6B85; --accent-ink:#ffffff;
+  --green:#267447; --red:#b5323d; --warn:#8b6200; --hover:#52657a14; --select:#cddff2; --shadow:0 12px 28px #26364a22;
+  --syn-keyword:#853b86; --syn-string:#246c44; --syn-comment:#5d6d79; --syn-number:#a34f17; --syn-type:#17658a;
+  --syn-annotation:#805c14; --syn-def:#27519a; --syn-atom:#77449d; --syn-operator:#405166; --syn-variable:#252F3E;
+}
+[data-theme="lark-snowfall"] {
+  color-scheme: light; --bg:#FFFFFF; --bg-elev:#F2F6FA; --bg-sunken:#F2F6FA; --line:#DCE5ED;
+  --text:#263647; --muted:#596779; --faint:#778494; --accent:#3A78AE; --accent-ink:#ffffff;
+  --green:#267447; --red:#b5323d; --warn:#8b6200; --hover:#52657a14; --select:#cddff2; --shadow:0 12px 28px #26364a22;
+  --syn-keyword:#853b86; --syn-string:#246c44; --syn-comment:#5d6d79; --syn-number:#a34f17; --syn-type:#17658a;
+  --syn-annotation:#805c14; --syn-def:#27519a; --syn-atom:#77449d; --syn-operator:#405166; --syn-variable:#263647;
+}
+[data-theme="lark-mint"] {
+  color-scheme: light; --bg:#F8FFFC; --bg-elev:#EBF8F1; --bg-sunken:#EBF8F1; --line:#D3E9DF;
+  --text:#243C33; --muted:#596779; --faint:#778494; --accent:#23856B; --accent-ink:#ffffff;
+  --green:#267447; --red:#b5323d; --warn:#8b6200; --hover:#52657a14; --select:#cddff2; --shadow:0 12px 28px #26364a22;
+  --syn-keyword:#853b86; --syn-string:#246c44; --syn-comment:#5d6d79; --syn-number:#a34f17; --syn-type:#17658a;
+  --syn-annotation:#805c14; --syn-def:#27519a; --syn-atom:#77449d; --syn-operator:#405166; --syn-variable:#243C33;
+}
+[data-theme="lark-lavender"] {
+  color-scheme: light; --bg:#FDFBFF; --bg-elev:#F3EFF9; --bg-sunken:#F3EFF9; --line:#E3DDEC;
+  --text:#332C42; --muted:#596779; --faint:#778494; --accent:#745BA5; --accent-ink:#ffffff;
+  --green:#267447; --red:#b5323d; --warn:#8b6200; --hover:#52657a14; --select:#cddff2; --shadow:0 12px 28px #26364a22;
+  --syn-keyword:#853b86; --syn-string:#246c44; --syn-comment:#5d6d79; --syn-number:#a34f17; --syn-type:#17658a;
+  --syn-annotation:#805c14; --syn-def:#27519a; --syn-atom:#77449d; --syn-operator:#405166; --syn-variable:#332C42;
+}
+[data-theme="lark-paper"] {
+  color-scheme: light; --bg:#FFFDF7; --bg-elev:#F5F1E8; --bg-sunken:#F5F1E8; --line:#E6E0D4;
+  --text:#38342C; --muted:#596779; --faint:#778494; --accent:#80643C; --accent-ink:#ffffff;
+  --green:#267447; --red:#b5323d; --warn:#8b6200; --hover:#52657a14; --select:#cddff2; --shadow:0 12px 28px #26364a22;
+  --syn-keyword:#853b86; --syn-string:#246c44; --syn-comment:#5d6d79; --syn-number:#a34f17; --syn-type:#17658a;
+  --syn-annotation:#805c14; --syn-def:#27519a; --syn-atom:#77449d; --syn-operator:#405166; --syn-variable:#38342C;
+}
+/* Keep the drag target within the tray, which clips its children. */
+#console .splitter[data-split="console"] { top: 0; height: 10px; z-index: 20; }
+#console .splitter[data-split="console"]::before { top: 0; }
+#console .splitter[data-split="console"]::after { top: 2px; }
+.terminal-git-status:not(:empty) { padding: 3px 10px; color: var(--muted); background: var(--bg-elev); border-bottom: 1px solid var(--line); font-size: 11px; }
+.terminal-input-row { flex-wrap: wrap; }
+.terminal-input-row label { display: inline-flex; align-items: center; gap: 4px; color: var(--muted); font-size: 11px; white-space: nowrap; }

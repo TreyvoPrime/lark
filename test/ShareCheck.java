@@ -118,6 +118,13 @@ public final class ShareCheck {
                 for (Future<Json.Obj> reply : replies) check(reply.get(10, TimeUnit.SECONDS).bool("ok"), "Five concurrent pinned readers");
             } finally { pool.shutdownNow(); }
             Json.Obj first = devices.get(0);
+            Json.Obj second = devices.get(1);
+            check(ShareTransport.exchange(host, port, server.fingerprint, authenticated(session, first, "avatar").put("bird", "raven")).bool("ok"), "Authenticated avatar update over TLS");
+            check(ShareTransport.exchange(host, port, server.fingerprint, authenticated(session, second, "avatar").put("bird", "raven")).bool("ok"), "Shared avatar choice allowed");
+            Json.Obj presence = ShareTransport.exchange(host, port, server.fingerprint, authenticated(session, second, "poll"));
+            long ravens = presence.arr("participants").values().stream().filter(v -> ((Json.Obj) v).str("bird", "").equals("raven")).count();
+            check(ravens == 2 && !first.str("device").equals(second.str("device")), "Bird choices do not replace device identity");
+            check(ShareTransport.exchange(host, port, server.fingerprint, authenticated(session, first, "avatar").put("credential", "bad").put("bird", "eagle")).longVal("code") == 403, "Unauthenticated avatar update denied");
             // A new TLS connection resumes the same authorized device without another approval.
             check(ShareTransport.exchange(host, port, server.fingerprint, authenticated(session, first, "poll")).str("status").equals("approved"), "Reconnect credential works");
             session.decide(first.str("device"), false);

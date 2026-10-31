@@ -1,0 +1,150 @@
+name: Publish Lark 4.0.6
+on:
+  workflow_dispatch:
+  push:
+    branches: [main]
+    paths: [.github/workflows/publish-4.0.6.yml]
+permissions:
+  contents: read
+concurrency:
+  group: lark-release-4-0-6
+  cancel-in-progress: false
+jobs:
+  checks:
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, windows-latest, macos-latest]
+    runs-on: ${{ matrix.os }}
+    defaults:
+      run:
+        shell: bash
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+      - run: bash ./package.sh
+      - name: Test IDE, Share and Git
+        run: |
+          mkdir -p build/test
+          javac --release 17 -encoding UTF-8 -cp dist/lark.jar -d build/test test/Check.java test/ShareCheck.java test/ShareEditingCheck.java test/ShareBirdCheck.java test/TerminalGitCheck.java test/TerminalCancellationCheck.java test/SettingsMinimapCheck.java test/FlowCheck.java test/GitHubAuthCheck.java
+          case "$RUNNER_OS" in Windows) cp='dist/lark.jar;build/test';; *) cp='dist/lark.jar:build/test';; esac
+          export LARK_HOME="$RUNNER_TEMP/lark-release-check"
+          for check in Check ShareCheck ShareEditingCheck ShareBirdCheck TerminalGitCheck TerminalCancellationCheck FlowCheck GitHubAuthCheck; do java -cp "$cp" "lark.$check"; done
+          LARK_HOME="$RUNNER_TEMP/lark-settings-check" java -cp "$cp" lark.SettingsMinimapCheck
+          node --test test/java-parse.test.js test/share-document.test.cjs test/share-scroll.test.cjs test/theme-palettes.test.cjs test/terminal-input.test.cjs test/site-releases.test.cjs test/site-structure.test.cjs
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '21'
+      - uses: actions/setup-go@v5
+        with:
+          go-version: '1.22'
+          cache: false
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+      - run: sudo apt-get update && sudo apt-get install -y nsis p7zip-full python3-pil zip
+      - name: Build all 4.0.6 artifacts
+        env:
+          LARK_UPDATE_BASE: https://github.com/TreyvoPrime/lark/releases/download/v4.0.6
+          LARK_UPDATE_NOTES: 'Lark 4.0.6: bird avatars, terminal and Git improvements, responsive tray resizing, default minimap and light themes.'
+        run: |
+          test "$(sed -n 's/.*VERSION = "\([^"]*\)".*/\1/p' src/lark/Settings.java | head -1)" = 4.0.6
+          ./packaging/make-release.sh
+          python3 test/release-artifacts.py
+          node scripts/update-release-site.cjs 4.0.6 release
+          node --test test/site-releases.test.cjs test/site-structure.test.cjs
+          (cd release && sha256sum *.zip *.exe > SHA256SUMS.txt && sha256sum lark-desktop-update.zip > lark-desktop-update.sha256)
+      - uses: actions/upload-artifact@v4
+        with:
+          name: lark-4.0.6-verified
+          path: |
+            release/*.zip
+            release/*.exe
+            release/*.json
+            release/*.sha256
+            release/SHA256SUMS.txt
+          retention-days: 7
+  windows-install:
+    needs: build
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/download-artifact@v4
+        with:
+          name: lark-4.0.6-verified
+          path: release
+      - name: Install and check the actual Windows package
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = 'Stop'
+          $setup = Start-Process -FilePath (Resolve-Path release/LarkDesktopSetup.exe) -ArgumentList '/S' -WindowStyle Hidden -Wait -PassThru
+          if ($setup.ExitCode -ne 0) { throw "Installer exit code $($setup.ExitCode)" }
+          $install = Join-Path $env:LOCALAPPDATA 'Programs/Lark'
+          $java = Join-Path $install 'jdk/bin/java.exe'
+          $jar = Join-Path $install 'app/lark.jar'
+          & $java -version
+          if ($LASTEXITCODE -ne 0) { throw 'Installed Java failed' }
+          & (Join-Path $install 'jdk/bin/javac.exe') -version
+          if ($LASTEXITCODE -ne 0) { throw 'Installed compiler failed' }
+          Expand-Archive release/lark-desktop-update.zip -DestinationPath expected
+          if ((Get-FileHash $jar).Hash -ne (Get-FileHash expected/app/lark.jar).Hash) { throw 'Installed jar differs from release update' }
+          $server = Start-Process $java -ArgumentList @('-cp', "`"$jar`"", 'lark.Desktop', '--no-browser', '--port', '43123') -WindowStyle Hidden -PassThru -RedirectStandardOutput server.log -RedirectStandardError server-error.log
+          try {
+            $health = $null
+            for ($attempt = 0; $attempt -lt 30; $attempt++) {
+              try { $health = Invoke-RestMethod http://127.0.0.1:43123/api/health; break } catch { Start-Sleep 1 }
+            }
+            if (!$health.ok -or $health.version -ne '4.0.6') { throw 'Installed application did not report version 4.0.6' }
+          } finally { Stop-Process -Id $server.Id -Force -ErrorAction SilentlyContinue }
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: lark-4.0.6-windows-logs
+          path: server*.log
+  publish:
+    needs: [checks, build, windows-install]
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+      pages: write
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: main
+          fetch-depth: 0
+      - uses: actions/download-artifact@v4
+        with:
+          name: lark-4.0.6-verified
+          path: release
+      - name: Publish the verified release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -eu
+          test "$(git rev-parse HEAD)" = "$GITHUB_SHA" || { echo 'main changed during the build; refusing to publish a stale release'; exit 1; }
+          if gh release view v4.0.6 >/dev/null 2>&1; then echo 'v4.0.6 already exists; refusing to replace it'; exit 1; fi
+          gh release create v4.0.6 release/*.zip release/*.exe release/*.sha256 release/SHA256SUMS.txt release/update.json --target "$GITHUB_SHA" --title 'Lark 4.0.6' --notes-file RELEASE_NOTES_4.0.6.md --draft
+          gh release edit v4.0.6 --draft=false --latest
+      - name: Update verified website download snapshot
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -eu
+          node scripts/update-release-site.cjs 4.0.6 release
+          node --test test/site-releases.test.cjs test/site-structure.test.cjs
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add docs/index.html docs/releases.js docs/site.js test/site-releases.test.cjs
+          if ! git diff --cached --quiet; then git commit -m 'Update website downloads for Lark 4.0.6'; git push origin HEAD:main; fi
+          gh api -X POST "repos/$GITHUB_REPOSITORY/pages/builds" >/dev/null || echo 'Pages build request unavailable; verify the configured site deployment.'

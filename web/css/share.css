@@ -27,5 +27,17 @@
 #share-avatars .share-avatar { width: 26px; height: 26px; padding: 0; border: 2px solid; border-radius: 50%; font-size: 10px; }
 #share-explorer { padding: 10px; border-bottom: 1px solid var(--line); font-size: 11px; }
 #share-explorer button { display: block; max-width: 100%; overflow: hidden; text-overflow: ellipsis; font-size: 11px; margin: 5px 0; }
-.share-cursor { border-left: 2px solid; position: relative; padding: 0 3px; font-size: 9px; background: var(--bg-elev); vertical-align: top; pointer-events: none; }
+.share-cursor { display: inline-block; position: relative; width: 0; height: 1em; border-left: 2px solid; vertical-align: baseline; pointer-events: none; }
+.share-cursor-badge { position: absolute; left: 0; top: 100%; z-index: 12; display: inline-flex; align-items: center; gap: 3px; max-width: 180px; padding: 1px 5px 1px 1px; border: 1px solid var(--line); border-radius: 5px; color: var(--text); background: var(--bg-elev); font: 600 10px/1.2 system-ui, sans-serif; white-space: nowrap; box-shadow: var(--shadow); }
 #share-open[data-connection="Reconnecting"], #share-open[data-connection="Connection Lost"] { color: var(--warn); }
+.share-bird { display: inline-block; flex: none; vertical-align: middle; object-fit: contain; }
+.share-bird-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(105px, 1fr)); gap: 8px; }
+.share-bird-tile { display: flex; flex-direction: column; align-items: center; gap: 4px; padding: 10px 4px; border: 1px solid var(--line); border-radius: 8px; background: var(--bg-elev); color: var(--text); transition: border-color 120ms, transform 120ms; }
+.share-bird-tile:hover { transform: translateY(-2px); border-color: var(--accent); }
+.share-bird-tile[aria-pressed="true"] { border: 2px solid var(--accent); background: var(--select); }
+.share-bird-tile:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+.share-bird-preview { display: flex; align-items: center; gap: 12px; margin: 10px 0; }
+.share-device > .share-bird { float: left; margin-right: 8px; }
+.share-cursor-badge .share-bird { flex: none; }
+.share-presence-popup { position: fixed; z-index: 500; right: 16px; top: 64px; display: flex; align-items: center; gap: 8px; padding: 8px 12px; color: var(--text); background: var(--bg-elev); border: 1px solid var(--line); border-radius: 8px; box-shadow: var(--shadow); font-size: 12px; }
+.share-presence-popup[hidden] { display: none; }

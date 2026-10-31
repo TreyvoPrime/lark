@@ -74,7 +74,7 @@ public final class Server {
         this.updates = updates;
         this.terminal = terminal;
         this.recovery = new Recovery();
-        this.share = new Share(projects);
+        this.share = new Share(projects, settings);
         this.settings = settings;
         this.webDir = webDir;
         this.lan = lan;
@@ -543,7 +543,7 @@ public final class Server {
         if (parts.length == 5 && "api".equals(parts[1]) && "terminal".equals(parts[2]) && "input".equals(parts[4])
                 && "POST".equals(method)) {
             Json.Obj body = body(exchange);
-            terminal.write(decode(parts[3]), body.str("text", ""));
+            terminal.write(decode(parts[3]), body.str("text", ""), body.bool("sensitive"));
             sendJson(exchange, 200, new Json.Obj().put("ok", true));
             return;
         }

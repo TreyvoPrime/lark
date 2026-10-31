@@ -1,5 +1,15 @@
 (function () {
   const THEME_NAMES = {
+    "arctic-white": "Arctic White",
+    "pearl": "Pearl",
+    "cloud-blue": "Cloud Blue",
+    "sakura": "Sakura",
+    "glacier-mint": "Glacier Mint",
+    "silverstone": "Silverstone",
+    "lark-snowfall": "Lark Snowfall",
+    "lark-mint": "Lark Mint",
+    "lark-lavender": "Lark Lavender",
+    "lark-paper": "Lark Paper",
     desk: "Desk",
     slate: "Slate",
     studio: "Studio",
@@ -59,6 +69,7 @@
     pink: "blossom"
   };
   const THEME_IDS = [
+    "arctic-white", "pearl", "cloud-blue", "sakura", "glacier-mint", "silverstone", "lark-snowfall", "lark-mint", "lark-lavender", "lark-paper",
     "desk", "slate", "studio", "daylight", "moss", "ember", "fog",
     "blossom", "candy", "midnight", "citrus", "harbor",
     "graphite", "navy", "terminal", "parchment", "ultraviolet", "forest", "monochrome", "amber",
@@ -69,6 +80,16 @@
   ];
   /** Preview chip colors for the theme overlay tiles. */
   const THEME_SWATCHES = {
+    "arctic-white": { bg: "#FFFFFF", accent: "#3282E6" },
+    "pearl": { bg: "#FCFCFD", accent: "#7162B5" },
+    "cloud-blue": { bg: "#F7FAFF", accent: "#3D85D8" },
+    "sakura": { bg: "#FFFAFC", accent: "#C65D88" },
+    "glacier-mint": { bg: "#F7FCFA", accent: "#218A70" },
+    "silverstone": { bg: "#F7F8FA", accent: "#5A6B85" },
+    "lark-snowfall": { bg: "#FFFFFF", accent: "#3A78AE" },
+    "lark-mint": { bg: "#F8FFFC", accent: "#23856B" },
+    "lark-lavender": { bg: "#FDFBFF", accent: "#745BA5" },
+    "lark-paper": { bg: "#FFFDF7", accent: "#80643C" },
     desk: { bg: "#2b2b2b", accent: "#cc7832" },
     slate: { bg: "#2a2e33", accent: "#8aa4b8" },
     studio: { bg: "#2c2926", accent: "#d19a66" },
@@ -160,7 +181,10 @@
     dirty: new Set(),
     timers: new Map(),
     terminal: null,
+    terminalStart: null,
+    terminalEpoch: 0,
     termPoll: null,
+    termPollSequence: 0,
     termHistory: [],
     termHistIndex: -1,
     consoleTab: "output",
@@ -3188,6 +3212,11 @@
     hideWelcome();
     try { localStorage.setItem("lark-skip-welcome", "1"); } catch (e) {}
     const data = await api("GET", "/api/projects/" + encodeURIComponent(id));
+    if (state.project?.id !== id) {
+      const oldTerminal = state.terminal; state.terminal = null; state.terminalEpoch++; state.terminalStart = null; stopTerminalPoll();
+      if (oldTerminal) { try { await api("POST", "/api/terminal/" + encodeURIComponent(oldTerminal.id) + "/stop", {}); } catch (_) { } }
+      if ($("terminal-git-status")) $("terminal-git-status").textContent = "";
+    }
     state.project = data.project;
     state.files = (data.project.files || []).filter((file) => !file.binary && !file.tooBig);
     state.dirs = data.project.dirs || [];
@@ -3217,6 +3246,7 @@
     if (file) openPath(file);
     else showEmpty();
     api("PUT", "/api/settings", { lastProject: id }).catch(() => {});
+    if (state.consoleTab === "terminal" && !state.terminal) ensureTerminal().catch(err => toast(err.message));
   }
 
   async function refreshProjects(id) {
@@ -4662,6 +4692,7 @@
   }
 
   function stopTerminalPoll() {
+    state.termPollSequence++;
     if (state.termPoll) {
       clearTimeout(state.termPoll);
       state.termPoll = null;
@@ -4681,16 +4712,26 @@
       renderTerminal("Open a project first — the Terminal runs in that folder.\n");
       return;
     }
-    if (forceRestart && state.terminal) {
-      stopTerminalPoll();
-      try {
-        await api("POST", "/api/terminal/" + encodeURIComponent(state.terminal.id) + "/stop", {});
-      } catch (_) { /* ok */ }
-      state.terminal = null;
+    if (forceRestart) {
+      const old = state.terminal; state.terminal = null; state.terminalStart = null; state.terminalEpoch++; stopTerminalPoll();
+      if (old) { try { await api("POST", "/api/terminal/" + encodeURIComponent(old.id) + "/stop", {}); } catch (_) { } }
     }
     if (!state.terminal) {
-      const data = await api("POST", "/api/terminal", { project: state.project.id });
-      state.terminal = data;
+      if (!state.terminalStart) {
+        const project = state.project.id, epoch = state.terminalEpoch;
+        const pending = { project, epoch, promise: null };
+        pending.promise = (async () => {
+          const data = await api("POST", "/api/terminal", { project });
+          if (state.terminalEpoch !== epoch || state.project?.id !== project) {
+            try { await api("POST", "/api/terminal/" + encodeURIComponent(data.id) + "/stop", {}); } catch (_) { }
+            return null;
+          }
+          state.terminal = data; return data;
+        })().finally(() => { if (state.terminalStart === pending) state.terminalStart = null; });
+        state.terminalStart = pending;
+      }
+      const data = await state.terminalStart.promise;
+      if (!data) return;
       renderTerminal(data.output || "");
       if ($("terminal-prompt")) $("terminal-prompt").textContent = "›";
     }
@@ -4701,15 +4742,19 @@
   async function pollTerminal() {
     stopTerminalPoll();
     if (state.consoleTab !== "terminal" || !state.terminal) return;
+    const id = state.terminal.id, sequence = state.termPollSequence;
     try {
-      const data = await api("GET", "/api/terminal/" + encodeURIComponent(state.terminal.id));
+      const data = await api("GET", "/api/terminal/" + encodeURIComponent(id));
+      if (sequence !== state.termPollSequence || !state.terminal || state.terminal.id !== id) return;
       state.terminal = data;
+      if ($("terminal-git-status")) $("terminal-git-status").textContent = data.gitStatus || "";
       renderTerminal(data.output || "");
       if (!data.alive) {
         renderTerminal((data.output || "") + "\n— shell stopped — click Restart —\n");
         return;
       }
     } catch (err) {
+      if (sequence !== state.termPollSequence || !state.terminal || state.terminal.id !== id) return;
       renderTerminal((($("terminal-out") && $("terminal-out").textContent) || "") + "\n" + err.message + "\n");
       state.terminal = null;
       return;
@@ -4721,14 +4766,18 @@
     const input = $("terminal-input");
     if (!input) return;
     const text = input.value;
+    const projectId = state.project?.id;
     input.value = "";
     if (!text.trim()) return;
-    state.termHistory.push(text);
+    // Do not put obvious credentials in Lark's history or command echo, even
+    // when the user forgot to turn on private input.
+    const sensitive = !!$("terminal-sensitive")?.checked || /(?:https?:\/\/[^\s/@:]+:[^\s/@]+@|(?:password|passwd|token|authorization|extraheader)\s*[=:]|--(?:password|token)(?:=|\s))/i.test(text);
+    if (!sensitive) state.termHistory.push(text);
     if (state.termHistory.length > 80) state.termHistory.shift();
     state.termHistIndex = state.termHistory.length;
     await ensureTerminal(false);
-    if (!state.terminal) return;
-    await api("POST", "/api/terminal/" + encodeURIComponent(state.terminal.id) + "/input", { text: text });
+    if (!state.terminal || state.project?.id !== projectId) return;
+    await api("POST", "/api/terminal/" + encodeURIComponent(state.terminal.id) + "/input", { text: text, sensitive });
     pollTerminal();
   }
 
@@ -5442,6 +5491,15 @@
       handle.setAttribute("role", "separator");
       handle.setAttribute("aria-orientation", kind === "col" ? "vertical" : "horizontal");
       handle.setAttribute("aria-label", "Resize " + (handle.dataset.split || "panel"));
+      function updateAria() {
+        const type = handle.dataset.split;
+        const size = type === "console" ? $("console").getBoundingClientRect().height : type === "outline" ? $("structure").getBoundingClientRect().height : $("files").getBoundingClientRect().width;
+        const min = type === "console" ? 72 : type === "outline" ? 88 : 160;
+        const max = type === "console" ? consolePanelMax() : type === "outline" ? outlinePanelMax() : filesPanelMax();
+        handle.setAttribute("aria-valuemin", String(min)); handle.setAttribute("aria-valuemax", String(Math.round(max)));
+        handle.setAttribute("aria-valuenow", String(Math.round(size))); handle.setAttribute("aria-valuetext", Math.round(size) + " pixels");
+      }
+      updateAria();
       handle.addEventListener("keydown", event => {
         const keys = kind === "col" ? ["ArrowLeft", "ArrowRight"] : ["ArrowUp", "ArrowDown"];
         if (!keys.includes(event.key)) return;
@@ -5451,7 +5509,7 @@
         const start = { x: 0, y: 0, files: files.width, filesH: files.height, console: $("console").getBoundingClientRect().height,
           outline: $("structure").getBoundingClientRect().height, center: $("center").getBoundingClientRect().height };
         onMove({ clientX: amount, clientY: amount }, start);
-        savePanels(); refreshAllEditors();
+        updateAria(); savePanels(); refreshAllEditors();
       });
       handle.addEventListener("pointerdown", (event) => {
         if (event.button !== 0) return;
@@ -5479,7 +5537,7 @@
         const apply = () => {
           raf = 0;
           if (!latest) return;
-          onMove(latest, start);
+          onMove(latest, start); updateAria();
         };
         const move = (ev) => {
           if (ev.pointerId !== start.pointerId) return;
@@ -5494,6 +5552,7 @@
           handle.removeEventListener("pointermove", move);
           handle.removeEventListener("pointerup", up);
           handle.removeEventListener("pointercancel", up);
+          handle.removeEventListener("lostpointercapture", up);
           window.removeEventListener("pointermove", move);
           window.removeEventListener("pointerup", up);
           window.removeEventListener("pointercancel", up);
@@ -5506,6 +5565,7 @@
         handle.addEventListener("pointermove", move);
         handle.addEventListener("pointerup", up);
         handle.addEventListener("pointercancel", up);
+        handle.addEventListener("lostpointercapture", up);
         window.addEventListener("pointermove", move);
         window.addEventListener("pointerup", up);
         window.addEventListener("pointercancel", up);
@@ -6650,8 +6710,12 @@
         ensureTerminal(true).catch((err) => toast(err.message));
       });
     }
+    if ($("terminal-sensitive")) $("terminal-sensitive").addEventListener("change", () => { $("terminal-input").type = $("terminal-sensitive").checked ? "password" : "text"; $("terminal-input").focus(); });
     if ($("terminal-input")) {
       $("terminal-input").addEventListener("keydown", (event) => {
+        if ((event.ctrlKey || event.metaKey) && event.key.toLowerCase() === "c" && event.target.selectionStart === event.target.selectionEnd) {
+          event.preventDefault(); ensureTerminal(true).catch(err => toast(err.message)); return;
+        }
         if (event.key === "Enter") {
           event.preventDefault();
           sendTerminalCommand().catch((err) => toast(err.message));
@@ -6659,13 +6723,14 @@
         }
         if (event.key === "ArrowUp") {
           event.preventDefault();
-          if (!state.termHistory.length) return;
+          if ($("terminal-sensitive")?.checked || !state.termHistory.length) return;
           state.termHistIndex = Math.max(0, state.termHistIndex - 1);
           $("terminal-input").value = state.termHistory[state.termHistIndex] || "";
           return;
         }
         if (event.key === "ArrowDown") {
           event.preventDefault();
+          if ($("terminal-sensitive")?.checked) return;
           state.termHistIndex = Math.min(state.termHistory.length, state.termHistIndex + 1);
           $("terminal-input").value = state.termHistIndex >= state.termHistory.length
             ? ""
@@ -7452,6 +7517,8 @@
         cm.refresh();
         cm.focus();
       }
+      window.LarkEditorReady = true;
+      document.dispatchEvent(new Event("lark-editor-ready"));
       checkUpdates(false).catch(() => {});
       setTimeout(() => maybeShowThemeNudge(), 1600);
     } catch (err) {

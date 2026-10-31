@@ -20,7 +20,7 @@
     <header id="top">
       <button type="button" class="brand" id="brand-home" title="Home" aria-label="Lark home">
         <img src="favicon.png" alt="" aria-hidden="true">
-        <span class="word">Lark <em class="ver">__LARK_V__</em></span>
+        <span class="word">Lark</span>
       </button>
 
       <div class="top-group" role="group" aria-label="Navigate">
@@ -64,7 +64,7 @@
       <span class="top-sep" aria-hidden="true"></span>
 
       <div class="top-group top-group-prefs" role="group" aria-label="Preferences">
-        <button id="share-open" type="button" title="Lark Share: read-only LAN preview" aria-haspopup="dialog">Share</button>
+        <button id="share-open" type="button" title="Lark Share: encrypted LAN collaboration" aria-haspopup="dialog">Share</button>
         <button id="theme" type="button" title="Themes">Themes</button>
         <button id="settings" type="button" data-pop="menu-settings" title="Settings" aria-label="Settings">Aa</button>
         <button id="help" type="button" data-pop="menu-help" aria-label="Keyboard shortcuts">?</button>
@@ -196,12 +196,14 @@
             <pre id="tests-out">Open the Tests tab to discover JUnit methods in this project.</pre>
           </div>
           <div id="terminal-pane" hidden>
+            <div id="terminal-git-status" class="terminal-git-status" aria-live="polite"></div>
             <pre id="terminal-out">Open the Terminal tab to start a shell in your project folder.</pre>
             <div class="terminal-input-row">
               <span class="terminal-prompt" id="terminal-prompt">›</span>
               <input id="terminal-input" type="text" placeholder="Enter a command…" spellcheck="false" autocomplete="off">
               <button type="button" id="terminal-send" class="primary">Run</button>
-              <button type="button" id="terminal-restart" title="Restart shell">Restart</button>
+              <label title="Mask input and omit it from Lark history; a running program may still echo it"><input type="checkbox" id="terminal-sensitive"> Private input</label>
+              <button type="button" id="terminal-restart" title="Cancel the running process and restart the shell">Cancel / Restart</button>
             </div>
           </div>
           <div id="console-reply" class="console-reply" hidden>
@@ -436,7 +438,7 @@
       <label class="settings-check"><input id="setting-line-wrap" type="checkbox"> Line wrap</label>
       <label class="settings-check"><input id="setting-line-numbers" type="checkbox" checked> Show line numbers</label>
       <h4 class="settings-subheading">Code minimap</h4>
-      <label class="settings-check"><input id="setting-minimap" type="checkbox"> Show code minimap</label>
+      <label class="settings-check"><input id="setting-minimap" type="checkbox"> Show Minimap</label>
       <label class="settings-row">Width <select id="setting-minimap-width"><option value="64">Compact · 64 px</option><option value="96">Normal · 96 px</option><option value="128">Wide · 128 px</option></select></label>
       <label class="settings-row">Position <select id="setting-minimap-side"><option value="right">Right</option><option value="left">Left</option></select></label>
       <label class="settings-check"><input id="setting-minimap-syntax" type="checkbox" checked> Syntax colors</label>
@@ -763,6 +765,7 @@
   <script src="js/minimap.js?v=__LARK_V__"></script>
   <script src="js/app.js?v=__LARK_V__"></script>
   <script src="js/share-document.js?v=__LARK_V__"></script>
+  <script src="js/share-birds.js?v=__LARK_V__"></script>
   <script src="js/share-editor.js?v=__LARK_V__"></script>
   <script src="js/share.js?v=__LARK_V__"></script>
 </body>

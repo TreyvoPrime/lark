@@ -9,7 +9,7 @@ const { webcrypto } = require('node:crypto');
   const seed = Array.from({ length: 400 }, (_, i) => `// line ${i}`).join('\n');
   let text = seed, selectionCalls = 0, updates = 0, tick, activePath = 'Main.java', inFlight;
   let selections = [{ anchor: { line: 0, ch: 0 }, head: { line: 0, ch: 0 } }], primary = 0;
-  let scroll = { left: 150, top: 2400 }, nextResponse, syncHook;
+  let scroll = { left: 150, top: 2400 }, nextResponse, syncHook, remoteRange, remoteWidget;
   const selectionOptions = [], followScrolls = [];
   const doc = {
     getValue: () => text,
@@ -28,7 +28,7 @@ const { webcrypto } = require('node:crypto');
       selectionOptions.push(options);
       if (!options || options.scroll !== false) scroll = { left: 0, top: 0 };
     },
-    on() {}, setBookmark: () => ({ clear() {} }), markText: () => ({ clear() {} })
+    on() {}, setBookmark: (pos, options) => { remoteWidget = options.widget; return { clear() {} }; }, markText: (from, to) => { remoteRange = [from, to]; return { clear() {} }; }
   };
   const cm = {
     state: {}, setOption() {},
@@ -44,8 +44,8 @@ const { webcrypto } = require('node:crypto');
   const context = vm.createContext({
     console, crypto: webcrypto, structuredClone,
     CodeMirror: { commands: { undo() {}, redo() {} } },
-    window: { LarkEditorShare: bridge, addEventListener() {} },
-    document: { dispatchEvent() {}, getElementById: () => null, createElement: () => ({ style: {} }) },
+    window: { LarkEditorShare: bridge, LarkBirds: { make: (id) => ({ bird: id }) }, addEventListener() {} },
+    document: { dispatchEvent() {}, getElementById: () => null, createElement: () => ({ style: {}, children: [], append(...nodes) { this.children.push(...nodes); } }), createTextNode: text => ({ text }) },
     CustomEvent: class { constructor(type, options) { this.type = type; this.detail = options?.detail; } },
     localStorage: { setItem: (k, v) => storage.set(k, v), removeItem: k => storage.delete(k) },
     setInterval: fn => { tick = fn; return 1; }, clearInterval() {}, setTimeout: () => 1, clearTimeout() {},
@@ -122,5 +122,10 @@ const { webcrypto } = require('node:crypto');
   nextResponse = { operations: [], revision: 3, role: 'viewer', participants: [] };
   await tick();
   assert.deepEqual(scroll, { left: 100, top: 2200 }, 'viewers can scroll independently too');
+  nextResponse = { operations: [], revision: 3, role: 'editor', participants: [{ id: 'peer', name: 'Remote', bird: 'cardinal', color: '#d94141', file: 'Main.java', anchor: entry.model.anchor(35), head: entry.model.anchor(5), connected: true }] };
+  await tick();
+  assert(remoteRange, 'a backward remote selection is rendered');
+  assert(doc.indexFromPos(remoteRange[0]) < doc.indexFromPos(remoteRange[1]), 'remote selection endpoints are ordered');
+  assert.equal(remoteWidget.children[0].children[0].bird, 'cardinal', 'remote cursor uses the participant bird');
   console.log('Share scroll regression checks passed: idle polling, in-flight navigation, remote edits, multiple selections, background files, and Follow.');
 })().catch(error => { console.error(error); process.exitCode = 1; });
