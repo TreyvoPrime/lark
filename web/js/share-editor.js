@@ -3,9 +3,10 @@
   'use strict';
   const writer = crypto.randomUUID().replace(/-/g, '');
   const documents = new Map(), opening = new Map();
-  let session = null, timer = null, working = false, following = null, presence = [], lastPresence = 0;
+  let session = null, timer = null, working = null, starting = null, generation = 0, following = null, presence = [], lastPresence = 0;
   const marks = [];
   const request = async (action, body = {}) => {
+    if (window.LarkEditorShare?.request) return window.LarkEditorShare.request(action, { writer, ...body });
     const response = await fetch('/api/share', { method: 'POST', headers: { 'Content-Type': 'application/json', 'X-Lark': '1' }, body: JSON.stringify({ action, writer, ...body }) });
     const data = await response.json(); if (!response.ok || !data.ok) { const error = new Error(data.error || 'Share request failed'); error.code = response.status; throw error; } return data;
   };
@@ -14,7 +15,14 @@
     try { localStorage.setItem(recoveryKey(entry.path), JSON.stringify({ session: session.id, path: entry.path, seed: entry.model.seed, pending: entry.pending, text: entry.model.text(), writer, revision: entry.revision, at: Date.now() })); }
     catch (_) { window.LarkEditorShare?.notice('Share recovery storage is full. Export local recovery text before closing.'); }
   };
-  function status(text) { document.dispatchEvent(new CustomEvent('lark-share-state', { detail: text })); }
+  function status(text) {
+    document.dispatchEvent(new CustomEvent('lark-share-state', { detail: text }));
+    const entry = documents.get(window.LarkEditorShare?.current()?.path);
+    document.dispatchEvent(new CustomEvent('lark-share-summary', { detail: {
+      connection: text, pending: [...documents.values()].reduce((n, e) => n + e.pending.length, 0),
+      collaborators: presence.filter(p => p.connected).length, role: entry?.role || 'viewer'
+    } }));
+  }
   function paint(entry) {
     const doc = entry.doc, text = entry.model.text(), old = doc.getValue();
     if (old === text) return false;
@@ -31,29 +39,38 @@
   function offset(text, pos) { const lines = text.split('\n'); let result = 0; for (let i = 0; i < pos.line; i++) result += (lines[i]?.length || 0) + 1; return result + pos.ch; }
   function enqueue(entry, operations) { entry.pending.push(...operations); clearTimeout(entry.recoveryTimer); entry.recoveryTimer = setTimeout(() => { if (entry.pending.length) recover(entry); }, 350); status('Synchronizing'); }
   function bind(entry) {
-    entry.doc.on('change', (_, change) => {
+    entry.onChange = (_, change) => {
       if (entry.remote || !session || documents.get(entry.path) !== entry) return;
       const before = entry.model.text(), start = offset(before, change.from), end = offset(before, change.to), text = change.text.join('\n');
       const anchor = entry.model.anchor(start), removed = before.slice(start, end);
       const ops = entry.model.edit(start, end - start, text, entry.actor);
       if (!entry.historyAction) { entry.undo.push({ anchor, removed, inserted: ops.flatMap(op => Array.from({ length: op.text.length }, (_, i) => `${op.seq + i}@${op.actor}`)) }); entry.redo = []; }
       enqueue(entry, ops);
-    });
+    };
+    entry.doc.on('change', entry.onChange);
   }
   function open(path, doc) {
     if (opening.has(path)) return opening.get(path);
-    const promise = doOpen(path, doc).finally(() => opening.delete(path)); opening.set(path, promise); return promise;
+    const promise = doOpen(path, doc).finally(() => { if (opening.get(path) === promise) opening.delete(path); }); opening.set(path, promise); return promise;
   }
   async function doOpen(path, doc) {
     if (!session || !session.paths.has(path)) return false;
     let entry = documents.get(path);
     if (!entry) {
       status('Synchronizing');
+      const activeSession = session;
       const data = await request('open', { path, since: 0 });
+      if (session !== activeSession) return false;
       entry = { path, model: new LarkShareDocument(data.seed), actor: data.actor, role: data.role, revision: data.revision, pending: [], undo: [], redo: [], doc, remote: true };
-      data.operations.forEach(op => entry.model.apply(op)); documents.set(path, entry);
-      while (entry.revision < data.head) { const page = await request('sync', { path, since: entry.revision }); page.operations.forEach(op => entry.model.apply(op)); entry.revision = page.revision; }
-      entry.remote = false; paint(entry); bind(entry);
+      data.operations.forEach(op => entry.model.apply(op));
+      while (entry.revision < data.head) {
+        const page = await request('sync', { path, since: entry.revision });
+        if (session !== activeSession) return false;
+        if (page.revision <= entry.revision) throw new Error('Share history did not advance. Reconnect and retry.');
+        page.operations.forEach(op => entry.model.apply(op)); entry.revision = page.revision;
+      }
+      documents.set(path, entry);
+      entry.remote = false; paint(entry); entry.doc.clearHistory?.(); bind(entry);
     } else if (entry.doc !== doc) throw new Error('Shared document identity changed. Reopen the shared project.');
     const cm = window.LarkEditorShare?.editor();
     if (cm && window.LarkEditorShare?.current().doc === entry.doc) {
@@ -63,8 +80,10 @@
     return true;
   }
   async function pull(entry) {
+    const activeSession = session;
     const operation = entry.pending[0];
     const data = await request('sync', { path: entry.path, since: entry.revision, ...(operation ? { operation } : {}) });
+    if (session !== activeSession || documents.get(entry.path) !== entry) return;
     // Read the user's current view AFTER the request: they may have scrolled,
     // moved the caret, switched files, or typed while waiting for the network.
     const ranges = entry.doc.listSelections(), primaryHead = entry.doc.getCursor('head'), primaryAnchor = entry.doc.getCursor('anchor');
@@ -87,23 +106,25 @@
     if (entry.pending.length) { clearTimeout(entry.recoveryTimer); entry.recoveryTimer = setTimeout(() => { if (entry.pending.length) recover(entry); }, 350); } else { clearTimeout(entry.recoveryTimer); if (operation && !changed) window.LarkEditorShare?.updated(entry.path, entry.model.text()); try { localStorage.removeItem(recoveryKey(entry.path)); } catch (_) {} }
   }
   async function tick() {
-    if (!session || working) return; working = true;
+    if (!session || working === session) return;
+    const activeSession = session; working = activeSession;
     try {
       for (const entry of documents.values()) {
         if (entry.pending.length || entry.path === window.LarkEditorShare?.current()?.path || Date.now() - (entry.lastPoll || 0) > 5000) {
-          await pull(entry); entry.lastPoll = Date.now();
+          await pull(entry); if (session !== activeSession) return; entry.lastPoll = Date.now();
         }
       }
       const current = window.LarkEditorShare?.current(), entry = documents.get(current?.path);
       if (entry && Date.now() - lastPresence > 700) {
         const cm = window.LarkEditorShare.editor(), selection = cm.listSelections()[0];
         const data = await request('presence', { path: entry.path, since: entry.revision, anchor: entry.model.anchor(cm.indexFromPos(selection.anchor)), head: entry.model.anchor(cm.indexFromPos(selection.head)) });
+        if (session !== activeSession) return;
         presence = data.participants; lastPresence = Date.now();
       }
       status([...documents.values()].some(e => e.pending.length) ? 'Synchronizing' : 'Connected');
       drawPresence();
-    } catch (error) { for (const entry of documents.values()) if (entry.pending.length) recover(entry); status(error.code === 403 || error.code === 410 ? 'Connection Lost' : 'Reconnecting'); document.dispatchEvent(new CustomEvent('lark-share-error', { detail: error.message })); }
-    finally { working = false; }
+    } catch (error) { if (session !== activeSession) return; for (const entry of documents.values()) if (entry.pending.length) recover(entry); status(error.code === 403 || error.code === 410 ? 'Connection Lost' : 'Reconnecting'); document.dispatchEvent(new CustomEvent('lark-share-error', { detail: error.message })); }
+    finally { if (working === activeSession) working = null; }
   }
   function drawPresence() {
     marks.splice(0).forEach(mark => mark.clear());
@@ -127,29 +148,67 @@
   }
   function hash(s) { let n = 0; for (const c of s) n = (n * 31 + c.charCodeAt(0)) >>> 0; return n; }
   function undo(entry, redo) {
+    if (!session || documents.get(entry.path) !== entry || entry.role === 'viewer') return;
     const source = redo ? entry.redo : entry.undo, target = redo ? entry.undo : entry.redo, record = source.pop(); if (!record) return;
     const removedIds = record.inserted.filter(id => entry.model.nodes.has(id) && !entry.model.nodes.get(id).deleted);
     const operations = [], removedText = removedIds.map(id => entry.model.nodes.get(id).value).join('');
     for (let i = 0; i < removedIds.length; i += 128) { const op = { seq: ++entry.model.clock, actor: entry.actor, after: record.anchor, text: '', remove: removedIds.slice(i, i + 128) }; entry.model.apply(op); operations.push(op); }
     const inserted = entry.model.edit(entry.model.index(record.anchor), 0, record.removed, entry.actor); operations.push(...inserted);
     target.push({ anchor: record.anchor, removed: removedText, inserted: inserted.flatMap(op => Array.from({ length: op.text.length }, (_, i) => `${op.seq + i}@${op.actor}`)) });
-    paint(entry); enqueue(entry, operations);
+    paint(entry);
+    entry.doc.setCursor?.(entry.doc.posFromIndex(entry.model.index(record.anchor) + record.removed.length));
+    enqueue(entry, operations);
   }
   const originalUndo = CodeMirror.commands.undo, originalRedo = CodeMirror.commands.redo;
-  CodeMirror.commands.undo = cm => cm.state.larkShare ? (!cm.getOption('readOnly') && undo(cm.state.larkShare, false)) : originalUndo(cm);
-  CodeMirror.commands.redo = cm => cm.state.larkShare ? (!cm.getOption('readOnly') && undo(cm.state.larkShare, true)) : originalRedo(cm);
+  function historyCommand(cm, redo) {
+    const entry = cm.state.larkShare;
+    if (entry && documents.get(entry.path) === entry && cm.getDoc?.() !== undefined && cm.getDoc() !== entry.doc) return;
+    if (entry) { if (!cm.getOption('readOnly')) undo(entry, redo); return; }
+    return (redo ? originalRedo : originalUndo)(cm);
+  }
+  CodeMirror.commands.undo = cm => historyCommand(cm, false);
+  CodeMirror.commands.redo = cm => historyCommand(cm, true);
+  // Capture at the editor, before CodeMirror and page shortcuts. Consume even an
+  // empty/read-only history so native contenteditable history cannot insert "z".
+  const wired = new WeakSet();
+  function wireHistoryKeys() {
+    const cm = window.LarkEditorShare?.editor(), wrapper = cm?.getWrapperElement?.();
+    if (!wrapper || wired.has(wrapper)) return;
+    wired.add(wrapper);
+    wrapper.addEventListener('keydown', event => {
+      if (!cm.state.larkShare || event.isComposing || event.keyCode === 229 || event.altKey || !(event.ctrlKey || event.metaKey)) return;
+      const key = event.key.toLowerCase();
+      if (key !== 'z' && key !== 'y') return;
+      event.preventDefault(); event.stopImmediatePropagation();
+      historyCommand(cm, key === 'y' || event.shiftKey);
+    }, true);
+  }
   window.LarkShareEditing = {
-    async start(data) {
-      if (session) return;
-      await window.LarkEditorShare.flush();
-      const files = await request('files');
-      session = { id: data.id, identity: data.identity, paths: new Set(files.files.map(f => f.path)), hosting: data.hosting, project: data.project };
-      if (!data.hosting) await window.LarkEditorShare.guest(data.name, files.files);
-      else await window.LarkEditorShare.prepareHost(data.project);
-      if (document.getElementById('split-editor')) document.getElementById('split-editor').disabled = true;
-      timer = setInterval(tick, 250);
-      const current = window.LarkEditorShare.current(); if (current?.path) await open(current.path, current.doc);
-      status('Connected');
+    start(data) {
+      if (starting) return starting;
+      if (session) return Promise.resolve();
+      const token = ++generation;
+      const task = (async () => {
+        await window.LarkEditorShare.flush();
+        if (generation !== token) return;
+        const files = await request('files');
+        if (generation !== token) return;
+        session = { id: data.id, identity: data.identity, paths: new Set(files.files.map(f => f.path)), hosting: data.hosting, project: data.project };
+        if (!data.hosting) await window.LarkEditorShare.guest(data.name, files.files);
+        else await window.LarkEditorShare.prepareHost(data.project);
+        if (generation !== token) return;
+        if (document.getElementById('split-editor')) document.getElementById('split-editor').disabled = true;
+        const current = window.LarkEditorShare.current(); if (current?.path) await open(current.path, current.doc);
+        if (generation !== token) return;
+        timer = setInterval(tick, 250);
+        wireHistoryKeys(); status('Connected');
+      })().catch(async error => {
+        if (generation !== token) return;
+        await window.LarkShareEditing.stop();
+        throw error;
+      }).finally(() => { if (starting === task) starting = null; });
+      starting = task;
+      return task;
     },
     updateRole(role) {
       if (!session || session.hosting) return;
@@ -159,7 +218,7 @@
     sessionActive: () => !!session,
     active: path => !!session?.paths.has(path), hosting: () => session?.hosting, project: () => session?.project, open,
     changed: path => { if (session?.paths.has(path)) return true; return false; },
-    async stop() { clearInterval(timer); timer = null; for (const entry of documents.values()) if (entry.pending.length) recover(entry); documents.clear(); opening.clear(); if (document.getElementById('split-editor')) document.getElementById('split-editor').disabled = false; marks.splice(0).forEach(m => m.clear()); session = null; following = null; document.dispatchEvent(new CustomEvent('lark-share-presence', { detail: [] })); document.dispatchEvent(new CustomEvent('lark-share-follow', { detail: false })); const cm = window.LarkEditorShare?.editor(); if (cm) { cm.state.larkShare = null; cm.setOption('readOnly', false); } await window.LarkEditorShare?.leave(); },
+    async stop() { ++generation; starting = null; working = null; clearInterval(timer); timer = null; for (const entry of documents.values()) if (entry.pending.length) recover(entry); for (const entry of documents.values()) { clearTimeout(entry.recoveryTimer); entry.doc.off?.('change', entry.onChange); entry.doc.clearHistory?.(); } documents.clear(); opening.clear(); if (document.getElementById('split-editor')) document.getElementById('split-editor').disabled = false; marks.splice(0).forEach(m => m.clear()); session = null; following = null; presence = []; lastPresence = 0; document.dispatchEvent(new CustomEvent('lark-share-presence', { detail: [] })); document.dispatchEvent(new CustomEvent('lark-share-follow', { detail: false })); const cm = window.LarkEditorShare?.editor(); if (cm) { cm.state.larkShare = null; cm.setOption('readOnly', false); } await window.LarkEditorShare?.leave(); },
     follow: id => { following = id; document.dispatchEvent(new CustomEvent('lark-share-follow', { detail: !!id })); },
     position(person) { const entry = documents.get(person.file); if (!entry) return ''; const pos = entry.doc.posFromIndex(entry.model.index(person.head)); return `Ln ${pos.line + 1}, Col ${pos.ch + 1}`; },
     async flush() {

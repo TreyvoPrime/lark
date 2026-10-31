@@ -756,7 +756,7 @@
       indentWithTabs: !!(state.settings && state.settings.indentWithTabs),
       lineWrapping: true,
       matchBrackets: true,
-      autoCloseBrackets: { pairs: "()[]{}''\"\"", explode: "" },
+      autoCloseBrackets: localStorage.getItem("lark-auto-pair") === "off" ? false : { pairs: "()[]{}''\"\"", explode: "" },
       styleActiveLine: true,
       extraKeys: {
         "Enter": enterBetweenBrackets,
@@ -1513,13 +1513,14 @@
       lineWrapping: !!(state.settings && state.settings.lineWrapping),
       matchBrackets: true,
       // Do not auto-pair /* */ — that fights IntelliJ-style /** Javadoc expansion.
-      autoCloseBrackets: { pairs: "()[]{}''\"\"", explode: "" },
+      autoCloseBrackets: localStorage.getItem("lark-auto-pair") === "off" ? false : { pairs: "()[]{}''\"\"", explode: "" },
       styleActiveLine: true,
       hintOptions: { completeSingle: false, closeOnUnfocus: true },
       extraKeys: editorExtraKeys()
     });
     wireEditor(cm, "a");
     cm.on("inputRead", (editor, change) => {
+      if (localStorage.getItem("lark-auto-suggest") === "off" || editor.state.composing) return;
       if (suppress || !state.active || !change || !change.text) return;
       const typed = change.text.join("");
       // Show options while typing — never auto-insert the first match.
@@ -1807,6 +1808,14 @@
     }
   }
 
+  window.LarkTyping?.setProjectSymbols(() => state.files.filter(file => file.path.endsWith('.java')).flatMap(file => {
+    let owner = null;
+    return parsedFile(file).symbols.map(symbol => {
+      if (['class', 'interface', 'enum', 'record'].includes(symbol.kind)) owner = symbol.name;
+      return { ...symbol, owner };
+    });
+  }));
+
   function collectNameHints(prefix) {
     const names = new Map();
     state.files.forEach((file) => {
@@ -1834,6 +1843,9 @@
   }
 
   function completeHintSuggest(editor) {
+    if (/comment|string/.test(editor.getTokenTypeAt(editor.getCursor()) || "")) return null;
+    const members = window.LarkTyping?.hint(editor);
+    if (members) return members;
     const cursor = editor.getCursor();
     const token = editor.getTokenAt(cursor);
     let prefix = token.string || "";
@@ -1853,6 +1865,9 @@
   }
 
   function completeHintFull(editor) {
+    if (/comment|string/.test(editor.getTokenTypeAt(editor.getCursor()) || "")) return null;
+    const members = window.LarkTyping?.hint(editor);
+    if (members) return members;
     const cursor = editor.getCursor();
     const token = editor.getTokenAt(cursor);
     let prefix = token.string || "";
@@ -2624,7 +2639,7 @@
       indentWithTabs: !!(state.settings && state.settings.indentWithTabs),
       lineWrapping: !!(state.settings && state.settings.lineWrapping),
       matchBrackets: true,
-      autoCloseBrackets: { pairs: "()[]{}''\"\"", explode: "" },
+      autoCloseBrackets: localStorage.getItem("lark-auto-pair") === "off" ? false : { pairs: "()[]{}''\"\"", explode: "" },
       styleActiveLine: true,
       extraKeys: editorExtraKeys()
     });
@@ -6459,6 +6474,15 @@
     };
     bindPref("setting-font-family", (el) => ({ fontFamily: el.value }));
     bindPref("setting-ligatures", (el) => ({ ligatures: el.checked }));
+    ["auto-pair", "auto-suggest"].forEach(name => {
+      const control = $("setting-" + name);
+      if (!control) return;
+      control.checked = localStorage.getItem("lark-" + name) !== "off";
+      control.addEventListener("change", () => {
+        localStorage.setItem("lark-" + name, control.checked ? "on" : "off");
+        if (name === "auto-pair") [cm, cmB, cmScratch].filter(Boolean).forEach(editor => editor.setOption("autoCloseBrackets", control.checked ? { pairs: "()[]{}''\"\"", explode: "" } : false));
+      });
+    });
     bindPref("setting-indent-size", (el) => ({ indentSize: Number(el.value) }));
     bindPref("setting-indent-tabs", (el) => ({ indentWithTabs: el.checked }));
     bindPref("setting-line-wrap", (el) => ({ lineWrapping: el.checked }));

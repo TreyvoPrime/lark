@@ -20,7 +20,7 @@ import java.util.concurrent.CountDownLatch;
 public final class Mobile {
     static final String CHANNEL = "mobile";
     private static volatile String pairToken = "";
-    private static volatile boolean lanEnabled = true;
+    private static volatile boolean lanEnabled = false;
 
     private Mobile() {}
 
@@ -78,7 +78,7 @@ public final class Mobile {
         int port = 43125;
         boolean browser = true;
         boolean replace = "1".equals(System.getenv("LARK_REPLACE"));
-        lanEnabled = true;
+        lanEnabled = false;
         for (int i = 0; i < args.length; i++) {
             switch (args[i]) {
                 case "--help", "-h" -> {
@@ -111,6 +111,7 @@ public final class Mobile {
             Instance.configure(CHANNEL, true);
         }
 
+        if (lanEnabled && !MobileTls.configured()) throw new IllegalArgumentException("LAN access requires HTTPS. Supply -Dlark.mobile.keystore=/path/to/identity.p12 and LARK_MOBILE_KEYSTORE_PASSWORD, or use --local-only.");
         pairToken = newToken();
         System.out.println("Lark Mobile " + Settings.VERSION + " starting...");
         System.out.flush();
@@ -132,14 +133,14 @@ public final class Mobile {
         projects.ensureSample();
         Server server = Server.start(port, projects, new Runner(), new GitHub(settings), settings, lanEnabled);
         Runtime.getRuntime().addShutdownHook(new Thread(server::stop));
-        String local = "http://127.0.0.1:" + server.port() + "/?pair=" + pairToken;
+        String local = MobileTls.scheme() + "://127.0.0.1:" + server.port() + "/?pair=" + pairToken;
         System.out.println();
         System.out.println("====================================");
         System.out.println("  Lark Mobile is running");
         System.out.println("  This device:  " + local);
         if (lanEnabled) {
             for (String ip : lanAddresses()) {
-                System.out.println("  Phone (Wi‑Fi): http://" + ip + ":" + server.port() + "/?pair=" + pairToken);
+                System.out.println("  Phone (Wi‑Fi): " + MobileTls.scheme() + "://" + ip + ":" + server.port() + "/?pair=" + pairToken);
             }
             System.out.println("  Pair code:    " + pairToken);
             System.out.println("  Same Wi‑Fi only. Keep this window open.");
@@ -196,8 +197,8 @@ public final class Mobile {
 
                 Options:
                   --port N        Listen port (default 43125)
-                  --lan           Allow phones on the same Wi‑Fi (default)
-                  --local-only    Bind to this device only
+                  --lan           Allow phones on the same Wi‑Fi (requires configured HTTPS identity)
+                  --local-only    Bind to this device only (default)
                   --no-browser    Do not open a window
                   --help          Show this help
                 """);

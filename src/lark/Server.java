@@ -36,6 +36,7 @@ public final class Server {
     private final Terminal terminal;
     private final Recovery recovery;
     private final Share share;
+    private final MobileShare mobileShare;
     private final Settings settings;
     private final Path webDir;
     private final boolean lan;
@@ -75,6 +76,7 @@ public final class Server {
         this.terminal = terminal;
         this.recovery = new Recovery();
         this.share = new Share(projects);
+        this.mobileShare = new MobileShare(projects);
         this.settings = settings;
         this.webDir = webDir;
         this.lan = lan;
@@ -96,7 +98,7 @@ public final class Server {
         long deadline = System.currentTimeMillis() + (preferExact ? 15_000 : 0);
         while (http == null) {
             try {
-                http = HttpServer.create(new InetSocketAddress(bind, port), 0);
+                http = (Mobile.isMobile() ? MobileTls.create(bind, port) : HttpServer.create(new InetSocketAddress(bind, port), 0));
                 chosen = port;
             } catch (IOException e) {
                 last = e;
@@ -115,7 +117,7 @@ public final class Server {
         if (http == null && !preferExact) {
             for (int candidate = port + 1; candidate < port + 20; candidate++) {
                 try {
-                    http = HttpServer.create(new InetSocketAddress(bind, candidate), 0);
+                    http = (Mobile.isMobile() ? MobileTls.create(bind, candidate) : HttpServer.create(new InetSocketAddress(bind, candidate), 0));
                     chosen = candidate;
                     break;
                 } catch (IOException e) {
@@ -143,6 +145,7 @@ public final class Server {
 
     public void stop() {
         share.close();
+        mobileShare.close();
         try {
             terminal.shutdown();
         } catch (Exception ignored) {
@@ -162,6 +165,9 @@ public final class Server {
                                 ? "Open the Phone URL with the pair code from the Lark Mobile window."
                                 : "Lark only answers on localhost."));
                 return;
+            }
+            if (Mobile.isMobile() && pairOk(exchange) && query(exchange, "pair") != null) {
+                exchange.getResponseHeaders().add("Set-Cookie", "lark-pair=" + Mobile.pairToken() + "; Path=/; HttpOnly; SameSite=Strict" + (MobileTls.configured() ? "; Secure" : ""));
             }
             if (downloadName(path) != null && ("GET".equals(method) || "HEAD".equals(method))) {
                 sendDownload(exchange, method, downloadName(path));
@@ -205,6 +211,20 @@ public final class Server {
     }
 
     private void api(HttpExchange exchange, String method, String path) throws IOException {
+        if ("/api/mobile/share".equals(path)) {
+            if (!Mobile.isMobile()) throw new RequestFail(404, "Mobile Share requires the Mobile host.");
+            if (!"POST".equals(method)) throw new RequestFail(405, "Use POST for mobile Share.");
+            // allowedClient and mutationOriginOk already enforced pairing and same origin.
+            if (!isLoopbackPeer(exchange) && !(exchange instanceof com.sun.net.httpserver.HttpsExchange))
+                throw new RequestFail(403, "Mobile Share requires HTTPS.");
+            byte[] data = exchange.getRequestBody().readNBytes(16 * 1024 + 1);
+            if (data.length > 16 * 1024) throw new RequestFail(413, "Share request is too large.");
+            try {
+                sendJson(exchange, 200, mobileShare.control(exchange.getRequestHeaders().getFirst("X-Lark-Share-Client"), ShareTransport.parse(data)));
+            } catch (RequestFail e) { throw e; }
+            catch (Exception e) { throw new RequestFail(400, "Mobile Share could not reach the verified host. Check the invitation and network; no insecure fallback is available."); }
+            return;
+        }
         if ("/api/share".equals(path)) {
             // Even paired Mobile LAN clients must never control a Share host or obtain invitations.
             if (!isLoopbackPeer(exchange)) throw new RequestFail(403, "Share controls are local-only.");
@@ -217,6 +237,12 @@ public final class Server {
             catch (javax.net.ssl.SSLException e) { throw new RequestFail(502, "Share host identity verification failed. Verify a fresh invitation with the host."); }
             catch (Exception e) { throw new RequestFail(400, "Share could not complete the request. Check the invitation, selected interface, and firewall. No insecure fallback is available."); }
             return;
+        }
+        if (Mobile.isMobile() && !isLoopbackPeer(exchange)) {
+            boolean permitted = path.equals("/api/health") || path.equals("/api/mobile/info") || path.equals("/api/settings")
+                || path.equals("/api/templates") || path.equals("/api/projects") || path.startsWith("/api/projects/")
+                || path.equals("/api/run") || path.startsWith("/api/run/") || path.equals("/api/debug") || path.startsWith("/api/debug/") || path.equals("/api/check");
+            if (!permitted) throw new RequestFail(403, "This operation is available only on the host computer.");
         }
         String[] parts = path.split("/");
         if ("GET".equals(method) && "/api/health".equals(path)) {
@@ -257,17 +283,18 @@ public final class Server {
             Json.Arr urls = new Json.Arr();
             if (sharePair) {
                 for (String ip : Mobile.lanAddresses()) {
-                    urls.add("http://" + ip + ":" + port + "/?pair=" + Mobile.pairToken());
+                    urls.add(MobileTls.scheme() + "://" + ip + ":" + port + "/?pair=" + Mobile.pairToken());
                 }
             }
             sendJson(exchange, 200, new Json.Obj()
                     .put("ok", true)
+                    .put("execution", lan ? "Remote compile/run/debug require a Linux host with bubblewrap, util-linux and enabled user namespaces. No unsafe execution fallback." : "Trusted code runs on this local host using its JDK.")
                     .put("edition", "mobile")
                     .put("version", Settings.VERSION)
                     .put("lan", lan && Mobile.lanEnabled())
                     .put("pair", sharePair ? Mobile.pairToken() : "")
                     .put("local", sharePair
-                            ? ("http://127.0.0.1:" + port + "/?pair=" + Mobile.pairToken())
+                            ? (MobileTls.scheme() + "://127.0.0.1:" + port + "/?pair=" + Mobile.pairToken())
                             : ("http://127.0.0.1:" + port + "/"))
                     .put("urls", urls));
             return;
@@ -629,6 +656,7 @@ public final class Server {
                 return;
             }
             if ("mkdir".equals(tail) && "POST".equals(method)) {
+                share.guardWrite(id, null);
                 projects.mkdir(id, body(exchange).str("path", ""));
                 sendJson(exchange, 200, new Json.Obj().put("ok", true));
                 return;
@@ -737,7 +765,7 @@ public final class Server {
                 return true;
             }
             // Mobile LAN: only when already paired for this request.
-            return lan && Mobile.isMobile() && pairOk(exchange);
+            return lan && Mobile.isMobile() && pairOk(exchange) && origin.equals(MobileTls.scheme() + "://" + exchange.getRequestHeaders().getFirst("Host"));
         } catch (Exception e) {
             return false;
         }
@@ -776,6 +804,12 @@ public final class Server {
         if (token == null || token.isBlank()) return false;
         String pair = exchange.getRequestHeaders().getFirst("X-Lark-Pair");
         if (pair == null || pair.isBlank()) pair = query(exchange, "pair");
+        if (pair == null) {
+            String cookies = exchange.getRequestHeaders().getFirst("Cookie");
+            if (cookies != null) for (String cookie : cookies.split(";")) {
+                String value = cookie.trim(); if (value.startsWith("lark-pair=")) pair = value.substring(10);
+            }
+        }
         if (pair == null) return false;
         return constantTimeEquals(token, pair.trim());
     }

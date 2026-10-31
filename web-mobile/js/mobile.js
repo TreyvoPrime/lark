@@ -21,6 +21,7 @@
 
   const state = {
     pair: "",
+    shared: false, previousProject: null,
     settings: null,
     projects: [],
     project: null,
@@ -31,7 +32,8 @@
     job: null,
     poll: null,
     updateDownload: "",
-    view: "home"
+    view: "home",
+    docs: new Map(), breakpoints: new Map(), debug: null, debugPoll: null
   };
 
   const $ = (id) => document.getElementById(id);
@@ -50,6 +52,7 @@
     if (fromUrl) {
       state.pair = fromUrl;
       try { sessionStorage.setItem("lark-pair", fromUrl); } catch (e) {}
+      try { const clean = new URL(location.href); clean.searchParams.delete("pair"); history.replaceState(null, "", clean); } catch (_) {}
       return;
     }
     try {
@@ -206,12 +209,31 @@
       lineWrapping: true,
       indentUnit: 4,
       matchBrackets: true,
-      autoCloseBrackets: true,
+      autoCloseBrackets: localStorage.getItem("lark-mobile-pairing") !== "off",
       styleActiveLine: true,
-      viewportMargin: Infinity
+      viewportMargin: 12
+    });
+    state.cm.setOption("extraKeys", { "Ctrl-Space": cm => cm.showHint({ hint: window.LarkTyping.hint, completeSingle: false }), "Tab": "indentMore", "Shift-Tab": "indentLess" });
+    state.cm.on("inputRead", (cm, change) => {
+      if (localStorage.getItem("lark-mobile-suggestions") === "off") return;
+      if (!change.text || !/[\w$.]/.test(change.text.join("")) || cm.state.completionActive) return;
+      cm.showHint({ hint: window.LarkTyping.hint, completeSingle: false });
+    });
+    state.cm.setOption("gutters", ["CodeMirror-linenumbers", "breakpoints"]);
+    state.cm.on("gutterClick", (cm, line) => {
+      if (!state.path?.endsWith(".java")) return;
+      const lines = state.breakpoints.get(state.path) || new Set();
+      if (lines.has(line + 1)) lines.delete(line + 1); else lines.add(line + 1);
+      state.breakpoints.set(state.path, lines);
+      const marker = document.createElement("span"); marker.textContent = "●"; marker.style.color = "#e08080";
+      cm.setGutterMarker(line, "breakpoints", lines.has(line + 1) ? marker : null);
+    });
+    state.cm.on("beforeChange", (cm, change) => {
+      if (state.shared && cm.getOption("readOnly") && change.origin !== "+share") change.cancel();
     });
     state.cm.on("change", () => {
       if (!state.path) return;
+      if (state.shared) return;
       state.dirty = true;
       $("edit-status").textContent = "Unsaved";
       $("edit-status").className = "dirty";
@@ -260,15 +282,19 @@
       btn.innerHTML = "<div><strong></strong><small></small></div>";
       btn.querySelector("strong").textContent = p.name || p.id;
       btn.querySelector("small").textContent = p.mainClass ? "main · " + p.mainClass : "Open project";
-      btn.addEventListener("click", () => openProject(p.id));
+      btn.addEventListener("click", () => openProject(p.id).catch(e => toast(e.message)));
       host.appendChild(btn);
     });
   }
 
   async function openProject(id) {
+    if (state.shared) return toast("Leave Share before opening another project.");
+    if (state.dirty) await saveFile();
     const data = await api("GET", "/api/projects/" + encodeURIComponent(id));
+    state.docs.clear();
+    state.breakpoints.clear();
     state.project = data.project || data;
-    state.files = data.files || [];
+    state.files = (data.project || data).files || [];
     state.path = null;
     state.dirty = false;
     if (state.settings) {
@@ -304,30 +330,33 @@
       btn.className = "row" + (state.path === f.path ? " active" : "");
       btn.innerHTML = "<div><strong></strong><small>Open in editor</small></div>";
       btn.querySelector("strong").textContent = f.path;
-      btn.addEventListener("click", () => openFile(f.path).then(() => setView("edit")));
+      btn.addEventListener("click", () => openFile(f.path).then(() => setView("edit")).catch(e => toast(e.message)));
       host.appendChild(btn);
     });
   }
 
   async function openFile(path) {
     if (state.dirty && state.path && state.path !== path) {
-      if (!confirm("Save changes to " + state.path + "?")) {
-        /* keep going without save */
-      } else {
-        await saveFile();
-      }
+      await saveFile();
     }
     const file = state.files.find((f) => f.path === path);
     if (!file) throw new Error("File not found.");
     const cm = ensureEditor();
+    if (file.binary || file.tooBig) return toast("This file cannot be edited: binary data or exceeds the editor size limit.");
+    state.path = null;
+    let doc = state.docs.get(path);
+    if (!doc) { doc = CodeMirror.Doc(file.content || "", path.endsWith(".java") ? "text/x-java" : "text/plain"); state.docs.set(path, doc); }
+    cm.state.larkShare = null;
+    cm.setOption("readOnly", state.shared);
+    cm.swapDoc(doc);
     state.path = path;
     state.dirty = false;
-    cm.setValue(file.content || "");
     $("edit-path").textContent = path;
     $("edit-status").textContent = "Saved";
     $("edit-status").className = "ok";
     renderFiles();
     $("btn-save").hidden = state.view !== "edit";
+    if (state.shared) await window.LarkShareEditing.open(path, doc);
     refreshMobileProblems();
   }
 
@@ -391,14 +420,17 @@
   }
 
   async function saveFile() {
+    if (state.shared) { await window.LarkShareEditing.flush(); toast("Shared changes synchronized with the host."); return; }
     if (!state.project || !state.path || !state.cm) return;
-    const content = state.cm.getValue();
+    const content = state.cm.getValue(), savedPath = state.path, savedProject = state.project.id;
     await api("PUT", "/api/projects/" + encodeURIComponent(state.project.id) + "/file", {
       path: state.path,
       content: content
     });
-    const file = state.files.find((f) => f.path === state.path);
+    if (state.project.id !== savedProject || state.path !== savedPath) return;
+    const file = state.files.find((f) => f.path === savedPath);
     if (file) file.content = content;
+    if (state.cm.getValue() !== content) return;
     state.dirty = false;
     $("edit-status").textContent = "Saved";
     $("edit-status").className = "ok";
@@ -406,6 +438,7 @@
   }
 
   async function runProject() {
+    if (state.shared) return toast("Leave Share to use local project tools. Shared code runs only after review on the desktop host.");
     if (!state.project) return toast("Open a project first.");
     if (state.dirty) await saveFile();
     setView("run");
@@ -482,6 +515,7 @@
   }
 
   async function createProject() {
+    if (state.shared) return toast("Leave Share to use local project tools. Shared code runs only after review on the desktop host.");
     const name = $("sheet-name").value.trim();
     if (!name) return toast("Name the project.");
     const template = $("sheet-template").value || "empty";
@@ -492,19 +526,22 @@
   }
 
   async function newFile() {
+    if (state.shared) return toast("Leave Share to use local project tools. Shared code runs only after review on the desktop host.");
     if (!state.project) return toast("Open a project first.");
     const name = prompt("New file path", "src/Main.java");
     if (!name) return;
     const path = name.replace(/^\/+/, "");
+    if (state.files.some(file => file.path === path)) return toast("That file already exists. Open it from Files.");
+    if (state.dirty) await saveFile();
     const stub = path.endsWith(".java")
-      ? "public class " + (path.split("/").pop() || "Main").replace(/\\.java$/, "") + " {\n    public static void main(String[] args) {\n        System.out.println(\"Hello from Lark Mobile\");\n    }\n}\n"
+      ? "public class " + (path.split("/").pop() || "Main").replace(/\.java$/, "") + " {\n    public static void main(String[] args) {\n        System.out.println(\"Hello from Lark Mobile\");\n    }\n}\n"
       : "";
     await api("PUT", "/api/projects/" + encodeURIComponent(state.project.id) + "/file", {
       path: path,
       content: stub
     });
     const data = await api("GET", "/api/projects/" + encodeURIComponent(state.project.id));
-    state.files = data.files || [];
+    state.files = (data.project || data).files || [];
     await openFile(path);
     setView("edit");
   }
@@ -512,6 +549,7 @@
   async function loadPairCard() {
     try {
       const info = await api("GET", "/api/mobile/info");
+      if (info.execution) $("execution-support").textContent = info.execution;
       if (!info.lan) {
         $("pair-card").hidden = true;
         return;
@@ -569,7 +607,77 @@
     }
   }
 
+  async function newFolder() {
+    if (state.shared) return toast("Leave Share to use local project tools. Shared code runs only after review on the desktop host.");
+    if (!state.project) return toast("Open a project first.");
+    const path = prompt("New folder path", "src/package"); if (!path) return;
+    await api("POST", "/api/projects/" + encodeURIComponent(state.project.id) + "/mkdir", { path });
+    toast("Folder created: " + path);
+  }
+  async function startDebug() {
+    if (state.shared) return toast("Leave Share to use local project tools. Shared code runs only after review on the desktop host.");
+    if (!state.project) return toast("Open a project first.");
+    if (state.dirty) await saveFile();
+    const mainClass = prompt("Main class to debug (include package)", state.project.mainClass || "Main");
+    if (!mainClass) return;
+    if (state.debug) await api("POST", "/api/debug/" + state.debug + "/stop", {});
+    clearInterval(state.debugPoll);
+    const breakpoints = [];
+    state.breakpoints.forEach((lines, file) => lines.forEach(line => breakpoints.push({ file, line })));
+    const data = await api("POST", "/api/debug", { project: state.project.id, mainClass, breakpoints });
+    state.debug = data.id; setView("run");
+    state.debugPoll = setInterval(async () => {
+      try {
+        const snap = await api("GET", "/api/debug/" + state.debug);
+        $("run-out").textContent = snap.output || "";
+        $("debug-locals").textContent = (snap.locals || []).join("\n");
+        $("run-state").textContent = snap.phase + (snap.currentLine ? " · " + snap.currentClass + ":" + snap.currentLine : "");
+        if (snap.done) { clearInterval(state.debugPoll); state.debugPoll = null; state.debug = null; }
+      } catch(e) { clearInterval(state.debugPoll); state.debugPoll = null; toast(e.message); }
+    }, 500);
+  }
   function bind() {
+    $("auto-pair").checked = localStorage.getItem("lark-mobile-pairing") !== "off";
+    $("auto-suggest").checked = localStorage.getItem("lark-mobile-suggestions") !== "off";
+    $("auto-pair").onchange = event => { localStorage.setItem("lark-mobile-pairing", event.target.checked ? "on" : "off"); ensureEditor().setOption("autoCloseBrackets", event.target.checked); };
+    $("auto-suggest").onchange = event => localStorage.setItem("lark-mobile-suggestions", event.target.checked ? "on" : "off");
+    $("btn-new-folder").onclick = () => newFolder().catch(e => toast(e.message));
+    $("btn-debug").onclick = () => startDebug().catch(e => toast(e.message));
+    document.querySelectorAll('[data-debug]').forEach(button => button.onclick = async () => {
+      try { if (!state.debug) return toast("Start debugging first."); await api("POST", "/api/debug/" + state.debug + "/command", { command: button.dataset.debug }); }
+      catch(e) { toast(e.message); }
+    });
+    $("btn-debug-stop").onclick = async () => { try { if (state.debug) await api("POST", "/api/debug/" + state.debug + "/stop", {}); } catch(e) { toast(e.message); } };
+    $("btn-send-input").onclick = async () => {
+      try { if (!state.job) return toast("Run a program first."); await api("POST", "/api/run/" + state.job + "/input", { text: $("live-input").value + "\n" }); $("live-input").value = ""; }
+      catch(e) { toast(e.message); }
+    };
+    ["undo", "redo", "find"].forEach(command => $("btn-" + command).onclick = () => { if (state.path) ensureEditor().execCommand(command); });
+    $("btn-complete").onclick = () => { if (state.path) ensureEditor().showHint({ hint: window.LarkTyping.hint, completeSingle: false }); };
+    $("btn-rename").onclick = async () => {
+      try {
+        if (!state.path) return;
+        if (state.shared) return toast("Shared file structure is controlled by the host.");
+        const from = state.path, to = prompt("New file path", from);
+        if (!to || to === from) return;
+        if (state.dirty) await saveFile();
+        await api("POST", "/api/projects/" + encodeURIComponent(state.project.id) + "/move", { from, to });
+        await openProject(state.project.id); await openFile(to); setView("edit");
+      } catch (e) { toast(e.message); }
+    };
+    $("btn-delete").onclick = async () => {
+      try {
+        if (state.shared) return toast("Shared file structure is controlled by the host.");
+        if (!state.path || !confirm("Delete " + state.path + "? This cannot be undone.")) return;
+        await api("DELETE", "/api/projects/" + encodeURIComponent(state.project.id) + "/file?path=" + encodeURIComponent(state.path));
+        state.dirty = false; state.path = null; await openProject(state.project.id);
+      } catch (e) { toast(e.message); }
+    };
+    ['{', '}', '(', ')', '[', ']', ';', '"', '=', '<', '>'].forEach(symbol => {
+      const button = document.createElement("button"); button.className = "ghost"; button.textContent = symbol;
+      button.onclick = () => { if (state.path) { state.cm.replaceSelection(symbol, "end", "+input"); state.cm.focus(); } };
+      $("symbols").appendChild(button);
+    });
     document.querySelectorAll(".tab").forEach((tab) => {
       tab.addEventListener("click", () => setView(tab.dataset.tab));
     });
@@ -615,6 +723,45 @@
     }
   }
 
+  const symbolCache = new Map();
+  window.LarkTyping?.setProjectSymbols(() => state.files.filter(file => file.path.endsWith('.java')).flatMap(file => {
+    const source = state.docs.get(file.path)?.getValue() ?? file.content ?? '';
+    let cached = symbolCache.get(file.path);
+    if (!cached || cached.source !== source) {
+      let owner = null;
+      const symbols = window.LarkJava.parseJava(source).symbols.map(symbol => {
+        if (['class', 'interface', 'enum', 'record'].includes(symbol.kind)) owner = symbol.name;
+        return {...symbol, owner};
+      });
+      cached = {source, symbols}; symbolCache.set(file.path, cached);
+    }
+    return cached.symbols;
+  }));
+  window.LarkEditorShare = {
+    editor: ensureEditor,
+    current: () => ({path: state.path, doc: state.docs.get(state.path)}),
+    flush: async () => { if (state.dirty) await saveFile(); },
+    notice: toast,
+    request: (action, body) => window.LarkMobileShare.request(action, body),
+    async guest(name, files) {
+      state.previousProject = state.project?.id; state.shared = true;
+      state.project = {id: "share-remote", name: "Share · " + name};
+      state.files = files.map(file => ({path: file.path, content: ""}));
+      state.docs.clear(); state.breakpoints.clear(); state.path = null; state.dirty = false;
+      renderFiles(); $("files-title").textContent = state.project.name;
+      if (files.length) await openFile(files[0].path);
+      setView("edit");
+    },
+    async leave() {
+      if (!state.shared) return;
+      const previous = state.previousProject; state.previousProject = null;
+      state.shared = false; state.project = null; state.path = null; state.dirty = false;
+      state.files = []; state.docs.clear(); renderFiles();
+      if (previous) await openProject(previous); else { ensureEditor().setValue(""); setView("home"); }
+    },
+    open: openFile,
+    updated(path, text) { const file = state.files.find(f => f.path === path); if (file) file.content = text; state.dirty = false; $("edit-status").textContent = "Shared"; }
+  };
   async function boot() {
     loadPair();
     bind();
@@ -651,5 +798,6 @@
     }
   }
 
+  window.addEventListener("beforeunload", event => { if (state.dirty) { event.preventDefault(); event.returnValue = ""; } });
   boot();
 })();

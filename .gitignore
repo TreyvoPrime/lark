@@ -8,3 +8,7 @@ apk/
 packaging/desktop/bin/
 packaging/desktop/payload/
 packaging/executable/bin/
+
+android/.gradle/
+android/local.properties
+__pycache__/

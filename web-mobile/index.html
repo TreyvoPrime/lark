@@ -13,7 +13,10 @@
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,600;9..144,700&family=Source+Sans+3:wght@400;500;600;700&family=IBM+Plex+Mono:wght@450;500&display=swap" rel="stylesheet">
   <link rel="stylesheet" href="./vendor/codemirror/codemirror.min.css?v=__LARK_V__">
+  <link rel="stylesheet" href="./vendor/codemirror/addon/hint/show-hint.css">
+  <link rel="stylesheet" href="./vendor/codemirror/addon/dialog/dialog.css">
   <link rel="stylesheet" href="./css/mobile.css?v=__LARK_V__">
+<link rel="stylesheet" href="./css/desktop-themes.css?v=__LARK_V__">
 </head>
 <body>
   <div id="app">
@@ -39,7 +42,7 @@
         <div class="hero-sheet">
           <p class="eyebrow">Lark Mobile</p>
           <h1>Code with your thumbs.</h1>
-          <p class="lede">A separate Mobile edition — big taps, one screen at a time. Run on this device, or pair a phone to the host on Wi‑Fi.</p>
+          <p class="lede">Your Java workspace, adapted for touch. Compilation and execution use the connected Lark host and its JDK. Keep the host running while you work.</p>
         </div>
         <div class="pair-card" id="pair-card" hidden>
           <p class="pair-label">Phone pair</p>
@@ -59,6 +62,7 @@
       <section id="view-files" class="view" data-view="files" hidden>
         <div class="section-head">
           <h2 id="files-title">Files</h2>
+          <button id="btn-new-folder" class="ghost">+ Folder</button>
           <button type="button" id="btn-new-file" class="ghost">+ File</button>
         </div>
         <div id="file-list" class="list"></div>
@@ -71,29 +75,46 @@
           <p id="edit-status">Ready</p>
         </div>
         <div class="edit-tools">
+          <button id="btn-undo" class="ghost">Undo</button><button id="btn-redo" class="ghost">Redo</button><button id="btn-find" class="ghost">Find</button><button id="btn-complete" class="ghost">Complete</button><button id="btn-rename" class="ghost">Rename</button><button id="btn-delete" class="ghost">Delete</button>
           <button type="button" id="btn-blocks" class="ghost wide">Insert homework block…</button>
           <button type="button" id="btn-matrix" class="ghost wide">Insert matrix print loops</button>
           <button type="button" id="btn-quickfix" class="ghost wide" hidden>Quick fix</button>
         </div>
         <p id="edit-problem" class="hint" hidden></p>
         <div id="editor-host"></div>
+        <div id="symbols" class="edit-tools" aria-label="Code symbols"></div>
       </section>
 
       <section id="view-run" class="view" data-view="run" hidden>
+        <p id="execution-support" role="status">Programs compile and run on the connected host.</p>
         <div class="run-bar">
           <button type="button" id="btn-run" class="accent">Run</button>
           <button type="button" id="btn-stop" class="ghost">Stop</button>
-          <span id="run-state">Idle</span>
+          <button id="btn-debug" class="ghost">Debug on host</button><span id="run-state">Idle</span>
         </div>
         <label class="field">
           <span>Program input</span>
           <textarea id="run-stdin" rows="3" placeholder="Typed into System.in while the program runs"></textarea>
         </label>
+        <div class="edit-tools"><button class="ghost" data-debug="next">Step over</button><button class="ghost" data-debug="step">Step into</button><button class="ghost" data-debug="cont">Continue</button><button class="ghost" data-debug="locals">Variables</button><button class="ghost" id="btn-debug-stop">Stop debug</button></div><pre id="debug-locals" aria-label="Debug variables"></pre>
+        <label class="field"><span>Send input to running program</span><input id="live-input" autocomplete="off"></label><button id="btn-send-input" class="ghost">Send input</button>
         <pre id="run-out" class="console" aria-live="polite"></pre>
       </section>
 
       <section id="view-more" class="view" data-view="more" hidden>
         <div class="section-head"><h2>More</h2></div>
+        <div class="pair-card">
+          <h3>Lark Share</h3>
+          <p>Join a desktop session through this paired Mobile host. Ask the desktop host to approve your device. Shared code runs after review on the desktop host.</p>
+          <label class="field"><span>Your display name</span><input id="share-name" maxlength="40" autocomplete="nickname"></label>
+          <label class="field"><span>Private invitation</span><input id="share-invitation" type="password" autocomplete="off" spellcheck="false"></label>
+          <label><input id="share-verified" type="checkbox"> I verified this invitation directly with the host.</label>
+          <div class="sheet-actions"><button id="share-test" class="ghost">Test connection</button><button id="share-join" class="accent">Join</button><button id="share-leave" class="ghost">Leave</button><button id="share-export" class="ghost">Export recovery</button></div>
+          <p id="share-status" role="status" aria-live="polite">Disconnected</p>
+          <p id="share-presence"></p>
+          <label class="field"><span>Saved recovery drafts</span><select id="share-recovery"></select></label>
+          <button id="share-restore" class="ghost">Restore draft to current shared file</button>
+        </div>
         <div class="stack">
           <label class="field">
             <span>Theme</span>
@@ -109,6 +130,7 @@
           </label>
           <button type="button" id="btn-blocks-more" class="ghost wide">Insert homework block…</button>
           <button type="button" id="btn-matrix-more" class="ghost wide">Insert matrix print loops</button>
+          <label class="field check"><span>Automatic bracket pairing</span><input id="auto-pair" type="checkbox" checked></label><label class="field check"><span>Automatic suggestions</span><input id="auto-suggest" type="checkbox" checked></label>
           <button type="button" id="btn-check-update" class="ghost wide">Check for updates</button>
           <p id="update-msg" class="muted"></p>
           <button type="button" id="btn-install-update" class="accent wide" hidden>Install update</button>
@@ -169,6 +191,14 @@
   <script src="./vendor/fengari/fengari-web.js"></script>
   <script src="./js/java-lua-mode.js?v=__LARK_V__"></script>
   <script src="./js/java.js?v=__LARK_V__"></script>
+  <script src="./js/typing.js?v=__LARK_V__"></script>
+  <script src="./vendor/codemirror/addon/hint/show-hint.min.js"></script>
+  <script src="./vendor/codemirror/addon/search/searchcursor.min.js"></script>
+  <script src="./vendor/codemirror/addon/dialog/dialog.min.js"></script>
+  <script src="./vendor/codemirror/addon/search/search.min.js"></script>
+  <script src="./js/share-document.js?v=__LARK_V__"></script>
+  <script src="./js/share-editor.js?v=__LARK_V__"></script>
+  <script src="./js/mobile-share.js?v=__LARK_V__"></script>
   <script src="./js/mobile.js?v=__LARK_V__"></script>
 </body>
 </html>

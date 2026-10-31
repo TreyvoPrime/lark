@@ -75,9 +75,17 @@
     project.onchange = () => { name.value = project.selectedOptions[0]?.textContent || ''; };
     const displayName = field(form, 'Your display name'); displayName.required = true;
     const address = field(form, 'Listen on this interface', 'select');
-    interfaces.addresses.forEach(item => { const option = element('option', item.address === '127.0.0.1' ? '127.0.0.1 (this computer only)' : item.address, address); option.value = item.address; });
-    const lan = interfaces.addresses.find(item => item.address !== '127.0.0.1');
-    if (lan) address.value = lan.address;
+    interfaces.addresses.forEach(item => {
+      const label = `${item.displayName || item.name} · ${item.address}/${item.prefix} · ${item.loopback ? 'This computer only' : item.recommended ? 'Recommended for LAN hosting' : item.suitable ? 'LAN' : 'Unavailable'}`;
+      const option = element('option', label, address); option.value = item.address; option.disabled = !item.active || !item.suitable;
+    });
+    const networkHint = element('p', '', form);
+    address.onchange = () => {
+      const item = interfaces.addresses.find(i => i.address === address.value);
+      networkHint.textContent = `${item?.type || 'Network'} · ${item?.active ? 'Active' : 'Inactive'}. Peers need different IP addresses with compatible connectivity. Matching prefixes do not guarantee access; check firewall and Wi-Fi client isolation.`;
+    };
+    const lan = interfaces.addresses.find(item => item.recommended) || interfaces.addresses.find(item => item.active && item.suitable && !item.loopback);
+    if (lan) address.value = lan.address; address.onchange();
     const port = field(form, 'Port (0 chooses an available port)', 'number', '0'); port.min = '0'; port.max = '65535'; port.required = true;
     const discovery = field(form, 'Advertise on the selected LAN interface', 'checkbox'); discovery.checked = true;
     element('p', 'TLS 1.3 and host approval are mandatory. Only existing Java source is shared. File structure changes are locked during collaboration; firewall access is never changed automatically.', form);
@@ -108,6 +116,10 @@
     };
     const verified = field(form, 'I verified this invitation and host fingerprint directly with the intended host over a trusted channel.', 'checkbox'); verified.required = true;
     element('p', 'The invitation includes the host IP, port, session identity and certificate fingerprint. A changed or unverified certificate is rejected. Never use an invitation from an unknown sender.', form);
+    action(form, 'Test Connection', async () => {
+      const result = await api('test', { invitation: invitation.value.trim() });
+      identity.textContent = result.message;
+    });
     const submit = element('button', 'Request access', form); submit.type = 'submit';
     form.onsubmit = async event => {
       event.preventDefault(); if (busy) return; busy = true; submit.disabled = true;
@@ -265,6 +277,10 @@
     document.querySelectorAll('.tree-row[data-path]').forEach(row => { const editing = event.detail.filter(p => p.file === row.dataset.path && p.connected); if (editing.length) row.title = editing.map(p => p.name).join(', ') + ' is editing this file.'; });
   });
   document.addEventListener('lark-share-follow', event => { unfollow.hidden = !event.detail; });
+  document.addEventListener('lark-share-summary', event => {
+    const s = event.detail;
+    button.textContent = `Share · ${s.connection}${s.pending ? ' · ' + s.pending + ' pending' : ''} · ${s.collaborators} online · ${s.role}`;
+  });
   document.addEventListener('lark-share-state', event => { button.dataset.connection = event.detail; button.title = 'Lark Share: ' + event.detail; });
   document.addEventListener('lark-share-error', event => { error.textContent = event.detail; });
   button.onclick = async () => {
