@@ -45,7 +45,14 @@
     const cursor = cm.getCursor();
     if (/comment|string/.test(cm.getTokenTypeAt(cursor) || '')) return null;
     const list = suggest(cm.getValue().slice(0, cm.indexFromPos(cursor)), cm.getLine(cursor.line).slice(0, cursor.ch));
-    if (list?.length) return { list, from: { line: cursor.line, ch: cursor.ch - list[0].prefix.length }, to: cursor };
+    if (list?.length) return { list: list.map(item => !item.text.endsWith('()') ? item : { ...item, hint(editor, data, completion) {
+      const hasParen = editor.getRange(data.to, {line:data.to.line, ch:data.to.ch + 1}) === '(';
+      const text = hasParen ? completion.text.slice(0, -2) : completion.text;
+      editor.operation(() => {
+        editor.replaceRange(text, data.from, data.to, 'complete');
+        editor.setCursor({line:data.from.line, ch:data.from.ch + text.length + (hasParen ? 1 : -1)});
+      });
+    } }), from: { line: cursor.line, ch: cursor.ch - list[0].prefix.length }, to: cursor };
     if (list) return null;
     const prefix = cm.getLine(cursor.line).slice(0, cursor.ch).match(/[\w$]+$/)?.[0] || '';
     if (!prefix) return null;

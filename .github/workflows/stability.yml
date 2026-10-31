@@ -39,6 +39,7 @@ jobs:
           node test/share-keyboard-dom.cjs
           node test/mobile-dom.cjs
           node test/mobile-share-dom.cjs
+          node test/typing-dom.cjs
       - run: npx playwright install --with-deps chromium
       - name: Real browser collaboration regression
         run: |
