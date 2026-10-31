@@ -1,0 +1,87 @@
+name: macOS app and notarization
+on:
+  pull_request:
+    paths: ['packaging/macos/**', 'src/lark/Updates.java', 'test/MacBundleCheck.java', '.github/workflows/macos-notarize.yml']
+  workflow_dispatch:
+    inputs:
+      notarize:
+        description: 'Use configured Apple credentials to sign and notarize'
+        type: boolean
+        default: false
+permissions:
+  contents: read
+jobs:
+  mac-app:
+    runs-on: macos-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '21'
+      - name: Configure temporary signing identity
+        if: github.event_name == 'workflow_dispatch' && inputs.notarize
+        env:
+          CERTIFICATE: ${{ secrets.APPLE_DEVELOPER_ID_P12_BASE64 }}
+          CERT_PASSWORD: ${{ secrets.APPLE_DEVELOPER_ID_P12_PASSWORD }}
+          SIGNING_NAME: ${{ secrets.APPLE_DEVELOPER_ID_NAME }}
+          NOTARY_KEY: ${{ secrets.APPLE_NOTARY_P8_BASE64 }}
+          KEY_ID: ${{ secrets.APPLE_NOTARY_KEY_ID }}
+          ISSUER: ${{ secrets.APPLE_NOTARY_ISSUER_ID }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          for value in "$CERTIFICATE" "$CERT_PASSWORD" "$SIGNING_NAME" "$NOTARY_KEY" "$KEY_ID" "$ISSUER"; do
+            test -n "$value" || { echo 'Missing required Apple signing/notary secret.' >&2; exit 1; }
+          done
+          umask 077
+          keychain="$RUNNER_TEMP/lark-signing.keychain-db"
+          keychain_password=$(openssl rand -hex 32)
+          printf '%s' "$CERTIFICATE" | base64 --decode > "$RUNNER_TEMP/lark-identity.p12"
+          printf '%s' "$NOTARY_KEY" | base64 --decode > "$RUNNER_TEMP/lark-notary.p8"
+          security create-keychain -p "$keychain_password" "$keychain"
+          security set-keychain-settings -lut 21600 "$keychain"
+          security unlock-keychain -p "$keychain_password" "$keychain"
+          security import "$RUNNER_TEMP/lark-identity.p12" -k "$keychain" -P "$CERT_PASSWORD" -T /usr/bin/codesign -T /usr/bin/security
+          security list-keychains -d user -s "$keychain"
+          security set-key-partition-list -S apple-tool:,apple:,codesign: -s -k "$keychain_password" "$keychain" >/dev/null
+          {
+            echo "LARK_MAC_SIGN=1"
+            echo "LARK_MAC_KEYCHAIN=$keychain"
+            echo "APPLE_API_KEY_PATH=$RUNNER_TEMP/lark-notary.p8"
+          } >> "$GITHUB_ENV"
+      - name: Build native app with complete JDK
+        env:
+          LARK_MAC_SIGNING_NAME: ${{ secrets.APPLE_DEVELOPER_ID_NAME }}
+        run: bash packaging/macos/build-app.sh
+      - name: Verify signed-bundle write protections
+        run: |
+          javac --release 17 -cp dist/lark.jar -d build/test test/MacBundleCheck.java
+          java -cp dist/lark.jar:build/test lark.MacBundleCheck
+      - name: Verify native launcher and bundled Java execution
+        run: python3 test/mac-app-smoke.py
+      - name: Notarize and staple release containers
+        if: github.event_name == 'workflow_dispatch' && inputs.notarize
+        env:
+          LARK_MAC_SIGNING_NAME: ${{ secrets.APPLE_DEVELOPER_ID_NAME }}
+          APPLE_API_KEY_ID: ${{ secrets.APPLE_NOTARY_KEY_ID }}
+          APPLE_API_ISSUER: ${{ secrets.APPLE_NOTARY_ISSUER_ID }}
+        run: bash packaging/macos/notarize.sh
+      - name: Package unsigned development app
+        if: github.event_name != 'workflow_dispatch' || !inputs.notarize
+        run: ditto -c -k --keepParent release/macos/Lark.app release/macos/Lark-unsigned-development.zip
+      - uses: actions/upload-artifact@v4
+        with:
+          name: lark-macos-${{ runner.arch }}
+          path: |
+            release/macos/*.zip
+            release/macos/*.dmg
+            release/macos/*.json
+            release/macos/SHA256SUMS.txt
+      - name: Remove temporary signing material
+        if: always()
+        shell: bash
+        run: |
+          if test -f "$RUNNER_TEMP/lark-signing.keychain-db"; then security delete-keychain "$RUNNER_TEMP/lark-signing.keychain-db"; fi
+          rm -f "$RUNNER_TEMP/lark-identity.p12" "$RUNNER_TEMP/lark-notary.p8"
+# Artifacts require review; this workflow never publishes or replaces release assets.
