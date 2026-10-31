@@ -18,10 +18,14 @@ public final class MainActivity extends Activity {
         Button connect = new Button(this); connect.setText("Connect"); layout.addView(connect);
         editor = new WebView(this); layout.addView(editor, new LinearLayout.LayoutParams(-1, 0, 1));
         WebSettings settings = editor.getSettings(); settings.setJavaScriptEnabled(true); settings.setDomStorageEnabled(true); settings.setAllowFileAccess(false); settings.setAllowContentAccess(false); settings.setMixedContentMode(WebSettings.MIXED_CONTENT_NEVER_ALLOW);
+        editor.setWebChromeClient(new WebChromeClient()); // Enable the editor's native alert/confirm/prompt flows.
         CookieManager.getInstance().setAcceptThirdPartyCookies(editor, false);
         editor.setWebViewClient(new WebViewClient() {
             @Override public boolean shouldOverrideUrlLoading(WebView view, WebResourceRequest request) {
                 Uri uri=request.getUrl(); return host == null || !"https".equals(uri.getScheme()) || !host.getHost().equals(uri.getHost()) || host.getPort()!=uri.getPort();
+            }
+            @Override public void onReceivedError(WebView view, WebResourceRequest request, WebResourceError error) {
+                if (request.isForMainFrame()) Toast.makeText(MainActivity.this, "Cannot reach the Lark host. Check its HTTPS address and your network, then reconnect.", Toast.LENGTH_LONG).show();
             }
         }); // Default SSL error handling rejects invalid/untrusted certificates.
         connect.setOnClickListener(view -> {

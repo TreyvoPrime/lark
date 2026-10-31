@@ -234,9 +234,10 @@ public final class Runner {
         builder.environment().put("PYTHONIOENCODING", "utf-8");
         Process process;
         try {
+            MobileSandbox.configure(builder);
             process = builder.start();
         } catch (IOException e) {
-            job.append("Lark can't find the Java tools. Install a JDK and start Lark again.\n");
+            job.append((MobileSandbox.required() ? "Isolated Java execution could not start: " + e.getMessage() : "Lark cannot start the Java tools. Check the JDK installation.") + "\n");
             return 127;
         }
         job.process = process;

@@ -21,6 +21,7 @@
 
   const state = {
     pair: "",
+    shared: false, previousProject: null,
     settings: null,
     projects: [],
     project: null,
@@ -227,8 +228,12 @@
       const marker = document.createElement("span"); marker.textContent = "●"; marker.style.color = "#e08080";
       cm.setGutterMarker(line, "breakpoints", lines.has(line + 1) ? marker : null);
     });
+    state.cm.on("beforeChange", (cm, change) => {
+      if (state.shared && cm.getOption("readOnly") && change.origin !== "+share") change.cancel();
+    });
     state.cm.on("change", () => {
       if (!state.path) return;
+      if (state.shared) return;
       state.dirty = true;
       $("edit-status").textContent = "Unsaved";
       $("edit-status").className = "dirty";
@@ -277,12 +282,13 @@
       btn.innerHTML = "<div><strong></strong><small></small></div>";
       btn.querySelector("strong").textContent = p.name || p.id;
       btn.querySelector("small").textContent = p.mainClass ? "main · " + p.mainClass : "Open project";
-      btn.addEventListener("click", () => openProject(p.id));
+      btn.addEventListener("click", () => openProject(p.id).catch(e => toast(e.message)));
       host.appendChild(btn);
     });
   }
 
   async function openProject(id) {
+    if (state.shared) return toast("Leave Share before opening another project.");
     if (state.dirty) await saveFile();
     const data = await api("GET", "/api/projects/" + encodeURIComponent(id));
     state.docs.clear();
@@ -324,7 +330,7 @@
       btn.className = "row" + (state.path === f.path ? " active" : "");
       btn.innerHTML = "<div><strong></strong><small>Open in editor</small></div>";
       btn.querySelector("strong").textContent = f.path;
-      btn.addEventListener("click", () => openFile(f.path).then(() => setView("edit")));
+      btn.addEventListener("click", () => openFile(f.path).then(() => setView("edit")).catch(e => toast(e.message)));
       host.appendChild(btn);
     });
   }
@@ -340,6 +346,8 @@
     state.path = null;
     let doc = state.docs.get(path);
     if (!doc) { doc = CodeMirror.Doc(file.content || "", path.endsWith(".java") ? "text/x-java" : "text/plain"); state.docs.set(path, doc); }
+    cm.state.larkShare = null;
+    cm.setOption("readOnly", state.shared);
     cm.swapDoc(doc);
     state.path = path;
     state.dirty = false;
@@ -348,6 +356,7 @@
     $("edit-status").className = "ok";
     renderFiles();
     $("btn-save").hidden = state.view !== "edit";
+    if (state.shared) await window.LarkShareEditing.open(path, doc);
     refreshMobileProblems();
   }
 
@@ -411,6 +420,7 @@
   }
 
   async function saveFile() {
+    if (state.shared) { await window.LarkShareEditing.flush(); toast("Shared changes synchronized with the host."); return; }
     if (!state.project || !state.path || !state.cm) return;
     const content = state.cm.getValue(), savedPath = state.path, savedProject = state.project.id;
     await api("PUT", "/api/projects/" + encodeURIComponent(state.project.id) + "/file", {
@@ -428,6 +438,7 @@
   }
 
   async function runProject() {
+    if (state.shared) return toast("Leave Share to use local project tools. Shared code runs only after review on the desktop host.");
     if (!state.project) return toast("Open a project first.");
     if (state.dirty) await saveFile();
     setView("run");
@@ -504,6 +515,7 @@
   }
 
   async function createProject() {
+    if (state.shared) return toast("Leave Share to use local project tools. Shared code runs only after review on the desktop host.");
     const name = $("sheet-name").value.trim();
     if (!name) return toast("Name the project.");
     const template = $("sheet-template").value || "empty";
@@ -514,6 +526,7 @@
   }
 
   async function newFile() {
+    if (state.shared) return toast("Leave Share to use local project tools. Shared code runs only after review on the desktop host.");
     if (!state.project) return toast("Open a project first.");
     const name = prompt("New file path", "src/Main.java");
     if (!name) return;
@@ -536,6 +549,7 @@
   async function loadPairCard() {
     try {
       const info = await api("GET", "/api/mobile/info");
+      if (info.execution) $("execution-support").textContent = info.execution;
       if (!info.lan) {
         $("pair-card").hidden = true;
         return;
@@ -594,12 +608,14 @@
   }
 
   async function newFolder() {
+    if (state.shared) return toast("Leave Share to use local project tools. Shared code runs only after review on the desktop host.");
     if (!state.project) return toast("Open a project first.");
     const path = prompt("New folder path", "src/package"); if (!path) return;
     await api("POST", "/api/projects/" + encodeURIComponent(state.project.id) + "/mkdir", { path });
     toast("Folder created: " + path);
   }
   async function startDebug() {
+    if (state.shared) return toast("Leave Share to use local project tools. Shared code runs only after review on the desktop host.");
     if (!state.project) return toast("Open a project first.");
     if (state.dirty) await saveFile();
     const mainClass = prompt("Main class to debug (include package)", state.project.mainClass || "Main");
@@ -641,6 +657,7 @@
     $("btn-rename").onclick = async () => {
       try {
         if (!state.path) return;
+        if (state.shared) return toast("Shared file structure is controlled by the host.");
         const from = state.path, to = prompt("New file path", from);
         if (!to || to === from) return;
         if (state.dirty) await saveFile();
@@ -650,6 +667,7 @@
     };
     $("btn-delete").onclick = async () => {
       try {
+        if (state.shared) return toast("Shared file structure is controlled by the host.");
         if (!state.path || !confirm("Delete " + state.path + "? This cannot be undone.")) return;
         await api("DELETE", "/api/projects/" + encodeURIComponent(state.project.id) + "/file?path=" + encodeURIComponent(state.path));
         state.dirty = false; state.path = null; await openProject(state.project.id);
@@ -705,6 +723,45 @@
     }
   }
 
+  const symbolCache = new Map();
+  window.LarkTyping?.setProjectSymbols(() => state.files.filter(file => file.path.endsWith('.java')).flatMap(file => {
+    const source = state.docs.get(file.path)?.getValue() ?? file.content ?? '';
+    let cached = symbolCache.get(file.path);
+    if (!cached || cached.source !== source) {
+      let owner = null;
+      const symbols = window.LarkJava.parseJava(source).symbols.map(symbol => {
+        if (['class', 'interface', 'enum', 'record'].includes(symbol.kind)) owner = symbol.name;
+        return {...symbol, owner};
+      });
+      cached = {source, symbols}; symbolCache.set(file.path, cached);
+    }
+    return cached.symbols;
+  }));
+  window.LarkEditorShare = {
+    editor: ensureEditor,
+    current: () => ({path: state.path, doc: state.docs.get(state.path)}),
+    flush: async () => { if (state.dirty) await saveFile(); },
+    notice: toast,
+    request: (action, body) => window.LarkMobileShare.request(action, body),
+    async guest(name, files) {
+      state.previousProject = state.project?.id; state.shared = true;
+      state.project = {id: "share-remote", name: "Share · " + name};
+      state.files = files.map(file => ({path: file.path, content: ""}));
+      state.docs.clear(); state.breakpoints.clear(); state.path = null; state.dirty = false;
+      renderFiles(); $("files-title").textContent = state.project.name;
+      if (files.length) await openFile(files[0].path);
+      setView("edit");
+    },
+    async leave() {
+      if (!state.shared) return;
+      const previous = state.previousProject; state.previousProject = null;
+      state.shared = false; state.project = null; state.path = null; state.dirty = false;
+      state.files = []; state.docs.clear(); renderFiles();
+      if (previous) await openProject(previous); else { ensureEditor().setValue(""); setView("home"); }
+    },
+    open: openFile,
+    updated(path, text) { const file = state.files.find(f => f.path === path); if (file) file.content = text; state.dirty = false; $("edit-status").textContent = "Shared"; }
+  };
   async function boot() {
     loadPair();
     bind();

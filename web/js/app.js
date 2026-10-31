@@ -1808,6 +1808,14 @@
     }
   }
 
+  window.LarkTyping?.setProjectSymbols(() => state.files.filter(file => file.path.endsWith('.java')).flatMap(file => {
+    let owner = null;
+    return parsedFile(file).symbols.map(symbol => {
+      if (['class', 'interface', 'enum', 'record'].includes(symbol.kind)) owner = symbol.name;
+      return { ...symbol, owner };
+    });
+  }));
+
   function collectNameHints(prefix) {
     const names = new Map();
     state.files.forEach((file) => {

@@ -36,6 +36,7 @@ public final class Server {
     private final Terminal terminal;
     private final Recovery recovery;
     private final Share share;
+    private final MobileShare mobileShare;
     private final Settings settings;
     private final Path webDir;
     private final boolean lan;
@@ -75,6 +76,7 @@ public final class Server {
         this.terminal = terminal;
         this.recovery = new Recovery();
         this.share = new Share(projects);
+        this.mobileShare = new MobileShare(projects);
         this.settings = settings;
         this.webDir = webDir;
         this.lan = lan;
@@ -143,6 +145,7 @@ public final class Server {
 
     public void stop() {
         share.close();
+        mobileShare.close();
         try {
             terminal.shutdown();
         } catch (Exception ignored) {
@@ -208,6 +211,20 @@ public final class Server {
     }
 
     private void api(HttpExchange exchange, String method, String path) throws IOException {
+        if ("/api/mobile/share".equals(path)) {
+            if (!Mobile.isMobile()) throw new RequestFail(404, "Mobile Share requires the Mobile host.");
+            if (!"POST".equals(method)) throw new RequestFail(405, "Use POST for mobile Share.");
+            // allowedClient and mutationOriginOk already enforced pairing and same origin.
+            if (!isLoopbackPeer(exchange) && !(exchange instanceof com.sun.net.httpserver.HttpsExchange))
+                throw new RequestFail(403, "Mobile Share requires HTTPS.");
+            byte[] data = exchange.getRequestBody().readNBytes(16 * 1024 + 1);
+            if (data.length > 16 * 1024) throw new RequestFail(413, "Share request is too large.");
+            try {
+                sendJson(exchange, 200, mobileShare.control(exchange.getRequestHeaders().getFirst("X-Lark-Share-Client"), ShareTransport.parse(data)));
+            } catch (RequestFail e) { throw e; }
+            catch (Exception e) { throw new RequestFail(400, "Mobile Share could not reach the verified host. Check the invitation and network; no insecure fallback is available."); }
+            return;
+        }
         if ("/api/share".equals(path)) {
             // Even paired Mobile LAN clients must never control a Share host or obtain invitations.
             if (!isLoopbackPeer(exchange)) throw new RequestFail(403, "Share controls are local-only.");
@@ -271,6 +288,7 @@ public final class Server {
             }
             sendJson(exchange, 200, new Json.Obj()
                     .put("ok", true)
+                    .put("execution", lan ? "Remote compile/run/debug require a Linux host with bubblewrap, util-linux and enabled user namespaces. No unsafe execution fallback." : "Trusted code runs on this local host using its JDK.")
                     .put("edition", "mobile")
                     .put("version", Settings.VERSION)
                     .put("lan", lan && Mobile.lanEnabled())

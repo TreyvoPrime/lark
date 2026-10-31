@@ -18,7 +18,9 @@ jobs:
           node-version: '22'
       - run: bash package.sh
       - run: |
-          javac --release 17 -cp build -d build test/ShareCheck.java test/ShareEditingCheck.java test/GitHubAuthCheck.java test/FlowCheck.java test/LanInterfacesCheck.java test/Check.java
+          javac --release 17 -cp build -d build test/MobileSandboxCheck.java test/MobileShareCheck.java test/ShareCheck.java test/ShareEditingCheck.java test/GitHubAuthCheck.java test/FlowCheck.java test/LanInterfacesCheck.java test/Check.java
+          java -cp build lark.MobileSandboxCheck
+          java -cp build lark.MobileShareCheck
           java -cp build lark.ShareCheck
           java -cp build lark.ShareEditingCheck
           java -cp build lark.GitHubAuthCheck
@@ -36,6 +38,7 @@ jobs:
       - run: |
           node test/share-keyboard-dom.cjs
           node test/mobile-dom.cjs
+          node test/mobile-share-dom.cjs
       - run: npx playwright install --with-deps chromium
       - name: Real browser collaboration regression
         run: |

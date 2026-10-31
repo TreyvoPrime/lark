@@ -85,6 +85,7 @@ public final class Checker {
         ProcessBuilder pb = new ProcessBuilder(cmd);
         pb.directory(project.toFile());
         pb.redirectErrorStream(true);
+        MobileSandbox.configure(pb);
         Process p = pb.start();
         String log = new String(p.getInputStream().readAllBytes(), StandardCharsets.UTF_8);
         try {

@@ -86,6 +86,7 @@
       </section>
 
       <section id="view-run" class="view" data-view="run" hidden>
+        <p id="execution-support" role="status">Programs compile and run on the connected host.</p>
         <div class="run-bar">
           <button type="button" id="btn-run" class="accent">Run</button>
           <button type="button" id="btn-stop" class="ghost">Stop</button>
@@ -102,6 +103,18 @@
 
       <section id="view-more" class="view" data-view="more" hidden>
         <div class="section-head"><h2>More</h2></div>
+        <div class="pair-card">
+          <h3>Lark Share</h3>
+          <p>Join a desktop session through this paired Mobile host. Ask the desktop host to approve your device. Shared code runs after review on the desktop host.</p>
+          <label class="field"><span>Your display name</span><input id="share-name" maxlength="40" autocomplete="nickname"></label>
+          <label class="field"><span>Private invitation</span><input id="share-invitation" type="password" autocomplete="off" spellcheck="false"></label>
+          <label><input id="share-verified" type="checkbox"> I verified this invitation directly with the host.</label>
+          <div class="sheet-actions"><button id="share-test" class="ghost">Test connection</button><button id="share-join" class="accent">Join</button><button id="share-leave" class="ghost">Leave</button><button id="share-export" class="ghost">Export recovery</button></div>
+          <p id="share-status" role="status" aria-live="polite">Disconnected</p>
+          <p id="share-presence"></p>
+          <label class="field"><span>Saved recovery drafts</span><select id="share-recovery"></select></label>
+          <button id="share-restore" class="ghost">Restore draft to current shared file</button>
+        </div>
         <div class="stack">
           <label class="field">
             <span>Theme</span>
@@ -183,6 +196,9 @@
   <script src="./vendor/codemirror/addon/search/searchcursor.min.js"></script>
   <script src="./vendor/codemirror/addon/dialog/dialog.min.js"></script>
   <script src="./vendor/codemirror/addon/search/search.min.js"></script>
+  <script src="./js/share-document.js?v=__LARK_V__"></script>
+  <script src="./js/share-editor.js?v=__LARK_V__"></script>
+  <script src="./js/mobile-share.js?v=__LARK_V__"></script>
   <script src="./js/mobile.js?v=__LARK_V__"></script>
 </body>
 </html>

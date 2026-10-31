@@ -108,6 +108,7 @@ public final class Debugger {
         builder.directory(session.project.toFile());
         builder.redirectErrorStream(true);
         try {
+            MobileSandbox.configure(builder);
             Process process = builder.start();
             session.process = process;
             session.writer = new BufferedWriter(new OutputStreamWriter(process.getOutputStream(), StandardCharsets.UTF_8));
@@ -253,6 +254,7 @@ public final class Debugger {
         ProcessBuilder pb = new ProcessBuilder(cmd);
         pb.directory(project.toFile());
         pb.redirectErrorStream(true);
+        MobileSandbox.configure(pb);
         Process p = pb.start();
         String log = new String(p.getInputStream().readAllBytes(), StandardCharsets.UTF_8);
         try {

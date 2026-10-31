@@ -6,6 +6,7 @@
   let session = null, timer = null, working = null, starting = null, generation = 0, following = null, presence = [], lastPresence = 0;
   const marks = [];
   const request = async (action, body = {}) => {
+    if (window.LarkEditorShare?.request) return window.LarkEditorShare.request(action, { writer, ...body });
     const response = await fetch('/api/share', { method: 'POST', headers: { 'Content-Type': 'application/json', 'X-Lark': '1' }, body: JSON.stringify({ action, writer, ...body }) });
     const data = await response.json(); if (!response.ok || !data.ok) { const error = new Error(data.error || 'Share request failed'); error.code = response.status; throw error; } return data;
   };

@@ -17,8 +17,8 @@ with tempfile.TemporaryDirectory(prefix='lark-mobile-test-') as home:
         env['LARK_MOBILE_KEYSTORE_PASSWORD'] = password
         options = ['-Dlark.mobile.keystore='+store]; scheme = 'https'
     process = subprocess.Popen(['java', *options, '-Dlark.ui=jar', '-cp', str(root/'dist/lark.jar'), 'lark.Mobile', '--lan' if lan_address else '--local-only', '--no-browser', '--port', str(port)], env=env, stdout=subprocess.DEVNULL, stderr=subprocess.PIPE)
-    def api(path, body=None, method=None):
-        request = urllib.request.Request(scheme+'://127.0.0.1:'+str(port)+path, data=None if body is None else json.dumps(body).encode(), method=method or ('POST' if body is not None else 'GET'), headers={'Content-Type':'application/json','X-Lark':'1'})
+    def api(path, body=None, method=None, headers=None):
+        request = urllib.request.Request(scheme+'://127.0.0.1:'+str(port)+path, data=None if body is None else json.dumps(body).encode(), method=method or ('POST' if body is not None else 'GET'), headers={'Content-Type':'application/json','X-Lark':'1', **(headers or {})})
         with urllib.request.urlopen(request, timeout=10) as response: return json.load(response)
     try:
         for attempt in range(100):
@@ -45,7 +45,14 @@ with tempfile.TemporaryDirectory(prefix='lark-mobile-test-') as home:
             except urllib.error.HTTPError as error:
                 assert error.code == 403
             print('HTTPS LAN pairing checks passed: unauthenticated denial, authenticated access, host credential API denial.')
-        project=api('/api/projects', {'name':'Mobile smoke','template':'empty'})['id']
+        for body, headers, expected in [({'action':'status'}, {}, 400), ({'action':'host'}, {'X-Lark-Share-Client':'a'*64}, 403)]:
+            try:
+                api('/api/mobile/share', body, headers=headers)
+                raise AssertionError('Mobile Share guard failed')
+            except urllib.error.HTTPError as error:
+                assert error.code == expected
+        assert not api('/api/mobile/share', {'action':'status'}, headers={'X-Lark-Share-Client':'a'*64})['joined']
+        project=api('/api/projects' , {'name':'Mobile smoke','template':'empty'})['id']
         source='public class Main { public static void main(String[] args) { java.util.Scanner s = new java.util.Scanner(System.in); System.out.println("MOBILE:" + s.nextLine()); } }'
         api('/api/projects/'+project+'/file', {'path':'src/Main.java','content':source}, 'PUT')
         assert any(f['path']=='src/Main.java' for f in api('/api/projects/'+project)['project']['files'])
