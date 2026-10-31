@@ -265,7 +265,10 @@ public final class Updates {
     /**
      * @param allowCustomUrl when false (Wi‑Fi / paired clients), only the feed's download URL is used.
      */
+    static boolean signedMacBundle() { return Boolean.getBoolean("lark.macos.signedBundle"); }
+
     public Json.Obj install(String downloadUrl, boolean allowCustomUrl) {
+        if (signedMacBundle()) throw new RequestFail(409, "This Mac app uses an Apple code signature. Download the new signed Lark DMG from GitHub Releases, quit Lark, and replace Lark.app in Applications. Your projects stay in your Lark workspace.");
         Json.Obj checked = check();
         String feedDownload = checked.str("download", "");
         String expectedSha = checked.str("sha256", "");
@@ -517,6 +520,7 @@ public final class Updates {
 
     /** Writes Start Lark launchers from embedded jar resources into the install folder. */
     static void refreshLaunchers(Path installDir) {
+        if (signedMacBundle()) return;
         if (installDir == null || !Files.isDirectory(installDir)) return;
         writeLaunchResource("lark/launch/StartLark.bat", installDir.resolve("Start Lark.bat"));
         writeLaunchResource("lark/launch/StartLark.vbs", installDir.resolve("Start Lark.vbs"));
@@ -530,6 +534,7 @@ public final class Updates {
 
     /** Ensures Desktop channel marker under app/; shell helpers for unix payloads. */
     static void refreshDesktopLaunchers(Path installDir) {
+        if (signedMacBundle()) return;
         if (installDir == null || !Files.isDirectory(installDir)) return;
         Path app = appDir(installDir);
         try {
@@ -558,6 +563,7 @@ public final class Updates {
 
     /** Keeps Executable channel markers under app/. */
     static void refreshExecutableMarkers(Path installDir) {
+        if (signedMacBundle()) return;
         if (installDir == null || !Files.isDirectory(installDir)) return;
         Path app = appDir(installDir);
         try {
@@ -572,6 +578,7 @@ public final class Updates {
 
     /** Writes Lark Mobile launchers (touch UI + phone pair). */
     static void refreshMobileLaunchers(Path installDir) {
+        if (signedMacBundle()) return;
         if (installDir == null || !Files.isDirectory(installDir)) return;
         writeLaunchResource("lark/launch/StartMobile.bat", installDir.resolve("Start Lark Mobile.bat"));
         writeLaunchResource("lark/launch/StartMobile.vbs", installDir.resolve("Start Lark Mobile.vbs"));
