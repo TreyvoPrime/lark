@@ -1,3 +1,10 @@
+DISCONTINUED — NOVEMBER 1, 2026
+================================
+
+Lark Mobile is no longer actively developed or supported. Its phone UI depends on a separate host for compilation and execution and does not meet the goal of a fully standalone Java IDE on the phone.
+
+This package is preserved for historical/reference purposes only. It is not a recommended download. No future feature updates or support are planned.
+
 Lark Mobile
 ===========
 
