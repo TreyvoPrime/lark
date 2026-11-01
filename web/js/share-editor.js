@@ -72,8 +72,17 @@
     const selections = ranges.map(s => ({ anchor: entry.model.anchor(entry.doc.indexFromPos(s.anchor)), head: entry.model.anchor(entry.doc.indexFromPos(s.head)) }));
     const cm = window.LarkEditorShare?.editor();
     const viewport = cm && window.LarkEditorShare?.current()?.doc === entry.doc ? cm.getScrollInfo() : null;
-    if (operation) entry.pending.shift();
-    data.operations.forEach(op => entry.model.apply(op)); entry.revision = data.revision; entry.role = data.role;
+    if (operation) {
+      // Remove the operation we just sent; the server will echo it back.
+      entry.pending.shift();
+      // Skip the echoed operation to prevent duplication.
+      const [, ...rest] = data.operations;
+      rest.forEach(op => entry.model.apply(op));
+    } else {
+      data.operations.forEach(op => entry.model.apply(op));
+    }
+    entry.revision = data.revision;
+    entry.role = data.role;
     presence = data.participants;
     let changed = false;
     const apply = () => {
