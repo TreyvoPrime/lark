@@ -2,15 +2,15 @@
 
 Lark is a focused Java IDE: multi-file projects, live compile feedback, brace guide, small refactors, debugger, JUnit, and GitHub clone/push. Lighter than IntelliJ, more useful than a browser text box — deliberately not bloated.
 
-## Downloads (three tracks)
+## Downloads (two supported tracks)
 
-| | **Lark Desktop** (default) | **Lark Executable** | **Lark Mobile** |
+| | **Lark Desktop** (default) | **Lark Executable** |
 | --- | --- | --- | --- |
-| **What it is** | Setup wizard install | Unzip → double-click **Lark.exe** | Touch-first edition |
-| **GitHub file** | `LarkDesktopSetup.exe` | `lark-executable-windows.zip` | `lark-mobile-windows.zip` |
-| **How to start** | Start Menu → **Lark Desktop** | **Lark.exe** only | **Start Lark Mobile** |
-| **UI** | Full desktop IDE (app window) | Full desktop IDE | Bottom-tab Mobile UI |
-| **Best for** | Everyday PC, Start Menu | Labs / USB / no `.bat` | Tablet + phone pair |
+| **What it is** | Setup wizard install | Unzip → double-click **Lark.exe** |
+| **GitHub file** | `LarkDesktopSetup.exe` | `lark-executable-windows.zip` |
+| **How to start** | Start Menu → **Lark Desktop** | **Lark.exe** only |
+| **UI** | Full desktop IDE (app window) | Full desktop IDE |
+| **Best for** | Everyday PC, Start Menu | Labs / USB / no `.bat` |
 
 Download site: **[treyvoprime.github.io/lark-download](https://lark.rocks/)**  
 Releases: **[github.com/TreyvoPrime/lark/releases/latest](https://github.com/TreyvoPrime/lark/releases/latest)**
@@ -40,17 +40,9 @@ https://github.com/TreyvoPrime/lark/releases/latest/download/lark-executable-win
 - `app\` (jar) and `jdk\` stay beside the exe and are soft-hidden on Windows
 - Same IDE as Desktop; own update channel (`executable`)
 
-### Lark Mobile (separate edition)
+### Lark Mobile — discontinued
 
-```text
-https://github.com/TreyvoPrime/lark/releases/latest/download/lark-mobile-windows.zip
-https://github.com/TreyvoPrime/lark/releases/latest/download/lark-mobile-mac.zip
-https://github.com/TreyvoPrime/lark/releases/latest/download/lark-mobile-linux.zip
-```
-
-- Extract → run **Start Lark Mobile**
-- Keep the console open — it prints a **Phone URL** with a pair code
-- On your phone (same Wi‑Fi), open that URL for the Mobile UI
+**Lark Mobile was discontinued on November 1, 2026.** Its host-dependent approach did not meet the goal of a standalone, on-device Java IDE. It is no longer an actively developed or recommended edition. Existing source and historical release assets remain available for reference, but no future features, updates, or support are planned for this edition. Desktop and Executable development continues.
 
 Do not open launchers from inside a zip preview / Temp folder.
 
@@ -88,14 +80,13 @@ Lark 4 focuses on a smoother Java coding experience, clearer project navigation,
 - **Session controls:** Collaboration recovery and permission handling aim to keep shared work manageable if connections change.
 - **Git and GitHub:** Clone/push workflows and terminal-based Git commands help work with repositories without leaving the IDE.
 - **Built-in terminal:** Run commands in the open project directory; later 4.0.x work adds improved cancellation and input handling.
-- **Lark Mobile:** A touch-first interface connects to a host running Lark, allowing paired devices to work with shared projects.
 
 ### 4.0.x release highlights
 
-- **4.0.5 (published):** Continued improvements to Share reliability, mobile workflows, Java assistance, and release packaging.
+- **4.0.5 (published):** Continued improvements to Share reliability, Java assistance, and release packaging.
 - **4.0.6 (in development):** Selectable bird avatars for Share, participant badges and remote cursor labels, terminal/Git refinements, tray resizing improvements, a default-on minimap, and more light themes. These changes are in source and the draft release; **4.0.6 is not yet a published, verified release**.
 
-> **Availability note:** Feature behavior and supported devices depend on the edition and release. Some cross-device collaboration, installer, mobile, and macOS workflows still need broader real-device validation. See the release notes and [GitHub Releases](https://github.com/TreyvoPrime/lark/releases) for available downloads.
+> **Availability note:** Feature behavior and supported devices depend on the edition and release. Some cross-device collaboration, installer, and macOS workflows still need broader real-device validation. See the release notes and [GitHub Releases](https://github.com/TreyvoPrime/lark/releases) for available downloads.
 
 ## Build from source
 
