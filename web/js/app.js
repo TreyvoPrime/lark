@@ -4312,7 +4312,13 @@
   }
 
   /** Share guests run a private copy of the host's current source on this computer. */
+  let sharedRunTrusted = false;
   async function runSharedCopy() {
+    // The host's code runs with this user's permissions, so make that explicit once per session.
+    if (!sharedRunTrusted) {
+      if (!window.confirm("Run the host's code on your computer?\n\nThe code can read and change files on this computer like any program you run. Only run code from people you trust.")) return;
+      sharedRunTrusted = true;
+    }
     setRunning(true, false);
     showConsoleTab("output");
     try {
@@ -7561,7 +7567,7 @@
     flush: flushSaves,
     async prepareHost(id) { if (state.project?.id !== id) await openProject(id); setSplit(false, "a"); },
     async guest(name, files) {
-      await flushSaves(); sharePreviousProject = state.project?.id; sharedGuest = true;
+      await flushSaves(); sharePreviousProject = state.project?.id; sharedGuest = true; sharedRunTrusted = false;
       state.project = { id: "share-remote", name: "Share · " + name, mainClass: "", path: "Encrypted LAN session" };
       state.files = files.map(file => ({ path: file.path, content: "" })); state.dirs = [];
       state.open = []; state.active = null; state.selected = null; state.dirty.clear();

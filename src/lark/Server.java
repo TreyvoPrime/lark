@@ -455,6 +455,10 @@ public final class Server {
             if (files == null || files.size() == 0 || files.size() > 500) throw new RequestFail(400, "Send between 1 and 500 shared files to run.");
             Path base = Settings.home().resolve("share-run").toAbsolutePath().normalize();
             Files.createDirectories(base);
+            // Stop the previous guest run first: each run gets a fresh folder, so Runner would not
+            // see it as the same project and the old program would keep running after its files vanish.
+            String previous = shareRunJob;
+            if (previous != null) { try { runner.stop(previous); } catch (RequestFail ignored) { } }
             try (var old = Files.list(base)) { old.forEach(dir -> { try { Projects.deleteTree(dir); } catch (Exception ignored) { } }); }
             Path dir = base.resolve(java.util.UUID.randomUUID().toString().replace("-", ""));
             Files.createDirectories(dir);
@@ -471,6 +475,7 @@ public final class Server {
                 Files.writeString(target, content, StandardCharsets.UTF_8);
             }
             String id = runner.start(dir, body.str("mainClass", ""), args, stdin);
+            shareRunJob = id;
             sendJson(exchange, 200, new Json.Obj().put("ok", true).put("id", id));
             return;
         }
@@ -731,6 +736,11 @@ public final class Server {
         if (Executable.isExecutable()) return Executable.CHANNEL;
         return "portable";
     }
+
+    /** The most recent Share-guest run, stopped before the next one replaces its folder. */
+
+    private volatile String shareRunJob;
+
 
     private boolean allowedClient(HttpExchange exchange, String host) {
         // Authorize by TCP peer, never by the spoofable Host header.
