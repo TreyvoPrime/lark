@@ -1,0 +1,13 @@
+#!/bin/bash
+# Lark.app entry point. Payload lives in Contents/Resources/lark (app/, jdk/, launchers).
+HERE="$(cd "$(dirname "$0")/../Resources/lark" && pwd -P)"
+case "$HERE" in
+  /Volumes/*)
+    /usr/bin/osascript -e 'display alert "Move Lark to Applications first" message "Drag Lark into the Applications folder in this window, then open it from Applications. Lark can not update itself while it runs from the disk image."' >/dev/null 2>&1
+    exit 1 ;;
+  */AppTranslocation/*)
+    /usr/bin/osascript -e 'display alert "Move Lark to Applications first" message "macOS is running Lark from a temporary copy. Move Lark.app into your Applications folder, then open it from there."' >/dev/null 2>&1
+    exit 1 ;;
+esac
+mkdir -p "$HOME/Library/Logs/Lark"
+exec /bin/bash "$HERE/start-lark-desktop.sh" "$@" >>"$HOME/Library/Logs/Lark/lark.log" 2>&1
