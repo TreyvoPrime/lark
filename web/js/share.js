@@ -78,7 +78,7 @@
     project.onchange = () => { name.value = project.selectedOptions[0]?.textContent || ''; };
     const displayName = field(form, 'Your display name'); displayName.required = true;
     const address = field(form, 'Listen on this interface', 'select');
-    interfaces.addresses.forEach(item => { const option = element('option', item.address === '127.0.0.1' ? '127.0.0.1 (this computer only)' : item.address, address); option.value = item.address; });
+    interfaces.addresses.forEach(item => { const option = element('option', item.address === '127.0.0.1' ? '127.0.0.1 (this computer only)' : item.address + (item.name ? ' (' + item.name + ')' : ''), address); option.value = item.address; });
     const lan = interfaces.addresses.find(item => item.address !== '127.0.0.1');
     if (lan) address.value = lan.address;
     const port = field(form, 'Port (0 chooses an available port)', 'number', '0'); port.min = '0'; port.max = '65535'; port.required = true;
