@@ -55,11 +55,25 @@
     if (type === 'text') input.maxLength = 80;
     return input;
   }
+  // Mirrors Share.normalizeInvitation: chat apps wrap lines and add zero-width or quote characters.
+  function normalizeInvitation(raw) {
+    let text = String(raw || '');
+    if (text.length > 8192) throw new Error();
+    if (text.includes('%')) { try { text = decodeURIComponent(text.replace(/\+/g, '%2B')); } catch (_) { } }
+    text = text.replace(/[\u200B-\u200F\u2028-\u202F\u2060-\u206F\uFEFF\u00AD]/g, '').replace(/\s+/g, '');
+    const runs = text.match(/[A-Za-z0-9_\-+/]+/g) || [];
+    const best = runs.reduce((a, b) => b.length > a.length ? b : a, '');
+    return best.replace(/\+/g, '-').replace(/\//g, '_');
+  }
   function startPage(next) { page = next; generation++; content.replaceChildren(); error.textContent = ''; }
   function showInvitation(data) {
     element('p', 'Send this private invitation to the intended participant over a trusted channel. Verify its fingerprint directly with the host. Anyone holding it can request approval. End the session to invalidate it.', content);
     const invite = field(content, 'Private invitation', 'textarea', data.invitation); invite.readOnly = true;
-    action(content, 'Copy invitation', () => navigator.clipboard.writeText(data.invitation));
+    action(content, 'Copy invitation', async () => {
+      try { await navigator.clipboard.writeText(data.invitation); }
+      catch (_) { invite.focus(); invite.select(); document.execCommand('copy'); }
+    });
+    if (/^127\./.test(data.address || '')) element('p', 'This session listens on 127.0.0.1, so only this computer can join. Host on a Wi-Fi or Ethernet address to invite another computer.', content).className = 'share-error';
     element('p', 'SHA-256: ' + data.fingerprint, content).className = 'share-fingerprint';
   }
   async function hostPage() {
@@ -97,14 +111,13 @@
   function joinPage() {
     startPage('join');
     const form = element('form', null, content);
-    const invitation = field(form, 'Private invitation from the host', 'textarea'); invitation.maxLength = 2048; invitation.required = true;
+    const invitation = field(form, 'Private invitation from the host', 'textarea'); invitation.maxLength = 8192; invitation.required = true;
     const displayName = field(form, 'Your display name'); displayName.required = true;
     const identity = element('p', 'Paste the invitation to inspect the host identity before connecting.', form);
     identity.className = 'share-fingerprint';
     invitation.oninput = () => {
       try {
-        if (invitation.value.length > 2048) throw new Error();
-        const data = JSON.parse(atob(invitation.value.trim().replace(/-/g, '+').replace(/_/g, '/')));
+        const data = JSON.parse(atob(normalizeInvitation(invitation.value).replace(/-/g, '+').replace(/_/g, '/')));
         if (!/^[a-f0-9]{64}$/i.test(data.fingerprint) || typeof data.address !== 'string' || data.address.length > 64) throw new Error();
         identity.textContent = `Host: ${data.address}:${data.port} · SHA-256: ${data.fingerprint}`;
       } catch (_) { identity.textContent = 'Invalid invitation. Ask the host for a new private invitation.'; }
@@ -116,7 +129,7 @@
       event.preventDefault(); if (busy) return; busy = true; submit.disabled = true;
       try {
         status.textContent = 'Connecting';
-        latest = await api('join', { invitation: invitation.value.trim(), displayName: displayName.value, bird: window.LarkBirds.selected(), verified: verified.checked });
+        latest = await api('join', { invitation: invitation.value, displayName: displayName.value, bird: window.LarkBirds.selected(), verified: verified.checked });
         startPage('home'); await refresh();
       } catch (err) { report(err); status.textContent = 'Connection Lost'; }
       finally { busy = false; submit.disabled = false; }

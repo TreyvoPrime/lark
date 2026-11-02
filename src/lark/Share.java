@@ -66,22 +66,20 @@ final class Share implements AutoCloseable {
                         .put("session", session.id()).put("invitation", session.invitation());
                 // An invitation is sensitive and is returned ONLY for an explicit local host action.
                 return status().put("invitation", Base64.getUrlEncoder().withoutPadding().encodeToString(hostInvitation.write().getBytes(StandardCharsets.UTF_8)))
-                        .put("fingerprint", transport.fingerprint);
+                        .put("fingerprint", transport.fingerprint).put("address", bind.getHostAddress());
             }
             case "invitation" -> {
                 if (hosting == null) throw new RequestFail(403, "Only the host can issue invitations.");
                 hosting.localStatus();
                 return ShareSession.ok().put("invitation", Base64.getUrlEncoder().withoutPadding()
-                        .encodeToString(hostInvitation.write().getBytes(StandardCharsets.UTF_8))).put("fingerprint", transport.fingerprint);
+                        .encodeToString(hostInvitation.write().getBytes(StandardCharsets.UTF_8))).put("fingerprint", transport.fingerprint).put("address", bindAddress.getHostAddress());
             }
             case "join" -> {
                 if (hosting != null || target != null) throw new RequestFail(409, "End or leave your current Share session first.");
                 if (!body.bool("verified")) throw new RequestFail(400, "Verify the invitation with the host over a trusted channel first.");
                 String invitation = body.str("invitation", "");
-                if (invitation.length() > 2048) throw new RequestFail(400, "Invalid invitation.");
-                Json.Obj parsed;
-                try { parsed = ShareTransport.parse(Base64.getUrlDecoder().decode(invitation)); }
-                catch (RuntimeException | java.io.IOException e) { throw new RequestFail(400, "Invalid invitation."); }
+                if (invitation.length() > 8192) throw new RequestFail(400, "Invalid invitation: that's too long to be a Lark invitation. Copy just the invitation text.");
+                Json.Obj parsed = decodeInvitation(invitation);
                 if (parsed.longVal("version") != ShareSession.VERSION) throw new RequestFail(409, "Incompatible Lark Share protocol.");
                 if (!parsed.str("session", "").matches("[a-f0-9]{64}") || !parsed.str("invitation", "").matches("[a-f0-9]{64}"))
                     throw new RequestFail(400, "Invalid invitation credentials.");
@@ -90,6 +88,8 @@ final class Share implements AutoCloseable {
                         .put("name", ShareSession.label(body.str("displayName", ""))).put("bird", ShareSession.bird(settings.shareBird))); }
                 catch (RequestFail e) { throw e; }
                 catch (Exception e) {
+                    if (ShareTransport.lanAddress(parsed.str("address", "")).isLoopbackAddress())
+                        throw new RequestFail(503, "This invitation points at 127.0.0.1 (\"this computer only\"), so it can't work from another computer. On the host, end the session and host again on its Wi-Fi or Ethernet address, then send the new invitation.");
                     throw new RequestFail(503, "Couldn't reach the host at " + parsed.str("address", "?") + ":" + parsed.longVal("port")
                             + ". Make sure you're on the same network, or have the host pick a different address (its Ethernet or Wi-Fi adapter) and send a new invitation. If it still fails, set the host's network to Private in Windows and allow Lark through the firewall.");
                 }
@@ -150,6 +150,36 @@ final class Share implements AutoCloseable {
             }
             case "status" -> { return status(); }
             default -> throw new RequestFail(400, "Unknown Share control.");
+        }
+    }
+    /**
+     * Pasted invitations arrive mangled by chat apps and mail: wrapped lines, zero-width characters,
+     * smart quotes, code fences, standard (+/=) Base64, percent-encoding or a "Lark invitation:" label.
+     * Only the characters of the encoded invitation are kept; nothing about its contents is trusted
+     * more than before (credentials are still format-checked and the TLS fingerprint still pinned).
+     */
+    static String normalizeInvitation(String raw) {
+        if (raw == null) return "";
+        String text = raw;
+        if (text.contains("%")) {
+            try { text = java.net.URLDecoder.decode(text.replace("+", "%2B"), StandardCharsets.UTF_8); } catch (IllegalArgumentException ignored) { }
+        }
+        text = text.replaceAll("[\\u200B-\\u200F\\u2028-\\u202F\\u2060-\\u206F\\uFEFF\\u00AD]", "").replaceAll("\\s+", "");
+        StringBuilder best = new StringBuilder(), run = new StringBuilder();
+        for (int i = 0; i <= text.length(); i++) {
+            char c = i < text.length() ? text.charAt(i) : ' ';
+            boolean b64 = (c >= 'A' && c <= 'Z') || (c >= 'a' && c <= 'z') || (c >= '0' && c <= '9') || c == '-' || c == '_' || c == '+' || c == '/';
+            if (b64) run.append(c);
+            else { if (run.length() > best.length()) best = run; run = new StringBuilder(); }
+        }
+        return best.toString().replace('+', '-').replace('/', '_');
+    }
+    static Json.Obj decodeInvitation(String raw) {
+        String clean = normalizeInvitation(raw);
+        if (clean.length() < 40 || clean.length() > 2048) throw new RequestFail(400, "Invalid invitation: it looks incomplete. Ask the host to copy the whole invitation again.");
+        try { return ShareTransport.parse(Base64.getUrlDecoder().decode(clean)); }
+        catch (RuntimeException | java.io.IOException e) {
+            throw new RequestFail(400, "Invalid invitation: part of it is missing or changed. Ask the host to press Copy invitation and send it again.");
         }
     }
     private Json.Obj peer(String action) throws Exception { return sendPeer(action, ""); }

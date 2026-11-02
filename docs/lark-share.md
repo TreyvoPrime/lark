@@ -178,9 +178,9 @@ Tests: `ShareCheck.java`, `ShareEditingCheck.java`, `share-document.test.cjs`,
 ```sh
 ./package.sh
 javac --release 17 -encoding UTF-8 -cp build -d build \
-  test/ShareCheck.java test/ShareEditingCheck.java \
+  test/ShareCheck.java test/ShareEditingCheck.java test/ShareInviteCheck.java \
   test/Check.java test/FlowCheck.java test/GitHubAuthCheck.java
-java -cp build lark.ShareCheck
+java -cp build lark.ShareCheck && java -cp build lark.ShareInviteCheck
 java -cp build lark.ShareEditingCheck
 java -cp build lark.Check
 java -cp build lark.FlowCheck
