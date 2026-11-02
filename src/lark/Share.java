@@ -218,14 +218,18 @@ final class Share implements AutoCloseable {
             catch (RequestFail e) { return e; }
             catch (Exception e) { return null; }
         })).toList();
-        RequestFail best = null;
+        RequestFail best = null; boolean stale = false;
         for (var t : tries) {
             Object r = t.join();
             if (r instanceof Json.Obj found) return found;
-            if (r instanceof RequestFail e && e.status != 404 && (best == null || e.status == 410)) best = e;
+            // A 410 at hello only means that host's own code is expired or revoked, not that it was this code,
+            // so it must not hide the real answer (e.g. another Lark host in the same classroom).
+            if (r instanceof RequestFail e && e.status == 410) stale = true;
+            else if (r instanceof RequestFail e && e.status != 404 && best == null) best = e;
         }
         if (best != null) throw best;
         throw new RequestFail(404, "No Lark session with that code was found on this network. Check the code, and that both computers are on the same Wi-Fi or wired network. "
+                + (stale ? "If the code is older than its time limit or the host revoked it, ask for a new one. " : "")
                 + "School and guest networks often block computers from finding each other; the long private invitation still works anywhere the host can be reached.");
     }
     private static Json.Obj tryCode(String code, String address, int port) throws Exception {
