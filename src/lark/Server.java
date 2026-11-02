@@ -441,6 +441,39 @@ public final class Server {
             sendJson(exchange, 200, new Json.Obj().put("ok", true).put("id", id));
             return;
         }
+        if ("/api/share/run".equals(path) && "POST".equals(method)) {
+            // A Share guest runs a private copy of the shared source on THEIR OWN computer.
+            // Nothing executes on the host, and the copy is replaced on every run.
+            if (!isLoopbackPeer(exchange)) throw new RequestFail(403, "Share runs are local-only.");
+            if (!share.joined()) throw new RequestFail(409, "Join a Share session first.");
+            Json.Obj body = body(exchange);
+            String args = body.str("args", "");
+            String stdin = body.str("stdin", "");
+            if (args.length() > 2_000) throw new RequestFail(400, "Those arguments are too long.");
+            if (stdin.length() > 100_000) throw new RequestFail(400, "That input is too long.");
+            Json.Arr files = body.arr("files");
+            if (files == null || files.size() == 0 || files.size() > 500) throw new RequestFail(400, "Send between 1 and 500 shared files to run.");
+            Path base = Settings.home().resolve("share-run").toAbsolutePath().normalize();
+            Files.createDirectories(base);
+            try (var old = Files.list(base)) { old.forEach(dir -> { try { Projects.deleteTree(dir); } catch (Exception ignored) { } }); }
+            Path dir = base.resolve(java.util.UUID.randomUUID().toString().replace("-", ""));
+            Files.createDirectories(dir);
+            long total = 0;
+            for (Json.Value value : files.values()) {
+                if (!(value instanceof Json.Obj file)) throw new RequestFail(400, "Invalid shared file.");
+                String rel = file.str("path", ""), content = file.str("content", "");
+                total += content.length();
+                if (total > 4_000_000) throw new RequestFail(413, "The shared project is too large to run.");
+                Path target = dir.resolve(rel).normalize();
+                if (rel.isBlank() || rel.startsWith("/") || rel.contains("\\") || rel.contains(":") || !target.startsWith(dir) || target.equals(dir))
+                    throw new RequestFail(400, "Invalid shared file path.");
+                Files.createDirectories(target.getParent());
+                Files.writeString(target, content, StandardCharsets.UTF_8);
+            }
+            String id = runner.start(dir, body.str("mainClass", ""), args, stdin);
+            sendJson(exchange, 200, new Json.Obj().put("ok", true).put("id", id));
+            return;
+        }
         if ("/api/scratch/run".equals(path) && "POST".equals(method)) {
             Json.Obj body = body(exchange);
             String args = body.str("args", "");

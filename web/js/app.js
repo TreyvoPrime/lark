@@ -238,7 +238,9 @@
   const $ = (id) => document.getElementById(id);
 
   async function api(method, path, body) {
-    if (sharedGuest && (/^\/api\/(run|debug|tests|terminal|check|github|recovery)(\/|$)/.test(path) || (path.startsWith("/api/projects/") && method !== "GET")))
+    // Guests may watch, stop and answer their OWN local run jobs (started through /api/share/run).
+    const guestLocalJob = /^\/api\/run\/[^/]+(\/(stop|input))?$/.test(path);
+    if (sharedGuest && !guestLocalJob && (/^\/api\/(run|debug|tests|terminal|check|github|recovery)(\/|$)/.test(path) || (path.startsWith("/api/projects/") && method !== "GET")))
       throw new Error("Shared guests cannot execute host tools or change the shared file structure.");
     if (method === "POST" && /^\/api\/(run|debug|tests|terminal)$/.test(path) && window.LarkShareEditing?.sessionActive()) await window.LarkShareEditing.flush();
     const res = await fetch(path, {
@@ -4289,6 +4291,7 @@
       await api("POST", "/api/run/" + state.job.id + "/stop", {});
       return;
     }
+    if (sharedGuest) return runSharedCopy();
     await flushSaves();
     renderMains();
     const mainClass = $("main-class").value;
@@ -4301,6 +4304,31 @@
         args: $("args").value,
         stdin: $("stdin").value
       });
+      poll(data.id);
+    } catch (err) {
+      setRunning(false);
+      toast(err.message);
+    }
+  }
+
+  /** Share guests run a private copy of the host's current source on this computer. */
+  async function runSharedCopy() {
+    setRunning(true, false);
+    showConsoleTab("output");
+    try {
+      if (window.LarkShareEditing?.sessionActive()) await window.LarkShareEditing.flush();
+      const files = [];
+      for (const file of state.files) {
+        const res = await fetch("/api/share", { method: "POST", headers: { "Content-Type": "application/json", "X-Lark": "1" }, body: JSON.stringify({ action: "source", path: file.path }) });
+        const data = await res.json().catch(() => ({ ok: false }));
+        if (!res.ok || !data.ok) throw new Error(data.error || "Couldn't download the shared source to run it.");
+        file.content = data.content || "";
+        files.push({ path: file.path, content: file.content });
+      }
+      parsedCache.clear();
+      renderMains();
+      const data = await api("POST", "/api/share/run", { files, mainClass: $("main-class").value, args: $("args").value, stdin: $("stdin").value });
+      toast("Running a private copy of the shared code on your computer.");
       poll(data.id);
     } catch (err) {
       setRunning(false);
