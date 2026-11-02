@@ -104,6 +104,13 @@ public final class ShareCodeCheck {
             Json.Obj target = Share.resolveCode(ShareCode.normalize(code.toLowerCase().replace("-", " ")), all);
             check(target.str("fingerprint").equals(realFp) && target.longVal("port") == port, "Resolved to the real host: " + target.write());
             fails(() -> Share.resolveCode("LARK-2222222", List.of(real)), 404, "Wrong code => not found");
+            ShareTransport stale = new ShareTransport(fake, ShareTransport.lanAddress("127.0.0.1"), 0, 200);
+            try {
+                stale.codes = new ShareCode(stale.fingerprint, System::currentTimeMillis); stale.codes.create(ShareCode.DEFAULT_TTL); stale.codes.revoke();
+                List<Json.Obj> withStale = List.of(new Json.Obj().put("address", "127.0.0.1").put("port", stale.port()), real);
+                fails(() -> Share.resolveCode("LARK-2222222", withStale), 404, "Another host's revoked code doesn't turn a wrong code into 'revoked'");
+                check(Share.resolveCode(code, withStale).str("fingerprint").equals(realFp), "Right code still found next to a stale host");
+            } finally { stale.close(); }
 
             Json.Obj join = ShareTransport.exchange("127.0.0.1", port, target.str("fingerprint"), new Json.Obj().put("version", ShareSession.VERSION)
                     .put("session", target.str("session")).put("action", "join").put("invitation", target.str("invitation")).put("name", "Guest"));

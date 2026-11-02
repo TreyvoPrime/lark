@@ -89,7 +89,7 @@
     } else {
       if (data.codeState === 'expired') element('p', 'The last code expired.', box);
       if (data.codeState === 'revoked') element('p', 'The last code was revoked.', box);
-      action(box, 'Create Private Invitation code', async () => { latest = await api('code', { minutes: 15 }); content.replaceChildren(); showInvitation(await api('invitation')); });
+      action(box, 'Create Lark code', async () => { latest = await api('code', { minutes: 15 }); content.replaceChildren(); showInvitation(await api('invitation')); });
       if (!data.discovery) element('p', 'Needs LAN discovery turned on. The long invitation above works without it.', box);
     }
   }
