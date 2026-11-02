@@ -1,6 +1,6 @@
 {
   "version": "4.0.8",
-  "notes": "Fixes the Lark Share character duplication bug and restores auto-updates.",
+  "notes": "Fixes the Lark Share character duplication bug, makes Share typing sync much faster, and restores auto-updates.",
   "page": "https://treyvoprime.github.io/lark-download/",
   "downloads": {
     "windows": "https://github.com/TreyvoPrime/lark/releases/download/v4.0.8/lark-desktop-update.zip",
@@ -34,24 +34,24 @@
     "any": "https://github.com/TreyvoPrime/lark/releases/download/v4.0.8/lark-mobile.zip"
   },
   "sha256": {
-    "any": "f134a6c634e1e161493f6954ea3b4296d3b4ef43e5329c7728de9128c5128c93",
-    "windows": "f134a6c634e1e161493f6954ea3b4296d3b4ef43e5329c7728de9128c5128c93",
-    "mac": "f134a6c634e1e161493f6954ea3b4296d3b4ef43e5329c7728de9128c5128c93",
-    "linux": "f134a6c634e1e161493f6954ea3b4296d3b4ef43e5329c7728de9128c5128c93",
-    "desktop": "f134a6c634e1e161493f6954ea3b4296d3b4ef43e5329c7728de9128c5128c93",
-    "desktop-windows": "f134a6c634e1e161493f6954ea3b4296d3b4ef43e5329c7728de9128c5128c93",
-    "desktop-mac": "f134a6c634e1e161493f6954ea3b4296d3b4ef43e5329c7728de9128c5128c93",
-    "desktop-linux": "f134a6c634e1e161493f6954ea3b4296d3b4ef43e5329c7728de9128c5128c93",
-    "lark-desktop-update.zip": "f134a6c634e1e161493f6954ea3b4296d3b4ef43e5329c7728de9128c5128c93",
-    "lark-update.zip": "f134a6c634e1e161493f6954ea3b4296d3b4ef43e5329c7728de9128c5128c93",
-    "executable": "ba90429ac6f446db0ce40df1b65f1ead0ca3a8f05e31c1092b8a4f94e07ff6b1",
-    "executable-windows": "ba90429ac6f446db0ce40df1b65f1ead0ca3a8f05e31c1092b8a4f94e07ff6b1",
-    "lark-executable-update.zip": "ba90429ac6f446db0ce40df1b65f1ead0ca3a8f05e31c1092b8a4f94e07ff6b1",
-    "mobile": "8ee4cfec484d11e68777f72d6e52859644d8cfa235ce2f5a6bb26f74af3aa02a",
-    "mobile-windows": "8ee4cfec484d11e68777f72d6e52859644d8cfa235ce2f5a6bb26f74af3aa02a",
-    "mobile-mac": "8ee4cfec484d11e68777f72d6e52859644d8cfa235ce2f5a6bb26f74af3aa02a",
-    "mobile-linux": "8ee4cfec484d11e68777f72d6e52859644d8cfa235ce2f5a6bb26f74af3aa02a",
-    "lark-mobile-update.zip": "8ee4cfec484d11e68777f72d6e52859644d8cfa235ce2f5a6bb26f74af3aa02a",
-    "LarkDesktopSetup.exe": "9d17dc4b5883f2f471359b11dd75f28408e064a3aee86640df5633dd59a43372"
+    "any": "0834fc4bb7a6c6563a3659ec989ade7caa963cef875c6149572a2f0052d2648c",
+    "windows": "0834fc4bb7a6c6563a3659ec989ade7caa963cef875c6149572a2f0052d2648c",
+    "mac": "0834fc4bb7a6c6563a3659ec989ade7caa963cef875c6149572a2f0052d2648c",
+    "linux": "0834fc4bb7a6c6563a3659ec989ade7caa963cef875c6149572a2f0052d2648c",
+    "desktop": "0834fc4bb7a6c6563a3659ec989ade7caa963cef875c6149572a2f0052d2648c",
+    "desktop-windows": "0834fc4bb7a6c6563a3659ec989ade7caa963cef875c6149572a2f0052d2648c",
+    "desktop-mac": "0834fc4bb7a6c6563a3659ec989ade7caa963cef875c6149572a2f0052d2648c",
+    "desktop-linux": "0834fc4bb7a6c6563a3659ec989ade7caa963cef875c6149572a2f0052d2648c",
+    "lark-desktop-update.zip": "0834fc4bb7a6c6563a3659ec989ade7caa963cef875c6149572a2f0052d2648c",
+    "lark-update.zip": "0834fc4bb7a6c6563a3659ec989ade7caa963cef875c6149572a2f0052d2648c",
+    "executable": "da1e7b8b51fd8ee4f05530c271752eeaf10c37dbd9d490dc60882b2233582855",
+    "executable-windows": "da1e7b8b51fd8ee4f05530c271752eeaf10c37dbd9d490dc60882b2233582855",
+    "lark-executable-update.zip": "da1e7b8b51fd8ee4f05530c271752eeaf10c37dbd9d490dc60882b2233582855",
+    "mobile": "0c960807602bf4d87b7d8c74b11a957ba25f003d787d48c6a1a5499cef30bb98",
+    "mobile-windows": "0c960807602bf4d87b7d8c74b11a957ba25f003d787d48c6a1a5499cef30bb98",
+    "mobile-mac": "0c960807602bf4d87b7d8c74b11a957ba25f003d787d48c6a1a5499cef30bb98",
+    "mobile-linux": "0c960807602bf4d87b7d8c74b11a957ba25f003d787d48c6a1a5499cef30bb98",
+    "lark-mobile-update.zip": "0c960807602bf4d87b7d8c74b11a957ba25f003d787d48c6a1a5499cef30bb98",
+    "LarkDesktopSetup.exe": "e9d399e683679fff23ca51cc90b10605443e26e2cd2d405429934a051e774335"
   }
 }
