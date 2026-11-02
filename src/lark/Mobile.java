@@ -166,18 +166,31 @@ public final class Mobile {
         return sb.toString();
     }
 
-    static List<String> lanAddresses() {
-        List<String> out = new ArrayList<>();
+    /** LAN IPv4 addresses, best first: the adapter that carries the default route (wired or Wi-Fi), then real adapters,
+     *  then virtual adapters (Hyper-V/WSL, VirtualBox, VMware, Docker, VPNs) and self-assigned 169.254 addresses. */
+    static List<String> lanAddresses() { return lanInterfaces().stream().map(a -> a[0]).toList(); }
+
+    /** Each entry is {address, adapter display name}, ranked like {@link #lanAddresses()}. */
+    static List<String[]> lanInterfaces() {
+        List<String[]> out = new ArrayList<>();
+        List<Integer> scores = new ArrayList<>();
+        String routed = defaultRouteAddress();
         try {
             Enumeration<NetworkInterface> nets = NetworkInterface.getNetworkInterfaces();
             while (nets != null && nets.hasMoreElements()) {
                 NetworkInterface nif = nets.nextElement();
                 if (!nif.isUp() || nif.isLoopback() || nif.isVirtual()) continue;
+                String label = (nif.getDisplayName() == null ? nif.getName() : nif.getDisplayName());
+                String lower = (label + " " + nif.getName()).toLowerCase(Locale.ROOT);
+                boolean virtual = lower.matches(".*(vethernet|hyper-v|wsl|virtualbox|vmware|vmnet|vbox|docker|\\bbr-|\\bveth|virbr|\\btap|\\btun|utun|vpn|wireguard|tailscale|zerotier|hamachi|npcap|loopback|bluetooth|teredo|isatap).*");
                 Enumeration<InetAddress> addrs = nif.getInetAddresses();
                 while (addrs.hasMoreElements()) {
                     InetAddress addr = addrs.nextElement();
                     if (addr instanceof Inet4Address && !addr.isLoopbackAddress()) {
-                        out.add(addr.getHostAddress());
+                        String ip = addr.getHostAddress();
+                        int score = ip.equals(routed) ? 0 : addr.isLinkLocalAddress() ? 3 : virtual ? 2 : 1;
+                        int at = 0; while (at < scores.size() && scores.get(at) <= score) at++;
+                        out.add(at, new String[] { ip, label }); scores.add(at, score);
                     }
                 }
             }
@@ -185,6 +198,15 @@ public final class Mobile {
             // Best-effort.
         }
         return out;
+    }
+
+    /** The local address the OS would use for outbound LAN/Internet traffic. A UDP connect sends no packets. */
+    private static String defaultRouteAddress() {
+        try (java.net.DatagramSocket probe = new java.net.DatagramSocket()) {
+            probe.connect(InetAddress.getByName("192.0.2.1"), 9);
+            InetAddress local = probe.getLocalAddress();
+            return local == null || local.isAnyLocalAddress() ? "" : local.getHostAddress();
+        } catch (Exception e) { return ""; }
     }
 
     private static void help() {

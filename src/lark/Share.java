@@ -2,6 +2,7 @@ package lark;
 
 import java.net.InetAddress;
 import java.net.NetworkInterface;
+import java.util.List;
 import java.nio.charset.StandardCharsets;
 import java.util.Base64;
 
@@ -26,13 +27,23 @@ final class Share implements AutoCloseable {
         switch (action) {
             case "nearby" -> {
                 String address = body.str("address", "");
-                if (address.isBlank()) address = Mobile.lanAddresses().stream().findFirst().orElseThrow(() -> new RequestFail(400, "No LAN interface is available. Use a private invitation."));
-                return ShareSession.ok().put("sessions", ShareDiscovery.nearby(ShareTransport.lanAddress(address)));
+                if (!address.isBlank()) return ShareSession.ok().put("sessions", ShareDiscovery.nearby(ShareTransport.lanAddress(address)));
+                // Search every LAN adapter at once (wired, Wi-Fi, ...) so a host on Ethernet is found even if
+                // the first adapter is Wi-Fi or a virtual Hyper-V/VirtualBox adapter.
+                List<String> all = Mobile.lanAddresses().stream().limit(6).toList();
+                if (all.isEmpty()) throw new RequestFail(400, "No LAN interface is available. Use a private invitation.");
+                List<java.util.concurrent.CompletableFuture<Json.Arr>> scans = all.stream().map(ip -> java.util.concurrent.CompletableFuture.supplyAsync(() -> {
+                    try { return ShareDiscovery.nearby(ShareTransport.lanAddress(ip)); } catch (Exception e) { return new Json.Arr(); }
+                })).toList();
+                java.util.Map<String, Json.Value> found = new java.util.LinkedHashMap<>();
+                for (var scan : scans) for (Json.Value item : scan.join().values()) if (item instanceof Json.Obj obj) found.putIfAbsent(obj.str("instance", ""), obj);
+                Json.Arr sessions = new Json.Arr(); found.values().forEach(sessions::add);
+                return ShareSession.ok().put("sessions", sessions);
             }
             case "interfaces" -> {
                 Json.Arr addresses = new Json.Arr();
                 addresses.add(new Json.Obj().put("address", "127.0.0.1"));
-                Mobile.lanAddresses().forEach(ip -> addresses.add(new Json.Obj().put("address", ip)));
+                Mobile.lanInterfaces().forEach(nif -> addresses.add(new Json.Obj().put("address", nif[0]).put("name", nif[1])));
                 return ShareSession.ok().put("addresses", addresses);
             }
             case "host" -> {
@@ -74,8 +85,14 @@ final class Share implements AutoCloseable {
                 if (parsed.longVal("version") != ShareSession.VERSION) throw new RequestFail(409, "Incompatible Lark Share protocol.");
                 if (!parsed.str("session", "").matches("[a-f0-9]{64}") || !parsed.str("invitation", "").matches("[a-f0-9]{64}"))
                     throw new RequestFail(400, "Invalid invitation credentials.");
-                Json.Obj result = send(parsed, request(parsed, "join").put("invitation", parsed.str("invitation"))
-                        .put("name", ShareSession.label(body.str("displayName", ""))).put("bird", ShareSession.bird(settings.shareBird)));
+                Json.Obj result;
+                try { result = send(parsed, request(parsed, "join").put("invitation", parsed.str("invitation"))
+                        .put("name", ShareSession.label(body.str("displayName", ""))).put("bird", ShareSession.bird(settings.shareBird))); }
+                catch (RequestFail e) { throw e; }
+                catch (Exception e) {
+                    throw new RequestFail(503, "Couldn't reach the host at " + parsed.str("address", "?") + ":" + parsed.longVal("port")
+                            + ". Make sure you're on the same network, or have the host pick a different address (its Ethernet or Wi-Fi adapter) and send a new invitation. If it still fails, set the host's network to Private in Windows and allow Lark through the firewall.");
+                }
                 device = result.str("device"); credential = result.str("credential");
                 target = parsed;
                 connection = "Waiting for Approval";
@@ -180,7 +197,7 @@ final class Share implements AutoCloseable {
             } catch (Exception e) {
                 // Keep the pinned target and credential for a subsequent retry; never auto-join anew.
                 connection = e instanceof RequestFail ? "Connection Lost" : "Reconnecting";
-                result.put("error", e instanceof RequestFail ? e.getMessage() : "Cannot reach the pinned host. Check Wi-Fi and firewall; retry or leave.");
+                result.put("error", e instanceof RequestFail ? e.getMessage() : "Cannot reach the pinned host. Make sure both computers are on the same network (wired or Wi-Fi), the host picked the right adapter, and the firewall allows Lark; then retry or leave.");
             }
             result.put("connection", connection);
         }
