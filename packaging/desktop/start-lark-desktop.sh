@@ -27,7 +27,13 @@ if [[ ! -x "$JAVA" || ! -x "$JAVAC" || ! -f "$JVMCFG" ]]; then
 fi
 
 # Refuse to follow a jar symlink out of the install tree.
-REAL_JAR="$(python3 -c 'import os,sys; print(os.path.realpath(sys.argv[1]))' "$JAR" 2>/dev/null || echo "$JAR")"
+# Pure shell (no python3): on a Mac without developer tools, python3 pops an install dialog.
+if [[ -L "$JAR" ]]; then
+  echo "lark.jar must stay inside the Lark folder." >&2
+  exit 1
+fi
+REAL_JAR="$(cd "$(dirname "$JAR")" && pwd -P)/$(basename "$JAR")"
+ROOT="$(cd "$ROOT" && pwd -P)"
 case "$REAL_JAR" in
   "$ROOT"|"$ROOT"/*) ;;
   *)
