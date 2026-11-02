@@ -23,6 +23,8 @@ final class ShareTransport implements AutoCloseable {
     private final Set<Socket> sockets = ConcurrentHashMap.newKeySet();
     private final Map<String, long[]> rates = new LinkedHashMap<>();
     final String fingerprint;
+    /** Set only while the host has a short code; null means code requests are refused. */
+    volatile ShareCode codes;
     private volatile boolean closed;
 
     ShareTransport(ShareSession session, InetAddress bind, int port) throws Exception {
@@ -75,7 +77,15 @@ final class ShareTransport implements AutoCloseable {
             socket.setSoTimeout(5000);
             socket.startHandshake();
             Json.Obj response;
-            try { response = session.command(read(socket.getInputStream(), 16 * 1024)); }
+            try {
+                Json.Obj request = read(socket.getInputStream(), 16 * 1024);
+                if (request.str("action", "").startsWith("code-")) {
+                    ShareCode active = codes;
+                    if (request.longVal("version") != ShareSession.VERSION) throw new RequestFail(409, "Incompatible Lark Share protocol.");
+                    if (active == null || session.expired()) throw new RequestFail(404, "No active Lark code on this host.");
+                    response = active.handle(request, socket.getInetAddress().getHostAddress(), session.id(), session.invitation()).put("version", ShareSession.VERSION);
+                } else response = session.command(request);
+            }
             catch (RequestFail e) { response = error(e.status, e.getMessage()); }
             catch (Exception e) { response = error(400, "Invalid Share message."); }
             write(socket.getOutputStream(), response);
@@ -89,8 +99,16 @@ final class ShareTransport implements AutoCloseable {
     static Json.Obj error(int code, String message) { return new Json.Obj().put("ok", false).put("code", code).put("error", message); }
 
     static Json.Obj exchange(String host, int port, String fingerprint, Json.Obj request) throws Exception {
+        if (fingerprint == null) throw new RequestFail(400, "Enter the invitation's port and SHA-256 fingerprint.");
+        return exchange(host, port, fingerprint, request, new String[1]);
+    }
+    /**
+     * With {@code fingerprint == null} the certificate is not pinned but its fingerprint is recorded in seen[0].
+     * Only the short-code hello uses that; its reply must carry a code-derived MAC over seen[0] before anything is trusted.
+     */
+    static Json.Obj exchange(String host, int port, String fingerprint, Json.Obj request, String[] seen) throws Exception {
         InetAddress address = lanAddress(host);
-        if (port < 1 || port > 65535 || fingerprint == null || !fingerprint.matches("[a-fA-F0-9]{64}"))
+        if (port < 1 || port > 65535 || (fingerprint != null && !fingerprint.matches("[a-fA-F0-9]{64}")))
             throw new RequestFail(400, "Enter the invitation's port and SHA-256 fingerprint.");
         SSLContext context = SSLContext.getInstance("TLSv1.3");
         context.init(null, new TrustManager[]{new X509TrustManager() {
@@ -102,7 +120,8 @@ final class ShareTransport implements AutoCloseable {
                 try {
                     if (chain == null || chain.length == 0) throw new GeneralSecurityException();
                     chain[0].checkValidity();
-                    if (!ShareSession.equal(fingerprint.toLowerCase(Locale.ROOT), fingerprint(chain[0]))) throw new GeneralSecurityException();
+                    seen[0] = fingerprint(chain[0]);
+                    if (fingerprint != null && !ShareSession.equal(fingerprint.toLowerCase(Locale.ROOT), seen[0])) throw new GeneralSecurityException();
                 } catch (Exception e) { throw new java.security.cert.CertificateException("Host certificate does not match the verified invitation."); }
             }
         }}, new SecureRandom());
