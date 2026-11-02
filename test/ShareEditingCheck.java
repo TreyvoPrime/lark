@@ -38,6 +38,12 @@ public final class ShareEditingCheck {
                 s.command(request(s, editor, "sync", "Main.java").put("operation", operation));
                 s.command(request(s, editor, "sync", "Main.java").put("operation", operation));
                 check(s.command(request(s, editor, "sync", "Main.java")).longVal("head") == 1, "Deduplicated server history");
+                Json.Arr batch = new Json.Arr(); batch.add(op(1001, actor, "1000@" + actor, "B")); batch.add(op(1002, actor, "1001@" + actor, "C"));
+                Json.Obj batched = s.command(request(s, editor, "sync", "Main.java").put("operation", op(1000, actor, "109@" + actor, "A")).put("operations", batch));
+                check(batched.longVal("accepted") == 2 && batched.longVal("head") == 4, "Batched operations applied in one request");
+                check(s.command(request(s, editor, "sync", "Main.java").put("operation", op(1000, actor, "109@" + actor, "A")).put("operations", batch)).longVal("head") == 4, "Batched retry idempotent");
+                Json.Arr tooMany = new Json.Arr(); for (int i = 0; i < ShareSession.MAX_BATCH + 1; i++) tooMany.add(op(1101 + i, actor, "109@" + actor, "z"));
+                try { s.command(request(s, editor, "sync", "Main.java").put("operation", op(1100, actor, "109@" + actor, "z")).put("operations", tooMany)); check(false, "Batch size bounded"); } catch (RequestFail e) { check(e.status == 400, "Batch size bounded"); }
                 check(s.needsReview(), "Remote changes require host review");
                 s.decide(editor.str("device"), true, "viewer");
                 try { s.command(request(s, editor, "sync", "Main.java").put("operation", op(200, actor, "", "denied"))); throw new AssertionError("Viewer wrote"); }
@@ -48,8 +54,8 @@ public final class ShareEditingCheck {
                 check(Files.readString(root.resolve("Main.java")).startsWith("// shared"), "Canonical host file saved");
                 s.decide(editor.str("device"), true, "editor");
                 Files.writeString(root.resolve("Main.java"), "// external change\n");
-                s.command(request(s, editor, "sync", "Main.java").put("operation", op(201, actor, "", "// next\n")));
-                s.command(request(s, editor, "sync", "Other.java").put("operation", op(300, actor, "", "// separate\n")));
+                s.command(request(s, editor, "sync", "Main.java").put("operation", op(2001, actor, "", "// next\n")));
+                s.command(request(s, editor, "sync", "Other.java").put("operation", op(2100, actor, "", "// separate\n")));
                 s.close();
                 check(Files.readString(root.resolve("Main.java")).equals("// external change\n"), "External edit is never overwritten");
                 check(Files.readString(root.resolve("Other.java")).startsWith("// separate"), "Independent file saved");
