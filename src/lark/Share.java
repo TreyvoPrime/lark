@@ -85,8 +85,14 @@ final class Share implements AutoCloseable {
                 if (parsed.longVal("version") != ShareSession.VERSION) throw new RequestFail(409, "Incompatible Lark Share protocol.");
                 if (!parsed.str("session", "").matches("[a-f0-9]{64}") || !parsed.str("invitation", "").matches("[a-f0-9]{64}"))
                     throw new RequestFail(400, "Invalid invitation credentials.");
-                Json.Obj result = send(parsed, request(parsed, "join").put("invitation", parsed.str("invitation"))
-                        .put("name", ShareSession.label(body.str("displayName", ""))).put("bird", ShareSession.bird(settings.shareBird)));
+                Json.Obj result;
+                try { result = send(parsed, request(parsed, "join").put("invitation", parsed.str("invitation"))
+                        .put("name", ShareSession.label(body.str("displayName", ""))).put("bird", ShareSession.bird(settings.shareBird))); }
+                catch (RequestFail e) { throw e; }
+                catch (Exception e) {
+                    throw new RequestFail(503, "Couldn't reach the host at " + parsed.str("address", "?") + ":" + parsed.longVal("port")
+                            + ". Make sure you're on the same network, or have the host pick a different address (its Ethernet or Wi-Fi adapter) and send a new invitation. If it still fails, set the host's network to Private in Windows and allow Lark through the firewall.");
+                }
                 device = result.str("device"); credential = result.str("credential");
                 target = parsed;
                 connection = "Waiting for Approval";
