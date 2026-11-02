@@ -453,15 +453,10 @@ public final class Server {
             if (stdin.length() > 100_000) throw new RequestFail(400, "That input is too long.");
             Json.Arr files = body.arr("files");
             if (files == null || files.size() == 0 || files.size() > 500) throw new RequestFail(400, "Send between 1 and 500 shared files to run.");
+            // Validate every file before touching the previous run, so a bad request can't kill it.
             Path base = Settings.home().resolve("share-run").toAbsolutePath().normalize();
-            Files.createDirectories(base);
-            // Stop the previous guest run first: each run gets a fresh folder, so Runner would not
-            // see it as the same project and the old program would keep running after its files vanish.
-            String previous = shareRunJob;
-            if (previous != null) { try { runner.stop(previous); } catch (RequestFail ignored) { } }
-            try (var old = Files.list(base)) { old.forEach(dir -> { try { Projects.deleteTree(dir); } catch (Exception ignored) { } }); }
             Path dir = base.resolve(java.util.UUID.randomUUID().toString().replace("-", ""));
-            Files.createDirectories(dir);
+            java.util.LinkedHashMap<Path, String> writes = new java.util.LinkedHashMap<>();
             long total = 0;
             for (Json.Value value : files.values()) {
                 if (!(value instanceof Json.Obj file)) throw new RequestFail(400, "Invalid shared file.");
@@ -471,8 +466,18 @@ public final class Server {
                 Path target = dir.resolve(rel).normalize();
                 if (rel.isBlank() || rel.startsWith("/") || rel.contains("\\") || rel.contains(":") || !target.startsWith(dir) || target.equals(dir))
                     throw new RequestFail(400, "Invalid shared file path.");
-                Files.createDirectories(target.getParent());
-                Files.writeString(target, content, StandardCharsets.UTF_8);
+                writes.put(target, content);
+            }
+            // Stop the previous guest run first: each run gets a fresh folder, so Runner would not
+            // see it as the same project and the old program would keep running after its files vanish.
+            String previous = shareRunJob;
+            if (previous != null) { try { runner.stop(previous); } catch (RequestFail ignored) { } }
+            Files.createDirectories(base);
+            try (var old = Files.list(base)) { old.forEach(d -> { try { Projects.deleteTree(d); } catch (Exception ignored) { } }); }
+            Files.createDirectories(dir);
+            for (var w : writes.entrySet()) {
+                Files.createDirectories(w.getKey().getParent());
+                Files.writeString(w.getKey(), w.getValue(), StandardCharsets.UTF_8);
             }
             String id = runner.start(dir, body.str("mainClass", ""), args, stdin);
             shareRunJob = id;
