@@ -165,16 +165,18 @@
     element('h3', 'Connected devices and access requests', content);
     const list = latest.session?.participants || [];
     if (!list.length) element('p', 'No participants yet.', content);
+    if (latest.verification) element('p', (latest.hosting ? 'Your check code: ' : 'Host check code: ') + latest.verification + (latest.hosting ? ' — a guest who used Request Access sees this same code. If theirs is different, deny them.' : ' — the host sees the same code. Ask them to confirm it matches.'), content).className = 'share-fingerprint';
     list.forEach(person => {
       const row = element('div', null, content); row.className = 'share-device';
       row.append(window.LarkBirds.make(person.bird, 32));
       element('strong', person.name, row);
-      element('span', `${person.status} · ${person.role} · ${person.connected ? 'Connected' : 'Connection Lost'}${person.file ? ' · ' + person.file + ' · ' + window.LarkShareEditing.position(person) : ''}`, row);
+      if (person.device) element('span', person.device, row);
+      element('span', `${person.status === 'pending' ? 'wants to join' : person.status} · ${person.role} · ${person.connected ? 'Connected' : 'Connection Lost'}${person.file ? ' · ' + person.file + ' · ' + window.LarkShareEditing.position(person) : ''}`, row);
       if (latest.hosting && person.status === 'pending') action(row, 'Approve as Editor', async () => { latest = await api('decide', { device: person.id, approve: true, role: 'editor' }); await refresh(); });
       if (latest.hosting && person.status === 'pending') action(row, 'Approve as Viewer', async () => { latest = await api('decide', { device: person.id, approve: true, role: 'viewer' }); await refresh(); });
       if (person.status === 'approved' && person.id !== latest.identity) action(row, 'Follow ' + person.name, () => { window.LarkShareEditing.follow(person.id); dialog.close(); });
       if (latest.hosting && person.id !== 'host' && person.status === 'approved') action(row, person.role === 'editor' ? 'Make Viewer' : 'Make Editor', async () => { latest = await api('decide', { device: person.id, approve: true, role: person.role === 'editor' ? 'viewer' : 'editor' }); await refresh(); });
-      if (latest.hosting && person.id !== 'host' && person.status !== 'revoked') action(row, person.status === 'pending' ? 'Reject' : 'Revoke access', async () => { latest = await api('decide', { device: person.id, approve: false }); await refresh(); });
+      if (latest.hosting && person.id !== 'host' && person.status !== 'revoked') action(row, person.status === 'pending' ? 'Deny' : 'Remove from session', async () => { latest = await api('decide', { device: person.id, approve: false }); await refresh(); });
     });
   }
   function chooseBird() {
@@ -212,15 +214,52 @@
     }
     if (latest.fingerprint) element('p', 'Host SHA-256: ' + latest.fingerprint, content).className = 'share-fingerprint';
   }
+  // Nearby Sessions: rescans every few seconds while open; one card per session id.
+  let nearbyTimer = null, nearbyName = '';
   async function nearby() {
-    startPage('nearby'); element('p', 'Searching the local network…', content);
-    const data = await api('nearby'); if (page !== 'nearby') return;
-    content.replaceChildren(); element('h3', 'Nearby sessions', content);
-    if (!data.sessions.length) element('p', 'No sessions found. Ask the host for a private invitation; multicast may be blocked by your network or firewall.', content);
-    data.sessions.forEach(item => {
-      const row = element('div', null, content); row.className = 'share-device';
-      element('strong', item.name || item.instance, row); element('span', `${item.host || 'Host'} · ${item.address}:${item.port} · ${item.count || '?'} participants · Host approval required`, row);
-      action(row, 'Request invitation / Join', () => { joinPage(); element('p', 'Ask this host for its private invitation and verify its identity: ' + item.address + ':' + item.port, content); });
+    startPage('nearby'); const current = generation;
+    element('h3', 'Nearby sessions', content);
+    const name = field(content, 'Your display name', 'text', nearbyName); name.oninput = () => { nearbyName = name.value; };
+    const bar = element('div', null, content); bar.className = 'share-actions';
+    const list = element('div', null, content); element('p', 'Searching the local network…', list);
+    const scan = async () => {
+      if (page !== 'nearby' || generation !== current) { clearInterval(nearbyTimer); nearbyTimer = null; return; }
+      if (busy) return;
+      let data; try { data = await api('nearby'); } catch (err) { report(err); return; }
+      if (page !== 'nearby' || generation !== current) return;
+      drawNearby(list, data.sessions || [], name);
+    };
+    action(bar, 'Refresh', scan);
+    clearInterval(nearbyTimer); nearbyTimer = setInterval(scan, 6000);
+    await scan();
+  }
+  function drawNearby(list, sessions, name) {
+    list.replaceChildren();
+    if (!sessions.length) {
+      element('p', 'No sessions found yet. Make sure the host turned on "Advertise on the selected LAN interface" and both computers are on the same Wi-Fi or wired network.', list);
+      element('p', 'School, hotel and guest networks often stop computers from seeing each other. If so, ask the host for a Lark code or the long private invitation.', list);
+      return;
+    }
+    const labels = { available: 'Available', full: 'Full', pending: 'Waiting for host approval', connected: 'Connected', denied: 'Denied by host', unavailable: 'Not answering' };
+    sessions.forEach(item => {
+      const row = element('div', null, list); row.className = 'share-device share-nearby';
+      row.append(window.LarkBirds.make(item.bird, 32));
+      const text = element('div', null, row);
+      element('strong', item.name || 'Lark session', text);
+      element('span', ` ${item.host || 'Host'} · ${item.count || '?'} in session · ${item.address}`, text);
+      const badge = element('span', labels[item.status] || item.status, row); badge.className = 'share-status share-status-' + item.status;
+      if (item.status === 'available') {
+        const btn = action(row, 'Request Access', async () => {
+          if (!name.value.trim()) { name.focus(); error.textContent = 'Enter your display name first.'; return; }
+          btn.disabled = true; badge.textContent = 'Asking host…';
+          try {
+            latest = await api('request', { address: item.address, port: item.port, displayName: name.value });
+            clearInterval(nearbyTimer); nearbyTimer = null;
+            startPage('home'); await refresh();
+            element('p', 'Request sent. Host check code: ' + (latest.verification || '?') + '. Ask the host to confirm it matches theirs before they approve.', content).className = 'share-fingerprint';
+          } catch (err) { report(err); btn.disabled = false; badge.textContent = labels.available; }
+        });
+      }
     });
   }
   async function review() {

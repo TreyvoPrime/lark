@@ -101,7 +101,7 @@ final class ShareDiscovery implements AutoCloseable {
         ByteArrayOutputStream srvBytes = new ByteArrayOutputStream(); DataOutputStream srv = new DataOutputStream(srvBytes);
         srv.writeShort(0); srv.writeShort(0); srv.writeShort(port); name(srv, hostname); record(out, instance, 33, srvBytes.toByteArray(), ttl);
         ByteArrayOutputStream txt = new ByteArrayOutputStream();
-        for (String field : List.of("version=" + ShareSession.VERSION, "name=" + metadata.str("name", "Lark"), "host=" + metadata.str("host", "Host"), "approval=true", "count=" + metadata.longVal("count"), "status=" + metadata.str("status", "available"))) {
+        for (String field : List.of("version=" + ShareSession.VERSION, "name=" + metadata.str("name", "Lark"), "host=" + metadata.str("host", "Host"), "approval=true", "count=" + metadata.longVal("count"), "status=" + metadata.str("status", "available"), "bird=" + metadata.str("bird", "classic"), "id=" + instance.substring(5, 17))) {
             byte[] text = field.getBytes(StandardCharsets.UTF_8); if (text.length > 255) continue; txt.write(text.length); txt.write(text);
         }
         record(out, instance, 16, txt.toByteArray(), ttl); record(out, hostname, 1, address.getAddress(), ttl); return bytes.toByteArray();
@@ -122,7 +122,7 @@ final class ShareDiscovery implements AutoCloseable {
             } else if (type == 16 && owner.endsWith("." + SERVICE)) {
                 Json.Obj item = instances.computeIfAbsent(owner, k -> new Json.Obj().put("instance", k));
                 while (r.at < end) { int n = r.u8(); if (r.at + n > end) throw new IOException("Truncated TXT."); String text = new String(bytes, r.at, n, StandardCharsets.UTF_8); r.at += n;
-                    int split = text.indexOf('='); if (split > 0 && Set.of("name", "host", "version", "approval", "count", "status").contains(text.substring(0, split))) item.put(text.substring(0, split), text.substring(split + 1)); }
+                    int split = text.indexOf('='); if (split > 0 && Set.of("name", "host", "version", "approval", "count", "status", "bird", "id").contains(text.substring(0, split))) item.put(text.substring(0, split), text.substring(split + 1)); }
             } else if (type == 1 && length == 4) addresses.put(owner, InetAddress.getByAddress(Arrays.copyOfRange(bytes, r.at, end)).getHostAddress());
             if (r.at > end) throw new IOException("Invalid DNS record length."); r.at = end;
         }
