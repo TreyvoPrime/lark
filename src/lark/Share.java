@@ -198,6 +198,8 @@ final class Share implements AutoCloseable {
         if (hosting != null && id.equals(projectId) && (path == null || hosting.shares(path)))
             throw new RequestFail(409, "This project is shared. Use synchronized documents; file structure changes are locked until Share ends.");
     }
+    /** True while this Lark is a guest in someone else's Share session. */
+    synchronized boolean joined() { return target != null && hosting == null; }
     synchronized void guardRun(String id) {
         if (hosting != null && id.equals(projectId)) hosting.saveForRun();
         if (hosting != null && id.equals(projectId) && hosting.needsReview())
