@@ -100,6 +100,7 @@ final class Share implements AutoCloseable {
                         .put("path", body.str("path", "")).put("writer", body.str("writer", "")).put("since", body.longVal("since"))
                         .put("anchor", body.str("anchor", "")).put("head", body.str("head", ""));
                 if (body.obj("operation") != null) request.put("operation", body.obj("operation"));
+                if (body.obj("operation") != null && body.arr("operations") != null) request.put("operations", body.arr("operations"));
                 return send(target, request);
             }
             case "review" -> {
