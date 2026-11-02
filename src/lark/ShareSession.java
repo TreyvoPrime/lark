@@ -14,6 +14,10 @@ final class ShareSession implements AutoCloseable {
     static final int MAX_BATCH = 31;
     static final int VERSION = 2, MAX_FRAME = 768 * 1024, MAX_FILE = 96 * 1024;
     static final long IDLE_MS = 30 * 60_000L, LIFE_MS = 8 * 60 * 60_000L;
+    /** Unanswered access requests expire; approved guests that stop polling are dropped. */
+    static final long REQUEST_MS = 2 * 60_000L, STALE_MS = IDLE_MS, DENY_COOLDOWN_MS = 60_000L;
+    private final Set<String> blockedClients = new HashSet<>();
+    private final Map<String, long[]> requestRates = new LinkedHashMap<>(); // ip -> {windowStart, count, cooldownUntil}
     private final String id = token(), invitation = token();
     private final String name, host;
     private final Map<String, String> files = new TreeMap<>();
@@ -35,15 +39,16 @@ final class ShareSession implements AutoCloseable {
     private static final class Device {
         final String id = token(), credential = token(), name;
         final String color;
-        String status = "pending", role = "viewer", file = "", anchor = "", head = "", bird = "classic";
-        long seen;
+        String status = "pending", role = "viewer", file = "", anchor = "", head = "", bird = "classic", client = "", ip = "", device = "";
+        long seen, requested; boolean nearby;
         Device(String name, int index) {
             this.name = name;
             String[] colors = {"#b48eff", "#48c9a2", "#e9a34b", "#e97baa", "#61c8de"};
             color = index < colors.length ? colors[index] : String.format("#%06x", java.awt.Color.HSBtoRGB((float)((index * 0.61803398875) % 1), 0.55f, 0.9f) & 0xffffff);
         }
+        boolean live() { return status.equals("pending") || status.equals("approved"); }
         Json.Obj publicInfo() { return new Json.Obj().put("id", id).put("name", name)
-                .put("status", status).put("role", role).put("bird", bird).put("color", color).put("file", file).put("anchor", anchor).put("head", head)
+                .put("status", status).put("role", role).put("bird", bird).put("device", device).put("color", color).put("file", file).put("anchor", anchor).put("head", head)
                 .put("connected", System.currentTimeMillis() - seen < 15_000); }
     }
 
@@ -132,17 +137,20 @@ final class ShareSession implements AutoCloseable {
         if (request.longVal("version") != VERSION) throw new RequestFail(409, "Incompatible Lark Share protocol.");
         if (!equal(id, request.str("session"))) throw new RequestFail(403, "Unknown Share session.");
         String action = request.str("action", "");
+        cleanup();
         if (action.equals("join")) {
             if (!equal(invitation, request.str("invitation"))) throw new RequestFail(403, "Invalid invitation.");
-            if (devices.size() >= 32) throw new RequestFail(429, "Session device limit reached. End the session to clear requests.");
-            Device device = new Device(label(request.str("name", "")), devices.size()); device.seen = clock.getAsLong();
-            device.bird = bird(request.str("bird", "classic"));
-            devices.put(device.id, device);
+            Device device = admit(request, "");
             return ok().put("device", device.id).put("credential", device.credential).put("status", device.status);
         }
         Device device = devices.get(request.str("device", ""));
-        if (device == null || !equal(device.credential, request.str("credential")) || device.status.equals("revoked"))
-            throw new RequestFail(403, "Access revoked or unknown device.");
+        if (device == null || !equal(device.credential, request.str("credential"))) throw new RequestFail(403, "Access revoked or unknown device.");
+        switch (device.status) {
+            case "denied" -> throw new RequestFail(403, "The host denied your request to join this session.");
+            case "revoked" -> throw new RequestFail(403, "The host removed you from this session.");
+            case "expired" -> throw new RequestFail(410, "Your request expired before the host answered. Request access again.");
+            default -> { }
+        }
         device.seen = clock.getAsLong();
         if (action.equals("avatar")) { device.bird = bird(request.str("bird", "classic")); return ok(); }
         if (action.equals("leave")) { device.status = "revoked"; return ok(); }
@@ -169,17 +177,67 @@ final class ShareSession implements AutoCloseable {
         };
     }
 
+    /**
+     * Access request from a Nearby card (no invitation secret). Only ever creates a *pending* device; the host must
+     * approve it before any file is readable. Denied clients stay blocked for the session, and each IP is rate limited.
+     */
+    synchronized Json.Obj request(Json.Obj request, String ip) {
+        requireLive(); cleanup();
+        if (request.longVal("version") != VERSION) throw new RequestFail(409, "Incompatible Lark Share protocol.");
+        long now = clock.getAsLong();
+        long[] rate = requestRates.computeIfAbsent(ip, k -> new long[]{now, 0, 0});
+        if (requestRates.size() > 256) requestRates.remove(requestRates.keySet().iterator().next());
+        if (now < rate[2]) throw new RequestFail(429, "The host recently denied a request from this computer. Wait a minute before asking again.");
+        if (now - rate[0] >= 60_000) { rate[0] = now; rate[1] = 0; }
+        if (++rate[1] > 6) throw new RequestFail(429, "Too many access requests. Wait a minute and try again.");
+        Device device = admit(request, ip, true);
+        return ok().put("session", id).put("device", device.id).put("credential", device.credential).put("status", device.status);
+    }
+    private Device admit(Json.Obj request, String ip) { return admit(request, ip, false); }
+    private Device admit(Json.Obj request, String ip, boolean nearby) {
+        String client = request.str("client", "");
+        if (!client.isEmpty() && !client.matches("[a-f0-9]{64}")) throw new RequestFail(400, "Invalid Share client.");
+        if (client.isEmpty()) client = token(); // older guests: no stable key, still one request per join
+        if (blockedClients.contains(client)) throw new RequestFail(403, "The host denied your request to join this session.");
+        for (Device d : devices.values())
+            if (d.client.equals(client) && (d.status.equals("pending") || d.status.equals("approved")))
+                throw new RequestFail(409, d.status.equals("pending") ? "You already asked to join. Waiting for the host to answer." : "This computer is already in the session.");
+        if (nearby && devices.values().stream().filter(d -> d.status.equals("pending") && d.nearby).count() >= 8)
+            throw new RequestFail(429, "The host has too many unanswered requests. Try again in a couple of minutes.");
+        if (devices.values().stream().filter(Device::live).count() >= 32) throw new RequestFail(429, "Session device limit reached.");
+        Device device = new Device(label(request.str("name", "")), devices.size());
+        device.seen = device.requested = clock.getAsLong();
+        device.bird = bird(request.str("bird", "classic")); device.client = client; device.ip = ip; device.nearby = nearby;
+        String deviceName = request.str("device", "").strip();
+        device.device = deviceName.isEmpty() || deviceName.length() > 80 || deviceName.chars().anyMatch(Character::isISOControl) ? "" : deviceName;
+        devices.put(device.id, device);
+        return device;
+    }
+    /** Expire unanswered requests, drop guests that stopped polling, and forget long-dead entries. */
+    private void cleanup() {
+        long now = clock.getAsLong();
+        for (Device d : devices.values()) {
+            if (d.status.equals("pending") && now - d.requested >= REQUEST_MS) d.status = "expired";
+            else if (d.status.equals("approved") && now - d.seen >= STALE_MS) d.status = "revoked";
+        }
+        devices.values().removeIf(d -> !d.live() && now - d.seen >= STALE_MS);
+    }
     synchronized Json.Obj localStatus() {
-        requireLive();
+        requireLive(); cleanup();
         return ok().put("session", id).put("name", name).put("host", host).put("participants", participants(true))
                 .put("files", files.size()).put("mode", "collaborative").put("actor", hostActor).put("defaultRole", defaultRole).put("approvalRequired", true)
                 .put("encrypted", true).put("conflicts", store.conflicts()).put("remoteEdits", remoteEdits).put("idleMinutes", idleMs / 60_000).put("expiresAt", Math.min(created + LIFE_MS, active + idleMs));
     }
     synchronized void decide(String deviceId, boolean approve) {
         requireLive();
+        cleanup();
         Device device = devices.get(deviceId);
-        if (device == null || device.status.equals("revoked")) throw new RequestFail(404, "Device is no longer available.");
-        device.status = approve ? "approved" : "revoked";
+        if (device == null || !device.live()) throw new RequestFail(404, "That request is no longer active (it may have expired or left).");
+        if (approve) { device.status = "approved"; device.seen = clock.getAsLong(); }
+        else if (device.status.equals("pending")) {
+            device.status = "denied"; blockedClients.add(device.client);
+            if (!device.ip.isEmpty()) requestRates.computeIfAbsent(device.ip, k -> new long[]{clock.getAsLong(), 0, 0})[2] = clock.getAsLong() + DENY_COOLDOWN_MS;
+        } else device.status = "revoked"; // removing a participant invalidates its credential immediately
         active = clock.getAsLong();
     }
     synchronized void decide(String deviceId, boolean approve, String role) {
@@ -243,7 +301,7 @@ final class ShareSession implements AutoCloseable {
     static String bird(String value) {
         return Set.of("classic", "blue-jay", "cardinal", "goldfinch", "robin", "snow-owl", "hummingbird", "raven", "eagle", "falcon").contains(value) ? value : "classic";
     }
-    synchronized Json.Obj discoveryInfo() { requireLive(); return new Json.Obj().put("name", name).put("host", host).put("status", devices.size() < 32 ? "available" : "full").put("count", 1 + devices.values().stream().filter(d -> d.status.equals("approved")).count()); }
+    synchronized Json.Obj discoveryInfo() { requireLive(); cleanup(); return new Json.Obj().put("name", name).put("host", host).put("bird", hostBird).put("status", devices.values().stream().filter(Device::live).count() < 32 ? "available" : "full").put("count", 1 + devices.values().stream().filter(d -> d.status.equals("approved")).count()); }
     synchronized void settings(String role, long minutes) {
         requireLive(); if (!Set.of("editor", "viewer").contains(role) || minutes < 5 || minutes > 120) throw new RequestFail(400, "Choose a role and 5–120 minute inactivity limit.");
         defaultRole = role; idleMs = minutes * 60_000;
@@ -270,7 +328,7 @@ final class ShareSession implements AutoCloseable {
         Json.Arr out = new Json.Arr();
         out.add(new Json.Obj().put("id", "host").put("color", "#6495ed").put("name", host).put("status", "approved").put("role", "host").put("connected", true)
                 .put("bird", hostBird).put("file", hostFile).put("anchor", hostAnchor).put("head", hostHead));
-        devices.values().stream().filter(d -> includePending || d.status.equals("approved")).forEach(d -> out.add(d.publicInfo()));
+        devices.values().stream().filter(d -> includePending ? d.live() : d.status.equals("approved")).forEach(d -> out.add(d.publicInfo()));
         return out;
     }
     synchronized boolean expired() { return closed || clock.getAsLong() - created >= LIFE_MS || clock.getAsLong() - active >= idleMs; }
