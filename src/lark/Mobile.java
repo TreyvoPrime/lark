@@ -182,7 +182,7 @@ public final class Mobile {
                 if (!nif.isUp() || nif.isLoopback() || nif.isVirtual()) continue;
                 String label = (nif.getDisplayName() == null ? nif.getName() : nif.getDisplayName());
                 String lower = (label + " " + nif.getName()).toLowerCase(Locale.ROOT);
-                boolean virtual = lower.matches(".*(vethernet|hyper-v|wsl|virtualbox|vmware|vmnet|vbox|docker|br-|veth|virbr|tap|tun|utun|vpn|wireguard|tailscale|zerotier|hamachi|npcap|loopback|bluetooth|teredo|isatap).*");
+                boolean virtual = lower.matches(".*(vethernet|hyper-v|wsl|virtualbox|vmware|vmnet|vbox|docker|\\bbr-|\\bveth|virbr|\\btap|\\btun|utun|vpn|wireguard|tailscale|zerotier|hamachi|npcap|loopback|bluetooth|teredo|isatap).*");
                 Enumeration<InetAddress> addrs = nif.getInetAddresses();
                 while (addrs.hasMoreElements()) {
                     InetAddress addr = addrs.nextElement();
