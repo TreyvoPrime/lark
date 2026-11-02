@@ -44,6 +44,10 @@ except ImportError:
     raise SystemExit("Pillow required to build lark-icon.ico")
 src = Path("packaging/desktop/lark-icon.png")
 out = Path("packaging/desktop/lark-icon.ico")
+if out.is_file():
+    # Keep the hand-built multi-size icon; rebuilding from the PNG blurs small sizes.
+    print("Keeping", out)
+    raise SystemExit(0)
 if src.is_file():
     im = Image.open(src).convert("RGBA")
 else:
