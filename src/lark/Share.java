@@ -27,16 +27,21 @@ final class Share implements AutoCloseable {
 
     Share(Projects projects, Settings settings) { this.projects = projects; this.settings = settings; }
 
-    synchronized Json.Obj control(Json.Obj body) throws Exception {
+    Json.Obj control(Json.Obj body) throws Exception {
+        if ("nearby".equals(body.str("action", "status"))) {
+            // The LAN scan takes about 2 s and the Nearby page repeats it every few seconds. Running it outside the
+            // lock keeps the host's own edits, status polls and approvals from stalling while the list is open.
+            String address = body.str("address", "");
+            if (!address.isBlank()) return ShareSession.ok().put("sessions", ShareDiscovery.nearby(ShareTransport.lanAddress(address)));
+            // Search every LAN adapter at once (wired, Wi-Fi, ...) so a host on Ethernet is found even if
+            // the first adapter is Wi-Fi or a virtual Hyper-V/VirtualBox adapter.
+            return ShareSession.ok().put("sessions", nearbyCards(nearbyAll(), System.currentTimeMillis()));
+        }
+        return controlLocked(body);
+    }
+    private synchronized Json.Obj controlLocked(Json.Obj body) throws Exception {
         String action = body.str("action", "status");
         switch (action) {
-            case "nearby" -> {
-                String address = body.str("address", "");
-                if (!address.isBlank()) return ShareSession.ok().put("sessions", ShareDiscovery.nearby(ShareTransport.lanAddress(address)));
-                // Search every LAN adapter at once (wired, Wi-Fi, ...) so a host on Ethernet is found even if
-                // the first adapter is Wi-Fi or a virtual Hyper-V/VirtualBox adapter.
-                return ShareSession.ok().put("sessions", nearbyCards(nearbyAll(), System.currentTimeMillis()));
-            }
             case "interfaces" -> {
                 Json.Arr addresses = new Json.Arr();
                 addresses.add(new Json.Obj().put("address", "127.0.0.1"));
@@ -222,7 +227,12 @@ final class Share implements AutoCloseable {
     }
     private static String deviceName() {
         String name = System.getenv("COMPUTERNAME");
-        if (name == null || name.isBlank()) name = System.getenv("HOSTNAME");
+        if (name == null || name.isBlank()) name = System.getenv("HOSTNAME"); // bash doesn't export this, so usually unset
+        if (name == null || name.isBlank()) {
+            // macOS and Linux: the computer's network name, e.g. "Treys-MacBook-Air.local" -> "Treys-MacBook-Air".
+            try { name = java.net.InetAddress.getLocalHost().getHostName().replaceFirst("\\.(local|lan|home)$", ""); } catch (Exception e) { name = null; }
+            if (name != null && (name.isBlank() || name.matches("[0-9.:]+") || name.equalsIgnoreCase("localhost"))) name = null;
+        }
         if (name == null || name.isBlank()) name = System.getProperty("os.name", "Computer");
         return ShareSession.label(name);
     }
@@ -244,8 +254,9 @@ final class Share implements AutoCloseable {
             Json.Obj card = (Json.Obj) entry.getValue()[0];
             String id = entry.getKey(), state = now - (long) entry.getValue()[1] > 0 ? "unavailable" : card.str("status", "available");
             if (!state.equals("full") && !state.equals("unavailable")) state = "available";
-            if (target != null && target.str("session", "").startsWith(id)) state = connection.equals("Connected") ? "connected" : "pending";
-            else if (deniedSessions.contains(id)) state = "denied";
+            // Denied wins: after a denial the guest still holds the old target until it leaves.
+            if (deniedSessions.contains(id)) state = "denied";
+            else if (target != null && target.str("session", "").startsWith(id)) state = connection.equals("Connected") ? "connected" : "pending";
             out.add(new Json.Obj().put("id", id).put("name", card.str("name", "Lark")).put("host", card.str("host", "Host")).put("bird", card.str("bird", "classic"))
                     .put("address", card.str("address", "")).put("port", card.longVal("port")).put("count", card.str("count", "")).put("status", state));
         }
