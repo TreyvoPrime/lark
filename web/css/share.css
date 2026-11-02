@@ -41,3 +41,9 @@
 .share-cursor-badge .share-bird { flex: none; }
 .share-presence-popup { position: fixed; z-index: 500; right: 16px; top: 64px; display: flex; align-items: center; gap: 8px; padding: 8px 12px; color: var(--text); background: var(--bg-elev); border: 1px solid var(--line); border-radius: 8px; box-shadow: var(--shadow); font-size: 12px; }
 .share-presence-popup[hidden] { display: none; }
+.share-nearby > div { display: flex; flex-direction: column; gap: 2px; flex: 1; min-width: 160px; }
+.share-status { font-size: 11px; padding: 2px 8px; border-radius: 999px; border: 1px solid var(--line); color: var(--muted); }
+.share-status-available, .share-status-connected { color: var(--green, var(--accent)); border-color: currentColor; }
+.share-status-pending { color: var(--accent); border-color: currentColor; }
+.share-status-denied { color: var(--red); border-color: currentColor; }
+.share-status-unavailable { opacity: .6; }

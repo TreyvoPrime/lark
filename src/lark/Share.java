@@ -20,20 +20,28 @@ final class Share implements AutoCloseable {
     private String connection = "Disconnected";
     private boolean avatarDirty;
     private ShareCode codes;
+    /** Random per-run client key so a host can keep a denied computer blocked and refuse duplicate requests. */
+    private final String client = ShareSession.token();
+    private final java.util.Map<String, Object[]> nearbySeen = new java.util.LinkedHashMap<>(); // id -> {card, lastSeenMs}
+    private final java.util.Set<String> deniedSessions = new java.util.HashSet<>();
 
     Share(Projects projects, Settings settings) { this.projects = projects; this.settings = settings; }
 
-    synchronized Json.Obj control(Json.Obj body) throws Exception {
+    Json.Obj control(Json.Obj body) throws Exception {
+        if ("nearby".equals(body.str("action", "status"))) {
+            // The LAN scan takes about 2 s and the Nearby page repeats it every few seconds. Running it outside the
+            // lock keeps the host's own edits, status polls and approvals from stalling while the list is open.
+            String address = body.str("address", "");
+            if (!address.isBlank()) return ShareSession.ok().put("sessions", ShareDiscovery.nearby(ShareTransport.lanAddress(address)));
+            // Search every LAN adapter at once (wired, Wi-Fi, ...) so a host on Ethernet is found even if
+            // the first adapter is Wi-Fi or a virtual Hyper-V/VirtualBox adapter.
+            return ShareSession.ok().put("sessions", nearbyCards(nearbyAll(), System.currentTimeMillis()));
+        }
+        return controlLocked(body);
+    }
+    private synchronized Json.Obj controlLocked(Json.Obj body) throws Exception {
         String action = body.str("action", "status");
         switch (action) {
-            case "nearby" -> {
-                String address = body.str("address", "");
-                if (!address.isBlank()) return ShareSession.ok().put("sessions", ShareDiscovery.nearby(ShareTransport.lanAddress(address)));
-                // Search every LAN adapter at once (wired, Wi-Fi, ...) so a host on Ethernet is found even if
-                // the first adapter is Wi-Fi or a virtual Hyper-V/VirtualBox adapter.
-                Json.Arr sessions = new Json.Arr(); nearbyAll().forEach(sessions::add);
-                return ShareSession.ok().put("sessions", sessions);
-            }
             case "interfaces" -> {
                 Json.Arr addresses = new Json.Arr();
                 addresses.add(new Json.Obj().put("address", "127.0.0.1"));
@@ -68,6 +76,30 @@ final class Share implements AutoCloseable {
                 return ShareSession.ok().put("invitation", Base64.getUrlEncoder().withoutPadding()
                         .encodeToString(hostInvitation.write().getBytes(StandardCharsets.UTF_8))).put("fingerprint", transport.fingerprint).put("address", bindAddress.getHostAddress());
             }
+            case "request" -> {
+                // Request Access from a Nearby card. No invitation secret: the host sees a pending request and decides.
+                if (hosting != null || target != null) throw new RequestFail(409, "End or leave your current Share session first.");
+                String address = body.str("address", ""); long port = body.longVal("port");
+                ShareTransport.lanAddress(address);
+                if (port < 1 || port > 65535) throw new RequestFail(400, "Invalid Share port.");
+                String[] seen = new String[1];
+                Json.Obj reply;
+                try {
+                    reply = ShareTransport.exchange(address, (int) port, null, new Json.Obj().put("version", ShareSession.VERSION).put("action", "request")
+                            .put("name", ShareSession.label(body.str("displayName", ""))).put("bird", ShareSession.bird(settings.shareBird))
+                            .put("client", client).put("device", deviceName()), seen);
+                } catch (RequestFail e) { throw e; }
+                catch (Exception e) { throw new RequestFail(503, "Couldn't reach that host. It may have stopped sharing, or your network blocks computers from connecting to each other (common on school and guest Wi-Fi)."); }
+                if (!reply.bool("ok")) throw new RequestFail((int) reply.longVal("code"), reply.str("error", "The host refused the request."));
+                if (seen[0] == null || !reply.str("session", "").matches("[a-f0-9]{64}")) throw new RequestFail(502, "That host gave an invalid answer.");
+                // Trust on first use: from now on every request is pinned to this certificate. Both screens show
+                // the same verification snippet so the host can confirm it's really this guest's connection.
+                target = new Json.Obj().put("version", ShareSession.VERSION).put("address", address).put("port", port)
+                        .put("fingerprint", seen[0]).put("session", reply.str("session"));
+                device = reply.str("device"); credential = reply.str("credential");
+                connection = "Waiting for Approval";
+                return status();
+            }
             case "code" -> {
                 if (hosting == null) throw new RequestFail(403, "Only the host can create a Lark code.");
                 if (discovery == null) throw new RequestFail(409, "Turn on LAN discovery to use a short Lark code. The long private invitation works without it.");
@@ -95,7 +127,7 @@ final class Share implements AutoCloseable {
                 if (!parsed.str("session", "").matches("[a-f0-9]{64}") || !parsed.str("invitation", "").matches("[a-f0-9]{64}"))
                     throw new RequestFail(400, "Invalid invitation credentials.");
                 Json.Obj result;
-                try { result = send(parsed, request(parsed, "join").put("invitation", parsed.str("invitation"))
+                try { result = send(parsed, request(parsed, "join").put("invitation", parsed.str("invitation")).put("client", client).put("device", deviceName())
                         .put("name", ShareSession.label(body.str("displayName", ""))).put("bird", ShareSession.bird(settings.shareBird))); }
                 catch (RequestFail e) { throw e; }
                 catch (Exception e) {
@@ -193,6 +225,43 @@ final class Share implements AutoCloseable {
             throw new RequestFail(400, "Invalid invitation: part of it is missing or changed. Ask the host to press Copy invitation and send it again.");
         }
     }
+    private static String deviceName() {
+        String name = System.getenv("COMPUTERNAME");
+        if (name == null || name.isBlank()) name = System.getenv("HOSTNAME"); // bash doesn't export this, so usually unset
+        if (name == null || name.isBlank()) {
+            // macOS and Linux: the computer's network name, e.g. "Treys-MacBook-Air.local" -> "Treys-MacBook-Air".
+            try { name = java.net.InetAddress.getLocalHost().getHostName().replaceFirst("\\.(local|lan|home)$", ""); } catch (Exception e) { name = null; }
+            if (name != null && (name.isBlank() || name.matches("[0-9.:]+") || name.equalsIgnoreCase("localhost"))) name = null;
+        }
+        if (name == null || name.isBlank()) name = System.getProperty("os.name", "Computer");
+        return ShareSession.label(name);
+    }
+    /**
+     * One card per session id. Sessions that stop answering show as "unavailable" for 30 s, then disappear.
+     * Status reflects this computer's own request: pending / connected / denied.
+     */
+    synchronized Json.Arr nearbyCards(List<Json.Obj> found, long now) {
+        for (Json.Obj item : found) {
+            String id = item.str("id", "");
+            if (!id.matches("[a-f0-9]{12}")) id = item.str("instance", "");
+            if (id.isEmpty()) continue;
+            item.put("id", id).put("bird", ShareSession.bird(item.str("bird", "classic")));
+            nearbySeen.put(id, new Object[]{item, now});
+        }
+        nearbySeen.values().removeIf(v -> now - (long) v[1] > 30_000);
+        Json.Arr out = new Json.Arr();
+        for (var entry : nearbySeen.entrySet()) {
+            Json.Obj card = (Json.Obj) entry.getValue()[0];
+            String id = entry.getKey(), state = now - (long) entry.getValue()[1] > 0 ? "unavailable" : card.str("status", "available");
+            if (!state.equals("full") && !state.equals("unavailable")) state = "available";
+            // Denied wins: after a denial the guest still holds the old target until it leaves.
+            if (deniedSessions.contains(id)) state = "denied";
+            else if (target != null && target.str("session", "").startsWith(id)) state = connection.equals("Connected") ? "connected" : "pending";
+            out.add(new Json.Obj().put("id", id).put("name", card.str("name", "Lark")).put("host", card.str("host", "Host")).put("bird", card.str("bird", "classic"))
+                    .put("address", card.str("address", "")).put("port", card.longVal("port")).put("count", card.str("count", "")).put("status", state));
+        }
+        return out;
+    }
     static boolean looksLikeShortCode(String raw) {
         String s = raw == null ? "" : raw.replaceAll("[^A-Za-z0-9]", "");
         return s.length() <= 16 && (s.length() <= 9 || s.toUpperCase(java.util.Locale.ROOT).startsWith("LARK"));
@@ -275,6 +344,8 @@ final class Share implements AutoCloseable {
         Json.Obj result = ShareSession.ok().put("bird", ShareSession.bird(settings.shareBird)).put("connection", connection).put("hosting", hosting != null)
                 .put("joined", target != null).put("mode", "collaborative").put("project", projectId).put("sessionId", hosting != null ? hosting.id() : target != null ? target.str("session") : "").put("identity", hosting != null ? "host" : device);
         if (hosting != null && codes != null) { Json.Obj c = codes.status(); result.put("code", c.str("code", "")).put("codeState", c.str("codeState", "none")).put("codeExpiresIn", c.longVal("codeExpiresIn")); }
+        if (hosting != null) result.put("verification", ShareTransport.verification(transport.fingerprint));
+        if (target != null) result.put("verification", ShareTransport.verification(target.str("fingerprint", "")));
         if (hosting != null) result.put("discovery", discovery != null).put("discoveryError", discoveryError).put("session", hosting.localStatus()).put("port", transport.port()).put("fingerprint", transport.fingerprint);
         if (target != null) {
             try {
@@ -294,6 +365,7 @@ final class Share implements AutoCloseable {
             } catch (Exception e) {
                 // Keep the pinned target and credential for a subsequent retry; never auto-join anew.
                 connection = e instanceof RequestFail ? "Connection Lost" : "Reconnecting";
+                if (e instanceof RequestFail f && f.getMessage().contains("denied") && target.str("session", "").length() >= 12) deniedSessions.add(target.str("session").substring(0, 12));
                 result.put("error", e instanceof RequestFail ? e.getMessage() : "Cannot reach the pinned host. Make sure both computers are on the same network (wired or Wi-Fi), the host picked the right adapter, and the firewall allows Lark; then retry or leave.");
             }
             result.put("connection", connection);

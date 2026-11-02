@@ -84,7 +84,8 @@ final class ShareTransport implements AutoCloseable {
                     if (request.longVal("version") != ShareSession.VERSION) throw new RequestFail(409, "Incompatible Lark Share protocol.");
                     if (active == null || session.expired()) throw new RequestFail(404, "No active Lark code on this host.");
                     response = active.handle(request, socket.getInetAddress().getHostAddress(), session.id(), session.invitation()).put("version", ShareSession.VERSION);
-                } else response = session.command(request);
+                } else if (request.str("action", "").equals("request")) response = session.request(request, socket.getInetAddress().getHostAddress());
+                else response = session.command(request);
             }
             catch (RequestFail e) { response = error(e.status, e.getMessage()); }
             catch (Exception e) { response = error(400, "Invalid Share message."); }
@@ -215,6 +216,11 @@ final class ShareTransport implements AutoCloseable {
             Arrays.fill(password, '\0');
             Files.deleteIfExists(passwordFile); Files.deleteIfExists(store); Files.deleteIfExists(dir);
         }
+    }
+    /** Short, readable piece of a certificate fingerprint that host and guest compare by eye, e.g. "7F3A-91C2-04BE". */
+    static String verification(String fingerprint) {
+        String f = fingerprint == null ? "" : fingerprint.toUpperCase(Locale.ROOT);
+        return f.length() < 12 ? "" : f.substring(0, 4) + "-" + f.substring(4, 8) + "-" + f.substring(8, 12);
     }
     private static String fingerprint(X509Certificate certificate) throws Exception {
         return HexFormat.of().formatHex(MessageDigest.getInstance("SHA-256").digest(certificate.getEncoded()));
