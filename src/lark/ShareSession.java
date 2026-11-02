@@ -11,6 +11,7 @@ import java.util.*;
 
 /** Phase-one Share session: an authorized Java-source project. */
 final class ShareSession implements AutoCloseable {
+    static final int MAX_BATCH = 31;
     static final int VERSION = 2, MAX_FRAME = 768 * 1024, MAX_FILE = 96 * 1024;
     static final long IDLE_MS = 30 * 60_000L, LIFE_MS = 8 * 60 * 60_000L;
     private final String id = token(), invitation = token();
@@ -219,7 +220,22 @@ final class ShareSession implements AutoCloseable {
                 throw new RequestFail(429, "Session document capacity reached; save, end and rehost.");
             if (document.apply(op, identity + "." + writer)) { dirty.add(path); if (device != null) remoteEdits = true; }
         }
+        // Batched follow-up operations (protocol v2 extension). Older hosts ignore this field and the
+        // client then only drops the single "operation" it was acknowledged for.
+        Json.Arr batch = request.arr("operations");
+        int extra = 0;
+        if (batch != null && op != null) {
+            if (batch.size() > MAX_BATCH) throw new RequestFail(400, "Too many operations in one Share request.");
+            for (Json.Value value : batch.values()) {
+                if (!(value instanceof Json.Obj next)) throw new RequestFail(400, "Invalid CRDT operation.");
+                if (documents.values().stream().mapToInt(ShareDocument::nodeCount).sum() + next.str("text", "").length() > 500_000)
+                    throw new RequestFail(429, "Session document capacity reached; save, end and rehost.");
+                if (document.apply(next, identity + "." + writer)) { dirty.add(path); if (device != null) remoteEdits = true; }
+                extra++;
+            }
+        }
         return document.page(request.longVal("since"), request.str("action", "").equals("open"))
+                .put("accepted", extra)
                 .put("actor", identity + "." + writer).put("role", role).put("participants", participants(false));
     }
     private String hostFile = "", hostAnchor = "", hostHead = "", hostBird = "classic";

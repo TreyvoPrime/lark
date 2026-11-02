@@ -29,7 +29,10 @@
     return true;
   }
   function offset(text, pos) { const lines = text.split('\n'); let result = 0; for (let i = 0; i < pos.line; i++) result += (lines[i]?.length || 0) + 1; return result + pos.ch; }
-  function enqueue(entry, operations) { entry.pending.push(...operations); clearTimeout(entry.recoveryTimer); entry.recoveryTimer = setTimeout(() => { if (entry.pending.length) recover(entry); }, 350); status('Synchronizing'); }
+  function enqueue(entry, operations) { entry.pending.push(...operations); clearTimeout(entry.recoveryTimer); entry.recoveryTimer = setTimeout(() => { if (entry.pending.length) recover(entry); }, 350); status('Synchronizing'); soon(); }
+  // Local edits go out on the next frame-ish tick rather than waiting for the poll interval.
+  let soonTimer = null;
+  function soon() { if (!soonTimer) soonTimer = setTimeout(() => { soonTimer = null; tick(); }, 16); }
   function bind(entry) {
     entry.doc.on('change', (_, change) => {
       // CodeMirror defers doc "change" events to the end of an outer operation, so the
@@ -66,7 +69,9 @@
   }
   async function pull(entry) {
     const operation = entry.pending[0];
-    const data = await request('sync', { path: entry.path, since: entry.revision, ...(operation ? { operation } : {}) });
+    // Send up to 32 queued operations per round trip; hosts without batching only take the first.
+    const batch = operation ? entry.pending.slice(1, 32) : [];
+    const data = await request('sync', { path: entry.path, since: entry.revision, ...(operation ? { operation } : {}), ...(batch.length ? { operations: batch } : {}) });
     // Read the user's current view AFTER the request: they may have scrolled,
     // moved the caret, switched files, or typed while waiting for the network.
     const ranges = entry.doc.listSelections(), primaryHead = entry.doc.getCursor('head'), primaryAnchor = entry.doc.getCursor('anchor');
@@ -76,7 +81,7 @@
     const viewport = cm && window.LarkEditorShare?.current()?.doc === entry.doc ? cm.getScrollInfo() : null;
     // Our own operation comes back in the page; the model already applied it locally and
     // LarkShareDocument.apply() ignores known operation ids, so apply every operation.
-    if (operation) entry.pending.shift();
+    if (operation) entry.pending.splice(0, 1 + Math.min(batch.length, Number(data.accepted) || 0));
     data.operations.forEach(op => entry.model.apply(op));
     entry.revision = data.revision;
     entry.role = data.role;
@@ -159,7 +164,7 @@
       if (!data.hosting) await window.LarkEditorShare.guest(data.name, files.files);
       else await window.LarkEditorShare.prepareHost(data.project);
       if (document.getElementById('split-editor')) document.getElementById('split-editor').disabled = true;
-      timer = setInterval(tick, 250);
+      timer = setInterval(tick, 120);
       const current = window.LarkEditorShare.current(); if (current?.path) await open(current.path, current.doc);
       status('Connected');
     },

@@ -71,7 +71,7 @@ final class ShareDocument {
     synchronized Json.Obj page(long since, boolean opening) {
         if (since < 0 || since > log.size()) throw new RequestFail(409, "Invalid document revision; reopen and reconcile.");
         Json.Arr operations = new Json.Arr();
-        int end = Math.min(log.size(), (int) since + (opening ? 4 : 24));
+        int end = Math.min(log.size(), (int) since + (opening ? 4 : 64));
         for (int i = (int) since; i < end; i++) operations.add(log.get(i));
         Json.Obj out = ShareSession.ok().put("operations", operations).put("revision", end).put("head", log.size());
         if (opening) out.put("seed", seed);
