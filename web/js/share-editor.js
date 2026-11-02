@@ -32,7 +32,9 @@
   function enqueue(entry, operations) { entry.pending.push(...operations); clearTimeout(entry.recoveryTimer); entry.recoveryTimer = setTimeout(() => { if (entry.pending.length) recover(entry); }, 350); status('Synchronizing'); }
   function bind(entry) {
     entry.doc.on('change', (_, change) => {
-      if (entry.remote || !session || documents.get(entry.path) !== entry) return;
+      // CodeMirror defers doc "change" events to the end of an outer operation, so the
+      // entry.remote flag alone is not enough: remote/undo paints are tagged '+share'.
+      if (entry.remote || change.origin === '+share' || !session || documents.get(entry.path) !== entry) return;
       const before = entry.model.text(), start = offset(before, change.from), end = offset(before, change.to), text = change.text.join('\n');
       const anchor = entry.model.anchor(start), removed = before.slice(start, end);
       const ops = entry.model.edit(start, end - start, text, entry.actor);
@@ -72,15 +74,10 @@
     const selections = ranges.map(s => ({ anchor: entry.model.anchor(entry.doc.indexFromPos(s.anchor)), head: entry.model.anchor(entry.doc.indexFromPos(s.head)) }));
     const cm = window.LarkEditorShare?.editor();
     const viewport = cm && window.LarkEditorShare?.current()?.doc === entry.doc ? cm.getScrollInfo() : null;
-    if (operation) {
-      // Remove the operation we just sent; the server will echo it back.
-      entry.pending.shift();
-      // Skip the echoed operation to prevent duplication.
-      const [, ...rest] = data.operations;
-      rest.forEach(op => entry.model.apply(op));
-    } else {
-      data.operations.forEach(op => entry.model.apply(op));
-    }
+    // Our own operation comes back in the page; the model already applied it locally and
+    // LarkShareDocument.apply() ignores known operation ids, so apply every operation.
+    if (operation) entry.pending.shift();
+    data.operations.forEach(op => entry.model.apply(op));
     entry.revision = data.revision;
     entry.role = data.role;
     presence = data.participants;
