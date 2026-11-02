@@ -19,6 +19,7 @@ final class Share implements AutoCloseable {
     private String device, credential, projectId, reviewed;
     private String connection = "Disconnected";
     private boolean avatarDirty;
+    private ShareCode codes;
 
     Share(Projects projects, Settings settings) { this.projects = projects; this.settings = settings; }
 
@@ -30,14 +31,7 @@ final class Share implements AutoCloseable {
                 if (!address.isBlank()) return ShareSession.ok().put("sessions", ShareDiscovery.nearby(ShareTransport.lanAddress(address)));
                 // Search every LAN adapter at once (wired, Wi-Fi, ...) so a host on Ethernet is found even if
                 // the first adapter is Wi-Fi or a virtual Hyper-V/VirtualBox adapter.
-                List<String> all = Mobile.lanAddresses().stream().limit(6).toList();
-                if (all.isEmpty()) throw new RequestFail(400, "No LAN interface is available. Use a private invitation.");
-                List<java.util.concurrent.CompletableFuture<Json.Arr>> scans = all.stream().map(ip -> java.util.concurrent.CompletableFuture.supplyAsync(() -> {
-                    try { return ShareDiscovery.nearby(ShareTransport.lanAddress(ip)); } catch (Exception e) { return new Json.Arr(); }
-                })).toList();
-                java.util.Map<String, Json.Value> found = new java.util.LinkedHashMap<>();
-                for (var scan : scans) for (Json.Value item : scan.join().values()) if (item instanceof Json.Obj obj) found.putIfAbsent(obj.str("instance", ""), obj);
-                Json.Arr sessions = new Json.Arr(); found.values().forEach(sessions::add);
+                Json.Arr sessions = new Json.Arr(); nearbyAll().forEach(sessions::add);
                 return ShareSession.ok().put("sessions", sessions);
             }
             case "interfaces" -> {
@@ -74,12 +68,29 @@ final class Share implements AutoCloseable {
                 return ShareSession.ok().put("invitation", Base64.getUrlEncoder().withoutPadding()
                         .encodeToString(hostInvitation.write().getBytes(StandardCharsets.UTF_8))).put("fingerprint", transport.fingerprint).put("address", bindAddress.getHostAddress());
             }
+            case "code" -> {
+                if (hosting == null) throw new RequestFail(403, "Only the host can create a Lark code.");
+                if (discovery == null) throw new RequestFail(409, "Turn on LAN discovery to use a short Lark code. The long private invitation works without it.");
+                long minutes = body.has("minutes") ? body.longVal("minutes") : 15;
+                if (minutes < 1 || minutes > 60) throw new RequestFail(400, "A Lark code can last 1 to 60 minutes.");
+                if (codes == null) { codes = new ShareCode(transport.fingerprint, System::currentTimeMillis); transport.codes = codes; }
+                codes.create(minutes * 60_000L);
+                return status();
+            }
+            case "code-revoke" -> {
+                if (hosting == null) throw new RequestFail(403, "Only the host can revoke a Lark code.");
+                if (codes != null) codes.revoke();
+                return status();
+            }
             case "join" -> {
                 if (hosting != null || target != null) throw new RequestFail(409, "End or leave your current Share session first.");
-                if (!body.bool("verified")) throw new RequestFail(400, "Verify the invitation with the host over a trusted channel first.");
+                String shortCode = ShareCode.normalize(body.str("invitation", ""));
+                if (shortCode == null && looksLikeShortCode(body.str("invitation", "")))
+                    throw new RequestFail(400, "That isn't a valid Lark code. Codes look like LARK-K7M2Q9X: 7 letters or numbers, never 0, O, 1, I or L.");
+                if (shortCode == null && !body.bool("verified")) throw new RequestFail(400, "Verify the invitation with the host over a trusted channel first.");
                 String invitation = body.str("invitation", "");
                 if (invitation.length() > 8192) throw new RequestFail(400, "Invalid invitation: that's too long to be a Lark invitation. Copy just the invitation text.");
-                Json.Obj parsed = decodeInvitation(invitation);
+                Json.Obj parsed = shortCode != null ? resolveCode(shortCode, nearbyAll()) : decodeInvitation(invitation);
                 if (parsed.longVal("version") != ShareSession.VERSION) throw new RequestFail(409, "Incompatible Lark Share protocol.");
                 if (!parsed.str("session", "").matches("[a-f0-9]{64}") || !parsed.str("invitation", "").matches("[a-f0-9]{64}"))
                     throw new RequestFail(400, "Invalid invitation credentials.");
@@ -182,6 +193,57 @@ final class Share implements AutoCloseable {
             throw new RequestFail(400, "Invalid invitation: part of it is missing or changed. Ask the host to press Copy invitation and send it again.");
         }
     }
+    static boolean looksLikeShortCode(String raw) {
+        String s = raw == null ? "" : raw.replaceAll("[^A-Za-z0-9]", "");
+        return s.length() <= 16 && (s.length() <= 9 || s.toUpperCase(java.util.Locale.ROOT).startsWith("LARK"));
+    }
+    private static List<Json.Obj> nearbyAll() {
+        List<String> all = Mobile.lanAddresses().stream().limit(6).toList();
+        if (all.isEmpty()) throw new RequestFail(400, "No LAN interface is available. Use a private invitation.");
+        List<java.util.concurrent.CompletableFuture<Json.Arr>> scans = all.stream().map(ip -> java.util.concurrent.CompletableFuture.supplyAsync(() -> {
+            try { return ShareDiscovery.nearby(ShareTransport.lanAddress(ip)); } catch (Exception e) { return new Json.Arr(); }
+        })).toList();
+        java.util.Map<String, Json.Obj> found = new java.util.LinkedHashMap<>();
+        for (var scan : scans) for (Json.Value item : scan.join().values()) if (item instanceof Json.Obj obj) found.putIfAbsent(obj.str("instance", ""), obj);
+        return new java.util.ArrayList<>(found.values());
+    }
+    /**
+     * Finds which nearby host holds this code. Discovery data is untrusted: a host only counts once it returns
+     * a MAC keyed by the code over the certificate fingerprint we actually saw, and we then pin that fingerprint.
+     */
+    static Json.Obj resolveCode(String code, List<Json.Obj> candidates) {
+        List<Json.Obj> list = candidates.stream().filter(c -> c.longVal("port") > 0 && c.longVal("port") < 65536).limit(32).toList();
+        List<java.util.concurrent.CompletableFuture<Object>> tries = list.stream().map(c -> java.util.concurrent.CompletableFuture.supplyAsync(() -> {
+            try { return tryCode(code, c.str("address", ""), (int) c.longVal("port")); }
+            catch (RequestFail e) { return e; }
+            catch (Exception e) { return null; }
+        })).toList();
+        RequestFail best = null;
+        for (var t : tries) {
+            Object r = t.join();
+            if (r instanceof Json.Obj found) return found;
+            if (r instanceof RequestFail e && e.status != 404 && (best == null || e.status == 410)) best = e;
+        }
+        if (best != null) throw best;
+        throw new RequestFail(404, "No Lark session with that code was found on this network. Check the code, and that both computers are on the same Wi-Fi or wired network. "
+                + "School and guest networks often block computers from finding each other; the long private invitation still works anywhere the host can be reached.");
+    }
+    private static Json.Obj tryCode(String code, String address, int port) throws Exception {
+        String guestNonce = ShareSession.token();
+        String[] seen = new String[1];
+        Json.Obj hello = ShareTransport.exchange(address, port, null, new Json.Obj().put("version", ShareSession.VERSION).put("action", "code-hello").put("nonce", guestNonce), seen);
+        if (!hello.bool("ok")) throw new RequestFail((int) hello.longVal("code"), hello.str("error", "Lark code refused."));
+        if (seen[0] == null || !hello.str("nonce", "").matches("[a-f0-9]{64}")) return null;
+        byte[] key = ShareCode.key(code, seen[0]);
+        // Wrong code or a spoofed responder: its MAC can't match, so we never send our proof to it.
+        if (!ShareSession.equal(ShareCode.mac(key, "host", seen[0], guestNonce, hello.str("nonce")), hello.str("proof", ""))) return null;
+        Json.Obj claim = ShareTransport.exchange(address, port, seen[0], new Json.Obj().put("version", ShareSession.VERSION).put("action", "code-claim")
+                .put("nonce", hello.str("nonce")).put("proof", ShareCode.mac(key, "guest", seen[0], guestNonce, hello.str("nonce"))));
+        if (!claim.bool("ok")) throw new RequestFail((int) claim.longVal("code"), claim.str("error", "Lark code refused."));
+        if (!claim.str("session", "").matches("[a-f0-9]{64}") || !claim.str("invitation", "").matches("[a-f0-9]{64}")) return null;
+        return new Json.Obj().put("version", ShareSession.VERSION).put("address", address).put("port", port).put("fingerprint", seen[0])
+                .put("session", claim.str("session")).put("invitation", claim.str("invitation"));
+    }
     private Json.Obj peer(String action) throws Exception { return sendPeer(action, ""); }
     private Json.Obj sendPeer(String action, String path) throws Exception {
         try {
@@ -208,6 +270,7 @@ final class Share implements AutoCloseable {
         if (hosting != null && hosting.expired()) close();
         Json.Obj result = ShareSession.ok().put("bird", ShareSession.bird(settings.shareBird)).put("connection", connection).put("hosting", hosting != null)
                 .put("joined", target != null).put("mode", "collaborative").put("project", projectId).put("sessionId", hosting != null ? hosting.id() : target != null ? target.str("session") : "").put("identity", hosting != null ? "host" : device);
+        if (hosting != null && codes != null) { Json.Obj c = codes.status(); result.put("code", c.str("code", "")).put("codeState", c.str("codeState", "none")).put("codeExpiresIn", c.longVal("codeExpiresIn")); }
         if (hosting != null) result.put("discovery", discovery != null).put("discoveryError", discoveryError).put("session", hosting.localStatus()).put("port", transport.port()).put("fingerprint", transport.fingerprint);
         if (target != null) {
             try {
@@ -235,6 +298,7 @@ final class Share implements AutoCloseable {
     }
     private void discoverable(boolean enabled) {
         if (discovery != null) { discovery.close(); discovery = null; }
+        if (!enabled && codes != null) codes.revoke(); // codes are resolved only via discovery
         discoveryError = "";
         if (enabled) {
             try { discovery = new ShareDiscovery(bindAddress, transport.port(), hosting.id(), hosting::discoveryInfo); }
@@ -256,7 +320,7 @@ final class Share implements AutoCloseable {
         if (discovery != null) discovery.close(); discovery = null;
         if (transport != null) transport.close();
         else if (hosting != null) hosting.close();
-        transport = null; hosting = null; target = null; hostInvitation = null; device = null; credential = null;
+        transport = null; hosting = null; codes = null; target = null; hostInvitation = null; device = null; credential = null;
         connection = "Disconnected"; projectId = null; reviewed = null; avatarDirty = false;
     }
 }

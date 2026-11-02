@@ -75,7 +75,25 @@
     });
     if (/^127\./.test(data.address || '')) element('p', 'This session listens on 127.0.0.1, so only this computer can join. Host on a Wi-Fi or Ethernet address to invite another computer.', content).className = 'share-error';
     element('p', 'SHA-256: ' + data.fingerprint, content).className = 'share-fingerprint';
+    showCode(latest || data);
   }
+  // Short LAN code: found over this network only, never broadcast; the host still approves each guest.
+  function showCode(data) {
+    const box = element('div', null, content); box.className = 'share-code';
+    element('h3', 'Short Lark code (same network only)', box);
+    if (data.codeState === 'active' && data.code) {
+      const code = element('p', data.code, box); code.className = 'share-fingerprint';
+      element('p', 'Expires in about ' + Math.max(1, Math.round((data.codeExpiresIn || 0) / 60)) + ' min. Anyone with it can ask to join; you still approve them.', box);
+      action(box, 'Copy code', async () => { try { await navigator.clipboard.writeText(data.code); } catch (_) { toastError('Copy the code by hand: ' + data.code); } });
+      action(box, 'Revoke code', async () => { latest = await api('code-revoke'); content.replaceChildren(); showInvitation(await api('invitation')); });
+    } else {
+      if (data.codeState === 'expired') element('p', 'The last code expired.', box);
+      if (data.codeState === 'revoked') element('p', 'The last code was revoked.', box);
+      action(box, 'Create Private Invitation code', async () => { latest = await api('code', { minutes: 15 }); content.replaceChildren(); showInvitation(await api('invitation')); });
+      if (!data.discovery) element('p', 'Needs LAN discovery turned on. The long invitation above works without it.', box);
+    }
+  }
+  function toastError(text) { error.textContent = text; }
   async function hostPage() {
     startPage('host'); const current = generation;
     const [projects, interfaces] = await Promise.all([
@@ -111,11 +129,14 @@
   function joinPage() {
     startPage('join');
     const form = element('form', null, content);
-    const invitation = field(form, 'Private invitation from the host', 'textarea'); invitation.maxLength = 8192; invitation.required = true;
+    const invitation = field(form, 'Lark code (like LARK-K7M2Q9X) or private invitation from the host', 'textarea'); invitation.maxLength = 8192; invitation.required = true;
     const displayName = field(form, 'Your display name'); displayName.required = true;
     const identity = element('p', 'Paste the invitation to inspect the host identity before connecting.', form);
     identity.className = 'share-fingerprint';
+    const isCode = () => { const t = invitation.value.replace(/[^A-Za-z0-9]/g, ''); return t.length > 0 && t.length <= 16; };
     invitation.oninput = () => {
+      verified.required = !isCode(); verifiedRow.hidden = isCode();
+      if (isCode()) { identity.textContent = 'Lark code: Lark will look for this host on your network and check it knows the code.'; return; }
       try {
         const data = JSON.parse(atob(normalizeInvitation(invitation.value).replace(/-/g, '+').replace(/_/g, '/')));
         if (!/^[a-f0-9]{64}$/i.test(data.fingerprint) || typeof data.address !== 'string' || data.address.length > 64) throw new Error();
@@ -123,6 +144,7 @@
       } catch (_) { identity.textContent = 'Invalid invitation. Ask the host for a new private invitation.'; }
     };
     const verified = field(form, 'I verified this invitation and host fingerprint directly with the intended host over a trusted channel.', 'checkbox'); verified.required = true;
+    const verifiedRow = verified.closest('label') || verified.parentElement;
     element('p', 'The invitation includes the host IP, port, session identity and certificate fingerprint. A changed or unverified certificate is rejected. Never use an invitation from an unknown sender.', form);
     const submit = element('button', 'Request access', form); submit.type = 'submit';
     form.onsubmit = async event => {

@@ -224,3 +224,12 @@ Real multi-machine firewall behavior, Wi-Fi isolation, VPN routing, long-running
 LAN performance and accessibility across all OS/browser combinations still need
 platform acceptance testing. Interactive debugger/JUnit/GitHub workflows have
 existing regression checks where available but were not all exercised manually.
+
+## Short Lark codes (same network only)
+
+The host can create a code like `LARK-K7M2Q9X`: 7 characters from an alphabet with no 0/O/1/I/L (about 34.7 bits), lasting 15 minutes by default (1–60), and revocable. Turning LAN discovery off revokes it. The code is never broadcast. The guest browses `_larkshare._tcp` as usual, then connects to each candidate over TLS 1.3 without a pin and runs a two-step proof (`ShareCode`):
+
+1. `code-hello`: the host returns `HMAC(K, "host"|fingerprint|nonces)` with `K = PBKDF2-SHA256(code, fingerprint, 120k)`. The guest checks it against the certificate it actually saw, so a responder that doesn't know the code, or relays another host's proof, is skipped.
+2. `code-claim`: the guest proves the code. The host returns the long-invitation credentials, and the guest joins with that fingerprint pinned. Host approval is still required.
+
+Wrong claims trigger a per-IP backoff after 3 attempts, plus a global backoff after 20 per code. Hello requests are limited to 12 per minute per IP. Test: `java -cp build lark.ShareCodeCheck`.
