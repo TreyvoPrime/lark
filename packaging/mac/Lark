@@ -24,7 +24,9 @@ fi
 printf 'desktop\n' > "$SUPPORT/app/desktop.marker"
 [[ -f "$RES/app/update-feed.url" ]] && cp -f "$RES/app/update-feed.url" "$SUPPORT/app/update-feed.url"
 # Update restarts use Support/start-lark-desktop.sh, which expects Support/jdk.
+# Re-link every launch: a copy run from the disk image or a translocated path leaves a dead link.
 ln -sfn "$RES/jdk" "$SUPPORT/jdk"
+[[ -f "$SUPPORT/start-lark-desktop.sh" ]] || { cp -f "$RES/start-lark-desktop.sh" "$SUPPORT/start-lark-desktop.sh" && chmod 755 "$SUPPORT/start-lark-desktop.sh"; }
 cd "$SUPPORT"
 exec "$JAVA" \
   -Xdock:name=Lark \
