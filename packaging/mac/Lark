@@ -1,0 +1,40 @@
+#!/bin/bash
+# Lark.app launcher. The app bundle stays read-only (so macOS keeps trusting it);
+# the updatable jar lives in ~/Library/Application Support/Lark/app.
+set -euo pipefail
+CONTENTS="$(cd "$(dirname "$0")/.." && pwd)"
+RES="$CONTENTS/Resources"
+SUPPORT="$HOME/Library/Application Support/Lark"
+JAVA="$RES/jdk/bin/java"
+BUNDLED="$RES/app/lark.jar"
+if [[ ! -x "$JAVA" || ! -f "$BUNDLED" ]]; then
+  osascript -e 'display alert "Lark is damaged" message "Download Lark again from lark.rocks."' >/dev/null 2>&1 || true
+  exit 1
+fi
+mkdir -p "$SUPPORT/app"
+JAR="$SUPPORT/app/lark.jar"
+STAMP="$SUPPORT/app/bundled.sha256"
+SUM="$(shasum -a 256 "$BUNDLED" | cut -d' ' -f1)"
+# First launch, or a different Lark.app was installed: start from the jar inside the app.
+# Otherwise keep the jar that Lark's auto-update installed.
+if [[ ! -f "$JAR" || "$(cat "$STAMP" 2>/dev/null || true)" != "$SUM" ]]; then
+  cp -f "$BUNDLED" "$JAR.tmp" && mv -f "$JAR.tmp" "$JAR"
+  printf '%s\n' "$SUM" > "$STAMP"
+fi
+printf 'desktop\n' > "$SUPPORT/app/desktop.marker"
+[[ -f "$RES/app/update-feed.url" ]] && cp -f "$RES/app/update-feed.url" "$SUPPORT/app/update-feed.url"
+# Update restarts use Support/start-lark-desktop.sh, which expects Support/jdk.
+# Re-link every launch: a copy run from the disk image or a translocated path leaves a dead link.
+ln -sfn "$RES/jdk" "$SUPPORT/jdk"
+[[ -f "$SUPPORT/start-lark-desktop.sh" ]] || { cp -f "$RES/start-lark-desktop.sh" "$SUPPORT/start-lark-desktop.sh" && chmod 755 "$SUPPORT/start-lark-desktop.sh"; }
+cd "$SUPPORT"
+exec "$JAVA" \
+  -Xdock:name=Lark \
+  "-Xdock:icon=$RES/Lark.icns" \
+  "-Dlark.install=$SUPPORT" \
+  -Dlark.desktop=true \
+  -Dlark.channel=desktop \
+  -Dlark.ui=jar \
+  -cp "$JAR" \
+  lark.Desktop \
+  "$@"
