@@ -53,7 +53,7 @@ jobs:
       - run: sudo apt-get update && sudo apt-get install -y nsis p7zip-full python3-pil zip
       - name: Build all 4.1.0 artifacts
         env:
-          LARK_UPDATE_BASE: https://github.com/TreyvoPrime/lark/releases/download/v4.1.0
+          LARK_UPDATE_BASE: https://github.com/TreyvoPrime/lark/releases/download/v4.1
           LARK_UPDATE_NOTES: 'Lark 4.1.0: Desktop startup improvements, clearer error indicators, new avatars and themes, and Lark Share updates.'
         run: |
           test "$(sed -n 's/.*VERSION = "\([^"]*\)".*/\1/p' src/lark/Settings.java | head -1)" = 4.1.0
