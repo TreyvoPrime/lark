@@ -31,6 +31,8 @@ required = [
 for name in required:
     with zipfile.ZipFile(release / name) as archive:
         assert archive.testzip() is None, name + ': archive CRC failure'
+        if name == 'lark-desktop-update.zip':
+            assert any(entry.lstrip('./') == 'Lark Desktop.exe' for entry in archive.namelist()), name + ': Desktop launcher missing'
         jars = [entry for entry in archive.namelist() if entry.endswith('lark.jar')]
         assert jars, name + ': application jar missing'
         for entry in jars:

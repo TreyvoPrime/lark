@@ -127,10 +127,9 @@ fi
 
 rm -rf "$payload"
 
-# Slim desktop update (jar + marker + scripts; omit running exe).
+# Include the launcher: the updater stages a running executable as .pending.
 stage_u=$(mktemp -d)
 stage_desktop "$stage_u"
-rm -f "$stage_u/Lark Desktop.exe"
 rm -f release/lark-desktop-update.zip
 (cd "$stage_u" && zip -X -r "$root/release/lark-desktop-update.zip" .)
 rm -rf "$stage_u"
