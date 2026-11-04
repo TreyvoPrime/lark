@@ -50,7 +50,12 @@ final class Share implements AutoCloseable {
             }
             case "host" -> {
                 if (hosting != null || target != null) throw new RequestFail(409, "End or leave your current Share session first.");
-                InetAddress bind = ShareTransport.lanAddress(body.str("address", ""));
+                String requestedAddress = body.str("address", "");
+                if (requestedAddress.isBlank()) {
+                    requestedAddress = Mobile.lanAddresses().stream().findFirst()
+                            .orElseThrow(() -> new RequestFail(503, "Connection unavailable on this network."));
+                }
+                InetAddress bind = ShareTransport.lanAddress(requestedAddress);
                 if (!bind.isLoopbackAddress() && NetworkInterface.getByInetAddress(bind) == null)
                     throw new RequestFail(400, "Select an interface on this computer.");
                 long port = body.longVal("port");
@@ -62,6 +67,11 @@ final class Share implements AutoCloseable {
                 hosting = session; bindAddress = bind; projectId = body.str("project", "");
                 connection = "Connected";
                 if (!body.has("discovery") || body.bool("discovery")) discoverable(true);
+                if (discovery != null) {
+                    codes = new ShareCode(transport.fingerprint, System::currentTimeMillis);
+                    transport.codes = codes;
+                    codes.create(ShareCode.DEFAULT_TTL);
+                }
                 session.onClose = () -> { if (discovery != null) discovery.close(); };
                 hostInvitation = new Json.Obj().put("version", ShareSession.VERSION).put("address", bind.getHostAddress())
                         .put("port", transport.port()).put("fingerprint", transport.fingerprint)
@@ -118,7 +128,7 @@ final class Share implements AutoCloseable {
                 if (hosting != null || target != null) throw new RequestFail(409, "End or leave your current Share session first.");
                 String shortCode = ShareCode.normalize(body.str("invitation", ""));
                 if (shortCode == null && looksLikeShortCode(body.str("invitation", "")))
-                    throw new RequestFail(400, "That isn't a valid Lark code. Codes look like LARK-K7M2Q9X: 7 letters or numbers, never 0, O, 1, I or L.");
+                    throw new RequestFail(400, "Enter a six-character share code, such as 7K9M2P. Codes never contain 0, O, 1, I or L.");
                 if (shortCode == null && !body.bool("verified")) throw new RequestFail(400, "Verify the invitation with the host over a trusted channel first.");
                 String invitation = body.str("invitation", "");
                 if (invitation.length() > 8192) throw new RequestFail(400, "Invalid invitation: that's too long to be a Lark invitation. Copy just the invitation text.");

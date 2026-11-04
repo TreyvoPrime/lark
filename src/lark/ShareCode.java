@@ -10,17 +10,18 @@ import java.util.*;
 import java.util.function.LongSupplier;
 
 /**
- * Short LAN codes such as LARK-K7M2Q9X. The code is never broadcast. A guest finds Share hosts with
+ * Short LAN codes such as 7K9M2P. The code is never broadcast. A guest finds Share hosts with
  * the existing mDNS browse, then runs a two-step proof over TLS with each one:
  *   hello: guest nonce -> host nonce + HMAC(K, "host"|fingerprint|nonces)   (guest checks: host knows the code AND owns that certificate)
  *   claim: HMAC(K, "guest"|fingerprint|nonces) -> long invitation credentials (host checks: guest knows the code)
- * K = PBKDF2(code, fingerprint). A spoofed responder can't produce the host MAC for its own certificate. Offline
- * guessing from a captured host MAC costs 31^7 PBKDF2 runs, far beyond the code's lifetime. Online guesses
- * are rate limited per source IP and globally. Host approval is still required after the join.
+ * K = PBKDF2(code, fingerprint). A spoofed responder can't produce the host MAC for its own certificate.
+ * The host proof is an offline password verifier: anyone who obtains one can test guesses without the online
+ * limiter. A code's expiry does not protect a captured transcript. The six-character code is weaker than the old
+ * code; it must not be relied on as the only authentication. Host approval is still required after join.
  */
 final class ShareCode {
     static final String ALPHABET = "23456789ABCDEFGHJKMNPQRSTUVWXYZ"; // no 0/O/1/I/L
-    static final int LENGTH = 7; // 31^7 ≈ 2^34.7
+    static final int LENGTH = 6; // 31^6 ≈ 2^29.7
     static final long DEFAULT_TTL = 15 * 60_000L;
     static final int ITERATIONS = 120_000;
     private static final SecureRandom RANDOM = new SecureRandom();
@@ -28,8 +29,8 @@ final class ShareCode {
     private final LongSupplier clock;
     private final String fingerprint;
     private String code; private byte[] key; private long expires; private boolean revoked;
-    private final Map<String, long[]> challenges = new LinkedHashMap<>(); // hostNonce -> {created}, with guest nonce in names
-    private final Map<String, String> challengeGuest = new HashMap<>();
+    private record Challenge(long created, String guestNonce) { }
+    private final Map<String, Challenge> challenges = new LinkedHashMap<>();
     private final Map<String, long[]> failures = new LinkedHashMap<>(); // ip -> {count, lockedUntil}
     private final Map<String, long[]> hellos = new LinkedHashMap<>();   // ip -> {windowStart, count}
     private long globalFailures, globalLockedUntil;
@@ -37,19 +38,17 @@ final class ShareCode {
     ShareCode(String fingerprint, LongSupplier clock) { this.fingerprint = fingerprint.toLowerCase(Locale.ROOT); this.clock = clock; }
 
     static String generate() {
-        StringBuilder b = new StringBuilder("LARK-");
+        StringBuilder b = new StringBuilder();
         for (int i = 0; i < LENGTH; i++) b.append(ALPHABET.charAt(RANDOM.nextInt(ALPHABET.length())));
         return b.toString();
     }
-    /** Accepts "lark-k7m2 q9x", "K7M2Q9X", "LARK K7M2-Q9X", zero-width chars, etc. Returns null if not a code. */
+    /** Accept a six-character code case-insensitively, allowing whitespace around it. */
     static String normalize(String raw) {
         if (raw == null || raw.length() > 64) return null;
-        String s = raw.replaceAll("[\\u200B-\\u200F\\u2028-\\u202F\\u2060-\\u206F\\uFEFF\\u00AD]", "")
-                .replaceAll("[\\s\\-_.\\u2010-\\u2015\"'`\\u2018\\u2019\\u201C\\u201D<>]", "").toUpperCase(Locale.ROOT);
-        if (s.startsWith("LARK")) s = s.substring(4);
+        String s = raw.strip().toUpperCase(Locale.ROOT);
         if (s.length() != LENGTH) return null;
         for (char c : s.toCharArray()) if (ALPHABET.indexOf(c) < 0) return null;
-        return "LARK-" + s;
+        return s;
     }
     static byte[] key(String code, String fingerprint) {
         try {
@@ -67,10 +66,10 @@ final class ShareCode {
     synchronized String create(long ttl) { return create(generate(), ttl); }
     synchronized String create(String fixed, long ttl) {
         code = fixed; key = key(code, fingerprint); expires = clock.getAsLong() + ttl; revoked = false;
-        challenges.clear(); challengeGuest.clear(); globalFailures = 0; globalLockedUntil = 0;
+        challenges.clear(); globalFailures = 0; globalLockedUntil = 0;
         return code;
     }
-    synchronized void revoke() { if (code != null) revoked = true; key = null; challenges.clear(); challengeGuest.clear(); }
+    synchronized void revoke() { if (code != null) revoked = true; key = null; challenges.clear(); }
     synchronized Json.Obj status() {
         Json.Obj o = new Json.Obj();
         if (code == null) return o.put("code", "").put("codeState", "none");
@@ -97,10 +96,10 @@ final class ShareCode {
             requireActive();
             String guestNonce = request.str("nonce", "");
             if (!guestNonce.matches("[a-f0-9]{64}")) throw new RequestFail(400, "Invalid Lark code request.");
-            challenges.entrySet().removeIf(e -> now - e.getValue()[0] > 30_000);
-            while (challenges.size() >= 64) { String first = challenges.keySet().iterator().next(); challenges.remove(first); challengeGuest.remove(first); }
+            challenges.entrySet().removeIf(e -> now - e.getValue().created() > 30_000);
+            while (challenges.size() >= 64) challenges.remove(challenges.keySet().iterator().next());
             String hostNonce = ShareSession.token();
-            challenges.put(hostNonce, new long[]{now}); challengeGuest.put(hostNonce, guestNonce);
+            challenges.put(hostNonce, new Challenge(now, guestNonce));
             return ShareSession.ok().put("nonce", hostNonce).put("proof", mac(key, "host", fingerprint, guestNonce, hostNonce));
         }
         if (action.equals("code-claim")) {
@@ -109,9 +108,9 @@ final class ShareCode {
             if (now < fail[1] || now < globalLockedUntil) throw new RequestFail(429, "Too many wrong Lark codes. Wait a little and try again.");
             requireActive();
             String hostNonce = request.str("nonce", "");
-            long[] made = challenges.remove(hostNonce); String guestNonce = challengeGuest.remove(hostNonce);
-            boolean good = made != null && now - made[0] <= 30_000
-                    && ShareSession.equal(mac(key, "guest", fingerprint, guestNonce, hostNonce), request.str("proof", ""));
+            Challenge made = challenges.remove(hostNonce);
+            boolean good = made != null && now - made.created() <= 30_000
+                    && ShareSession.equal(mac(key, "guest", fingerprint, made.guestNonce(), hostNonce), request.str("proof", ""));
             if (!good) {
                 fail[0]++; if (fail[0] >= 3) fail[1] = now + Math.min(10 * 60_000L, 5_000L << Math.min(fail[0] - 3, 7));
                 globalFailures++; if (globalFailures >= 20) globalLockedUntil = now + Math.min(10 * 60_000L, 10_000L << Math.min(globalFailures - 20, 6));

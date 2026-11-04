@@ -8,11 +8,11 @@ and host-coordinated saving. No cloud service, subscription or GitHub login is u
 ## Host and join
 
 1. Save your project. Choose **Share → Host Session**, select the Java project,
-   session name, display name and LAN interface. Port `0` chooses a free port.
-   `127.0.0.1` is useful only for two installations on the same computer.
-2. Leave LAN discovery enabled to advertise `_larkshare._tcp.local.` on that
-   interface. If multicast is unavailable, the UI reports it and private
-   invitations still work. Share never changes the OS firewall automatically.
+   session name and display name. Lark selects a network interface and an
+   available port automatically.
+2. Lark advertises `_larkshare._tcp.local.` when discovery is available. If
+   multicast is unavailable, the UI reports it and private invitations can still
+   work when the host is reachable. Share never changes the OS firewall automatically.
 3. Send the **private invitation** to the intended collaborator over a trusted
    channel. Verify its displayed SHA-256 host fingerprint directly. The invitation
    contains the address, port, session ID, certificate fingerprint and secret.
@@ -227,9 +227,11 @@ existing regression checks where available but were not all exercised manually.
 
 ## Short Lark codes (same network only)
 
-The host can create a code like `LARK-K7M2Q9X`: 7 characters from an alphabet with no 0/O/1/I/L (about 34.7 bits), lasting 15 minutes by default (1–60), and revocable. Turning LAN discovery off revokes it. The code is never broadcast. The guest browses `_larkshare._tcp` as usual, then connects to each candidate over TLS 1.3 without a pin and runs a two-step proof (`ShareCode`):
+The host creates a code like `7K9M2P`: six characters from an alphabet with no 0/O/1/I/L (about 29.7 bits), lasting 15 minutes by default (1–60), and revocable. Turning LAN discovery off revokes it. The code is never broadcast. The guest browses `_larkshare._tcp` as usual, then connects to each candidate over TLS 1.3 without a pin and runs a two-step proof (`ShareCode`):
 
 1. `code-hello`: the host returns `HMAC(K, "host"|fingerprint|nonces)` with `K = PBKDF2-SHA256(code, fingerprint, 120k)`. The guest checks it against the certificate it actually saw, so a responder that doesn't know the code, or relays another host's proof, is skipped.
 2. `code-claim`: the guest proves the code. The host returns the long-invitation credentials, and the guest joins with that fingerprint pinned. Host approval is still required.
 
 Wrong claims trigger a per-IP backoff after 3 attempts, plus a global backoff after 20 per code. Hello requests are limited to 12 per minute per IP. Test: `java -cp build lark.ShareCodeCheck`.
+
+The host proof permits offline guessing by a party that obtains it; expiry and online rate limits do not prevent this. Six-character codes provide less resistance than the previous seven-character format. The host must verify who is requesting access before approval. Codes are selected independently on each host, so uniqueness across active LAN sessions is not guaranteed. This code works only when discovery and direct LAN connectivity are available; it is not a relay.

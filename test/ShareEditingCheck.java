@@ -44,6 +44,7 @@ public final class ShareEditingCheck {
                 check(s.command(request(s, editor, "sync", "Main.java").put("operation", op(1000, actor, "109@" + actor, "A")).put("operations", batch)).longVal("head") == 4, "Batched retry idempotent");
                 Json.Arr tooMany = new Json.Arr(); for (int i = 0; i < ShareSession.MAX_BATCH + 1; i++) tooMany.add(op(1101 + i, actor, "109@" + actor, "z"));
                 try { s.command(request(s, editor, "sync", "Main.java").put("operation", op(1100, actor, "109@" + actor, "z")).put("operations", tooMany)); check(false, "Batch size bounded"); } catch (RequestFail e) { check(e.status == 400, "Batch size bounded"); }
+                check(s.command(request(s, editor, "sync", "Main.java")).longVal("head") == 4, "Oversized batch does not apply its first operation");
                 check(s.needsReview(), "Remote changes require host review");
                 s.decide(editor.str("device"), true, "viewer");
                 try { s.command(request(s, editor, "sync", "Main.java").put("operation", op(200, actor, "", "denied"))); throw new AssertionError("Viewer wrote"); }

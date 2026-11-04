@@ -7,7 +7,7 @@ const { webcrypto } = require('node:crypto');
 
 (async () => {
   const seed = Array.from({ length: 400 }, (_, i) => `// line ${i}`).join('\n');
-  let text = seed, selectionCalls = 0, updates = 0, tick, activePath = 'Main.java', inFlight;
+  let text = seed, selectionCalls = 0, updates = 0, tick, activePath = 'Main.java', inFlight, immediatePolls = 0, now = Date.now(), retryVisible = false, syncCount = 0;
   let selections = [{ anchor: { line: 0, ch: 0 }, head: { line: 0, ch: 0 } }], primary = 0;
   let scroll = { left: 150, top: 2400 }, nextResponse, syncHook, remoteRange, remoteWidget;
   const selectionOptions = [], followScrolls = [];
@@ -38,23 +38,24 @@ const { webcrypto } = require('node:crypto');
   };
   const bridge = {
     editor: () => cm, current: () => ({ path: activePath, doc: activePath === 'Main.java' ? doc : {} }),
-    flush: async () => {}, prepareHost: async () => {}, updated: () => updates++, open: () => {}, notice() {}
+    flush: async () => {}, prepareHost: async () => {}, leave: async () => {}, updated: () => updates++, open: () => {}, notice() {}
   };
   const storage = new Map();
   const context = vm.createContext({
-    console, crypto: webcrypto, structuredClone,
+    console, crypto: webcrypto, structuredClone, Date: class extends Date { static now() { return now; } },
     CodeMirror: { commands: { undo() {}, redo() {} } },
     window: { LarkEditorShare: bridge, LarkBirds: { make: (id) => ({ bird: id }) }, addEventListener() {} },
-    document: { dispatchEvent() {}, getElementById: () => null, createElement: () => ({ style: {}, children: [], append(...nodes) { this.children.push(...nodes); } }), createTextNode: text => ({ text }) },
+    document: { dispatchEvent(event) { if (event.type === 'lark-share-retry') retryVisible = event.detail; }, getElementById: () => null, createElement: () => ({ style: {}, children: [], append(...nodes) { this.children.push(...nodes); } }), createTextNode: text => ({ text }) },
     CustomEvent: class { constructor(type, options) { this.type = type; this.detail = options?.detail; } },
     localStorage: { setItem: (k, v) => storage.set(k, v), removeItem: k => storage.delete(k) },
-    setInterval: fn => { tick = fn; return 1; }, clearInterval() {}, setTimeout: () => 1, clearTimeout() {},
+    setInterval: fn => { tick = fn; return 1; }, clearInterval() {}, setTimeout: (_, delay) => { if (delay === 16) immediatePolls++; return 1; }, clearTimeout() {},
     fetch: async (_, options) => {
       const body = JSON.parse(options.body);
       let data;
       if (body.action === 'files') data = { files: [{ path: 'Main.java' }] };
       else if (body.action === 'open') data = { seed, actor: 'local', role: 'editor', revision: 0, head: 0, operations: [] };
       else if (body.action === 'sync') {
+        syncCount++;
         if (syncHook) { const hook = syncHook; syncHook = null; await hook(); }
         data = nextResponse || { operations: [], revision: 0, role: 'editor', participants: [] };
         nextResponse = null;
@@ -84,6 +85,17 @@ const { webcrypto } = require('node:crypto');
   assert.deepEqual(scroll, { left: 230, top: 3100 }, 'scrolling during an in-flight request is preserved');
 
   const entry = share.debug().documents.get('Main.java');
+  // A malformed response must not discard edits that were sent in the request.
+  // The host may already have accepted them, so the next request retries the same IDs.
+  const local = entry.model.edit(0, 0, 'local', entry.actor);
+  entry.pending.push(...local);
+  nextResponse = { operations: [{ seq: 1, actor: 'bad', after: 'missing', text: 'x', remove: [] }], revision: 1, role: 'editor', participants: [] };
+  await tick();
+  assert.equal(entry.pending.length, local.length, 'unapplied response retains pending edits');
+  assert.equal(entry.revision, 0, 'unapplied response does not advance the revision');
+  nextResponse = { operations: local, revision: local.length, role: 'editor', participants: [] };
+  await tick();
+  assert.equal(entry.pending.length, 0, 'successful retry acknowledges the same edits');
   const remote = new context.LarkShareDocument(entry.model.seed);
   const operations = remote.edit(0, 0, '// remote edit\n', 'peer');
   selections = [
@@ -127,5 +139,25 @@ const { webcrypto } = require('node:crypto');
   assert(remoteRange, 'a backward remote selection is rendered');
   assert(doc.indexFromPos(remoteRange[0]) < doc.indexFromPos(remoteRange[1]), 'remote selection endpoints are ordered');
   assert.equal(remoteWidget.children[0].children[0].bird, 'cardinal', 'remote cursor uses the participant bird');
+  nextResponse = { operations: remote.edit(0, 0, '// more\n', 'peer'), revision: 4, head: 5, role: 'editor', participants: [] };
+  await tick();
+  assert.equal(immediatePolls, 1, 'unread history schedules the next page immediately');
+  for (let i = 0; i < 8; i++) { syncHook = () => { throw new Error('offline'); }; await tick(); now += 60_000; }
+  assert.equal(retryVisible, true, 'repeated network failures offer a manual retry');
+  const stoppedCount = syncCount;
+  await tick();
+  assert.equal(syncCount, stoppedCount, 'automatic retries stop after the limit');
+  share.retry();
+  assert.equal(retryVisible, false, 'retry clears the retry prompt');
+  await tick();
+  assert.equal(syncCount, stoppedCount + 1, 'manual retry resumes synchronization');
+  syncHook = () => new Promise(resolve => { inFlight = resolve; });
+  nextResponse = { operations: remote.edit(0, 0, '// stale\n', 'peer'), revision: 5, head: 5, role: 'editor', participants: [] };
+  const stale = tick();
+  const beforeStop = text;
+  await share.stop();
+  inFlight(); await stale;
+  assert.equal(text, beforeStop, 'a response arriving after leaving cannot paint an old document');
+  assert.equal(share.debug().documents.size, 0, 'a response arriving after leaving cannot restore old documents');
   console.log('Share scroll regression checks passed: idle polling, in-flight navigation, remote edits, multiple selections, background files, and Follow.');
 })().catch(error => { console.error(error); process.exitCode = 1; });
