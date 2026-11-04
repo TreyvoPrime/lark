@@ -272,6 +272,13 @@ final class ShareSession implements AutoCloseable {
             } else { hostFile = path; hostAnchor = request.str("anchor", ""); hostHead = request.str("head", ""); }
         }
         Json.Obj op = request.obj("operation");
+        Json.Arr batch = request.arr("operations");
+        // Reject structurally invalid batches before applying their first operation.
+        if (batch != null && op != null) {
+            if (batch.size() > MAX_BATCH) throw new RequestFail(400, "Too many operations in one Share request.");
+            for (Json.Value value : batch.values())
+                if (!(value instanceof Json.Obj)) throw new RequestFail(400, "Invalid CRDT operation.");
+        }
         if (op != null) {
             if (role.equals("viewer")) throw new RequestFail(403, "Viewers cannot change source.");
             if (documents.values().stream().mapToInt(ShareDocument::nodeCount).sum() + op.str("text", "").length() > 500_000)
@@ -280,12 +287,10 @@ final class ShareSession implements AutoCloseable {
         }
         // Batched follow-up operations (protocol v2 extension). Older hosts ignore this field and the
         // client then only drops the single "operation" it was acknowledged for.
-        Json.Arr batch = request.arr("operations");
         int extra = 0;
         if (batch != null && op != null) {
-            if (batch.size() > MAX_BATCH) throw new RequestFail(400, "Too many operations in one Share request.");
             for (Json.Value value : batch.values()) {
-                if (!(value instanceof Json.Obj next)) throw new RequestFail(400, "Invalid CRDT operation.");
+                Json.Obj next = (Json.Obj) value;
                 if (documents.values().stream().mapToInt(ShareDocument::nodeCount).sum() + next.str("text", "").length() > 500_000)
                     throw new RequestFail(429, "Session document capacity reached; save, end and rehost.");
                 if (document.apply(next, identity + "." + writer)) { dirty.add(path); if (device != null) remoteEdits = true; }

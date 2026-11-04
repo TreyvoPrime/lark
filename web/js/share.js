@@ -22,6 +22,8 @@
   let knownPeople = null, noticeTimer = null;
   const popup = element('div', '', document.body); popup.className = 'share-presence-popup'; popup.setAttribute('role', 'status'); popup.hidden = true;
   const error = element('p', '', dialog); error.className = 'share-error'; error.setAttribute('role', 'alert');
+  const retry = element('button', 'Retry connection', dialog); retry.type = 'button'; retry.hidden = true;
+  retry.onclick = () => window.LarkShareEditing.retry();
   const navigation = element('div', null, dialog); navigation.className = 'share-actions';
   const content = element('div', null, dialog);
   document.body.append(dialog);
@@ -80,9 +82,8 @@
   // Short LAN code: found over this network only, never broadcast; the host still approves each guest.
   function showCode(data) {
     const box = element('div', null, content); box.className = 'share-code';
-    element('h3', 'Short Lark code (same network only)', box);
+    element('h3', 'Share Code' + (data.codeState === 'active' && data.code ? ': ' + data.code : ''), box);
     if (data.codeState === 'active' && data.code) {
-      const code = element('p', data.code, box); code.className = 'share-fingerprint';
       element('p', 'Expires in about ' + Math.max(1, Math.round((data.codeExpiresIn || 0) / 60)) + ' min. Anyone with it can ask to join; you still approve them.', box);
       action(box, 'Copy code', async () => { try { await navigator.clipboard.writeText(data.code); } catch (_) { toastError('Copy the code by hand: ' + data.code); } });
       action(box, 'Revoke code', async () => { latest = await api('code-revoke'); content.replaceChildren(); showInvitation(await api('invitation')); });
@@ -96,9 +97,7 @@
   function toastError(text) { error.textContent = text; }
   async function hostPage() {
     startPage('host'); const current = generation;
-    const [projects, interfaces] = await Promise.all([
-      fetch('/api/projects').then(r => { if (!r.ok) throw new Error('Cannot list projects.'); return r.json(); }), api('interfaces')
-    ]);
+    const projects = await fetch('/api/projects').then(r => { if (!r.ok) throw new Error('Cannot list projects.'); return r.json(); });
     if (current !== generation) return;
     const form = element('form', null, content);
     const project = field(form, 'Project to share', 'select');
@@ -109,19 +108,13 @@
     const name = field(form, 'Session name', 'text', match?.name || projects.projects?.[0]?.name || 'Java source review'); name.required = true;
     project.onchange = () => { name.value = project.selectedOptions[0]?.textContent || ''; };
     const displayName = field(form, 'Your display name'); displayName.required = true;
-    const address = field(form, 'Listen on this interface', 'select');
-    interfaces.addresses.forEach(item => { const option = element('option', item.address === '127.0.0.1' ? '127.0.0.1 (this computer only)' : item.address + (item.name ? ' (' + item.name + ')' : ''), address); option.value = item.address; });
-    const lan = interfaces.addresses.find(item => item.address !== '127.0.0.1');
-    if (lan) address.value = lan.address;
-    const port = field(form, 'Port (0 chooses an available port)', 'number', '0'); port.min = '0'; port.max = '65535'; port.required = true;
-    const discovery = field(form, 'Advertise on the selected LAN interface', 'checkbox'); discovery.checked = true;
     element('p', 'TLS 1.3 and host approval are mandatory. Only existing Java source is shared. File structure changes are locked during collaboration; firewall access is never changed automatically.', form);
     const submit = element('button', 'Host session', form); submit.type = 'submit';
     form.onsubmit = async event => {
       event.preventDefault(); if (busy) return; busy = true; submit.disabled = true;
       try {
         await window.LarkEditorShare.flush();
-        const data = await api('host', { discovery: discovery.checked, project: project.value, name: name.value, displayName: displayName.value, bird: window.LarkBirds.selected(), address: address.value, port: Number(port.value) });
+        const data = await api('host', { project: project.value, name: name.value, displayName: displayName.value, bird: window.LarkBirds.selected() });
         latest = data; startPage('invitation'); showInvitation(data); await refresh();
       } catch (err) { report(err); } finally { busy = false; submit.disabled = false; }
     };
@@ -129,7 +122,7 @@
   function joinPage() {
     startPage('join');
     const form = element('form', null, content);
-    const invitation = field(form, 'Lark code (like LARK-K7M2Q9X) or private invitation from the host', 'textarea'); invitation.maxLength = 8192; invitation.required = true;
+    const invitation = field(form, 'Share code (like 7K9M2P) or private invitation from the host', 'textarea'); invitation.maxLength = 8192; invitation.required = true;
     const displayName = field(form, 'Your display name'); displayName.required = true;
     const identity = element('p', 'Paste the invitation to inspect the host identity before connecting.', form);
     identity.className = 'share-fingerprint';
@@ -215,7 +208,8 @@
     if (latest.fingerprint) element('p', 'Host SHA-256: ' + latest.fingerprint, content).className = 'share-fingerprint';
   }
   // Nearby Sessions: rescans every few seconds while open; one card per session id.
-  let nearbyTimer = null, nearbyName = '';
+  let nearbyTimer = null, nearbyName = '', nearbyScanning = false;
+  dialog.addEventListener('close', () => { clearInterval(nearbyTimer); nearbyTimer = null; });
   async function nearby() {
     startPage('nearby'); const current = generation;
     element('h3', 'Nearby sessions', content);
@@ -223,21 +217,23 @@
     const bar = element('div', null, content); bar.className = 'share-actions';
     const list = element('div', null, content); element('p', 'Searching the local network…', list);
     const scan = async () => {
-      if (page !== 'nearby' || generation !== current) { clearInterval(nearbyTimer); nearbyTimer = null; return; }
-      if (busy) return;
-      let data; try { data = await api('nearby'); } catch (err) { report(err); return; }
-      if (page !== 'nearby' || generation !== current) return;
-      drawNearby(list, data.sessions || [], name);
+      if (!dialog.open || page !== 'nearby' || generation !== current) { clearInterval(nearbyTimer); nearbyTimer = null; return; }
+      if (busy || nearbyScanning) return;
+      nearbyScanning = true;
+      try {
+        const data = await api('nearby');
+        if (dialog.open && page === 'nearby' && generation === current) drawNearby(list, data.sessions || [], name);
+      } catch (err) { if (dialog.open && page === 'nearby' && generation === current) report(err); }
+      finally { nearbyScanning = false; }
     };
     action(bar, 'Refresh', scan);
-    clearInterval(nearbyTimer); nearbyTimer = setInterval(scan, 6000);
+    clearInterval(nearbyTimer); nearbyTimer = setInterval(scan, 10000);
     await scan();
   }
   function drawNearby(list, sessions, name) {
     list.replaceChildren();
     if (!sessions.length) {
-      element('p', 'No sessions found yet. Make sure the host turned on "Advertise on the selected LAN interface" and both computers are on the same Wi-Fi or wired network.', list);
-      element('p', 'School, hotel and guest networks often stop computers from seeing each other. If so, ask the host for a Lark code or the long private invitation.', list);
+      element('p', 'No nearby sessions found. You can also join using a share code.', list);
       return;
     }
     const labels = { available: 'Available', full: 'Full', pending: 'Waiting for host approval', connected: 'Connected', denied: 'Denied by host', unavailable: 'Not answering' };
@@ -246,10 +242,10 @@
       row.append(window.LarkBirds.make(item.bird, 32));
       const text = element('div', null, row);
       element('strong', item.name || 'Lark session', text);
-      element('span', ` ${item.host || 'Host'} · ${item.count || '?'} in session · ${item.address}`, text);
+      element('span', ` ${item.host || 'Host'} · ${item.count || '?'} in session`, text);
       const badge = element('span', labels[item.status] || item.status, row); badge.className = 'share-status share-status-' + item.status;
       if (item.status === 'available') {
-        const btn = action(row, 'Request Access', async () => {
+        const btn = action(row, 'Join', async () => {
           if (!name.value.trim()) { name.focus(); error.textContent = 'Enter your display name first.'; return; }
           btn.disabled = true; badge.textContent = 'Asking host…';
           try {
@@ -309,10 +305,11 @@
     navigation.replaceChildren();
     if (!latest.hosting && !latest.joined) {
       action(navigation, 'Host Session', hostPage); action(navigation, 'Join Session', joinPage);
+      action(navigation, 'Nearby Sessions', nearby); action(navigation, 'Change Avatar', chooseBird);
+      return;
     }
     if (latest.hosting) action(navigation, 'Invitation', async () => { const data = await api('invitation'); startPage('invitation'); showInvitation(data); });
-    if (!latest.hosting && !latest.joined) action(navigation, 'Nearby Sessions', nearby);
-    action(navigation, 'Choose Your Bird', chooseBird);
+    action(navigation, 'Change Avatar', chooseBird);
     action(navigation, 'Recovery', recovery);
     action(navigation, 'Participants', participants); action(navigation, 'Security', security);
     if (latest.hosting) action(navigation, 'Review Changes', review);
@@ -349,7 +346,7 @@
       const pending = people?.filter(p => p.status === 'pending').length || 0;
       button.textContent = 'Share' + (pending ? ` (${pending} requests)` : latest.hosting || latest.joined ? ' •' : '');
       button.title = 'Lark Share: ' + latest.connection;
-      status.textContent = latest.connection + (latest.session?.name ? ' · ' + latest.session.name : '') + (latest.hosting ? ` · Port ${latest.port} · TLS 1.3` : '');
+      status.textContent = latest.connection + (latest.session?.name ? ' · ' + latest.session.name : '');
       if ((latest.hosting || latest.joined && latest.session?.status === 'approved') && !window.LarkShareEditing.sessionActive()) {
         await window.LarkShareEditing.start({ id: latest.sessionId, identity: latest.identity, hosting: latest.hosting, project: latest.project, name: latest.session.name });
       }
@@ -393,6 +390,7 @@
   document.addEventListener('lark-share-follow', event => { unfollow.hidden = !event.detail; });
   document.addEventListener('lark-share-state', event => { button.dataset.connection = event.detail; button.title = 'Lark Share: ' + event.detail; });
   document.addEventListener('lark-share-error', event => { error.textContent = event.detail; });
+  document.addEventListener('lark-share-retry', event => { retry.hidden = !event.detail; });
   button.onclick = async () => {
     if (!dialog.open) dialog.showModal();
     try { await refresh(); home(); } catch (err) { report(err); }

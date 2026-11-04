@@ -26,13 +26,13 @@ public final class ShareCodeCheck {
         Set<String> seen = new HashSet<>();
         for (int i = 0; i < 2000; i++) {
             String c = ShareCode.generate();
-            check(c.matches("LARK-[23456789ABCDEFGHJKMNPQRSTUVWXYZ]{7}"), "Bad code " + c);
+            check(c.matches("[23456789ABCDEFGHJKMNPQRSTUVWXYZ]{6}"), "Bad code " + c);
             seen.add(c);
         }
-        check(seen.size() == 2000, "Codes repeat");
-        for (String in : List.of("LARK-K7M2Q9X", "lark-k7m2q9x", " K7M2Q9X ", "k7m2-q9x", "LARK K7M2 Q9X", "\u201CLARK\u2013K7M2Q9X\u201D", "lark_k7m2q9x\n", "K7M\u200B2Q9X"))
-            check("LARK-K7M2Q9X".equals(ShareCode.normalize(in)), "Normalize failed: " + in);
-        for (String in : List.of("", "LARK-K7M2Q9", "LARK-K7M2Q9XX", "LARK-K7M2Q90", "LARK-K7M2QOX", "LARK-K7M2Q1X", "LARK-K7M2QIX", "LARK-K7M2QLX"))
+        check(seen.size() > 1990, "Unexpected number of repeated codes");
+        for (String in : List.of("7K9M2P", "7k9m2p", " 7K9M2P "))
+            check("7K9M2P".equals(ShareCode.normalize(in)), "Normalize failed: " + in);
+        for (String in : List.of("", "LARK-K7M2Q9X", "7K9M2", "7K9M2PX", "7K9M20", "7K9M2O", "7K9M21", "7K9M2I", "7K9M2L", "7K9-M2P"))
             check(ShareCode.normalize(in) == null, "Accepted bad code: " + in);
         check(Share.looksLikeShortCode("lark-k7m2q90") && !Share.looksLikeShortCode("eyJ2ZXJzaW9uIjoyLCJhZGRyZXNzIjoiMTI3LjAuMC4xIn0"), "Code vs invitation detection");
 
@@ -45,7 +45,13 @@ public final class ShareCodeCheck {
         check(host.status().str("codeState").equals("active") && host.status().str("code").equals(code), "Active status");
         Json.Obj ok = claim(host, code, fp, "10.0.0.2");
         check(ok.bool("ok") && "i".equals(ok.str("invitation")), "Right code claims");
-        fails(() -> claim(host, "LARK-2222222", fp, "10.0.0.3"), 403, "Wrong code rejected");
+        String nonce = ShareSession.token();
+        Json.Obj challenge = host.handle(new Json.Obj().put("action", "code-hello").put("nonce", nonce), "10.0.0.4", "s", "i");
+        Json.Obj proof = new Json.Obj().put("action", "code-claim").put("nonce", challenge.str("nonce"))
+                .put("proof", ShareCode.mac(ShareCode.key(code, fp), "guest", fp, nonce, challenge.str("nonce")));
+        check(host.handle(proof, "10.0.0.4", "s", "i").bool("ok"), "Challenge accepted once");
+        fails(() -> host.handle(proof, "10.0.0.4", "s", "i"), 403, "Challenge replay rejected");
+        fails(() -> claim(host, "222222", fp, "10.0.0.3"), 403, "Wrong code rejected");
         clock.addAndGet(ShareCode.DEFAULT_TTL);
         fails(() -> host.handle(hello, "10.0.0.2", "s", "i"), 410, "Expired code");
         check(host.status().str("codeState").equals("expired") && host.status().str("code").isEmpty(), "Expired status hides code");
@@ -56,7 +62,7 @@ public final class ShareCodeCheck {
 
         // Per-IP backoff after 3 wrong claims; the right code from that IP is then also refused for a while.
         String fresh = host.create(ShareCode.DEFAULT_TTL);
-        for (int i = 0; i < 3; i++) fails(() -> claim(host, "LARK-2222222", fp, "10.0.0.9"), 403, "Wrong guess " + i);
+        for (int i = 0; i < 3; i++) fails(() -> claim(host, "222222", fp, "10.0.0.9"), 403, "Wrong guess " + i);
         fails(() -> claim(host, fresh, fp, "10.0.0.9"), 429, "Per-IP lockout");
         check(claim(host, fresh, fp, "10.0.0.10").bool("ok"), "Other IPs unaffected");
         clock.addAndGet(6_000);
@@ -65,7 +71,7 @@ public final class ShareCodeCheck {
         for (int i = 0; i < 12; i++) host.handle(hello, "10.0.0.20", "s", "i");
         fails(() -> host.handle(hello, "10.0.0.20", "s", "i"), 429, "Hello rate limit");
         // Global backoff: 20 wrong claims across all IPs since this code was made (3 above + 17 here).
-        for (int i = 0; i < 17; i++) { String ip = "10.1.0." + i; fails(() -> claim(host, "LARK-2222222", fp, ip), 403, "Global guess " + ip); }
+        for (int i = 0; i < 17; i++) { String ip = "10.1.0." + i; fails(() -> claim(host, "222222", fp, ip), 403, "Global guess " + ip); }
         fails(() -> claim(host, fresh, fp, "10.2.0.1"), 429, "Global lockout");
     }
     /** Runs the guest side of the protocol directly against a ShareCode. */
@@ -103,12 +109,12 @@ public final class ShareCodeCheck {
             List<Json.Obj> all = new ArrayList<>(spoofs); all.add(real);
             Json.Obj target = Share.resolveCode(ShareCode.normalize(code.toLowerCase().replace("-", " ")), all);
             check(target.str("fingerprint").equals(realFp) && target.longVal("port") == port, "Resolved to the real host: " + target.write());
-            fails(() -> Share.resolveCode("LARK-2222222", List.of(real)), 404, "Wrong code => not found");
+            fails(() -> Share.resolveCode("222222", List.of(real)), 404, "Wrong code => not found");
             ShareTransport stale = new ShareTransport(fake, ShareTransport.lanAddress("127.0.0.1"), 0, 200);
             try {
                 stale.codes = new ShareCode(stale.fingerprint, System::currentTimeMillis); stale.codes.create(ShareCode.DEFAULT_TTL); stale.codes.revoke();
                 List<Json.Obj> withStale = List.of(new Json.Obj().put("address", "127.0.0.1").put("port", stale.port()), real);
-                fails(() -> Share.resolveCode("LARK-2222222", withStale), 404, "Another host's revoked code doesn't turn a wrong code into 'revoked'");
+                fails(() -> Share.resolveCode("222222", withStale), 404, "Another host's revoked code doesn't turn a wrong code into 'revoked'");
                 check(Share.resolveCode(code, withStale).str("fingerprint").equals(realFp), "Right code still found next to a stale host");
             } finally { stale.close(); }
 

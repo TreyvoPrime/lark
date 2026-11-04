@@ -27,9 +27,25 @@ public final class ShareNearbyCheck {
             if (args.length > 0 && args[0].equals("host")) { host(Path.of(args[1])); return; }
             units(root);
             cards();
+            automaticHosting();
             twoProcess(root);
             System.out.println("ShareNearbyCheck: " + checks + " checks passed (request/approve/deny/remove/expiry enforced by host; two-process flow).");
         } finally { Projects.deleteTree(root); }
+    }
+
+    static void automaticHosting() throws Exception {
+        if (Mobile.lanAddresses().isEmpty()) { System.out.println("SKIP automatic hosting: no LAN interface"); return; }
+        Settings settings = Settings.load();
+        Files.createDirectories(settings.projectsDir());
+        Path project = Files.createTempDirectory(settings.projectsDir(), "sharetest");
+        Files.writeString(project.resolve("Main.java"), "class Main {}\n");
+        try (Share share = new Share(new Projects(settings), settings)) {
+            Json.Obj status = share.control(new Json.Obj().put("action", "host").put("project", project.getFileName().toString())
+                    .put("name", "Automatic").put("displayName", "Host"));
+            check(status.bool("hosting") && status.longVal("port") > 0, "Host chooses interface and port");
+            if (status.bool("discovery")) check("active".equals(status.str("codeState")), "Discoverable host creates code automatically");
+            check(!share.control(new Json.Obj().put("action", "end")).bool("hosting"), "Automatic host ends");
+        } finally { Projects.deleteTree(project); }
     }
 
     static void units(Path root) throws Exception {

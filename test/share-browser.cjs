@@ -48,7 +48,6 @@ async function start(home) {
     await hd.getByRole('button', { name: 'Host Session', exact: true }).click();
     await hd.getByLabel('Session name', { exact: true }).fill('Source review');
     await hd.getByLabel('Your display name', { exact: true }).fill('Host');
-    await hd.getByLabel('Listen on this interface').selectOption('127.0.0.1');
     await hd.getByRole('button', { name: 'Host session', exact: true }).click();
     const invite = hd.getByLabel('Private invitation', { exact: true });
     await invite.waitFor();
@@ -58,7 +57,7 @@ async function start(home) {
     check((await hd.getByLabel('Private invitation', { exact: true }).inputValue()) === invitation, 'Host can reopen invitation controls');
     check(invitation.length > 100, 'Real private invitation generated');
     await vd.getByRole('button', { name: 'Join Session', exact: true }).click();
-    await vd.getByLabel('Private invitation from the host').fill(invitation);
+    await vd.getByLabel('Share code (like 7K9M2P) or private invitation from the host').fill(invitation);
     check((await vd.locator('.share-fingerprint').textContent()).includes('SHA-256:'), 'Joiner can inspect host identity before connecting');
     await vd.getByLabel('Your display name', { exact: true }).fill('Viewer');
     await vd.getByRole('checkbox').check();

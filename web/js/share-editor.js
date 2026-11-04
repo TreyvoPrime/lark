@@ -4,10 +4,13 @@
   const writer = crypto.randomUUID().replace(/-/g, '');
   const documents = new Map(), opening = new Map();
   let session = null, timer = null, working = false, following = null, presence = [], lastPresence = 0;
+  let connectionFailures = 0, retryAfter = 0, retryPaused = false;
   const marks = [];
   const request = async (action, body = {}) => {
-    const response = await fetch('/api/share', { method: 'POST', headers: { 'Content-Type': 'application/json', 'X-Lark': '1' }, body: JSON.stringify({ action, writer, ...body }) });
-    const data = await response.json(); if (!response.ok || !data.ok) { const error = new Error(data.error || 'Share request failed'); error.code = response.status; throw error; } return data;
+    let response;
+    try { response = await fetch('/api/share', { method: 'POST', headers: { 'Content-Type': 'application/json', 'X-Lark': '1' }, body: JSON.stringify({ action, writer, ...body }) }); }
+    catch (error) { error.network = true; throw error; }
+    const data = await response.json(); if (!response.ok || !data.ok) { const error = new Error(data.error || 'Share request failed'); error.code = response.status; error.network = response.status >= 500; throw error; } return data;
   };
   const recoveryKey = path => `lark-share-recovery:${session?.id}:${path}`;
   const recover = entry => {
@@ -47,17 +50,19 @@
   }
   function open(path, doc) {
     if (opening.has(path)) return opening.get(path);
-    const promise = doOpen(path, doc).finally(() => opening.delete(path)); opening.set(path, promise); return promise;
+    const promise = doOpen(path, doc).finally(() => { if (opening.get(path) === promise) opening.delete(path); }); opening.set(path, promise); return promise;
   }
   async function doOpen(path, doc) {
     if (!session || !session.paths.has(path)) return false;
+    const active = session;
     let entry = documents.get(path);
     if (!entry) {
       status('Synchronizing');
       const data = await request('open', { path, since: 0 });
+      if (session !== active) return false;
       entry = { path, model: new LarkShareDocument(data.seed), actor: data.actor, role: data.role, revision: data.revision, pending: [], undo: [], redo: [], doc, remote: true };
       data.operations.forEach(op => entry.model.apply(op)); documents.set(path, entry);
-      while (entry.revision < data.head) { const page = await request('sync', { path, since: entry.revision }); page.operations.forEach(op => entry.model.apply(op)); entry.revision = page.revision; }
+      while (entry.revision < data.head) { const page = await request('sync', { path, since: entry.revision }); if (session !== active) return false; page.operations.forEach(op => entry.model.apply(op)); entry.revision = page.revision; }
       entry.remote = false; paint(entry); bind(entry);
     } else if (entry.doc !== doc) throw new Error('Shared document identity changed. Reopen the shared project.');
     const cm = window.LarkEditorShare?.editor();
@@ -67,11 +72,14 @@
     }
     return true;
   }
-  async function pull(entry) {
+  async function pull(entry, active) {
     const operation = entry.pending[0];
     // Send up to 32 queued operations per round trip; hosts without batching only take the first.
     const batch = operation ? entry.pending.slice(1, 32) : [];
     const data = await request('sync', { path: entry.path, since: entry.revision, ...(operation ? { operation } : {}), ...(batch.length ? { operations: batch } : {}) });
+    if (session !== active) return false;
+    if (Number.isSafeInteger(data.head) && data.head > data.revision && (!Array.isArray(data.operations) || !data.operations.length))
+      throw new Error('Share synchronization made no progress. Reconnect or export recovery.');
     // Read the user's current view AFTER the request: they may have scrolled,
     // moved the caret, switched files, or typed while waiting for the network.
     const ranges = entry.doc.listSelections(), primaryHead = entry.doc.getCursor('head'), primaryAnchor = entry.doc.getCursor('anchor');
@@ -81,9 +89,11 @@
     const viewport = cm && window.LarkEditorShare?.current()?.doc === entry.doc ? cm.getScrollInfo() : null;
     // Our own operation comes back in the page; the model already applied it locally and
     // LarkShareDocument.apply() ignores known operation ids, so apply every operation.
-    if (operation) entry.pending.splice(0, 1 + Math.min(batch.length, Number(data.accepted) || 0));
     data.operations.forEach(op => entry.model.apply(op));
     entry.revision = data.revision;
+    // Keep acknowledged edits recoverable if an invalid or incomplete response cannot be applied.
+    // Retrying them is safe because the host deduplicates operation identities.
+    if (operation) entry.pending.splice(0, 1 + Math.min(batch.length, Number(data.accepted) || 0));
     entry.role = data.role;
     presence = data.participants;
     let changed = false;
@@ -96,25 +106,42 @@
     };
     if (viewport) cm.operation(apply); else apply();
     if (entry.pending.length) { clearTimeout(entry.recoveryTimer); entry.recoveryTimer = setTimeout(() => { if (entry.pending.length) recover(entry); }, 350); } else { clearTimeout(entry.recoveryTimer); if (operation && !changed) window.LarkEditorShare?.updated(entry.path, entry.model.text()); try { localStorage.removeItem(recoveryKey(entry.path)); } catch (_) {} }
+    return entry.pending.length > 0 || (Number.isSafeInteger(data.head) && entry.revision < data.head);
   }
   async function tick() {
-    if (!session || working) return; working = true;
+    if (!session || working || retryPaused || Date.now() < retryAfter) return; working = true;
+    const active = session;
+    let more = false, succeeded = false;
     try {
       for (const entry of documents.values()) {
         if (entry.pending.length || entry.path === window.LarkEditorShare?.current()?.path || Date.now() - (entry.lastPoll || 0) > 5000) {
-          await pull(entry); entry.lastPoll = Date.now();
+          more = await pull(entry, active) || more; if (session !== active) return; entry.lastPoll = Date.now();
         }
       }
       const current = window.LarkEditorShare?.current(), entry = documents.get(current?.path);
       if (entry && Date.now() - lastPresence > 700) {
         const cm = window.LarkEditorShare.editor(), selection = cm.listSelections()[0];
         const data = await request('presence', { path: entry.path, since: entry.revision, anchor: entry.model.anchor(cm.indexFromPos(selection.anchor)), head: entry.model.anchor(cm.indexFromPos(selection.head)) });
+        if (session !== active) return;
         presence = data.participants; lastPresence = Date.now();
       }
       status([...documents.values()].some(e => e.pending.length) ? 'Synchronizing' : 'Connected');
       drawPresence();
-    } catch (error) { for (const entry of documents.values()) if (entry.pending.length) recover(entry); status(error.code === 403 || error.code === 410 ? 'Connection Lost' : 'Reconnecting'); document.dispatchEvent(new CustomEvent('lark-share-error', { detail: error.message })); }
-    finally { working = false; }
+      connectionFailures = 0; retryAfter = 0;
+      succeeded = true;
+    } catch (error) {
+      if (session !== active) return;
+      for (const entry of documents.values()) if (entry.pending.length) recover(entry);
+      if (error.network) {
+        connectionFailures++;
+        retryPaused = connectionFailures >= 8;
+        retryAfter = Date.now() + Math.min(8000, 250 * 2 ** Math.min(connectionFailures - 1, 5));
+      }
+      status(retryPaused || error.code === 403 || error.code === 410 ? 'Connection Lost' : 'Reconnecting');
+      document.dispatchEvent(new CustomEvent('lark-share-error', { detail: retryPaused ? 'Connection lost. Retry when the network is available.' : error.message }));
+      document.dispatchEvent(new CustomEvent('lark-share-retry', { detail: retryPaused }));
+    }
+    finally { working = false; if (succeeded && more && session) soon(); }
   }
   function drawPresence() {
     marks.splice(0).forEach(mark => mark.clear());
@@ -158,6 +185,7 @@
   window.LarkShareEditing = {
     async start(data) {
       if (session) return;
+      connectionFailures = 0; retryAfter = 0; retryPaused = false;
       await window.LarkEditorShare.flush();
       const files = await request('files');
       session = { id: data.id, identity: data.identity, paths: new Set(files.files.map(f => f.path)), hosting: data.hosting, project: data.project };
@@ -174,9 +202,10 @@
       const cm = window.LarkEditorShare?.editor(); if (cm) cm.setOption('readOnly', role !== 'editor');
     },
     sessionActive: () => !!session,
+    retry() { connectionFailures = 0; retryAfter = 0; retryPaused = false; document.dispatchEvent(new CustomEvent('lark-share-retry', { detail: false })); soon(); },
     active: path => !!session?.paths.has(path), hosting: () => session?.hosting, project: () => session?.project, open,
     changed: path => { if (session?.paths.has(path)) return true; return false; },
-    async stop() { clearInterval(timer); timer = null; for (const entry of documents.values()) if (entry.pending.length) recover(entry); documents.clear(); opening.clear(); if (document.getElementById('split-editor')) document.getElementById('split-editor').disabled = false; marks.splice(0).forEach(m => m.clear()); session = null; following = null; document.dispatchEvent(new CustomEvent('lark-share-presence', { detail: [] })); document.dispatchEvent(new CustomEvent('lark-share-follow', { detail: false })); const cm = window.LarkEditorShare?.editor(); if (cm) { cm.state.larkShare = null; cm.setOption('readOnly', false); } await window.LarkEditorShare?.leave(); },
+    async stop() { clearInterval(timer); timer = null; clearTimeout(soonTimer); soonTimer = null; for (const entry of documents.values()) { clearTimeout(entry.recoveryTimer); if (entry.pending.length) recover(entry); } documents.clear(); opening.clear(); if (document.getElementById('split-editor')) document.getElementById('split-editor').disabled = false; marks.splice(0).forEach(m => m.clear()); session = null; following = null; document.dispatchEvent(new CustomEvent('lark-share-presence', { detail: [] })); document.dispatchEvent(new CustomEvent('lark-share-follow', { detail: false })); document.dispatchEvent(new CustomEvent('lark-share-retry', { detail: false })); const cm = window.LarkEditorShare?.editor(); if (cm) { cm.state.larkShare = null; cm.setOption('readOnly', false); } await window.LarkEditorShare?.leave(); },
     follow: id => { following = id; document.dispatchEvent(new CustomEvent('lark-share-follow', { detail: !!id })); },
     position(person) { const entry = documents.get(person.file); if (!entry) return ''; const pos = entry.doc.posFromIndex(entry.model.index(person.head)); return `Ln ${pos.line + 1}, Col ${pos.ch + 1}`; },
     async flush() {
