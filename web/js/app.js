@@ -10,6 +10,8 @@
     "lark-mint": "Lark Mint",
     "lark-lavender": "Lark Lavender",
     "lark-paper": "Lark Paper",
+    "lark-twilight": "Lark Twilight",
+    "lark-meadow": "Lark Meadow",
     desk: "Desk",
     slate: "Slate",
     studio: "Studio",
@@ -69,7 +71,7 @@
     pink: "blossom"
   };
   const THEME_IDS = [
-    "arctic-white", "pearl", "cloud-blue", "sakura", "glacier-mint", "silverstone", "lark-snowfall", "lark-mint", "lark-lavender", "lark-paper",
+    "arctic-white", "pearl", "cloud-blue", "sakura", "glacier-mint", "silverstone", "lark-snowfall", "lark-mint", "lark-lavender", "lark-paper", "lark-twilight", "lark-meadow",
     "desk", "slate", "studio", "daylight", "moss", "ember", "fog",
     "blossom", "candy", "midnight", "citrus", "harbor",
     "graphite", "navy", "terminal", "parchment", "ultraviolet", "forest", "monochrome", "amber",
@@ -90,6 +92,8 @@
     "lark-mint": { bg: "#F8FFFC", accent: "#23856B" },
     "lark-lavender": { bg: "#FDFBFF", accent: "#745BA5" },
     "lark-paper": { bg: "#FFFDF7", accent: "#80643C" },
+    "lark-twilight": { bg: "#191D30", accent: "#AAB8FF" },
+    "lark-meadow": { bg: "#F5FAED", accent: "#39734D" },
     desk: { bg: "#2b2b2b", accent: "#cc7832" },
     slate: { bg: "#2a2e33", accent: "#8aa4b8" },
     studio: { bg: "#2c2926", accent: "#d19a66" },
@@ -4842,19 +4846,14 @@
       if (!doc) return;
       const line = Number(problem.line) - 1;
       if (!Number.isFinite(line) || line < 0 || line >= doc.lineCount()) return;
-      const key = resolved + ":" + line;
+      const key = resolved + ":" + line + ":" + (Number(problem.column) || 0);
       if (!byLine.has(key)) byLine.set(key, { doc: doc, line: line, column: Number(problem.column) || 0 });
     });
     byLine.forEach((hit) => {
-      const cls = "cm-problem-line";
-      const handle = hit.doc.addLineClass(hit.line, "background", cls);
-      lineMarks.push({ doc: hit.doc, handle: handle, cls: cls });
       const text = hit.doc.getLine(hit.line) || "";
-      const ch = Math.min(Math.max(0, hit.column - 1), text.length);
-      if (hit.column > 0 && ch < text.length) {
-        let end = ch + 1;
-        while (end < text.length && /[\w$]/.test(text[end]) && /[\w$]/.test(text[ch])) end++;
-        const mark = hit.doc.markText({ line: hit.line, ch: ch }, { line: hit.line, ch: end }, { className: "cm-problem-mark" });
+      const range = window.LarkJava.diagnosticRange(text, hit.column);
+      if (range) {
+        const mark = hit.doc.markText({ line: hit.line, ch: range.start }, { line: hit.line, ch: range.end }, { className: "cm-problem-mark" });
         lineMarks.push({ doc: hit.doc, text: mark });
       }
     });

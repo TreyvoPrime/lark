@@ -2146,7 +2146,26 @@
     };
   }
 
+  // javac columns are one-based; when it points at the end of a line, mark
+  // the nearest visible character because CodeMirror cannot underline an empty range.
+  function diagnosticRange(text, column) {
+    if (!text || !text.trim()) return null;
+    let at = Math.max(0, Math.min(text.length - 1, (Number(column) || 1) - 1));
+    if (/\s/.test(text[at])) {
+      let right = at; while (right < text.length && /\s/.test(text[right])) right++;
+      let left = at; while (left >= 0 && /\s/.test(text[left])) left--;
+      at = right < text.length ? right : left;
+    }
+    let start = at, end = at + 1;
+    if (/[\w$]/.test(text[at])) {
+      while (start > 0 && /[\w$]/.test(text[start - 1])) start--;
+      while (end < text.length && /[\w$]/.test(text[end])) end++;
+    }
+    return { start, end };
+  }
+
   return {
+    diagnosticRange: diagnosticRange,
     parseJava: parseJava,
     blankNoise: blankNoise,
     keywords: Array.from(KEYWORDS).sort(),

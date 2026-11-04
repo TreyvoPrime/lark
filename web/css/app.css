@@ -4265,7 +4265,6 @@ body.no-ligatures .CodeMirror {
   min-width: 3.2em;
   text-align: right;
 }
-.cm-problem-line { background: color-mix(in srgb, var(--red) 18%, transparent); }
 .cm-problem-mark { text-decoration: underline wavy var(--red); text-underline-offset: 3px; }
 .cm-warn-line { background: color-mix(in srgb, var(--warn) 18%, transparent); }
 .CodeMirror-dialog {
@@ -4663,6 +4662,20 @@ li.CodeMirror-hint-active { background: var(--select); color: var(--text); }
   --green:#267447; --red:#b5323d; --warn:#8b6200; --hover:#52657a14; --select:#cddff2; --shadow:0 12px 28px #26364a22;
   --syn-keyword:#853b86; --syn-string:#246c44; --syn-comment:#5d6d79; --syn-number:#a34f17; --syn-type:#17658a;
   --syn-annotation:#805c14; --syn-def:#27519a; --syn-atom:#77449d; --syn-operator:#405166; --syn-variable:#38342C;
+}
+[data-theme="lark-twilight"] {
+  color-scheme: dark; --bg:#191D30; --bg-elev:#232940; --bg-sunken:#141828; --line:#39435C;
+  --text:#EDF0FF; --muted:#B5BED4; --faint:#94A0B8; --accent:#AAB8FF; --accent-ink:#101429;
+  --green:#8AD5AA; --red:#FF8795; --warn:#F2C575; --hover:#ffffff10; --select:#394864; --shadow:0 12px 28px #0006;
+  --syn-keyword:#D5AAFF; --syn-string:#9BDBB2; --syn-comment:#9BA9BC; --syn-number:#F4BE86; --syn-type:#8FD5E8;
+  --syn-annotation:#E8CF86; --syn-def:#AAB8FF; --syn-atom:#D5AAFF; --syn-operator:#CED8EC; --syn-variable:#EDF0FF;
+}
+[data-theme="lark-meadow"] {
+  color-scheme: light; --bg:#F5FAED; --bg-elev:#EAF3E0; --bg-sunken:#E4EEDA; --line:#CBDDC1;
+  --text:#253B2C; --muted:#516A58; --faint:#718575; --accent:#39734D; --accent-ink:#ffffff;
+  --green:#267447; --red:#AD303D; --warn:#805900; --hover:#526f4a18; --select:#C9E3C1; --shadow:0 12px 28px #263f2922;
+  --syn-keyword:#703B7B; --syn-string:#246B3F; --syn-comment:#596D5C; --syn-number:#98501D; --syn-type:#176577;
+  --syn-annotation:#795B12; --syn-def:#285B91; --syn-atom:#714596; --syn-operator:#405B45; --syn-variable:#253B2C;
 }
 /* Keep the drag target within the tray, which clips its children. */
 #console .splitter[data-split="console"] { top: 0; height: 10px; z-index: 20; }

@@ -344,6 +344,14 @@ public final class Runner {
             if (file.startsWith(prefix + "/")) file = file.substring(prefix.length() + 1);
             int lineNo = Integer.parseInt(matcher.group(2));
             int column = matcher.group(3) == null ? 0 : Integer.parseInt(matcher.group(3));
+            // Standard javac output normally puts its column on a separate caret line.
+            // Preserve explicit columns when provided by another compiler format.
+            if (column == 0) {
+                for (int j = i + 1; j < lines.length && j <= i + 3; j++) {
+                    if (DIAG.matcher(lines[j].trim()).matches()) break;
+                    if (lines[j].matches("[\\t ]*\\^.*")) { column = lines[j].indexOf('^') + 1; break; }
+                }
+            }
             String severity = matcher.group(4);
             StringBuilder message = new StringBuilder(matcher.group(5));
             // Pull in javac follow-up lines (symbol: / location:) so explanations can name what was missing.
