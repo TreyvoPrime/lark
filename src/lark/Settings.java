@@ -11,7 +11,7 @@ import java.util.Set;
 /** Preferences stored in the home folder. The GitHub token never leaves this machine except for GitHub. */
 public final class Settings {
     /** Public release version. Lark 4 uses 4.0, then three-position patch/minor versions. */
-    public static final String VERSION = "4.0.13";
+    public static final String VERSION = "4.2.0";
     /** Default public update feed — always the latest GitHub release JSON companion. */
     public static final String DEFAULT_UPDATE_FEED =
             "https://github.com/TreyvoPrime/lark/releases/latest/download/update.json";
@@ -27,7 +27,7 @@ public final class Settings {
             "prism", "volt", "flare", "reef", "magma",
             "aurora", "solar", "lilac", "ocean", "espresso",
             "arctic-white", "pearl", "cloud-blue", "sakura", "glacier-mint", "silverstone",
-            "lark-snowfall", "lark-mint", "lark-lavender", "lark-paper"
+            "lark-snowfall", "lark-mint", "lark-lavender", "lark-paper", "lark-twilight", "lark-meadow"
     );
     public static final Set<String> FONT_FAMILIES = Set.of(
             "jetbrains", "fira", "source", "plex", "roboto", "space",

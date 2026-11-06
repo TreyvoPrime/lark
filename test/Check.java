@@ -62,7 +62,7 @@ public final class Check {
         eq(Runner.splitArgs(""), List.of());
     }
 
-    private static void diagnostics() {
+    private static void diagnostics() throws Exception {
         String err = """
                 src/app/Main.java:4: error: ';' expected
                         System.out.println("hi")
@@ -73,12 +73,25 @@ public final class Check {
         List<Runner.Problem> problems = Runner.parseDiagnostics(Path.of("/tmp/proj"), err);
         eq(problems.size(), 2);
         eq(problems.get(0).file(), "src/app/Main.java");
+        eq(problems.get(0).column(), 34);
         eq(problems.get(0).line(), 4);
         eq(problems.get(0).severity(), "error");
         assertTrue(problems.get(0).plain().toLowerCase().contains("semicolon"), problems.get(0).plain());
         assertTrue(!problems.get(0).hint().isBlank(), "hint missing");
         eq(problems.get(1).column(), 12);
         eq(problems.get(1).severity(), "warning");
+        Path root = Files.createTempDirectory("lark-diagnostic");
+        try {
+            String source = "class Demo { int value = missingName; }";
+            Path file = root.resolve("Demo.java");
+            Files.writeString(file, source);
+            Process javac = new ProcessBuilder(Runner.tool("javac").toString(), file.toString()).redirectErrorStream(true).start();
+            String output = new String(javac.getInputStream().readAllBytes(), StandardCharsets.UTF_8);
+            assertTrue(javac.waitFor() != 0, "Expected invalid Java to fail compilation");
+            List<Runner.Problem> parsed = Runner.parseDiagnostics(root, output);
+            assertTrue(!parsed.isEmpty(), "Expected a javac diagnostic");
+            eq(parsed.get(0).column(), source.indexOf("missingName") + 1);
+        } finally { Projects.deleteTree(root); }
     }
 
     private static void englishErrors() {

@@ -12,6 +12,11 @@ public final class ShareBirdCheck {
       s.command(avatar);
       if (!s.localStatus().write().contains("\"bird\":\"raven\"")) throw new AssertionError("avatar update");
       s.avatar("eagle");
+      for (String bird : new String[]{"parrot", "puffin", "kingfisher", "flamingo", "woodpecker"}) {
+        s.avatar(bird);
+        if (!s.localStatus().write().contains("\"bird\":\"" + bird + "\"")) throw new AssertionError("new bird: " + bird);
+      }
+      s.avatar("eagle");
       if (!s.localStatus().write().contains("\"bird\":\"eagle\"")) throw new AssertionError("host avatar");
       avatar.put("credential", "invalid");
       try { s.command(avatar); throw new AssertionError("unauthenticated update"); } catch (RequestFail expected) { if (expected.status != 403) throw expected; }

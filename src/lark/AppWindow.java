@@ -34,15 +34,14 @@ public final class AppWindow {
         open(url);
         Thread retry = new Thread(() -> {
             try {
-                Thread.sleep(2200);
+                Thread.sleep(5000);
                 if (Server.uiFresh()) {
                     WinTaskbar.claimEditorWindow();
                     return;
                 }
-                System.out.println("Lark window didn't check in — opening again…");
+                System.out.println("Lark window didn't check in — retrying with a separate browser profile…");
                 System.out.flush();
-                clearStaleProfileLocks();
-                openRaw(url);
+                openRaw(url, profileDir().resolveSibling(Instance.channel() + "-recovery"));
                 WinTaskbar.reclaimAfterLaunch();
             } catch (InterruptedException e) {
                 Thread.currentThread().interrupt();
@@ -53,16 +52,20 @@ public final class AppWindow {
     }
 
     private static void openRaw(String url) {
+        openRaw(url, profileDir());
+    }
+
+    private static void openRaw(String url, Path profile) {
         String os = System.getProperty("os.name", "").toLowerCase(Locale.ROOT);
         if (os.contains("win")) {
             String local = System.getenv("LOCALAPPDATA");
             String program = System.getenv("ProgramFiles");
             String program86 = System.getenv("ProgramFiles(x86)");
-            if (launchApp(url, local, "Microsoft", "Edge", "Application", "msedge.exe")) return;
-            if (launchApp(url, program, "Microsoft", "Edge", "Application", "msedge.exe")) return;
-            if (launchApp(url, local, "Google", "Chrome", "Application", "chrome.exe")) return;
-            if (launchApp(url, program, "Google", "Chrome", "Application", "chrome.exe")) return;
-            if (launchApp(url, program86, "Google", "Chrome", "Application", "chrome.exe")) return;
+            if (launchApp(url, profile, local, "Microsoft", "Edge", "Application", "msedge.exe")) return;
+            if (launchApp(url, profile, program, "Microsoft", "Edge", "Application", "msedge.exe")) return;
+            if (launchApp(url, profile, local, "Google", "Chrome", "Application", "chrome.exe")) return;
+            if (launchApp(url, profile, program, "Google", "Chrome", "Application", "chrome.exe")) return;
+            if (launchApp(url, profile, program86, "Google", "Chrome", "Application", "chrome.exe")) return;
             try {
                 new ProcessBuilder("cmd", "/c", "start", "", url).start();
                 return;
@@ -72,16 +75,16 @@ public final class AppWindow {
         } else if (os.contains("mac")) {
             // Use -a (not -n) so Chrome/Edge reuse the existing process instead of spawning
             // another app instance that shows up as a second taskbar/Dock entry.
-            if (macApp("Google Chrome", url)) return;
-            if (macApp("Microsoft Edge", url)) return;
-            if (macApp("Chromium", url)) return;
+            if (macApp("Google Chrome", url, profile)) return;
+            if (macApp("Microsoft Edge", url, profile)) return;
+            if (macApp("Chromium", url, profile)) return;
         } else {
             String[] browsers = {
                     "google-chrome", "google-chrome-stable", "chromium", "chromium-browser",
                     "microsoft-edge", "microsoft-edge-stable"
             };
             for (String bin : browsers) {
-                if (onPath(bin) && start(bin, chromeArgs(url, true))) return;
+                if (onPath(bin) && start(bin, chromeArgs(url, true, profile))) return;
             }
         }
         try {
@@ -263,8 +266,7 @@ public final class AppWindow {
         }
     }
 
-    private static String[] chromeArgs(String url, boolean linuxClass) {
-        Path profile = profileDir();
+    private static String[] chromeArgs(String url, boolean linuxClass, Path profile) {
         try {
             Files.createDirectories(profile);
         } catch (IOException ignored) {
@@ -279,14 +281,14 @@ public final class AppWindow {
         return args.toArray(new String[0]);
     }
 
-    private static boolean macApp(String name, String url) {
+    private static boolean macApp(String name, String url, Path profile) {
         try {
             List<String> cmd = new ArrayList<>();
             cmd.add("open");
             cmd.add("-a");
             cmd.add(name);
             cmd.add("--args");
-            for (String arg : chromeArgs(url, false)) cmd.add(arg);
+            for (String arg : chromeArgs(url, false, profile)) cmd.add(arg);
             Process process = new ProcessBuilder(cmd).start();
             return process.waitFor() == 0;
         } catch (Exception ignored) {
@@ -294,11 +296,11 @@ public final class AppWindow {
         }
     }
 
-    private static boolean launchApp(String url, String root, String... rest) {
+    private static boolean launchApp(String url, Path profile, String root, String... rest) {
         if (root == null || root.isBlank()) return false;
         Path path = Path.of(root, rest);
         if (!Files.isRegularFile(path)) return false;
-        return start(path.toString(), chromeArgs(url, false));
+        return start(path.toString(), chromeArgs(url, false, profile));
     }
 
     private static boolean start(String bin, String[] args) {

@@ -10,6 +10,8 @@
     "lark-mint": "Lark Mint",
     "lark-lavender": "Lark Lavender",
     "lark-paper": "Lark Paper",
+    "lark-twilight": "Lark Twilight",
+    "lark-meadow": "Lark Meadow",
     desk: "Desk",
     slate: "Slate",
     studio: "Studio",
@@ -69,7 +71,7 @@
     pink: "blossom"
   };
   const THEME_IDS = [
-    "arctic-white", "pearl", "cloud-blue", "sakura", "glacier-mint", "silverstone", "lark-snowfall", "lark-mint", "lark-lavender", "lark-paper",
+    "arctic-white", "pearl", "cloud-blue", "sakura", "glacier-mint", "silverstone", "lark-snowfall", "lark-mint", "lark-lavender", "lark-paper", "lark-twilight", "lark-meadow",
     "desk", "slate", "studio", "daylight", "moss", "ember", "fog",
     "blossom", "candy", "midnight", "citrus", "harbor",
     "graphite", "navy", "terminal", "parchment", "ultraviolet", "forest", "monochrome", "amber",
@@ -90,6 +92,8 @@
     "lark-mint": { bg: "#F8FFFC", accent: "#23856B" },
     "lark-lavender": { bg: "#FDFBFF", accent: "#745BA5" },
     "lark-paper": { bg: "#FFFDF7", accent: "#80643C" },
+    "lark-twilight": { bg: "#191D30", accent: "#AAB8FF" },
+    "lark-meadow": { bg: "#F5FAED", accent: "#39734D" },
     desk: { bg: "#2b2b2b", accent: "#cc7832" },
     slate: { bg: "#2a2e33", accent: "#8aa4b8" },
     studio: { bg: "#2c2926", accent: "#d19a66" },
@@ -384,52 +388,6 @@
     if (idx < 0) idx = 0;
     const next = list[(idx + delta + list.length) % list.length];
     applyTheme(next, true);
-  }
-
-  /** Time-of-day theme suggestion (once per local day, dismissible). */
-  function themeSuggestionForHour(hour) {
-    if (hour >= 5 && hour < 11) {
-      return { id: "daylight", title: "Morning light", body: "Switch to Daylight for a clearer desk?" };
-    }
-    if (hour >= 11 && hour < 17) {
-      return { id: "desk", title: "Midday focus", body: "Desk is a calm production theme for afternoon work." };
-    }
-    if (hour >= 17 && hour < 21) {
-      return { id: "hearth", title: "Evening warm-up", body: "Try Hearth for a warmer late-day desk?" };
-    }
-    return { id: "slate", title: "Night mode", body: "Slate keeps things quiet for late coding." };
-  }
-
-  function maybeShowThemeNudge() {
-    const banner = $("theme-nudge");
-    if (!banner) return;
-    let dismissed = "";
-    try { dismissed = localStorage.getItem("lark-theme-nudge-day") || ""; } catch (e) {}
-    const today = new Date();
-    const dayKey = today.getFullYear() + "-" + String(today.getMonth() + 1).padStart(2, "0")
-      + "-" + String(today.getDate()).padStart(2, "0");
-    if (dismissed === dayKey) return;
-    const suggestion = themeSuggestionForHour(today.getHours());
-    const current = (state.settings && state.settings.theme) || document.documentElement.dataset.theme || "desk";
-    if (current === suggestion.id) return;
-    $("theme-nudge-title").textContent = suggestion.title;
-    $("theme-nudge-body").textContent = suggestion.body;
-    banner.dataset.themeId = suggestion.id;
-    banner.hidden = false;
-  }
-
-  function dismissThemeNudge(apply) {
-    const banner = $("theme-nudge");
-    if (!banner) return;
-    const today = new Date();
-    const dayKey = today.getFullYear() + "-" + String(today.getMonth() + 1).padStart(2, "0")
-      + "-" + String(today.getDate()).padStart(2, "0");
-    try { localStorage.setItem("lark-theme-nudge-day", dayKey); } catch (e) {}
-    if (apply && banner.dataset.themeId) {
-      applyTheme(banner.dataset.themeId, true);
-      toast("Theme → " + themeName(banner.dataset.themeId));
-    }
-    banner.hidden = true;
   }
 
   function scratchOpen() {
@@ -2546,24 +2504,41 @@
 
   async function chooseFolderIcon(path) {
     const icons = customFolderIcons();
-    const values = await formDialog({
-      title: "Folder icon",
-      ok: "Apply icon",
-      note: "Give important folders a recognizable icon. This preference stays with this project on your device.",
-      fields: [{
-        name: "icon", label: "Icon", type: "select", value: icons[path] || "",
-        options: [
-          ["", "Default folder"], ["★", "Favorite"], ["☕", "Java package"],
-          ["◆", "Source"], ["✓", "Tests"], ["◈", "Resources"],
-          ["≡", "Documentation"], ["⚙", "Configuration"]
-        ]
-      }]
+    const choices = [["", "Default folder"], ["★", "Favorite"], ["☕", "Java package"],
+      ["◆", "Source"], ["✓", "Tests"], ["◈", "Resources"],
+      ["≡", "Documentation"], ["⚙", "Configuration"]];
+    const dialog = formDialog({
+      title: "Folder icon", ok: "Done",
+      note: "Choose an icon for this folder. Your choice is saved on this device.",
+      fields: [{ name: "icon", label: "Selected icon", type: "select", value: icons[path] || "", options: choices }]
     });
-    if (!values) return;
-    if (values.icon) icons[path] = values.icon;
-    else delete icons[path];
-    try { localStorage.setItem(folderIconStorageKey(), JSON.stringify(icons)); } catch (e) {}
-    renderTree();
+    const select = $("modal-fields").querySelector('select[name="icon"]');
+    const grid = document.createElement("div");
+    grid.className = "folder-icon-grid";
+    grid.setAttribute("role", "group");
+    grid.setAttribute("aria-label", "Folder icon previews");
+    function apply(value) {
+      select.value = value;
+      if (value) icons[path] = value; else delete icons[path];
+      try { localStorage.setItem(folderIconStorageKey(), JSON.stringify(icons)); } catch (e) {}
+      grid.querySelectorAll("button").forEach(button => button.setAttribute("aria-pressed", String(button.dataset.value === value)));
+      renderTree();
+    }
+    choices.forEach(([value, label]) => {
+      const button = document.createElement("button");
+      button.type = "button"; button.dataset.value = value;
+      const preview = document.createElement("span");
+      preview.className = "tree-icon folder" + (value ? " folder-custom" : "");
+      if (value) preview.textContent = value; else preview.innerHTML = folderIconSvg(false);
+      const caption = document.createElement("span"); caption.textContent = label;
+      button.append(preview, caption);
+      button.setAttribute("aria-pressed", String((icons[path] || "") === value));
+      button.addEventListener("click", () => apply(value));
+      grid.appendChild(button);
+    });
+    select.addEventListener("change", () => apply(select.value));
+    $("modal-fields").appendChild(grid);
+    await dialog;
   }
 
   let openPathRevision = 0;
@@ -3424,6 +3399,7 @@
     assistPlacement.wire(editor);
   }
 
+  const assistSelectedActions = new Map();
   function renderAssistBlocks() {
     const host = $("assist-blocks");
     if (!host) return;
@@ -3463,19 +3439,24 @@
         [["", "Actions…"], ["copy", "Copy"], ["replace", "Replace selection"]].forEach(([value, label]) => {
           const option = document.createElement("option"); option.value = value; option.textContent = label; actions.append(option);
         });
+        actions.value = assistSelectedActions.get(meta.id) || "";
         const editor = activeCm();
         const locked = !editor || editor.getOption("readOnly") || editor.getOption("disableInput");
         title.disabled = !!locked;
         card.draggable = !locked;
         actions.options[2].disabled = !!locked || !editor.somethingSelected() || editor.listSelections().length !== 1;
         actions.addEventListener("change", async () => {
-          const action = actions.value; actions.value = "";
-          if (action === "copy") {
-            try { await navigator.clipboard.writeText(meta.code); } catch (err) { toast("Clipboard unavailable: " + err.message); }
+          const action = actions.value;
+          if (!action) { assistSelectedActions.delete(meta.id); }
+          else if (action === "copy") {
+            try { await navigator.clipboard.writeText(meta.code); assistSelectedActions.set(meta.id, action); }
+            catch (err) { actions.value = assistSelectedActions.get(meta.id) || ""; toast("Clipboard unavailable: " + err.message); }
           } else if (action === "replace") {
             const ed = activeCm();
-            if (!ed || !ed.somethingSelected()) return;
-            if (insertAssistBlock(ed, ed.getCursor("from"), meta, true)) closePopovers();
+            if (!ed || !ed.somethingSelected() || !insertAssistBlock(ed, ed.getCursor("from"), meta, true)) {
+              actions.value = assistSelectedActions.get(meta.id) || ""; return;
+            }
+            assistSelectedActions.set(meta.id, action); closePopovers();
           }
         });
         card.append(title, actions, where);
@@ -4842,19 +4823,14 @@
       if (!doc) return;
       const line = Number(problem.line) - 1;
       if (!Number.isFinite(line) || line < 0 || line >= doc.lineCount()) return;
-      const key = resolved + ":" + line;
+      const key = resolved + ":" + line + ":" + (Number(problem.column) || 0);
       if (!byLine.has(key)) byLine.set(key, { doc: doc, line: line, column: Number(problem.column) || 0 });
     });
     byLine.forEach((hit) => {
-      const cls = "cm-problem-line";
-      const handle = hit.doc.addLineClass(hit.line, "background", cls);
-      lineMarks.push({ doc: hit.doc, handle: handle, cls: cls });
       const text = hit.doc.getLine(hit.line) || "";
-      const ch = Math.min(Math.max(0, hit.column - 1), text.length);
-      if (hit.column > 0 && ch < text.length) {
-        let end = ch + 1;
-        while (end < text.length && /[\w$]/.test(text[end]) && /[\w$]/.test(text[ch])) end++;
-        const mark = hit.doc.markText({ line: hit.line, ch: ch }, { line: hit.line, ch: end }, { className: "cm-problem-mark" });
+      const range = window.LarkJava.diagnosticRange(text, hit.column);
+      if (range) {
+        const mark = hit.doc.markText({ line: hit.line, ch: range.start }, { line: hit.line, ch: range.end }, { className: "cm-problem-mark" });
         lineMarks.push({ doc: hit.doc, text: mark });
       }
     });
@@ -4937,6 +4913,12 @@
     }
     $("shell").classList.toggle("files-collapsed");
     if (cm) cm.refresh();
+  }
+
+  function setConsoleOpen(open) {
+    $("center").classList.toggle("console-collapsed", !open);
+    $("console-toggle").setAttribute("aria-expanded", String(open));
+    refreshAllEditors();
   }
 
   function refreshLocalProblems() {
@@ -5183,7 +5165,17 @@
   let githubRepos = [];
   let githubTarget = null;
 
+  function rememberGithubTarget(projectId, target) {
+    if (!projectId) return;
+    try { localStorage.setItem("lark-github-target:" + projectId, JSON.stringify(target)); } catch (e) {}
+  }
+
   function openDrawer() {
+    githubTarget = null;
+    try {
+      const saved = JSON.parse(localStorage.getItem("lark-github-target:" + (state.project?.id || "")) || "null");
+      if (saved && typeof saved.owner === "string" && typeof saved.repo === "string" && typeof saved.branch === "string") githubTarget = saved;
+    } catch (e) {}
     closePopovers();
     const drawer = $("drawer");
     const scrim = $("scrim");
@@ -5362,6 +5354,7 @@
       });
       row.addEventListener("click", () => {
         githubTarget = { owner: repo.owner, repo: repo.name, branch: repo.defaultBranch || "main", create: false };
+        rememberGithubTarget(state.project?.id, githubTarget);
         renderGithubTarget();
         renderRepoList();
       });
@@ -5384,24 +5377,49 @@
 
   async function pushProject(createNew) {
     if (!state.project) return toast("Open a project first.");
+    const projectId = state.project.id;
     let target = githubTarget;
     if (createNew) {
       const repo = (state.project.id || "project").toLowerCase().replace(/[^a-z0-9_.-]+/g, "-").replace(/^-+|-+$/g, "").slice(0, 80) || "project";
-      target = { owner: state.settings.githubLogin || "", repo: repo, branch: "main", create: true };
+      const choices = await formDialog({ title: "Create GitHub repository", ok: "Create and push", fields: [
+        { name: "repo", label: "Repository name", value: repo },
+        { name: "description", label: "Description (optional)", value: "" },
+        { name: "visibility", label: "Visibility", type: "select", value: "private", options: [["private", "Private"], ["public", "Public"]] }
+      ] });
+      if (!choices) return;
+      target = { owner: state.settings.githubLogin || "", repo: choices.repo.trim(), description: choices.description.trim(), privateRepo: choices.visibility !== "public", branch: "main", create: true };
     }
     if (!target || !target.owner || !target.repo) return toast("Choose a repository first.");
     await flushSaves();
     $("gh-result").textContent = createNew ? "Creating and pushing…" : "Pushing…";
     $("gh-push").disabled = true;
     try {
-      const data = await api("POST", "/api/github/push", {
-        project: state.project.id,
+      const started = await api("POST", "/api/github/push/start", {
+        project: projectId,
         owner: target.owner,
         repo: target.repo,
         branch: target.branch || "main",
         message: $("gh-message").value.trim(),
-        create: Boolean(target.create)
+        create: Boolean(target.create), description: target.description || "", private: target.privateRepo !== false
       });
+      const cancel = $("gh-cancel-push");
+      cancel.hidden = false;
+      cancel.disabled = false;
+      cancel.onclick = async () => {
+        cancel.disabled = true;
+        try {
+          await api("POST", "/api/github/push/cancel", { id: started.id });
+          $("gh-result").textContent = "Cancelling after the current step...";
+        } catch (error) { $("gh-result").textContent = error.message; }
+      };
+      let result;
+      do {
+        await new Promise(resolve => setTimeout(resolve, 500));
+        result = await api("POST", "/api/github/push/status", { id: started.id });
+        if (!cancel.disabled) $("gh-result").textContent = result.stage;
+      } while (result.status === "running");
+      if (result.status !== "done") throw new Error(result.error || "The push did not finish.");
+      const data = result.result;
       $("gh-result").textContent = "";
       const link = document.createElement("a");
       link.href = data.url;
@@ -5409,13 +5427,18 @@
       link.rel = "noreferrer";
       link.textContent = "Pushed " + data.files + " files";
       $("gh-result").appendChild(link);
-      githubTarget = { owner: target.owner, repo: target.repo, branch: target.branch || "main", create: false };
+      if (data.localNote) $("gh-result").append(document.createTextNode(" "+ data.localNote));
+      const published = { owner: target.owner, repo: target.repo, branch: data.branch || target.branch || "main", create: false };
+      rememberGithubTarget(projectId, published);
+      if (state.project?.id === projectId) githubTarget = published;
       renderGithubTarget();
       loadRepos();
     } catch (err) {
       $("gh-result").textContent = err.message;
     } finally {
       $("gh-push").disabled = false;
+      $("gh-cancel-push").hidden = true;
+      $("gh-cancel-push").onclick = null;
     }
   }
 
@@ -5592,6 +5615,12 @@
           window.removeEventListener("pointercancel", up);
           document.body.classList.remove("dragging", "dragging-col");
           handle.classList.remove("on");
+          if (latest && handle.dataset.split === "files" && start.files + latest.clientX - start.x < 80) {
+            $("shell").classList.add("files-collapsed");
+          }
+          if (latest && handle.dataset.split === "console" && start.console - (latest.clientY - start.y) < 36) {
+            setConsoleOpen(false);
+          }
           savePanels();
           refreshAllEditors();
         };
@@ -6220,6 +6249,14 @@
   async function exportCodeImage() {
     const editor = activeCm();
     if (!editor || !activePath()) return toast("Open a file first.");
+    const options = await formDialog({
+      title: "Export code image", ok: "Export",
+      fields: [{ name: "scope", label: "Capture", type: "select", value: "full", options: [
+        ["visible", "Visible Code"], ["full", "Full Code"], ["selected", "Selected Code"]
+      ] }]
+    });
+    if (!options) return;
+    if (options.scope === "selected" && !editor.somethingSelected()) return toast("Select code first.");
     await document.fonts.ready;
     const wrap = editor.getWrapperElement();
     const style = getComputedStyle(wrap);
@@ -6230,8 +6267,15 @@
     const lineHeight = Math.ceil(editor.defaultTextHeight());
     const fontSize = parseFloat(style.fontSize);
     const measure = document.createElement("canvas").getContext("2d");
-    measure.font = style.font;
+    measure.font = [style.fontStyle, style.fontWeight, style.fontSize, style.fontFamily].join(" ");
     const lineCount = editor.lineCount();
+    const scroll = editor.getScrollInfo();
+    const selectionStart = options.scope === "selected" ? editor.getCursor("from") : null;
+    const selectionEnd = options.scope === "selected" ? editor.getCursor("to") : null;
+    const firstLine = selectionStart ? selectionStart.line : options.scope === "visible" ? Math.max(0, editor.lineAtHeight(scroll.top, "local")) : 0;
+    const lastLine = selectionEnd ? selectionEnd.line - (selectionEnd.ch === 0 && selectionEnd.line > selectionStart.line ? 1 : 0) : options.scope === "visible" ? Math.min(lineCount - 1, editor.lineAtHeight(scroll.top + scroll.clientHeight, "local")) : lineCount - 1;
+    const capturedLines = lastLine - firstLine + 1;
+    if (capturedLines > 10000) { probe.remove(); return toast("This image is too large. Select fewer lines and try again."); }
     const path = activePath();
     const fileName = path.split(/[\\/]/).pop();
     const outerPadding = 24;
@@ -6241,13 +6285,20 @@
     const gutterWidth = Math.ceil(Math.max(44, String(lineCount).length * digitWidth + 30));
     const codeStart = outerPadding + gutterWidth + 16;
     let width = 0;
+    let characters = 0;
     const rows = [];
     try {
-      for (let line = 0; line < lineCount; line++) {
+      for (let line = firstLine; line <= lastLine; line++) {
+        characters += editor.getLine(line).length;
+        if (characters > 1000000) return toast("This image is too large. Select less code and try again.");
         let column = 0;
         let plain = "";
         const spans = editor.getLineTokens(line, true).map(token => {
-          const text = token.string.replace(/\t|[^\t]/g, ch => {
+          const start = selectionStart && line === firstLine ? selectionStart.ch : 0;
+          const end = selectionEnd && line === selectionEnd.line ? selectionEnd.ch : Infinity;
+          const tokenStart = token.start == null ? 0 : token.start;
+          const fragment = token.string.slice(Math.max(0, start - tokenStart), Math.max(0, end - tokenStart));
+          const text = fragment.replace(/\t|[^\t]/g, ch => {
             if (ch !== "\t") { column++; return ch; }
             const count = editor.getOption("tabSize") - column % editor.getOption("tabSize");
             column += count; return " ".repeat(count);
@@ -6261,17 +6312,20 @@
           return '<tspan fill="' + escape(colors.get(type)) + '">' + escape(text) + '</tspan>';
         }).join("");
         width = Math.max(width, measure.measureText(plain).width);
-        const baseline = outerPadding + headerHeight + fontSize + line * lineHeight;
+        const baseline = outerPadding + headerHeight + fontSize + (line - firstLine) * lineHeight;
         rows.push('<text class="line-number" x="' + (outerPadding + gutterWidth - 10) + '" y="' + baseline + '">' + (line + 1) + '</text>');
-        rows.push('<text x="' + codeStart + '" y="' + baseline + '">' + spans + '</text>');
+        rows.push('<text clip-path="url(#code-clip)" x="' + (codeStart - (options.scope === "visible" ? scroll.left : 0)) + '" y="' + baseline + '">' + spans + '</text>');
       }
     } finally { probe.remove(); }
-    const imageWidth = Math.ceil(Math.max(width + codeStart + outerPadding, 420));
-    const imageHeight = Math.ceil(outerPadding * 2 + headerHeight + lineCount * lineHeight);
+    const visibleWidth = Math.max(1, scroll.clientWidth - gutterWidth);
+    const imageWidth = Math.ceil(Math.max((options.scope === "visible" ? visibleWidth : width) + codeStart + outerPadding + 24, 420));
+    const imageHeight = Math.ceil(outerPadding * 2 + headerHeight + capturedLines * lineHeight);
+    if (imageWidth > 30000 || imageHeight > 30000 || imageWidth * imageHeight > 150000000) return toast("This image is too large. Select fewer lines and try again.");
     const background = style.backgroundColor;
     const foreground = style.color;
     const divider = getComputedStyle(wrap.querySelector(".CodeMirror-gutters") || wrap).borderRightColor;
     const svg = '<svg xmlns="http://www.w3.org/2000/svg" width="' + imageWidth + '" height="' + imageHeight + '" viewBox="0 0 ' + imageWidth + ' ' + imageHeight + '">' +
+      '<defs><clipPath id="code-clip"><rect x="' + codeStart + '" y="0" width="' + (imageWidth - codeStart - outerPadding) + '" height="' + imageHeight + '"/></clipPath></defs>' +
       '<rect width="100%" height="100%" fill="' + escape(background) + '"/>' +
       '<rect x="' + outerPadding + '" y="' + outerPadding + '" width="' + (imageWidth - outerPadding * 2) + '" height="' + (imageHeight - outerPadding * 2) + '" rx="6" fill="' + escape(background) + '" stroke="' + escape(divider) + '"/>' +
       '<path d="M ' + outerPadding + ' ' + (outerPadding + headerHeight) + ' H ' + (imageWidth - outerPadding) + ' M ' + (outerPadding + gutterWidth) + ' ' + (outerPadding + headerHeight) + ' V ' + (imageHeight - outerPadding) + '" stroke="' + escape(divider) + '"/>' +
@@ -6285,7 +6339,7 @@
     link.download = fileName + ".svg";
     link.click();
     setTimeout(() => URL.revokeObjectURL(url), 1000);
-    toast("Full-file code image exported as SVG.");
+    toast("Code image exported as SVG.");
   }
 
   function setupToolbarResize() {
@@ -6370,12 +6424,6 @@
       if (event.target.closest("#scratch-menu, #scratch-more")) return;
       closeScratchMenu();
     });
-    if ($("theme-nudge-apply")) {
-      $("theme-nudge-apply").addEventListener("click", () => dismissThemeNudge(true));
-    }
-    if ($("theme-nudge-dismiss")) {
-      $("theme-nudge-dismiss").addEventListener("click", () => dismissThemeNudge(false));
-    }
     bindScratchDrag();
     bindScratchResize();
     bindExtras();
@@ -6530,6 +6578,22 @@
     $("setting-zoom").addEventListener("change", () => {
       applyDisplay({ zoom: Number($("setting-zoom").value) }, true);
     });
+    const panelScales = ["files", "outline", "console", "assist"];
+    function setPanelScale(name, value) {
+      value = Math.max(80, Math.min(140, Number(value) || 100));
+      document.documentElement.style.setProperty("--scale-" + name, String(value / 100));
+      $("scale-" + name).value = String(value);
+      $("scale-" + name + "-out").textContent = value + "%";
+      try { localStorage.setItem("lark-panel-scale-" + name, String(value)); } catch (e) {}
+      refreshAllEditors();
+    }
+    panelScales.forEach(name => {
+      let value = 100;
+      try { value = localStorage.getItem("lark-panel-scale-" + name) || 100; } catch (e) {}
+      setPanelScale(name, value);
+      $("scale-" + name).addEventListener("input", event => setPanelScale(name, event.target.value));
+    });
+    $("scale-panels-reset").addEventListener("click", () => panelScales.forEach(name => setPanelScale(name, 100)));
     $("setting-zoom-reset").addEventListener("click", () => applyDisplay({ zoom: 100 }, true));
     if ($("setting-display-reset")) $("setting-display-reset").addEventListener("click", () => resetDisplaySize());
     if ($("setting-font-down")) $("setting-font-down").addEventListener("click", () => bumpFont(-1));
@@ -6600,6 +6664,14 @@
         "import-folder": () => $("import-folder").click(),
         "import-zip": () => $("import-zip").click(),
         download: downloadZip,
+        "open-project-folder": async () => {
+          if (!state.project) return toast("Open a project first.");
+          await api("POST", "/api/project/reveal", { project: state.project.id });
+        },
+        "reveal-current-file": async () => {
+          if (!state.project || !activePath()) return toast("Open a saved file first.");
+          await api("POST", "/api/project/reveal", { project: state.project.id, file: activePath() });
+        },
         "copy-path": async () => {
           if (!state.project) return;
           await navigator.clipboard.writeText(state.project.path);
@@ -6842,7 +6914,6 @@
         if (!$("palette").hidden) { $("palette").hidden = true; return; }
         if (!$("modal").hidden) { closeModal(null); return; }
         if (!$("drawer").hidden) { closeDrawer(); return; }
-        if ($("theme-nudge") && !$("theme-nudge").hidden) { dismissThemeNudge(false); return; }
         closePopovers();
       }
       if (themeOverlayOpen() && !event.ctrlKey && !event.metaKey && !event.altKey) {
@@ -6977,6 +7048,9 @@
       refreshAllEditors();
     });
     bindSplitters();
+    $("console-toggle").addEventListener("click", () => setConsoleOpen($("center").classList.contains("console-collapsed")));
+    $("close-console").addEventListener("click", () => setConsoleOpen(false));
+    $("console-toggle").setAttribute("aria-expanded", "true");
     ["shell", "workspace", "center"].forEach((id) => {
       const el = $(id);
       if (!el) return;
@@ -7554,7 +7628,6 @@
       window.LarkEditorReady = true;
       document.dispatchEvent(new Event("lark-editor-ready"));
       checkUpdates(false).catch(() => {});
-      setTimeout(() => maybeShowThemeNudge(), 1600);
     } catch (err) {
       $("boot").textContent = err.message || "Lark couldn't open.";
     }

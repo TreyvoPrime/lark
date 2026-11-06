@@ -12,7 +12,8 @@ const themes = {
   sakura: ['#FFFAFC','#FFF0F5','#C65D88','#48313C','#EEDBE4'],
   'glacier-mint': ['#F7FCFA','#EAF7F1','#218A70','#20392F','#D3E9DF'],
   silverstone: ['#F7F8FA','#EBEEF2','#5A6B85','#252F3E','#D7DCE4'],
-  'lark-snowfall': null, 'lark-mint': null, 'lark-lavender': null, 'lark-paper': null
+  'lark-snowfall': null, 'lark-mint': null, 'lark-lavender': null, 'lark-paper': null,
+  'lark-twilight': null, 'lark-meadow': null
 };
 function luminance(hex) {
   const rgb = hex.match(/[0-9a-f]{2}/gi).map(x => parseInt(x, 16) / 255).map(x => x <= .04045 ? x / 12.92 : ((x + .055) / 1.055) ** 2.4);
@@ -31,4 +32,4 @@ for (const [id, expected] of Object.entries(themes)) {
   }
   assert(contrast(vars['--accent'], vars['--accent-ink']) >= 4.5, `${id} accent button text is readable`);
 }
-console.log('Ten light theme palettes, registration and text contrast passed.');
+console.log('Theme palettes, registration and text contrast passed.');

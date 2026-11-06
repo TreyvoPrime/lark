@@ -29,11 +29,11 @@
       version: '3.9.7.36', packageVersion: '3.9.7.36', architecture: 'x64', verified: true, recommended: name === 'LarkDesktopSetup.exe' })),
     checkedAt: '2026-10-29T00:46:00Z', source: 'verified snapshot', stale: true
   };
-  const currentAssets = [["LarkDesktopSetup.exe", 47727909], ["lark-executable-windows.zip", 89212699], ["lark-desktop-windows.zip", 76457490], ["lark-desktop-mac.zip", 67614814], ["lark-desktop-linux.zip", 79364413], ["lark-mobile-windows.zip", 88438254], ["lark-mobile-mac.zip", 121856829], ["lark-mobile-linux.zip", 132403052]];
+  const currentAssets = [["LarkDesktopSetup.exe", 47761159], ["lark-executable-windows.zip", 76298087], ["lark-desktop-windows.zip", 76465588], ["lark-desktop-mac.zip", 67618883], ["lark-desktop-linux.zip", 79368482], ["lark-mobile-windows.zip", 75389086], ["lark-mobile-mac.zip", 67621438], ["lark-mobile-linux.zip", 79371037]];
   const fallback = {
-    latest: { tag: 'v4.0.5', version: '4.0.5', url: repo + '/releases/tag/v4.0.5', updateOnly: false },
-    packages: currentAssets.map(([name, bytes]) => ({ ...definitions[name], name, bytes, url: assetUrl('v4.0.5', name), releaseTag: 'v4.0.5', releaseUrl: repo + '/releases/tag/v4.0.5', version: '4.0.5', packageVersion: '4.0.5', architecture: 'x64', verified: true, recommended: name === 'LarkDesktopSetup.exe' })),
-    checkedAt: '2026-10-31T12:44:16Z', source: 'verified snapshot', stale: true
+    latest: { tag: 'v4.0.13', version: '4.0.13', url: repo + '/releases/tag/v4.0.13', updateOnly: false },
+    packages: currentAssets.map(([name, bytes]) => ({ ...definitions[name], name, bytes, url: assetUrl('v4.0.13', name), releaseTag: 'v4.0.13', releaseUrl: repo + '/releases/tag/v4.0.13', version: '4.0.13', packageVersion: null, architecture: 'Not specified', verified: false, recommended: name === 'LarkDesktopSetup.exe' })),
+    checkedAt: '2026-11-04T00:00:00Z', source: 'release snapshot', stale: true
   };
   function validUrl(value, tag, name) {
     return typeof value === 'string' && value === assetUrl(tag, name);
@@ -47,7 +47,7 @@
     for (const release of stable) {
       for (const asset of release.assets) {
         if (!asset || !Object.hasOwn(definitions, asset.name) || found.has(asset.name) || asset.state !== 'uploaded' || !Number.isSafeInteger(asset.size) || asset.size <= 0 || !validUrl(asset.browser_download_url, release.tag_name, asset.name)) continue;
-        const verified = [...fallback.packages, ...legacyFallback.packages].find(p => p.url === asset.browser_download_url && p.bytes === asset.size);
+        const verified = [...fallback.packages, ...legacyFallback.packages].find(p => p.verified && p.url === asset.browser_download_url && p.bytes === asset.size);
         found.set(asset.name, { ...definitions[asset.name], name: asset.name, bytes: asset.size, url: asset.browser_download_url,
           releaseTag: release.tag_name, releaseUrl: repo + '/releases/tag/' + encodeURIComponent(release.tag_name),
           version: verified?.version || release.tag_name.replace(/^v/, ''), packageVersion: verified?.packageVersion || null, architecture: verified?.architecture || 'Not specified', verified: !!verified, recommended: asset.name === 'LarkDesktopSetup.exe',
@@ -74,7 +74,7 @@
         if (!Array.isArray(data)) throw new Error('Invalid release data');
         releases.push(...data);
         const catalog = fromReleases(releases);
-        const complete = ['windows', 'macos', 'linux'].every(os => selectPackages(catalog, os).length > 0) && catalog.packages.some(p => p.kind === 'mobile');
+        const complete = ['windows', 'macos', 'linux'].every(os => selectPackages(catalog, os).length > 0);
         if (complete || data.length < 20 || page === 3) return catalog;
       }
     } catch (_) {

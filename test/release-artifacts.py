@@ -10,6 +10,7 @@ import zipfile
 
 root = Path(__file__).resolve().parents[1]
 release = root / 'release'
+assert not list(release.glob('lark-mobile*')), 'A new release must not contain Mobile artifacts'
 import re
 VERSION = re.search(r'VERSION = "([^"]+)"', (root / 'src/lark/Settings.java').read_text()).group(1)
 
@@ -23,14 +24,14 @@ def digest(path):
 expected = digest(root / 'dist/lark.jar')
 required = [
     'lark-desktop-windows.zip', 'lark-desktop-mac.zip', 'lark-desktop-linux.zip',
-    'lark-executable-windows.zip', 'lark-mobile-windows.zip', 'lark-mobile-mac.zip',
-    'lark-mobile-linux.zip', 'lark-desktop-update.zip', 'lark-executable-update.zip',
-    'lark-mobile-update.zip', 'lark-windows.zip', 'lark-mac.zip', 'lark-linux.zip',
-    'lark.zip', 'lark-mobile.zip', 'lark-update.zip',
+    'lark-executable-windows.zip', 'lark-desktop-update.zip', 'lark-executable-update.zip',
+    'lark-windows.zip', 'lark-mac.zip', 'lark-linux.zip', 'lark.zip', 'lark-update.zip',
 ]
 for name in required:
     with zipfile.ZipFile(release / name) as archive:
         assert archive.testzip() is None, name + ': archive CRC failure'
+        if name == 'lark-desktop-update.zip':
+            assert any(entry.lstrip('./') == 'Lark Desktop.exe' for entry in archive.namelist()), name + ': Desktop launcher missing'
         jars = [entry for entry in archive.namelist() if entry.endswith('lark.jar')]
         assert jars, name + ': application jar missing'
         for entry in jars:
@@ -65,4 +66,4 @@ for key, value in metadata['sha256'].items():
     filename = key if (release / key).is_file() else metadata.get('downloads', {}).get(key, '').rsplit('/', 1)[-1]
     assert filename and (release / filename).is_file(), 'Unknown hash target: ' + key
     assert digest(release / filename) == value, 'Updater checksum mismatch: ' + key
-print('Windows installer, all 16 archives and updater hashes verified. App SHA-256: ' + expected)
+print('Windows installer, release archives and updater hashes verified. App SHA-256: ' + expected)

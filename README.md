@@ -79,6 +79,10 @@ Lark 4 focuses on a smoother Java coding experience, clearer project navigation,
 - **Lark Share:** Encrypted LAN collaboration with host approval, shared editing, participant presence, live cursors, and Editor/Viewer permissions.
 - **Session controls:** Collaboration recovery and permission handling aim to keep shared work manageable if connections change.
 - **Git and GitHub:** Clone/push workflows and terminal-based Git commands help work with repositories without leaving the IDE.
+
+Publishing to a new GitHub repository supports text and binary project files. The upload includes `.gitignore`, `.gitattributes`, and `.editorconfig`, while excluding other hidden files, build output, and Lark's internal files. A publish is limited to 1,000 files, 10 MB per file, and 25 MB in total; symbolic links must be replaced before publishing. Check the repository contents after publishing, particularly when hidden files are needed.
+
+When Git is installed, Lark attempts to connect a newly published project to its GitHub remote and default branch. It preserves existing remotes, repositories, worktrees, and local history, and reports when it cannot set up the local link. GitHub upload remains available without a local Git installation; terminal Git operations require Git on PATH. Cancellation stops between steps, so a repository or initial commit may already exist on GitHub when a push is cancelled.
 - **Built-in terminal:** Run commands in the open project directory; later 4.0.x work adds improved cancellation and input handling.
 
 ### 4.0.x release highlights
