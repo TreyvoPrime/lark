@@ -4060,46 +4060,6 @@ body.scratch-open #scratch {
   .theme-grid { grid-template-columns: repeat(auto-fill, minmax(128px, 1fr)); }
 }
 
-.theme-nudge {
-  position: fixed;
-  left: 50%;
-  bottom: 52px;
-  transform: translateX(-50%);
-  z-index: 65;
-  display: flex;
-  align-items: center;
-  gap: 14px;
-  max-width: min(520px, calc(100vw - 24px));
-  padding: 12px 14px;
-  background: var(--bg-elev);
-  border: 1px solid var(--line);
-  border-radius: 12px;
-  box-shadow: var(--shadow);
-  animation: scratch-in 220ms ease;
-}
-.theme-nudge[hidden] { display: none !important; }
-.theme-nudge-copy { min-width: 0; }
-.theme-nudge-copy strong {
-  display: block;
-  font-size: 13px;
-  color: var(--text);
-  margin-bottom: 2px;
-}
-.theme-nudge-copy p {
-  margin: 0;
-  font-size: 12.5px;
-  color: var(--muted);
-  line-height: 1.35;
-}
-.theme-nudge-actions {
-  display: flex;
-  gap: 6px;
-  flex-shrink: 0;
-}
-.theme-nudge-actions button {
-  font-size: 12px;
-  padding: 6px 10px;
-}
 @media (max-width: 720px) {
   .scratch-pad {
     left: 8px;
@@ -4112,11 +4072,6 @@ body.scratch-open #scratch {
   .scratch-deck-item { font-size: 11px; padding: 6px 6px; }
   .extras-panel { padding: 12px; }
   .extras-card { width: 100%; max-height: calc(100vh - 24px); }
-  .theme-nudge {
-    flex-direction: column;
-    align-items: stretch;
-    bottom: 40px;
-  }
 }
 
 #boot {
@@ -4684,3 +4639,16 @@ li.CodeMirror-hint-active { background: var(--select); color: var(--text); }
 .terminal-git-status:not(:empty) { padding: 3px 10px; color: var(--muted); background: var(--bg-elev); border-bottom: 1px solid var(--line); font-size: 11px; }
 .terminal-input-row { flex-wrap: wrap; }
 .terminal-input-row label { display: inline-flex; align-items: center; gap: 4px; color: var(--muted); font-size: 11px; white-space: nowrap; }
+
+/* Closed trays give the editor all available space. */
+#center.console-collapsed { grid-template-rows: minmax(0, 1fr) 0; }
+#center.console-collapsed #console { visibility: hidden; overflow: hidden; border: 0; }
+
+.folder-icon-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(100px, 1fr)); gap: 6px; margin-top: 10px; }
+.folder-icon-grid button { display: flex; align-items: center; gap: 7px; min-height: 36px; text-align: left; }
+.folder-icon-grid button[aria-pressed="true"] { outline: 2px solid var(--accent); outline-offset: -2px; }
+
+#tree { zoom: var(--scale-files, 1); }
+#structure-list { zoom: var(--scale-outline, 1); }
+#console > :not(.splitter) { zoom: var(--scale-console, 1); }
+#menu-assist > * { zoom: var(--scale-assist, 1); }

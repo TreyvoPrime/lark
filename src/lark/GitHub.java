@@ -17,6 +17,7 @@ import java.util.Locale;
 /** Pushes and pulls a project through the GitHub API. Git itself is not required. */
 public final class GitHub {
     private final Settings settings;
+    private final URI apiBase;
     private volatile HttpClient http;
 
     private final SecureRandom random = new SecureRandom();
@@ -28,6 +29,15 @@ public final class GitHub {
 
     public GitHub(Settings settings) {
         this.settings = settings;
+        this.apiBase = URI.create("https://api.github.com");
+    }
+
+    // Local test server only; production endpoints cannot be configured by a project.
+    GitHub(Settings settings, URI localTestServer) {
+        if (!"http".equals(localTestServer.getScheme()) || !"127.0.0.1".equals(localTestServer.getHost()))
+            throw new IllegalArgumentException("Test endpoint must be loopback HTTP");
+        this.settings = settings;
+        this.apiBase = localTestServer;
     }
 
     private HttpClient http() {
@@ -302,7 +312,14 @@ public final class GitHub {
     }
 
     public Json.Obj push(Projects projects, String projectId, String owner, String repo,
-                         String branch, String message, boolean create) {
+                         String branch, String message, boolean create, String description, boolean privateRepo) {
+        return push(projects, projectId, owner, repo, branch, message, create, description, privateRepo, stage -> {});
+    }
+
+    Json.Obj push(Projects projects, String projectId, String owner, String repo,
+                  String branch, String message, boolean create, String description, boolean privateRepo,
+                  java.util.function.Consumer<String> progress) {
+        progress.accept("Checking the project and GitHub account...");
         String token = requireToken();
         owner = checkName(owner, "owner");
         repo = checkName(repo, "repository");
@@ -310,29 +327,47 @@ public final class GitHub {
         if (message == null || message.isBlank()) message = "Update from Lark";
         if (message.length() > 400) message = message.substring(0, 400);
 
-        List<Projects.TextFile> files = projects.texts(projectId);
+        List<Projects.PublishFile> files = projects.publishFiles(projectId);
         if (files.isEmpty()) throw new RequestFail(400, "There's nothing to push yet.");
-        long total = 0;
-        for (Projects.TextFile file : files) total += file.content().length();
-        if (total > 2_000_000) throw new RequestFail(400, "This project is too large to push from Lark.");
 
         String repoPath = "/repos/" + enc(owner) + "/" + enc(repo);
         Api repoInfo = call(token, "GET", repoPath, null);
+        if (create && repoInfo.status >= 200 && repoInfo.status < 300)
+            throw new RequestFail(409, "A repository with that name already exists. Select it explicitly to push.");
         if (repoInfo.status == 404) {
             if (!create) {
                 throw new RequestFail(404, "No repository " + owner + "/" + repo
                         + ". Check the box to create it, or create it on GitHub first.");
             }
-            createRepo(token, owner, repo);
+            progress.accept("Creating the repository...");
+            createRepo(token, owner, repo, description, privateRepo);
             repoInfo = call(token, "GET", repoPath, null);
         }
         expectOk(token, repoInfo);
         String defaultBranch = repoInfo.obj.str("default_branch", "main");
+        if (create) branch = checkBranch(defaultBranch);
 
+        progress.accept("Checking the repository history...");
         Api ref = call(token, "GET", repoPath + "/git/ref/heads/" + branchPath(branch), null);
         String parent = null;
         String baseTree = null;
         boolean empty = ref.status == 409 || messageHas(ref, "empty");
+        if (!empty && ref.status == 404) {
+            Api refs = call(token, "GET", repoPath + "/git/refs", null);
+            empty = refs.status == 409 || messageHas(refs, "empty");
+        }
+        if (empty) {
+            // GitHub cannot create a Git reference in an empty repository. Its
+            // Contents API creates the initial commit and default branch safely.
+            progress.accept("Starting the repository's first commit...");
+            Projects.PublishFile first = files.get(0);
+            Json.Obj initial = new Json.Obj().put("message", message)
+                    .put("content", Base64.getEncoder().encodeToString(first.content()));
+            expectOk(token, call(token, "PUT", repoPath + "/contents/" + branchPath(first.path()), initial.write()));
+            branch = checkBranch(defaultBranch);
+            ref = call(token, "GET", repoPath + "/git/ref/heads/" + branchPath(branch), null);
+            empty = false;
+        }
         if (ref.status == 200 && ref.obj != null) {
             Json.Obj object = ref.obj.obj("object");
             parent = object == null ? null : object.str("sha");
@@ -349,13 +384,27 @@ public final class GitHub {
             expectOk(token, ref);
         }
 
+        progress.accept("Preparing " + files.size() + " project files...");
         Json.Arr treeEntries = new Json.Arr();
-        for (Projects.TextFile file : files) {
-            treeEntries.add(new Json.Obj()
-                    .put("path", file.path())
-                    .put("mode", "100644")
-                    .put("type", "blob")
-                    .put("content", file.content()));
+        for (Projects.PublishFile file : files) {
+            Json.Obj item = new Json.Obj().put("path", file.path()).put("mode", "100644").put("type", "blob");
+            String text = null;
+            try {
+                text = StandardCharsets.UTF_8.newDecoder().decode(java.nio.ByteBuffer.wrap(file.content())).toString();
+                if (text.indexOf('\0') >= 0) text = null;
+            } catch (java.nio.charset.CharacterCodingException ignored) { /* Binary data requires a blob. */ }
+            if (text != null) item.put("content", text);
+            else {
+                progress.accept("Uploading " + file.path() + "...");
+                Json.Obj blobBody = new Json.Obj().put("encoding", "base64")
+                        .put("content", Base64.getEncoder().encodeToString(file.content()));
+                Api blob = call(token, "POST", repoPath + "/git/blobs", blobBody.write());
+                expectOk(token, blob);
+                String blobSha = blob.obj == null ? "" : blob.obj.str("sha", "");
+                if (blobSha.isBlank()) throw new RequestFail(502, "GitHub didn't return the uploaded file identity.");
+                item.put("sha", blobSha);
+            }
+            treeEntries.add(item);
         }
         Json.Obj treeBody = new Json.Obj().put("tree", treeEntries);
         if (baseTree != null) treeBody.put("base_tree", baseTree);
@@ -364,6 +413,7 @@ public final class GitHub {
         String treeSha = treeRes.obj.str("sha");
         if (treeSha == null) throw new RequestFail(502, "GitHub didn't return a tree.");
 
+        progress.accept("Creating the commit...");
         Json.Arr parents = new Json.Arr();
         if (parent != null) parents.add(parent);
         Json.Obj commitBody = new Json.Obj()
@@ -376,6 +426,7 @@ public final class GitHub {
         String url = commitRes.obj.str("html_url");
         if (sha == null) throw new RequestFail(502, "GitHub didn't return a commit.");
 
+        progress.accept("Updating the branch...");
         if (parent == null) {
             Json.Obj refBody = new Json.Obj().put("ref", "refs/heads/" + branch).put("sha", sha);
             expectOk(token, call(token, "POST", repoPath + "/git/refs", refBody.write()));
@@ -388,7 +439,17 @@ public final class GitHub {
             expectOk(token, patched);
         }
         if (url == null || url.isBlank()) url = "https://github.com/" + owner + "/" + repo + "/commit/" + sha;
-        return new Json.Obj().put("ok", true).put("url", url).put("sha", sha).put("files", files.size());
+        String localNote = "";
+        if ("https".equals(apiBase.getScheme()) && "api.github.com".equals(apiBase.getHost())) {
+            try {
+                progress.accept("Connecting the local Git repository...");
+                localNote = LocalGitLink.attach(projects.projectDir(projectId),
+                        "https://github.com/" + owner + "/" + repo + ".git", branch, sha, token);
+            } catch (RequestFail cancelled) {
+                localNote = "The project was published; local Git setup was cancelled.";
+            }
+        }
+        return new Json.Obj().put("ok", true).put("url", url).put("sha", sha).put("files", files.size()).put("branch", branch).put("localNote", localNote);
     }
 
     public Json.Obj pull(Projects projects, String owner, String repo, String branch) {
@@ -440,12 +501,14 @@ public final class GitHub {
         return new Json.Obj().put("ok", true).put("id", id).put("files", files.size());
     }
 
-    private void createRepo(String token, String owner, String repo) {
+    private void createRepo(String token, String owner, String repo, String description, boolean privateRepo) {
+        if (description == null) description = "";
+        if (description.length() > 350) throw new RequestFail(400, "Repository description is too long.");
         Json.Obj body = new Json.Obj()
                 .put("name", repo)
-                .put("private", true)
+                .put("private", privateRepo)
                 .put("auto_init", false)
-                .put("description", "Created from Lark");
+                .put("description", description);
         String login = settings.githubLogin == null ? "" : settings.githubLogin;
         String path = owner.equalsIgnoreCase(login) || login.isBlank()
                 ? "/user/repos"
@@ -522,7 +585,7 @@ public final class GitHub {
 
     private Api callOnce(String token, String method, String path, String body) {
         try {
-            HttpRequest.Builder builder = HttpRequest.newBuilder(URI.create("https://api.github.com" + path))
+            HttpRequest.Builder builder = HttpRequest.newBuilder(apiBase.resolve(path))
                     .timeout(Duration.ofSeconds(45))
                     .header("Authorization", "Bearer " + token)
                     .header("Accept", "application/vnd.github+json")

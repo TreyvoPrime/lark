@@ -25,6 +25,7 @@ import java.util.zip.ZipOutputStream;
 /** Real folders on disk. One project is a directory of source files. */
 public final class Projects {
     public record TextFile(String path, String content) {}
+    public record PublishFile(String path, byte[] content) {}
 
     private record Meta(String name, String mainClass, Json.Arr runConfigs) {
         Meta(String name, String mainClass) {
@@ -244,23 +245,31 @@ public final class Projects {
         }
     }
 
-    public List<TextFile> texts(String id) {
+    /** Read project files for publishing without following links outside the project. */
+    public List<PublishFile> publishFiles(String id) {
         Path dir = projectDir(id);
         synchronized (lock(id)) {
-            List<TextFile> files = new ArrayList<>();
+            List<PublishFile> files = new ArrayList<>();
+            long total = 0;
             try (Stream<Path> walk = Files.walk(dir)) {
-                for (Path path : walk.filter(Files::isRegularFile).sorted().toList()) {
-                    String rel = rel(dir, path);
-                    if (skip(rel) || Files.size(path) > 400_000) continue;
-                    try {
-                        files.add(new TextFile(rel, Files.readString(path)));
-                    } catch (MalformedInputException ignored) {
-                        // Binary files stay on disk and are not pushed.
-                    }
+                for (Path path : walk.sorted().toList()) {
+                    if (path.equals(dir)) continue;
+                    String name = rel(dir, path);
+                    String[] parts = name.split("/");
+                    if (java.util.Arrays.asList(parts).contains("build")) continue;
+                    String last = parts[parts.length - 1];
+                    boolean safeConfig = last.equals(".gitignore") || last.equals(".gitattributes") || last.equals(".editorconfig");
+                    for (int i = 0; i < parts.length - 1; i++) if (skip(parts[i])) safeConfig = false;
+                    if (skip(name) && !safeConfig) continue;
+                    if (Files.isSymbolicLink(path)) throw new RequestFail(400, "Remove or replace the symbolic link before publishing: " + name);
+                    if (!Files.isRegularFile(path, java.nio.file.LinkOption.NOFOLLOW_LINKS)) continue;
+                    long size = Files.size(path);
+                    total += size;
+                    if (size > 10_000_000 || total > 25_000_000 || files.size() >= 1000)
+                        throw new RequestFail(400, "The project exceeds the publishing limit (10 MB per file, 25 MB total, 1,000 files).");
+                    files.add(new PublishFile(name, Files.readAllBytes(path)));
                 }
-            } catch (IOException e) {
-                throw new RequestFail(500, "Couldn't read the project.");
-            }
+            } catch (IOException e) { throw new RequestFail(500, "Couldn't read the project files."); }
             return files;
         }
     }

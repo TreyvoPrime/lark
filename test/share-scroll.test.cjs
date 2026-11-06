@@ -10,6 +10,7 @@ const { webcrypto } = require('node:crypto');
   let text = seed, selectionCalls = 0, updates = 0, tick, activePath = 'Main.java', inFlight, immediatePolls = 0, now = Date.now(), retryVisible = false, syncCount = 0;
   let selections = [{ anchor: { line: 0, ch: 0 }, head: { line: 0, ch: 0 } }], primary = 0;
   let scroll = { left: 150, top: 2400 }, nextResponse, syncHook, remoteRange, remoteWidget;
+  const gutterWidgets = new Map(), listeners = {}, options = { gutters: ['CodeMirror-linenumbers'] };
   const selectionOptions = [], followScrolls = [];
   const doc = {
     getValue: () => text,
@@ -28,10 +29,12 @@ const { webcrypto } = require('node:crypto');
       selectionOptions.push(options);
       if (!options || options.scroll !== false) scroll = { left: 0, top: 0 };
     },
-    on() {}, setBookmark: (pos, options) => { remoteWidget = options.widget; return { clear() {} }; }, markText: (from, to) => { remoteRange = [from, to]; return { clear() {} }; }
+    on() {}, setBookmark: (pos, options) => { remoteWidget = options.widget; return { clear() {} }; }, markText: (from, to) => { remoteRange = [from, to]; return { clear() {} }; },
+    clearGutter: () => gutterWidgets.clear(), setGutterMarker: (line, _, marker) => gutterWidgets.set(line, marker)
   };
   const cm = {
-    state: {}, setOption() {},
+    state: {}, setOption: (name, value) => { options[name] = value; }, getOption: name => options[name],
+    getWrapperElement: () => ({ addEventListener: (name, fn) => { listeners[name] = fn; }, removeEventListener: name => { delete listeners[name]; } }),
     getScrollInfo: () => ({ ...scroll }), scrollTo: (left, top) => { scroll = { left, top }; },
     operation: fn => fn(), listSelections: doc.listSelections, indexFromPos: doc.indexFromPos,
     scrollIntoView: (pos, margin) => { followScrolls.push({ pos, margin }); scroll = { left: 0, top: pos.line * 20 }; }
@@ -45,7 +48,7 @@ const { webcrypto } = require('node:crypto');
     console, crypto: webcrypto, structuredClone, Date: class extends Date { static now() { return now; } },
     CodeMirror: { commands: { undo() {}, redo() {} } },
     window: { LarkEditorShare: bridge, LarkBirds: { make: (id) => ({ bird: id }) }, addEventListener() {} },
-    document: { dispatchEvent(event) { if (event.type === 'lark-share-retry') retryVisible = event.detail; }, getElementById: () => null, createElement: () => ({ style: {}, children: [], append(...nodes) { this.children.push(...nodes); } }), createTextNode: text => ({ text }) },
+    document: { dispatchEvent(event) { if (event.type === 'lark-share-retry') retryVisible = event.detail; }, getElementById: () => null, createElement: () => ({ style: {}, children: [], setAttribute() {}, append(...nodes) { this.children.push(...nodes); } }), createTextNode: text => ({ text }) },
     CustomEvent: class { constructor(type, options) { this.type = type; this.detail = options?.detail; } },
     localStorage: { setItem: (k, v) => storage.set(k, v), removeItem: k => storage.delete(k) },
     setInterval: fn => { tick = fn; return 1; }, clearInterval() {}, setTimeout: (_, delay) => { if (delay === 16) immediatePolls++; return 1; }, clearTimeout() {},
@@ -126,8 +129,13 @@ const { webcrypto } = require('node:crypto');
   assert.deepEqual(scroll, { left: 77, top: 888 }, 'background synchronization never changes the newly selected file viewport');
 
   activePath = 'Main.java'; share.follow('peer');
-  nextResponse = { operations: [], revision: 3, role: 'editor', participants: [{ id: 'peer', file: 'Main.java', head: entry.model.anchor(200), connected: false }] };
+  nextResponse = { operations: [], revision: 3, role: 'editor', participants: [{ id: 'peer', name: 'Remote', file: 'Main.java', head: entry.model.anchor(200), connected: true }] };
   await tick(); assert.equal(followScrolls.length, 1, 'explicit Follow still scrolls to the participant');
+  nextResponse = { operations: [], revision: 3, role: 'editor', participants: [{ id: 'peer', name: 'Remote', file: 'Main.java', head: entry.model.anchor(200), connected: true }] };
+  await tick(); assert.equal(followScrolls.length, 1, 'unchanged presence does not repeatedly scroll');
+  listeners.wheel({ type: 'wheel' });
+  nextResponse = { operations: [], revision: 3, role: 'editor', participants: [{ id: 'peer', name: 'Remote', file: 'Main.java', head: entry.model.anchor(210), connected: true }] };
+  await tick(); assert.equal(followScrolls.length, 1, 'manual scrolling cancels Follow');
   share.follow(null); scroll = { left: 100, top: 2200 }; await tick();
   assert.equal(followScrolls.length, 1, 'Stop following restores independent navigation');
   assert.deepEqual(scroll, { left: 100, top: 2200 });
@@ -138,7 +146,15 @@ const { webcrypto } = require('node:crypto');
   await tick();
   assert(remoteRange, 'a backward remote selection is rendered');
   assert(doc.indexFromPos(remoteRange[0]) < doc.indexFromPos(remoteRange[1]), 'remote selection endpoints are ordered');
-  assert.equal(remoteWidget.children[0].children[0].bird, 'cardinal', 'remote cursor uses the participant bird');
+  assert.equal(remoteWidget.className, 'share-cursor', 'remote caret remains at the editing position without an overlaid badge');
+  assert.equal([...gutterWidgets.values()][0].textContent, 'Remote', 'participant name is in the gutter');
+  nextResponse = { operations: [], revision: 3, role: 'editor', participants: [
+    { id: 'peer', name: 'Remote', color: '#d94141', file: 'Main.java', anchor: entry.model.anchor(5), head: entry.model.anchor(5), connected: true },
+    { id: 'peer2', name: 'Second', color: '#2775c9', file: 'Main.java', anchor: entry.model.anchor(6), head: entry.model.anchor(6), connected: true }
+  ] };
+  await tick();
+  assert.equal([...gutterWidgets.values()][0].textContent, 'Remote +1', 'participants on one line share one gutter marker');
+  assert.equal([...gutterWidgets.values()][0].title, 'Remote, Second', 'grouped names remain accessible');
   nextResponse = { operations: remote.edit(0, 0, '// more\n', 'peer'), revision: 4, head: 5, role: 'editor', participants: [] };
   await tick();
   assert.equal(immediatePolls, 1, 'unread history schedules the next page immediately');

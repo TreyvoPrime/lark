@@ -25,6 +25,7 @@
 
       <div class="top-group" role="group" aria-label="Navigate">
         <button id="files-toggle" type="button" title="Toggle files (Ctrl+B)">Files</button>
+        <button id="console-toggle" type="button" title="Show or hide output">Output</button>
         <button id="project-search" type="button" title="Search in project (Ctrl+Shift+F)">Search</button>
         <button id="project" type="button" class="project-pick" title="Switch project" aria-haspopup="dialog" aria-expanded="false">
           <span class="project-pick-label" id="project-pick-label">No project</span>
@@ -164,6 +165,7 @@
             </div>
             <label class="args">Arguments <input id="args" type="text" placeholder="optional" spellcheck="false"></label>
             <button type="button" id="clear-console">Clear</button>
+            <button type="button" id="close-console" title="Close output" aria-label="Close output">×</button>
           </div>
           <div id="debug-bar" class="debug-bar" hidden>
             <button type="button" id="dbg-continue" title="Continue (F8)">Continue</button>
@@ -247,6 +249,8 @@
       <h3 class="menu-panel-label">Share</h3>
       <div class="menu-panel-grid">
         <button type="button" data-act="download">Download zip</button>
+        <button type="button" data-act="open-project-folder">Open Project in File Explorer</button>
+        <button type="button" data-act="reveal-current-file">Reveal Current File in File Explorer</button>
         <button type="button" data-act="copy-path">Copy folder path</button>
       </div>
     </section>
@@ -400,6 +404,12 @@
           <button type="button" id="setting-display-reset" class="primary">Reset size</button>
         </div>
         <p class="path-note">Scale changes only editor text — not trays or the top bar. Ctrl+= / Ctrl+- · Ctrl+0 resets.</p>
+        <h4 class="settings-subheading">Panel content size</h4>
+        <label class="settings-row">Explorer <input id="scale-files" type="range" min="80" max="140" step="10" value="100"><output id="scale-files-out">100%</output></label>
+        <label class="settings-row">Outline <input id="scale-outline" type="range" min="80" max="140" step="10" value="100"><output id="scale-outline-out">100%</output></label>
+        <label class="settings-row">Output <input id="scale-console" type="range" min="80" max="140" step="10" value="100"><output id="scale-console-out">100%</output></label>
+        <label class="settings-row">Assist <input id="scale-assist" type="range" min="80" max="140" step="10" value="100"><output id="scale-assist-out">100%</output></label>
+        <button type="button" id="scale-panels-reset">Reset panel sizes</button>
         <label class="settings-check"><input id="setting-tray-outlines" type="checkbox" checked> Outlined file tiles</label>
         <p class="path-note">Borders around Explorer rows.</p>
       </div>
@@ -552,16 +562,6 @@
       </div>
     </div>
   </div>
-  <div id="theme-nudge" class="theme-nudge" hidden>
-    <div class="theme-nudge-copy">
-      <strong id="theme-nudge-title">Evening light</strong>
-      <p id="theme-nudge-body">Switch to Hearth for a warmer desk?</p>
-    </div>
-    <div class="theme-nudge-actions">
-      <button type="button" id="theme-nudge-dismiss">Not now</button>
-      <button type="button" id="theme-nudge-apply" class="primary">Try it</button>
-    </div>
-  </div>
   <div id="outdated-banner" class="outdated-banner" hidden>
     <div class="outdated-copy">
       <strong>This Lark window is outdated</strong>
@@ -703,12 +703,14 @@
         </div>
         <div class="gh-push">
           <h3>Push project</h3>
+          <p class="gh-hint">Publishes project files, including binary files. Build folders and most hidden files are excluded; supported Git configuration files are included.</p>
           <p id="gh-target">Select a repository to push your current project.</p>
           <label class="gh-field">Commit message
             <input id="gh-message" type="text" value="Update from Lark" spellcheck="false">
           </label>
           <div class="gh-push-actions">
             <button type="button" id="gh-push" class="gh-btn primary">Push</button>
+            <button type="button" id="gh-cancel-push" class="gh-btn" hidden>Cancel push</button>
             <button type="button" id="gh-new-repo" class="gh-btn">New repository</button>
           </div>
           <p id="gh-result"></p>

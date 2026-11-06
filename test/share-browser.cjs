@@ -95,6 +95,8 @@ async function start(home) {
     await viewer.evaluate(() => window.LarkEditorShare.editor().setCursor({ line: 2, ch: 3 }));
     await host.waitForFunction(() => document.querySelectorAll('.share-cursor').length > 0);
     check(true, 'Live cursor rendered');
+    check(await host.locator('.share-gutter-label').count() > 0, 'Participant name is shown in the gutter');
+    check(await host.locator('.share-cursor-badge').count() === 0, 'Participant name does not cover code');
     const endpoint = async (url, values, headers = {}) => {
       const response = await fetch(url + '/api/share', { method: 'POST', headers: { 'Content-Type': 'application/json', 'X-Lark': '1', ...headers }, body: JSON.stringify(values) });
       return { status: response.status, data: await response.json() };
@@ -158,7 +160,7 @@ async function start(home) {
     await hd.getByRole('button', { name: 'Participants', exact: true }).click();
     await host.setViewportSize({ width: 375, height: 812 });
     check(await host.evaluate(() => { const r = document.querySelector('.share-dialog').getBoundingClientRect(); return r.width <= innerWidth && r.left >= 0; }), 'Compact dialog fits mobile width');
-    await hd.getByRole('button', { name: 'Revoke access', exact: true }).click();
+    await hd.getByRole('button', { name: 'Remove from session', exact: true }).click();
     const denied = await endpoint(servers[1].url, { action: 'files' });
     check(denied.status === 403, 'Revoked viewer cannot fetch files');
     await hd.getByRole('button', { name: 'Security', exact: true }).click();

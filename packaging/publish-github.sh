@@ -8,7 +8,7 @@ REPO_NAME="${LARK_GITHUB_REPO:-lark}"
 VISIBILITY="${LARK_GITHUB_VISIBILITY:-public}"
 VERSION=$(sed -n 's/.*VERSION = "\([^"]*\)".*/\1/p' src/lark/Settings.java | head -n 1)
 TAG="v${VERSION}"
-NOTES="${LARK_UPDATE_NOTES:-Lark ${VERSION}: Desktop (Setup install), Executable (Lark.exe zip), and Mobile. Hardened launchers, buried runtime, SHA-256 updates.}"
+NOTES="${LARK_UPDATE_NOTES:-Lark ${VERSION}: Desktop and Executable updates. Hardened launchers, buried runtime, SHA-256 updates.}"
 
 if ! gh auth status >/dev/null 2>&1; then
   echo "Sign in first: gh auth login"
@@ -73,11 +73,6 @@ assets=(
   release/lark-desktop-update.zip
   release/lark-executable-windows.zip
   release/lark-executable-update.zip
-  release/lark-mobile.zip
-  release/lark-mobile-update.zip
-  release/lark-mobile-windows.zip
-  release/lark-mobile-mac.zip
-  release/lark-mobile-linux.zip
   release/lark-windows.zip
   release/lark-mac.zip
   release/lark-linux.zip
@@ -85,13 +80,12 @@ assets=(
   release/lark-update.zip
   release/update.json
 )
-# A release must contain all three update channels and a full Windows installer.
+# A release must contain both update channels and a full Windows installer.
 # Fail before uploading anything instead of silently publishing partial packages.
 required_assets=(
   release/LarkDesktopSetup.exe
   release/lark-desktop-update.zip
   release/lark-executable-update.zip
-  release/lark-mobile-update.zip
   release/update.json
 )
 for asset in "${required_assets[@]}"; do
@@ -104,7 +98,7 @@ python3 - <<'PY'
 import json
 from pathlib import Path
 data = json.loads(Path("release/update.json").read_text())
-required = ["desktop", "executable", "mobile"]
+required = ["desktop", "executable"]
 for key in required:
     url = data.get("downloads", {}).get(key, "")
     if not url or not data.get("sha256", {}).get(Path(url).name):

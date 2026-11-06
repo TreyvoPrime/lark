@@ -6,6 +6,8 @@
   let session = null, timer = null, working = false, following = null, presence = [], lastPresence = 0;
   let connectionFailures = 0, retryAfter = 0, retryPaused = false;
   const marks = [];
+  let presenceKey = '', gutterDoc = null, followViewKey = '', followOpening = null, followInput = null;
+  const gutterName = 'lark-share-gutter';
   const request = async (action, body = {}) => {
     let response;
     try { response = await fetch('/api/share', { method: 'POST', headers: { 'Content-Type': 'application/json', 'X-Lark': '1' }, body: JSON.stringify({ action, writer, ...body }) }); }
@@ -144,30 +146,59 @@
     finally { working = false; if (succeeded && more && session) soon(); }
   }
   function drawPresence() {
-    marks.splice(0).forEach(mark => mark.clear());
     const current = window.LarkEditorShare?.current(), entry = documents.get(current?.path), cm = window.LarkEditorShare?.editor();
     if (!entry || !cm) return;
     cm.setOption('readOnly', entry.role === 'viewer');
     cm.state.larkShare = entry;
-    presence.filter(p => p.file === entry.path && p.id !== session.identity && p.connected).forEach((person, i) => {
-      const color = /^#[a-f0-9]{6}$/i.test(person.color) ? person.color : '#6495ed';
-      const headIndex = entry.model.index(person.head), anchorIndex = entry.model.index(person.anchor);
-      const head = entry.doc.posFromIndex(headIndex);
-      const label = document.createElement('span'); label.className = 'share-cursor'; label.style.borderColor = color;
-      const badge = document.createElement('span'); badge.className = 'share-cursor-badge';
-      badge.append(window.LarkBirds.make(person.bird, 24), document.createTextNode(person.name)); label.append(badge);
-      marks.push(entry.doc.setBookmark(head, { widget: label, insertLeft: true }));
-      if (anchorIndex !== headIndex) {
-        const from = entry.doc.posFromIndex(Math.min(anchorIndex, headIndex)), to = entry.doc.posFromIndex(Math.max(anchorIndex, headIndex));
-        marks.push(entry.doc.markText(from, to, { css: `background: ${color}30` }));
-      }
-    });
-    document.dispatchEvent(new CustomEvent('lark-share-presence', { detail: presence }));
-    const person = presence.find(p => p.id === following);
-    if (person?.file && session.paths.has(person.file)) {
-      if (current.path !== person.file) window.LarkEditorShare.open(person.file);
-      const target = documents.get(person.file); if (target) cm.scrollIntoView(target.doc.posFromIndex(target.model.index(person.head)), 80);
+    const key = JSON.stringify([entry.path, entry.model.clock, presence]);
+    if (key !== presenceKey || gutterDoc !== entry.doc) {
+      marks.splice(0).forEach(mark => mark.clear());
+      if (gutterDoc) gutterDoc.clearGutter(gutterName);
+      gutterDoc = entry.doc; presenceKey = key;
+      const gutters = cm.getOption('gutters') || [];
+      const peopleHere = presence.filter(p => p.file === entry.path && p.id !== session.identity && p.connected);
+      if (peopleHere.length && !gutters.includes(gutterName)) cm.setOption('gutters', [...gutters, gutterName]);
+      else if (!peopleHere.length && gutters.includes(gutterName)) cm.setOption('gutters', gutters.filter(g => g !== gutterName));
+      const lines = new Map();
+      peopleHere.forEach(person => {
+        const color = /^#[a-f0-9]{6}$/i.test(person.color) ? person.color : '#6495ed';
+        const headIndex = entry.model.index(person.head), anchorIndex = entry.model.index(person.anchor);
+        const head = entry.doc.posFromIndex(headIndex);
+        const cursor = document.createElement('span'); cursor.className = 'share-cursor'; cursor.style.borderColor = color;
+        cursor.setAttribute('aria-label', person.name + ' cursor');
+        marks.push(entry.doc.setBookmark(head, { widget: cursor, insertLeft: true }));
+        if (!lines.has(head.line)) lines.set(head.line, []);
+        lines.get(head.line).push({ name: person.name, color });
+        if (anchorIndex !== headIndex) {
+          const from = entry.doc.posFromIndex(Math.min(anchorIndex, headIndex)), to = entry.doc.posFromIndex(Math.max(anchorIndex, headIndex));
+          marks.push(entry.doc.markText(from, to, { css: `background: ${color}30` }));
+        }
+      });
+      lines.forEach((people, line) => {
+        const label = document.createElement('span'); label.className = 'share-gutter-label';
+        label.style.borderColor = people[0].color;
+        label.textContent = people[0].name + (people.length > 1 ? ' +' + (people.length - 1) : '');
+        label.title = people.map(p => p.name).join(', ');
+        entry.doc.setGutterMarker(line, gutterName, label);
+      });
+      document.dispatchEvent(new CustomEvent('lark-share-presence', { detail: presence }));
     }
+    const person = presence.find(p => p.id === following);
+    if (person?.connected && person.file && session.paths.has(person.file)) {
+      if (current.path !== person.file) {
+        if (followOpening !== person.file) {
+          const path = person.file; followOpening = path;
+          Promise.resolve(window.LarkEditorShare.open(path)).catch(error => { document.dispatchEvent(new CustomEvent('lark-share-error', { detail: error.message })); }).finally(() => { if (followOpening === path) followOpening = null; });
+        }
+      } else {
+        const target = documents.get(person.file), next = target && JSON.stringify([person.id, person.file, person.head, target.model.clock]);
+        if (target && next !== followViewKey) { followViewKey = next; cm.scrollIntoView(target.doc.posFromIndex(target.model.index(person.head)), 80); }
+      }
+    }
+  }
+  function setFollowing(id, name) {
+    following = id; followViewKey = ''; followOpening = null;
+    document.dispatchEvent(new CustomEvent('lark-share-follow', { detail: id ? { id, name: name || presence.find(p => p.id === id)?.name || 'participant' } : false }));
   }
   function hash(s) { let n = 0; for (const c of s) n = (n * 31 + c.charCodeAt(0)) >>> 0; return n; }
   function undo(entry, redo) {
@@ -191,6 +222,12 @@
       session = { id: data.id, identity: data.identity, paths: new Set(files.files.map(f => f.path)), hosting: data.hosting, project: data.project };
       if (!data.hosting) await window.LarkEditorShare.guest(data.name, files.files);
       else await window.LarkEditorShare.prepareHost(data.project);
+      const wrapper = window.LarkEditorShare.editor()?.getWrapperElement?.();
+      if (wrapper) {
+        const cancel = event => { if (following && (event.type !== 'pointerdown' || event.target.closest('.CodeMirror-vscrollbar, .CodeMirror-hscrollbar'))) setFollowing(null); };
+        wrapper.addEventListener('wheel', cancel, { passive: true }); wrapper.addEventListener('touchstart', cancel, { passive: true }); wrapper.addEventListener('pointerdown', cancel);
+        followInput = { wrapper, cancel };
+      }
       if (document.getElementById('split-editor')) document.getElementById('split-editor').disabled = true;
       timer = setInterval(tick, 120);
       const current = window.LarkEditorShare.current(); if (current?.path) await open(current.path, current.doc);
@@ -205,8 +242,8 @@
     retry() { connectionFailures = 0; retryAfter = 0; retryPaused = false; document.dispatchEvent(new CustomEvent('lark-share-retry', { detail: false })); soon(); },
     active: path => !!session?.paths.has(path), hosting: () => session?.hosting, project: () => session?.project, open,
     changed: path => { if (session?.paths.has(path)) return true; return false; },
-    async stop() { clearInterval(timer); timer = null; clearTimeout(soonTimer); soonTimer = null; for (const entry of documents.values()) { clearTimeout(entry.recoveryTimer); if (entry.pending.length) recover(entry); } documents.clear(); opening.clear(); if (document.getElementById('split-editor')) document.getElementById('split-editor').disabled = false; marks.splice(0).forEach(m => m.clear()); session = null; following = null; document.dispatchEvent(new CustomEvent('lark-share-presence', { detail: [] })); document.dispatchEvent(new CustomEvent('lark-share-follow', { detail: false })); document.dispatchEvent(new CustomEvent('lark-share-retry', { detail: false })); const cm = window.LarkEditorShare?.editor(); if (cm) { cm.state.larkShare = null; cm.setOption('readOnly', false); } await window.LarkEditorShare?.leave(); },
-    follow: id => { following = id; document.dispatchEvent(new CustomEvent('lark-share-follow', { detail: !!id })); },
+    async stop() { clearInterval(timer); timer = null; clearTimeout(soonTimer); soonTimer = null; for (const entry of documents.values()) { clearTimeout(entry.recoveryTimer); if (entry.pending.length) recover(entry); } documents.clear(); opening.clear(); if (document.getElementById('split-editor')) document.getElementById('split-editor').disabled = false; marks.splice(0).forEach(m => m.clear()); if (gutterDoc) gutterDoc.clearGutter(gutterName); gutterDoc = null; presenceKey = ''; if (followInput) { for (const type of ['wheel', 'touchstart', 'pointerdown']) followInput.wrapper.removeEventListener(type, followInput.cancel); followInput = null; } session = null; setFollowing(null); document.dispatchEvent(new CustomEvent('lark-share-presence', { detail: [] })); document.dispatchEvent(new CustomEvent('lark-share-retry', { detail: false })); const cm = window.LarkEditorShare?.editor(); if (cm) { cm.state.larkShare = null; cm.setOption('readOnly', false); cm.setOption('gutters', (cm.getOption('gutters') || []).filter(g => g !== gutterName)); } await window.LarkEditorShare?.leave(); },
+    follow: setFollowing,
     position(person) { const entry = documents.get(person.file); if (!entry) return ''; const pos = entry.doc.posFromIndex(entry.model.index(person.head)); return `Ln ${pos.line + 1}, Col ${pos.ch + 1}`; },
     async flush() {
       const end = Date.now() + 8000;

@@ -36,6 +36,13 @@ public final class Server {
     private final Terminal terminal;
     private final Recovery recovery;
     private final Share share;
+    private static final class PushJob {
+        final String id = java.util.UUID.randomUUID().toString();
+        volatile String status = "running", stage = "Starting...", error = "";
+        volatile boolean cancelled;
+        volatile Json.Obj result;
+    }
+    private volatile PushJob pushJob;
     private final Settings settings;
     private final Path webDir;
     private final boolean lan;
@@ -398,6 +405,25 @@ public final class Server {
             sendJson(exchange, 200, new Json.Obj().put("ok", true).put("id", id));
             return;
         }
+        if ("/api/project/reveal".equals(path) && "POST".equals(method)) {
+            if (lan) throw new RequestFail(403, "Open files from the desktop app.");
+            Json.Obj body = body(exchange);
+            Path root = projects.projectDir(body.str("project", "")).toRealPath();
+            String relative = body.str("file", "");
+            Path target = relative.isBlank() ? root : Projects.resolve(root, relative);
+            if (!Files.exists(target)) throw new RequestFail(404, "That file is no longer in the project.");
+            target = target.toRealPath();
+            if (!target.startsWith(root)) throw new RequestFail(403, "That file is outside the project.");
+            if (!java.awt.Desktop.isDesktopSupported()) throw new RequestFail(503, "File Explorer is not available on this device.");
+            java.awt.Desktop desktop = java.awt.Desktop.getDesktop();
+            if (!relative.isBlank() && desktop.isSupported(java.awt.Desktop.Action.BROWSE_FILE_DIR)) {
+                desktop.browseFileDirectory(target.toFile());
+            } else if (desktop.isSupported(java.awt.Desktop.Action.OPEN)) {
+                desktop.open((Files.isDirectory(target) ? target : target.getParent()).toFile());
+            } else throw new RequestFail(503, "File Explorer is not available on this device.");
+            sendJson(exchange, 200, new Json.Obj().put("ok", true));
+            return;
+        }
         if ("/api/flow".equals(path) && "POST".equals(method)) {
             sendJson(exchange, 200, Flow.analyze(body(exchange).arr("files")));
             return;
@@ -603,10 +629,50 @@ public final class Server {
             sendJson(exchange, 200, github.repos());
             return;
         }
+        if ("/api/github/push/start".equals(path) && "POST".equals(method)) {
+            Json.Obj request = body(exchange);
+            PushJob job;
+            synchronized (this) {
+                if (pushJob != null && "running".equals(pushJob.status))
+                    throw new RequestFail(409, "A GitHub push is already running.");
+                job = new PushJob();
+                pushJob = job;
+            }
+            Thread worker = new Thread(() -> {
+                try {
+                    job.result = github.push(projects, request.str("project", ""), request.str("owner", ""),
+                            request.str("repo", ""), request.str("branch", "main"), request.str("message", ""),
+                            request.bool("create"), request.str("description", ""),
+                            !request.has("private") || request.bool("private"), stage -> {
+                                if (job.cancelled) throw new RequestFail(409, "Push cancelled. A new repository or initial commit may already have been created; check GitHub before retrying.");
+                                job.stage = stage;
+                            });
+                    job.status = "done";
+                } catch (RuntimeException failure) {
+                    job.error = failure instanceof RequestFail ? failure.getMessage() : "The GitHub push failed.";
+                    job.status = "error";
+                }
+            }, "lark-github-push");
+            worker.setDaemon(true);
+            worker.start();
+            sendJson(exchange, 200, new Json.Obj().put("ok", true).put("id", job.id));
+            return;
+        }
+        if (("/api/github/push/status".equals(path) || "/api/github/push/cancel".equals(path)) && "POST".equals(method)) {
+            Json.Obj request = body(exchange);
+            PushJob job = pushJob;
+            if (job == null || !job.id.equals(request.str("id", ""))) throw new RequestFail(404, "Push no longer available.");
+            if (path.endsWith("/cancel") && "running".equals(job.status)) job.cancelled = true;
+            Json.Obj response = new Json.Obj().put("ok", true).put("status", job.status).put("stage", job.stage).put("error", job.error);
+            if (job.result != null) response.put("result", job.result);
+            sendJson(exchange, 200, response);
+            return;
+        }
         if ("/api/github/push".equals(path) && "POST".equals(method)) {
             Json.Obj body = body(exchange);
             sendJson(exchange, 200, github.push(projects, body.str("project", ""), body.str("owner", ""),
-                    body.str("repo", ""), body.str("branch", "main"), body.str("message", ""), body.bool("create")));
+                    body.str("repo", ""), body.str("branch", "main"), body.str("message", ""), body.bool("create"),
+                    body.str("description", ""), !body.has("private") || body.bool("private")));
             return;
         }
         if ("/api/github/pull".equals(path) && "POST".equals(method)) {

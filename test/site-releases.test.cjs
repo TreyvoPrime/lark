@@ -8,7 +8,7 @@ async function run() {
   assert.equal(selectPackages(fallback,'windows').length,3);
   assert.equal(selectPackages(fallback,'macos')[0].architecture,'Not specified');
   assert.equal(selectPackages(fallback,'windows')[0].version,'4.0.13');
-  assert.equal(selectPackages(fallback,'windows',{mobile:true}).length,1);
+  assert.equal(selectPackages(fallback,'windows',{mobile:true}).length, fallback.packages.some(p=>p.name==='lark-mobile-windows.zip') ? 1 : 0);
   assert(!fallback.packages.some(p=>p.name.includes('update')));
   const old=release('4.0',[asset('LarkDesktopSetup.exe','4.0',47622522)],'2026-10-28T20:00:00Z');
   const update=release('v4.0.1',[asset('lark-desktop-update.zip','v4.0.1')]);
@@ -29,7 +29,7 @@ async function run() {
   assert.equal(fromReleases([release('4.0',[asset('evil.exe','4.0')])]).packages.length,0);
   const pre={...future,prerelease:true};assert.equal(fromReleases([old,pre]).latest.version,'4.0');
   const failed=await fetchReleases(async()=>{throw new Error('Offline');});
-  assert.equal(failed.source,'release snapshot');assert.equal(failed.packages.length,8);
+  assert.equal(failed.source,'release snapshot');assert.equal(failed.packages.length,fallback.packages.length);
   const limited=await fetchReleases(async()=>({ok:false,status:403}));assert.equal(limited.stale,true);
   let requests=0;
   const many=Array.from({length:20},(_,i)=>release('v1.'+i,[]));

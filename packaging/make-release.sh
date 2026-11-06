@@ -1,11 +1,23 @@
 #!/bin/sh
-# Build lark.jar and all public release assets (Desktop · Executable · Mobile).
+# Build lark.jar and public Desktop and Executable release assets.
 set -eu
 cd "$(dirname "$0")/.."
+for old in release/lark-mobile*; do
+  if [ -e "$old" ]; then
+    echo "Historical Mobile artifacts are present in release/. Move them elsewhere before building a new release: $old" >&2
+    exit 1
+  fi
+done
+for tool in go zip python3 makensis; do
+  if ! command -v "$tool" >/dev/null 2>&1; then
+    echo "Release build requires $tool. Install it or add it to PATH before building." >&2
+    exit 1
+  fi
+done
 ./package.sh
 root=$(pwd)
 version=$(sed -n 's/.*VERSION = "\([^"]*\)".*/\1/p' src/lark/Settings.java | head -n 1)
-notes=${LARK_UPDATE_NOTES:-"Lark ${version}: Lark Share encrypted LAN collaboration, concurrent Java editing, live cursors, host approval and recovery. Desktop, Executable and Mobile packages; verified portable JDKs."}
+notes=${LARK_UPDATE_NOTES:-"Lark ${version}: Desktop and Executable updates with Lark Share collaboration."}
 feed_base=${LARK_UPDATE_BASE:-}
 cache=${LARK_JDK_CACHE:-"$root/release/.jdk-cache"}
 mkdir -p "$cache" release
@@ -33,11 +45,7 @@ cat > release/update.json <<EOF
     "desktop-mac": "$feed_base/lark-desktop-update.zip",
     "desktop-linux": "$feed_base/lark-desktop-update.zip",
     "executable": "$feed_base/lark-executable-update.zip",
-    "executable-windows": "$feed_base/lark-executable-update.zip",
-    "mobile": "$feed_base/lark-mobile-update.zip",
-    "mobile-windows": "$feed_base/lark-mobile-update.zip",
-    "mobile-mac": "$feed_base/lark-mobile-update.zip",
-    "mobile-linux": "$feed_base/lark-mobile-update.zip"
+    "executable-windows": "$feed_base/lark-executable-update.zip"
   },
   "desktop": {
     "windows": "$feed_base/LarkDesktopSetup.exe",
@@ -48,26 +56,17 @@ cat > release/update.json <<EOF
   "executable": {
     "windows": "$feed_base/lark-executable-windows.zip"
   },
-  "mobile": {
-    "windows": "$feed_base/lark-mobile-windows.zip",
-    "mac": "$feed_base/lark-mobile-mac.zip",
-    "linux": "$feed_base/lark-mobile-linux.zip",
-    "any": "$feed_base/lark-mobile.zip"
-  },
   "sha256": {}
 }
 EOF
 
-chmod +x packaging/make-desktop.sh packaging/make-executable.sh packaging/make-mobile.sh
+chmod +x packaging/make-desktop.sh packaging/make-executable.sh
 
 # Desktop = Setup wizard (default install).
 LARK_UPDATE_BASE="$feed_base" LARK_UPDATE_NOTES="$notes" ./packaging/make-desktop.sh
 
 # Executable = Lark.exe zip.
 LARK_SKIP_PACKAGE=1 LARK_UPDATE_BASE="$feed_base" LARK_UPDATE_NOTES="$notes" ./packaging/make-executable.sh
-
-# Mobile stays its own edition.
-LARK_SKIP_PACKAGE=1 LARK_UPDATE_BASE="$feed_base" LARK_UPDATE_NOTES="$notes" ./packaging/make-mobile.sh
 
 hash_file() {
   f=$1
@@ -81,7 +80,6 @@ hash_file() {
 }
 h_desktop=$(hash_file release/lark-desktop-update.zip)
 h_executable=$(hash_file release/lark-executable-update.zip)
-h_mobile=$(hash_file release/lark-mobile-update.zip)
 h_setup=$(hash_file release/LarkDesktopSetup.exe)
 
 python3 - <<PY
@@ -103,11 +101,6 @@ pairs = [
     ("executable", """$h_executable"""),
     ("executable-windows", """$h_executable"""),
     ("lark-executable-update.zip", """$h_executable"""),
-    ("mobile", """$h_mobile"""),
-    ("mobile-windows", """$h_mobile"""),
-    ("mobile-mac", """$h_mobile"""),
-    ("mobile-linux", """$h_mobile"""),
-    ("lark-mobile-update.zip", """$h_mobile"""),
     ("LarkDesktopSetup.exe", """$h_setup"""),
 ]
 for k, v in pairs:
@@ -121,4 +114,4 @@ PY
 
 ls -lh release/*.zip release/*.exe release/update.json 2>/dev/null | head -50
 echo "Version $version"
-echo "Tracks: Desktop (Setup) · Executable (Lark.exe) · Mobile"
+echo "Tracks: Desktop (Setup) · Executable (Lark.exe)"

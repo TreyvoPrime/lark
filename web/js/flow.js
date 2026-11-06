@@ -125,7 +125,6 @@
     choices.clear(); selected=null;
     layout(); render(); if(reset) {
       fit();
-      if(mode==='method' && view.z<.55) {const p=positions.get(graph.entry)||{x:0,y:0};view.z=.8;view.x=svg.clientWidth/2-(p.x+120)*view.z;view.y=24-p.y*view.z;transform();}
       pendingFit=svg.clientWidth===0;
     }
     save();
@@ -148,8 +147,8 @@
     const x=Math.min(...ps.map(p=>p.x))-90,y=Math.min(...ps.map(p=>p.y))-35;
     return{x,y,w:Math.max(...ps.map(p=>p.x))+340-x,h:Math.max(...ps.map(p=>p.y))+135-y};
   }
-  function fit() { if(!graph)return; const b=bounds();view.z=Math.max(.08,Math.min(1.2,(svg.clientWidth-32)/b.w,(svg.clientHeight-28)/b.h));view.x=(svg.clientWidth-b.w*view.z)/2-b.x*view.z;view.y=(svg.clientHeight-b.h*view.z)/2-b.y*view.z;transform();save(); }
-  function zoom(factor,x=svg.clientWidth/2,y=svg.clientHeight/2) { const old=view.z;view.z=Math.max(.08,Math.min(3,old*factor));view.x=x-(x-view.x)*view.z/old;view.y=y-(y-view.y)*view.z/old;transform();save(); }
+  function fit() { if(!graph)return; const b=bounds();view.z=Math.max(.002,Math.min(1.2,(svg.clientWidth-32)/b.w,(svg.clientHeight-28)/b.h));view.x=(svg.clientWidth-b.w*view.z)/2-b.x*view.z;view.y=(svg.clientHeight-b.h*view.z)/2-b.y*view.z;transform();save(); }
+  function zoom(factor,x=svg.clientWidth/2,y=svg.clientHeight/2) { const old=view.z;view.z=Math.max(.002,Math.min(3,old*factor));view.x=x-(x-view.x)*view.z/old;view.y=y-(y-view.y)*view.z/old;transform();save(); }
   function transform() {
     layer?.setAttribute('transform',`translate(${view.x} ${view.y}) scale(${view.z})`);
     if(!graph||!mini)return;
@@ -251,8 +250,7 @@
       let saved;try{saved=JSON.parse(localStorage.getItem(sessionKey()));}catch(_){}
       current=!preferCursor&&saved?.method?{id:saved.method}:null;mode=preferCursor?'method':saved?.mode||'method';follow=saved?.follow!==false;document.getElementById('flow-follow').setAttribute('aria-pressed',String(follow));
       if(saved?.sidebar)sidebar.hidden=false;if(saved?.height)host.style.flex='0 0 '+saved.height;if(saved?.expanded){host.classList.add('flow-expanded');document.getElementById('flow-expand').textContent='Show code';}
-      const openingHost=host;
-      api.resize();refresh(false).then(()=>{if(open&&host===openingHost&&!preferCursor&&saved?.view){view=saved.view;transform();}});svg.focus();
+      api.resize();refresh(false);svg.focus();
     }, close:closeFlow, refresh:()=>refresh(true), fit,
     changed() { if(open) {stale=true;controller?.abort();generation++;clearTimeout(timer);timer=setTimeout(()=>refresh(false),650);} },
     cursor:cursorChanged,

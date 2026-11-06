@@ -74,7 +74,7 @@
         if (!Array.isArray(data)) throw new Error('Invalid release data');
         releases.push(...data);
         const catalog = fromReleases(releases);
-        const complete = ['windows', 'macos', 'linux'].every(os => selectPackages(catalog, os).length > 0) && catalog.packages.some(p => p.kind === 'mobile');
+        const complete = ['windows', 'macos', 'linux'].every(os => selectPackages(catalog, os).length > 0);
         if (complete || data.length < 20 || page === 3) return catalog;
       }
     } catch (_) {

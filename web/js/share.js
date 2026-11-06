@@ -108,7 +108,6 @@
     const name = field(form, 'Session name', 'text', match?.name || projects.projects?.[0]?.name || 'Java source review'); name.required = true;
     project.onchange = () => { name.value = project.selectedOptions[0]?.textContent || ''; };
     const displayName = field(form, 'Your display name'); displayName.required = true;
-    element('p', 'TLS 1.3 and host approval are mandatory. Only existing Java source is shared. File structure changes are locked during collaboration; firewall access is never changed automatically.', form);
     const submit = element('button', 'Host session', form); submit.type = 'submit';
     form.onsubmit = async event => {
       event.preventDefault(); if (busy) return; busy = true; submit.disabled = true;
@@ -167,7 +166,7 @@
       element('span', `${person.status === 'pending' ? 'wants to join' : person.status} · ${person.role} · ${person.connected ? 'Connected' : 'Connection Lost'}${person.file ? ' · ' + person.file + ' · ' + window.LarkShareEditing.position(person) : ''}`, row);
       if (latest.hosting && person.status === 'pending') action(row, 'Approve as Editor', async () => { latest = await api('decide', { device: person.id, approve: true, role: 'editor' }); await refresh(); });
       if (latest.hosting && person.status === 'pending') action(row, 'Approve as Viewer', async () => { latest = await api('decide', { device: person.id, approve: true, role: 'viewer' }); await refresh(); });
-      if (person.status === 'approved' && person.id !== latest.identity) action(row, 'Follow ' + person.name, () => { window.LarkShareEditing.follow(person.id); dialog.close(); });
+      if (person.status === 'approved' && person.id !== latest.identity) action(row, 'Follow ' + person.name, () => { window.LarkShareEditing.follow(person.id, person.name); dialog.close(); });
       if (latest.hosting && person.id !== 'host' && person.status === 'approved') action(row, person.role === 'editor' ? 'Make Viewer' : 'Make Editor', async () => { latest = await api('decide', { device: person.id, approve: true, role: person.role === 'editor' ? 'viewer' : 'editor' }); await refresh(); });
       if (latest.hosting && person.id !== 'host' && person.status !== 'revoked') action(row, person.status === 'pending' ? 'Deny' : 'Remove from session', async () => { latest = await api('decide', { device: person.id, approve: false }); await refresh(); });
     });
@@ -376,7 +375,7 @@
       approved.forEach(person => {
         const color = /^#[a-f0-9]{6}$/i.test(person.color) ? person.color : '#6495ed';
         const avatar = action(avatars, '', () => { if (!dialog.open) dialog.showModal(); participants(); }); avatar.className = 'share-avatar'; avatar.append(window.LarkBirds.make(person.bird, 22)); avatar.style.borderColor = color; avatar.title = person.name + ' · ' + person.role + (person.file ? ' · ' + person.file : '') + (person.connected ? '' : ' · Connection lost'); avatar.setAttribute('aria-label', avatar.title);
-        const row = action(explorerPeople, person.name + (person.file ? ' — ' + person.file : ''), () => { window.LarkShareEditing.follow(person.id); unfollow.hidden = false; }); row.prepend(window.LarkBirds.make(person.bird, 24)); row.title = 'Follow participant';
+        const row = action(explorerPeople, person.name + (person.file ? ' — ' + person.file : ''), () => { window.LarkShareEditing.follow(person.id, person.name); }); row.prepend(window.LarkBirds.make(person.bird, 24)); row.title = 'Follow participant';
       });
     }
     document.querySelectorAll('.tree-row[data-path]').forEach(row => {
@@ -387,7 +386,7 @@
       } else if ('shareOriginalTitle' in row.dataset) { row.title = row.dataset.shareOriginalTitle; delete row.dataset.shareOriginalTitle; }
     });
   });
-  document.addEventListener('lark-share-follow', event => { unfollow.hidden = !event.detail; });
+  document.addEventListener('lark-share-follow', event => { unfollow.hidden = !event.detail; unfollow.textContent = event.detail ? 'Stop following ' + event.detail.name : 'Stop following'; });
   document.addEventListener('lark-share-state', event => { button.dataset.connection = event.detail; button.title = 'Lark Share: ' + event.detail; });
   document.addEventListener('lark-share-error', event => { error.textContent = event.detail; });
   document.addEventListener('lark-share-retry', event => { retry.hidden = !event.detail; });
