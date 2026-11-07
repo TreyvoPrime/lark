@@ -57,6 +57,7 @@ public final class Settings {
     public boolean lineNumbers = true;
     public boolean minimapEnabled = true;
     public String shareBird = "classic";
+    public String shareRelayUrl = "";
     public int minimapWidth = 96;
     public String minimapSide = "right";
     public boolean minimapSyntax = true;
@@ -118,6 +119,7 @@ public final class Settings {
             // Preserve the old default for existing installations without this preference.
             settings.minimapEnabled = obj.has("minimapEnabled") && obj.bool("minimapEnabled");
             settings.shareBird = ShareSession.bird(obj.str("shareBird", "classic"));
+            settings.shareRelayUrl = obj.str("shareRelayUrl", "");
             int mapWidth = (int) obj.longVal("minimapWidth");
             settings.minimapWidth = mapWidth == 64 || mapWidth == 128 ? mapWidth : 96;
             settings.minimapSide = "left".equals(obj.str("minimapSide", "right")) ? "left" : "right";
@@ -160,6 +162,7 @@ public final class Settings {
                     .put("lineWrapping", lineWrapping)
                     .put("lineNumbers", lineNumbers)
                     .put("shareBird", ShareSession.bird(shareBird))
+                    .put("shareRelayUrl", shareRelayUrl == null ? "" : shareRelayUrl)
                     .put("minimapEnabled", minimapEnabled)
                     .put("minimapWidth", minimapWidth)
                     .put("minimapSide", minimapSide)

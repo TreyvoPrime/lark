@@ -81,7 +81,9 @@
   }
   function startPage(next) { page = next; generation++; content.replaceChildren(); error.textContent = ''; }
   function showInvitation(data) {
-    element('p', 'Send this private invitation to the intended participant over a trusted channel. Verify its fingerprint directly with the host. Anyone holding it can request approval. End the session to invalidate it.', content);
+    element('p', 'Send this private invitation to the intended participant over a trusted channel. Anyone holding it can request approval. End the session to invalidate it.', content);
+    if (data.relay) element('p', 'This invitation uses encrypted Share through the HTTPS relay. Verify the host fingerprint over a trusted channel.', content);
+    if (latest.relayError) element('p', latest.relayError, content).className = 'share-error';
     const invite = field(content, 'Private invitation', 'textarea', data.invitation); invite.readOnly = true;
     action(content, 'Copy invitation', async () => {
       try { await navigator.clipboard.writeText(data.invitation); }
@@ -89,7 +91,8 @@
     });
     if (/^127\./.test(data.address || '')) element('p', 'This session listens on 127.0.0.1, so only this computer can join. Host on a Wi-Fi or Ethernet address to invite another computer.', content).className = 'share-error';
     element('p', 'SHA-256: ' + data.fingerprint, content).className = 'share-fingerprint';
-    showCode(latest || data);
+    if (data.relay) element('p', 'Relay sessions use private invitations. LAN discovery and short codes are turned off.', content);
+    else showCode(latest || data);
   }
   // Short LAN code: found over this network only, never broadcast; the host still approves each guest.
   function showCode(data) {
@@ -144,12 +147,12 @@
       try {
         const data = JSON.parse(atob(normalizeInvitation(invitation.value).replace(/-/g, '+').replace(/_/g, '/')));
         if (!/^[a-f0-9]{64}$/i.test(data.fingerprint) || typeof data.address !== 'string' || data.address.length > 64) throw new Error();
-        identity.textContent = `Host: ${data.address}:${data.port} · SHA-256: ${data.fingerprint}`;
+        identity.textContent = data.relay ? `Through approved HTTPS relay · host identity: ${data.fingerprint}` : `Host: ${data.address}:${data.port} · SHA-256: ${data.fingerprint}`;
       } catch (_) { identity.textContent = 'Invalid invitation. Ask the host for a new private invitation.'; }
     };
-    const verified = field(form, 'I verified this invitation and host fingerprint directly with the intended host over a trusted channel.', 'checkbox'); verified.required = true;
+    const verified = field(form, 'I verified this private invitation and host identity directly with the intended host over a trusted channel.', 'checkbox'); verified.required = true;
     const verifiedRow = verified.closest('label') || verified.parentElement;
-    element('p', 'The invitation includes the host IP, port, session identity and certificate fingerprint. A changed or unverified certificate is rejected. Never use an invitation from an unknown sender.', form);
+    element('p', 'The invitation is private and grants a request to join; the host still approves each device. Verify the host identity with them over a trusted channel. Never use an invitation from an unknown sender.', form);
     const submit = element('button', 'Request access', form); submit.type = 'submit';
     form.onsubmit = async event => {
       event.preventDefault(); if (busy) return; busy = true; submit.disabled = true;
@@ -213,8 +216,9 @@
       ['editor', 'viewer'].forEach(value => { const option = element('option', value, role); option.value = value; }); role.value = latest.session.defaultRole;
       const minutes = field(form, 'Inactivity expiration (minutes)', 'number', String(latest.session.idleMinutes)); minutes.min = '5'; minutes.max = '120';
       const discovery = field(form, 'LAN discovery', 'checkbox'); discovery.checked = !!latest.discovery;
+      discovery.disabled = !!latest.relay;
       action(form, 'Apply security settings', async () => { latest = await api('security', { role: role.value, minutes: Number(minutes.value), discovery: discovery.checked }); await refresh(); });
-      element('p', latest.discoveryError || (latest.discovery ? 'Advertising on the selected interface.' : 'Discovery is off; private invitations still work.'), form);
+      element('p', latest.relay ? 'HTTPS relay is active. Share a private invitation; LAN discovery and short codes are off.' : latest.discoveryError || (latest.discovery ? 'Advertising on the selected interface.' : 'Discovery is off; private invitations still work.'), form);
     }
     if (latest.fingerprint) element('p', 'Host SHA-256: ' + latest.fingerprint, content).className = 'share-fingerprint';
   }

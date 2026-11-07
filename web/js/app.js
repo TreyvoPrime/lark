@@ -5218,7 +5218,7 @@
   async function deleteProject(project = state.project) {
     if (!project) return;
     if (window.LarkShareEditing?.sessionActive()) throw new Error("Leave or end Share before deleting a project.");
-    const detail = state.project?.id === project.id ? state.project : (await api("GET", "/api/projects/" + encodeURIComponent(project.id))).project;
+    const detail = state.project?.id === project.id ? state.project : (await api("GET", "/api/projects/" + encodeURIComponent(project.id) + "/location")).project;
     const linked = await window.LarkLocalFiles.get(project.id);
     const location = linked ? "Selected " + linked.handle.kind + ": " + linked.handle.name : detail.path;
     const yes = await formDialog({
@@ -6752,6 +6752,14 @@
       window.LarkShareEditing?.refreshPositions();
     });
     bindPref("setting-format-save", (el) => ({ formatOnSave: el.checked }));
+    const relayInput = $("setting-share-relay");
+    if (relayInput) relayInput.addEventListener("change", async () => {
+      try {
+        state.settings = await api("PUT", "/api/settings", { shareRelayUrl: relayInput.value.trim() });
+        relayInput.value = state.settings.shareRelayUrl || "";
+        toast("Share relay saved.");
+      } catch (err) { toast(err.message); relayInput.value = state.settings.shareRelayUrl || ""; }
+    });
     const feedInput = $("setting-update-feed");
     if (feedInput) {
       feedInput.addEventListener("change", async () => {
@@ -7777,6 +7785,7 @@
         formatOnSave: !!state.settings.formatOnSave
       }, false);
       if ($("setting-update-feed")) $("setting-update-feed").value = state.settings.updateFeed || "";
+      if ($("setting-share-relay")) $("setting-share-relay").value = state.settings.shareRelayUrl || "";
       showGithub();
       const version = (state.settings.javaVersion || "").split(".")[0];
       const bits = [];

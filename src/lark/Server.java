@@ -9,6 +9,7 @@ import java.io.IOException;
 import java.io.InputStream;
 import java.net.InetAddress;
 import java.net.InetSocketAddress;
+import java.net.URI;
 import java.net.URLDecoder;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
@@ -334,6 +335,21 @@ public final class Server {
                     settings.autoSaveDelayMs = delay;
                 }
                 if (body.has("formatOnSave")) settings.formatOnSave = body.bool("formatOnSave");
+                if (body.has("shareRelayUrl")) {
+                    String relay = body.str("shareRelayUrl", "").trim();
+                    if (!relay.isBlank()) {
+                        try {
+                            URI uri = URI.create(relay);
+                            if (!"https".equalsIgnoreCase(uri.getScheme()) || uri.getHost() == null || uri.getUserInfo() != null
+                                    || uri.getQuery() != null || uri.getFragment() != null || !(uri.getPath().isEmpty() || uri.getPath().equals("/")))
+                                throw new IllegalArgumentException();
+                            relay = "https://" + uri.getHost() + (uri.getPort() > 0 && uri.getPort() != 443 ? ":" + uri.getPort() : "");
+                        } catch (RuntimeException e) { throw new RequestFail(400, "Share relay must be a valid HTTPS service address."); }
+                    }
+                    if (!relay.equals(settings.shareRelayUrl == null ? "" : settings.shareRelayUrl) && !isLoopbackPeer(exchange))
+                        throw new RequestFail(403, "Change the Share relay from this computer, not over Wi-Fi.");
+                    settings.shareRelayUrl = relay;
+                }
                 if (body.has("updateFeed")) {
                     String feed = body.str("updateFeed", "").trim();
                     if (!feed.isBlank() && !Updates.allowedFeedUrl(feed)) {
@@ -721,6 +737,10 @@ public final class Server {
         if (parts.length >= 4 && "api".equals(parts[1]) && "projects".equals(parts[2])) {
             String id = decode(parts[3]);
             String tail = parts.length >= 5 ? parts[4] : "";
+            if (parts.length == 5 && "location".equals(tail) && "GET".equals(method)) {
+                sendJson(exchange, 200, new Json.Obj().put("ok", true).put("project", projects.location(id)));
+                return;
+            }
             if (parts.length == 4 && "GET".equals(method)) {
                 sendJson(exchange, 200, new Json.Obj().put("ok", true).put("project", projects.read(id)));
                 return;
@@ -801,6 +821,7 @@ public final class Server {
                 .put("githubLogin", settings.githubLogin == null ? "" : settings.githubLogin)
                 .put("lastProject", settings.lastProject == null ? "" : settings.lastProject)
                 .put("updateFeed", settings.updateFeed == null ? "" : settings.updateFeed)
+                .put("shareRelayUrl", settings.shareRelayUrl == null ? "" : settings.shareRelayUrl)
                 .put("javaVersion", System.getProperty("java.version", ""))
                 .put("projectsDir", settings.projectsDir().toString())
                 .put("version", Settings.VERSION)

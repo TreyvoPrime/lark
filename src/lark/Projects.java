@@ -513,6 +513,12 @@ public final class Projects {
         return out;
     }
 
+    public Json.Obj location(String id) {
+        Path dir = projectDir(id);
+        Path single = singleFile(id);
+        return new Json.Obj().put("path", (single == null ? dir : single).toAbsolutePath().toString()).put("singleFile", single != null);
+    }
+
     public void delete(String id) {
         Path external = externalDir(id);
         Path single = singleFile(id);
@@ -520,7 +526,7 @@ public final class Projects {
         synchronized (lock(id)) {
             try {
                 if (single != null) Files.deleteIfExists(single);
-                deleteTree(dir);
+                else deleteTree(dir);
                 if (external != null) {
                     Json.Arr retained = new Json.Arr();
                     for (Json.Value value : externalProjects().values()) {
