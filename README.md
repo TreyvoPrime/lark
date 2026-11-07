@@ -1,114 +1,23 @@
-# Lark 4
+# Lark
 
-Lark is a focused Java IDE: multi-file projects, live compile feedback, brace guide, small refactors, debugger, JUnit, and GitHub clone/push. Lighter than IntelliJ, more useful than a browser text box — deliberately not bloated.
+**A welcoming place to learn and build with Java.**
 
-## Downloads (two supported tracks)
+Lark is a free, open-source Java development environment made for students, new programmers, and anyone who wants a focused place to write code. Its goal is simple: make it easier to start creating without getting lost in a complicated workspace.
 
-| | **Lark Desktop** (default) | **Lark Executable** |
-| --- | --- | --- | --- |
-| **What it is** | Setup wizard install | Unzip → double-click **Lark.exe** |
-| **GitHub file** | `LarkDesktopSetup.exe` | `lark-executable-windows.zip` |
-| **How to start** | Start Menu → **Lark Desktop** | **Lark.exe** only |
-| **UI** | Full desktop IDE (app window) | Full desktop IDE |
-| **Best for** | Everyday PC, Start Menu | Labs / USB / no `.bat` |
+## What you can do
 
-Download site: **[treyvoprime.github.io/lark-download](https://lark.rocks/)**  
-Releases: **[github.com/TreyvoPrime/lark/releases/latest](https://github.com/TreyvoPrime/lark/releases/latest)**
+- Write, run, and debug Java programs.
+- Organize your code into projects and explore your files.
+- Get help understanding and navigating your code.
+- Make Lark feel like your own with themes and editor settings.
+- Work together with others using Lark Share on a local network or an approved HTTPS relay. [Read the Share relay guide](docs/share-relay-prototype.md).
 
-### Lark Desktop (default — Setup install)
+## Get Lark
 
-```text
-https://github.com/TreyvoPrime/lark/releases/latest/download/LarkDesktopSetup.exe
-```
+Visit the [Lark website](https://lark.rocks/) to learn more and find downloads for Windows, macOS, and Linux. You can also browse the [GitHub releases](https://github.com/TreyvoPrime/lark/releases) for available downloads and release notes.
 
-- Run **LarkDesktopSetup.exe** — welcome → folder → install → finish / launch
-- Installs to `%LOCALAPPDATA%\Programs\Lark` (no admin password)
-- Start Menu + Desktop shortcuts; Add/Remove Programs entry
-- After install you mainly see **Lark Desktop.exe** — `app\` and `jdk\` are hidden runtime
-- Optional payload zip: `lark-desktop-windows.zip` (same files, no wizard)
+## Get involved
 
-Mac / Linux payload zips ship `start-lark-desktop.sh` with the same buried `app/` + `jdk/` layout.
+Lark is built in the open. You can explore the code, share ideas, or [report an issue](https://github.com/TreyvoPrime/lark/issues) to help make it better.
 
-### Lark Executable
-
-```text
-https://github.com/TreyvoPrime/lark/releases/latest/download/lark-executable-windows.zip
-```
-
-- Extract All → double-click **Lark.exe**
-- No `.bat` / `.ps1` required
-- `app\` (jar) and `jdk\` stay beside the exe and are soft-hidden on Windows
-- Same IDE as Desktop; own update channel (`executable`)
-
-### Lark Mobile — discontinued
-
-**Lark Mobile was discontinued on November 1, 2026.** Its host-dependent approach did not meet the goal of a standalone, on-device Java IDE. It is no longer an actively developed or recommended edition. Existing source and historical release assets remain available for reference, but no future features, updates, or support are planned for this edition. Desktop and Executable development continues.
-
-Do not open launchers from inside a zip preview / Temp folder.
-
-## What’s new in Lark 4.0
-
-Lark 4 focuses on a smoother Java coding experience, clearer project navigation, and more capable tools without turning the IDE into a heavyweight workspace. The 4.0.x releases continue building on that foundation.
-
-### Faster, smarter Java editing
-
-- **Smoother typing:** Debounced, cancellable Java analysis reduces interruptions from stale background checks and unnecessary editor rerenders.
-- **More useful Quick Fixes:** Suggestions prioritize actionable Java and compiler problems rather than distracting, low-value changes.
-- **Improved Java assistance:** Completion and inline suggestions help with day-to-day editing, alongside live compile feedback.
-- **Brace guides and indentation:** Better handling of matching braces, brackets, parentheses, and multiline edits makes code easier to follow.
-- **Minimap and code navigation:** A configurable minimap, project search, and code-structure tools help with larger files and projects.
-
-### Tools for understanding and changing code
-
-- **Refactoring support:** Rename previews and small refactoring actions help make changes more deliberately.
-- **UML diagrams:** Improved relationship formatting, ownership, and arrows make class structures easier to visualize.
-- **Lark Flow:** Diagram-based views show how program logic moves through code.
-- **Run, debug, and test:** Integrated Java execution, debugging, and JUnit support keep core development tasks in one place.
-- **Code-image export:** Export full files as themed code images for notes, sharing, or demonstrations.
-
-### A more customizable workspace
-
-- **Expanded themes:** Additional dark and light syntax themes, including new light palettes in later 4.0.x work.
-- **More editor fonts:** Extra font options let you tailor how code looks.
-- **Flexible toolbar:** Responsive overflow and adjustable toolbar height help Lark fit different window sizes.
-- **Clearer project explorer:** Folder icons, updated file-row presentation, and recent-project improvements simplify navigation.
-- **Editor preferences:** Adjustable minimap placement, sizing, line wrapping, auto-save, indentation, and other settings.
-
-### Collaboration and connected workflows
-
-- **Lark Share:** Encrypted LAN collaboration with host approval, shared editing, participant presence, live cursors, and Editor/Viewer permissions.
-- **Session controls:** Collaboration recovery and permission handling aim to keep shared work manageable if connections change.
-- **Git and GitHub:** Clone/push workflows and terminal-based Git commands help work with repositories without leaving the IDE.
-
-Publishing to a new GitHub repository supports text and binary project files. The upload includes `.gitignore`, `.gitattributes`, and `.editorconfig`, while excluding other hidden files, build output, and Lark's internal files. A publish is limited to 1,000 files, 10 MB per file, and 25 MB in total; symbolic links must be replaced before publishing. Check the repository contents after publishing, particularly when hidden files are needed.
-
-When Git is installed, Lark attempts to connect a newly published project to its GitHub remote and default branch. It preserves existing remotes, repositories, worktrees, and local history, and reports when it cannot set up the local link. GitHub upload remains available without a local Git installation; terminal Git operations require Git on PATH. Cancellation stops between steps, so a repository or initial commit may already exist on GitHub when a push is cancelled.
-- **Built-in terminal:** Run commands in the open project directory; later 4.0.x work adds improved cancellation and input handling.
-
-### 4.0.x release highlights
-
-- **4.0.5 (published):** Continued improvements to Share reliability, Java assistance, and release packaging.
-- **4.0.6 (in development):** Selectable bird avatars for Share, participant badges and remote cursor labels, terminal/Git refinements, tray resizing improvements, a default-on minimap, and more light themes. These changes are in source and the draft release; **4.0.6 is not yet a published, verified release**.
-
-> **Availability note:** Feature behavior and supported devices depend on the edition and release. Some cross-device collaboration, installer, and macOS workflows still need broader real-device validation. See the release notes and [GitHub Releases](https://github.com/TreyvoPrime/lark/releases) for available downloads.
-
-## Build from source
-
-```bash
-./package.sh
-./packaging/make-release.sh
-```
-
-Requires JDK 17+, Go (Windows launchers), NSIS (`makensis`) for `LarkDesktopSetup.exe`, and network once to cache portable JDKs.
-
-## Lark Share
-
-Lark 4.1 adds encrypted LAN collaboration to the desktop **Share** control:
-private invitations, host approval, concurrent Java editing, live cursors,
-participant follow, Editor/Viewer permissions and recovery. No cloud account is
-required. Only the host saves canonical files or runs local tools.
-See [Lark Share setup, security and platform validation limits](docs/lark-share.md).
-
-## License
-
-See [LICENSE](LICENSE).
+Lark is available under the [MIT License](LICENSE).

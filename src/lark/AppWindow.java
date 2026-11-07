@@ -41,14 +41,41 @@ public final class AppWindow {
                 }
                 System.out.println("Lark window didn't check in — retrying with a separate browser profile…");
                 System.out.flush();
-                openRaw(url, profileDir().resolveSibling(Instance.channel() + "-recovery"));
+                Path recovery = profileDir().resolveSibling(Instance.channel() + "-recovery");
+                if (!openAlternateWindowsBrowser(url, recovery)) openRaw(url, recovery);
                 WinTaskbar.reclaimAfterLaunch();
+                Thread.sleep(5000);
+                if (!Server.uiFresh()) {
+                    System.out.println("Lark app window still unavailable; opening the default browser.");
+                    openDefaultBrowser(url);
+                }
             } catch (InterruptedException e) {
                 Thread.currentThread().interrupt();
             }
         }, "lark-window-retry");
         retry.setDaemon(true);
         retry.start();
+    }
+
+    /** Retry with a different browser when Edge starts but fails to show the editor. */
+    private static boolean openAlternateWindowsBrowser(String url, Path profile) {
+        if (!System.getProperty("os.name", "").toLowerCase(Locale.ROOT).contains("win")) return false;
+        for (String root : new String[] {System.getenv("LOCALAPPDATA"), System.getenv("ProgramFiles"), System.getenv("ProgramFiles(x86)")}) {
+            if (launchApp(url, profile, root, "Google", "Chrome", "Application", "chrome.exe")) return true;
+        }
+        return false;
+    }
+
+    private static void openDefaultBrowser(String url) {
+        try {
+            if (Desktop.isDesktopSupported() && Desktop.getDesktop().isSupported(Desktop.Action.BROWSE)) {
+                Desktop.getDesktop().browse(URI.create(url));
+            } else if (System.getProperty("os.name", "").toLowerCase(Locale.ROOT).contains("win")) {
+                new ProcessBuilder("rundll32", "url.dll,FileProtocolHandler", url).start();
+            }
+        } catch (Exception e) {
+            System.out.println("Open this address in a browser: " + url);
+        }
     }
 
     private static void openRaw(String url) {

@@ -5,6 +5,7 @@ package main
 
 import (
 	"fmt"
+	"io"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -96,9 +97,8 @@ func main() {
 		fail("Lark", "Could not create run folder:\n"+runDir+"\n\n"+err.Error())
 		return
 	}
-	runJar := filepath.Join(runDir, "lark.jar")
-	_ = os.Remove(runJar)
-	if err := copyFile(jar, runJar); err != nil {
+	runJar, err := copyRunJar(jar, runDir)
+	if err != nil {
 		logf(logPath, "run copy failed: %v — using install jar\n", err)
 		runJar = jar
 	} else {
@@ -116,8 +116,11 @@ func main() {
 	)
 	cmd.Dir = root
 	cmd.SysProcAttr = &syscall.SysProcAttr{HideWindow: true}
-	cmd.Stdout = nil
-	cmd.Stderr = nil
+	if bootLog, err := os.OpenFile(logPath, os.O_CREATE|os.O_APPEND|os.O_WRONLY, 0o600); err == nil {
+		defer bootLog.Close()
+		cmd.Stdout = bootLog
+		cmd.Stderr = bootLog
+	}
 	if err := cmd.Start(); err != nil {
 		fail("Lark", "Could not start Java:\n"+err.Error()+"\n\nSee the boot log under %LOCALAPPDATA%\\Lark\\logs.")
 		return
@@ -274,6 +277,31 @@ func fileExists(path string) bool {
 func dirExists(path string) bool {
 	st, err := os.Stat(path)
 	return err == nil && st.IsDir()
+}
+
+// Each launch needs its own run copy: deleting a shared copy can break a running instance.
+func copyRunJar(src, dir string) (string, error) {
+	in, err := os.Open(src)
+	if err != nil {
+		return "", err
+	}
+	defer in.Close()
+	out, err := os.CreateTemp(dir, "lark-*.jar")
+	if err != nil {
+		return "", err
+	}
+	name := out.Name()
+	_, copyErr := io.Copy(out, in)
+	closeErr := out.Close()
+	if copyErr != nil {
+		_ = os.Remove(name)
+		return "", copyErr
+	}
+	if closeErr != nil {
+		_ = os.Remove(name)
+		return "", closeErr
+	}
+	return name, nil
 }
 
 func copyFile(src, dst string) error {
