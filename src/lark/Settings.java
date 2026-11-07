@@ -11,7 +11,7 @@ import java.util.Set;
 /** Preferences stored in the home folder. The GitHub token never leaves this machine except for GitHub. */
 public final class Settings {
     /** Public release version. Lark 4 uses 4.0, then three-position patch/minor versions. */
-    public static final String VERSION = "4.2.0";
+    public static final String VERSION = "4.3.0";
     /** Default public update feed — always the latest GitHub release JSON companion. */
     public static final String DEFAULT_UPDATE_FEED =
             "https://github.com/TreyvoPrime/lark/releases/latest/download/update.json";
@@ -202,7 +202,11 @@ public final class Settings {
     }
 
     public Path projectsDir() {
-        return home().resolve("projects");
+        // Keep existing installations and explicitly isolated test homes in place.
+        Path legacy = home().resolve("projects");
+        String override = System.getenv("LARK_HOME");
+        if (override != null && !override.isBlank()) return legacy;
+        return Path.of(System.getProperty("user.home"), "Documents", "Lark Projects");
     }
 
     public static int clamp(int value, int min, int max, int fallback) {

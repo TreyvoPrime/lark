@@ -35,6 +35,18 @@
     if (!response.ok || !data.ok) throw new Error(data.error || 'Share request failed.');
     return data;
   }
+  function chooseAction(title, message, choices) {
+    return new Promise(resolve => {
+      const modal = document.createElement('dialog'); modal.className = 'share-confirm-dialog';
+      element('h2', title, modal); element('p', message, modal);
+      const actions = element('div', null, modal); actions.className = 'share-actions';
+      let answered = false;
+      const finish = value => { if (answered) return; answered = true; modal.close(); modal.remove(); resolve(value); };
+      choices.forEach(choice => { const b = element('button', choice.label, actions); b.type = 'button'; b.onclick = () => finish(choice.value); });
+      modal.addEventListener('cancel', event => { event.preventDefault(); finish(null); });
+      document.body.append(modal); modal.showModal();
+    });
+  }
   const report = err => { error.textContent = err.message; };
   function action(parent, text, run) {
     const node = element('button', text, parent); node.type = 'button';
@@ -163,7 +175,7 @@
       row.append(window.LarkBirds.make(person.bird, 32));
       element('strong', person.name, row);
       if (person.device) element('span', person.device, row);
-      element('span', `${person.status === 'pending' ? 'wants to join' : person.status} · ${person.role} · ${person.connected ? 'Connected' : 'Connection Lost'}${person.file ? ' · ' + person.file + ' · ' + window.LarkShareEditing.position(person) : ''}`, row);
+      element('span', `${person.status === 'pending' ? 'wants to join' : person.status} · ${person.role} · ${person.connected ? 'Connected' : 'Connection Lost'}${person.file && localStorage.getItem('lark-share-show-positions') !== 'false' ? ' · ' + person.file + ' · ' + window.LarkShareEditing.position(person) : ''}`, row);
       if (latest.hosting && person.status === 'pending') action(row, 'Approve as Editor', async () => { latest = await api('decide', { device: person.id, approve: true, role: 'editor' }); await refresh(); });
       if (latest.hosting && person.status === 'pending') action(row, 'Approve as Viewer', async () => { latest = await api('decide', { device: person.id, approve: true, role: 'viewer' }); await refresh(); });
       if (person.status === 'approved' && person.id !== latest.identity) action(row, 'Follow ' + person.name, () => { window.LarkShareEditing.follow(person.id, person.name); dialog.close(); });
@@ -273,8 +285,9 @@
       element('h4', draft.path, content);
       element('p', 'Saved local draft. Compare it with the current editor and review your merge; replacing source is never automatic.', content);
       const text = field(content, 'Reviewed merged source for ' + draft.path, 'textarea', draft.text);
-      action(content, 'Apply reviewed merge', () => {
-        if (window.confirm('Replace the currently opened shared file with this reviewed merge? Other participants will see the resulting edits.')) window.LarkShareEditing.mergeRecovery(draft.key, text.value);
+      action(content, 'Apply reviewed merge', async () => {
+        const answer = await chooseAction('Apply reviewed merge?', 'Other participants will see the resulting edits.', [{label:'Cancel',value:false},{label:'Apply merge',value:true}]);
+        if (answer) window.LarkShareEditing.mergeRecovery(draft.key, text.value);
       });
     });
   }
@@ -314,9 +327,16 @@
     if (latest.hosting) action(navigation, 'Review Changes', review);
     if (latest.hosting || latest.joined && latest.session?.status === 'approved') action(navigation, 'Shared Project', () => dialog.close());
     if (latest.hosting || latest.joined) action(navigation, latest.hosting ? 'End Session' : 'Leave Session', async () => {
-      if (!window.confirm(latest.hosting ? 'End this Share session and revoke all invitations and devices?' : 'Leave this Share session?')) return;
+      const hosting = latest.hosting;
+      const choice = await chooseAction(hosting ? 'End Share session?' : 'Leave Share session?', hosting ? 'This ends the session and revokes invitations and devices.' : 'Would you like to save the shared files as your own project before leaving?', hosting ? [{label:'Cancel',value:'cancel'},{label:'End session',value:'leave'}] : [{label:'Cancel',value:'cancel'},{label:'Leave without saving',value:'leave'},{label:'Save a project and leave',value:'save'}]);
+      if (!choice || choice === 'cancel') return;
+      const copy = choice === 'save' ? await window.LarkShareEditing.snapshot() : null;
+      const copyName = latest.session?.name || latest.name || 'Shared project';
+      const copyId = copy ? await window.LarkEditorShare.saveCopy(copyName, copy) : null;
       if (window.LarkShareEditing.pending()) window.LarkShareEditing.exportRecovery();
-      latest = await api(latest.hosting ? 'end' : 'leave'); await window.LarkShareEditing.stop(); startPage('home'); await refresh(); home();
+      latest = await api(hosting ? 'end' : 'leave'); await window.LarkShareEditing.stop();
+      if (copyId) { dialog.close(); await window.LarkEditorShare.openCopy(copyId); }
+      startPage('home'); await refresh(); home();
     });
     action(navigation, 'Refresh', refresh);
   }

@@ -405,6 +405,22 @@ public final class Server {
             sendJson(exchange, 200, new Json.Obj().put("ok", true).put("id", id));
             return;
         }
+        if (("/api/project/create-selected".equals(path) || "/api/project/open-file".equals(path)) && "POST".equals(method)) {
+            if (lan || !isLoopbackPeer(exchange)) throw new RequestFail(403, "Choose files on the local computer.");
+            Json.Obj body = body(exchange);
+            boolean folder = path.endsWith("create-selected");
+            Path selected;
+            try { selected = NativePicker.choose(folder); }
+            catch (RequestFail e) { throw e; }
+            catch (Exception e) { throw new RequestFail(503, "Couldn't open the system file picker."); }
+            if (selected == null) {
+                sendJson(exchange, 200, new Json.Obj().put("ok", true).put("cancelled", true));
+                return;
+            }
+            String id = folder ? projects.createAt(selected, body.str("name", ""), body.str("template", "empty")) : projects.openSingleFile(selected);
+            sendJson(exchange, 200, new Json.Obj().put("ok", true).put("id", id));
+            return;
+        }
         if ("/api/project/reveal".equals(path) && "POST".equals(method)) {
             if (lan) throw new RequestFail(403, "Open files from the desktop app.");
             Json.Obj body = body(exchange);
@@ -436,8 +452,8 @@ public final class Server {
         if ("/api/import".equals(path) && "POST".equals(method)) {
             String type = exchange.getRequestHeaders().getFirst("Content-Type");
             if (type != null && type.startsWith("application/zip")) {
-                byte[] data = exchange.getRequestBody().readNBytes(8_000_001);
-                if (data.length > 8_000_000) throw new RequestFail(400, "That zip is too large.");
+                byte[] data = exchange.getRequestBody().readNBytes(32_000_001);
+                if (data.length > 32_000_000) throw new RequestFail(400, "That zip is too large.");
                 String name = query(exchange, "name");
                 String id = projects.importZip(name, new ByteArrayInputStream(data));
                 sendJson(exchange, 200, new Json.Obj().put("ok", true).put("id", id));
@@ -1069,9 +1085,13 @@ public final class Server {
     }
 
     private static Json.Obj body(HttpExchange exchange) throws IOException {
-        byte[] data = exchange.getRequestBody().readNBytes(5_000_001);
+        String path = exchange.getRequestURI().getPath();
+        boolean filePayload = path.equals("/api/import") ||
+                (path.startsWith("/api/projects/") && path.endsWith("/file") && "PUT".equals(exchange.getRequestMethod()));
+        int limit = filePayload ? 125_000_000 : 5_000_000;
+        byte[] data = exchange.getRequestBody().readNBytes(limit + 1);
         if (data.length == 0) throw new RequestFail(400, "That request was empty.");
-        if (data.length > 5_000_000) throw new RequestFail(400, "That request is too large.");
+        if (data.length > limit) throw new RequestFail(413, "That request is too large.");
         return Json.parseObj(new String(data, StandardCharsets.UTF_8));
     }
 
