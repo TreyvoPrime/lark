@@ -15,7 +15,7 @@ Lark is a free, open-source Java development environment made for students, new 
 
 Visit the [Lark website](https://lark.rocks/) to learn more and find downloads for Windows, macOS, and Linux. You can also browse the [GitHub releases](https://github.com/TreyvoPrime/lark/releases) for available downloads and release notes.
 
-## Get involved
+## Get involved - Join the Flock
 
 Lark is built in the open. You can explore the code, share ideas, or [report an issue](https://github.com/TreyvoPrime/lark/issues) to help make it better.
 
