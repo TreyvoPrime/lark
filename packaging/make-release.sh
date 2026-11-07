@@ -23,11 +23,12 @@ cache=${LARK_JDK_CACHE:-"$root/release/.jdk-cache"}
 mkdir -p "$cache" release
 chmod +x packaging/fetch-portable-jdk.sh
 
-github_latest="https://github.com/TreyvoPrime/lark/releases/latest/download"
+release_tag=${LARK_RELEASE_TAG:-"v$(printf '%s' "$version" | sed 's/\.0$//')"}
+github_release="https://github.com/TreyvoPrime/lark/releases/download/$release_tag"
 if [ -n "$feed_base" ]; then
   feed_base=$(printf '%s' "$feed_base" | sed 's:/*$::')
 else
-  feed_base="$github_latest"
+  feed_base="$github_release"
 fi
 
 cat > release/update.json <<EOF
