@@ -4,6 +4,7 @@
 package main
 
 import (
+	"encoding/binary"
 	"encoding/json"
 	"fmt"
 	"net"
@@ -99,7 +100,7 @@ func registerService(address *sockaddrBth) (func(), error) {
 }
 
 func hasService(address uint64) bool {
-	a := sockaddrBth{Family: afBth, Address: address}
+	a := newSockaddr(address, 0)
 	var text [80]uint16
 	n := uint32(len(text))
 	r, _, _ := pAddressString.Call(uintptr(unsafe.Pointer(&a)), unsafe.Sizeof(a), 0, uintptr(unsafe.Pointer(&text[0])), uintptr(unsafe.Pointer(&n)))
@@ -121,12 +122,18 @@ func hasService(address uint64) bool {
 
 type sockaddrBth struct {
 	Family  uint16
-	_       [6]byte
-	Address uint64
+	Address [8]byte
 	Service [16]byte
-	Port    uint32
-	_       [4]byte
+	Port    [4]byte
 }
+
+func newSockaddr(address uint64, port uint32) sockaddrBth {
+	a := sockaddrBth{Family: afBth}
+	binary.LittleEndian.PutUint64(a.Address[:], address)
+	binary.LittleEndian.PutUint32(a.Port[:], port)
+	return a
+}
+
 type radioInfo struct {
 	Size         uint32
 	_            uint32
@@ -208,9 +215,9 @@ func socket() (uintptr, error) {
 	return s, nil
 }
 func callSocket(p *syscall.LazyProc, s uintptr, a *sockaddrBth) error {
-	r, _, _ := p.Call(s, uintptr(unsafe.Pointer(a)), unsafe.Sizeof(*a))
+	r, _, lastErr := p.Call(s, uintptr(unsafe.Pointer(a)), unsafe.Sizeof(*a))
 	if int32(r) == -1 {
-		return fail(p.Name)
+		return fmt.Errorf("%s: Windows Bluetooth error %v", p.Name, lastErr)
 	}
 	return nil
 }
@@ -282,7 +289,7 @@ func host(port int) error {
 		return err
 	}
 	defer closeSocket(s)
-	a := sockaddrBth{Family: afBth, Port: btPortAny}
+	a := newSockaddr(0, btPortAny)
 	if err = callSocket(pBind, s, &a); err != nil {
 		return err
 	}
@@ -300,7 +307,7 @@ func host(port int) error {
 		return err
 	}
 	defer unregister()
-	fmt.Printf("READY %012x %d\n", addr, a.Port)
+	fmt.Printf("READY %012x %d\n", addr, binary.LittleEndian.Uint32(a.Port[:]))
 	publishStats()
 	// Bound simultaneous peer sockets so an untrusted nearby device cannot
 	// create an unbounded number of forwarding goroutines.
@@ -357,7 +364,7 @@ func guest(address uint64, channel uint32) error {
 				c.Close()
 				return
 			}
-			a := sockaddrBth{Family: afBth, Address: address, Port: channel}
+			a := newSockaddr(address, channel)
 			if channel == 0 {
 				a.Service = *(*[16]byte)(unsafe.Pointer(&serviceID))
 			}

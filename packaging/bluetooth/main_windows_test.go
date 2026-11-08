@@ -7,11 +7,25 @@ import (
 	"io"
 	"net"
 	"os"
+	"strings"
 	"syscall"
 	"testing"
 	"time"
 	"unsafe"
 )
+
+func TestSocketFailureKeepsWindowsError(t *testing.T) {
+	s, err := syscall.Socket(syscall.AF_INET, syscall.SOCK_STREAM, syscall.IPPROTO_TCP)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer syscall.Closesocket(s)
+	a := newSockaddr(0, btPortAny)
+	err = callSocket(pBind, uintptr(s), &a)
+	if err == nil || strings.HasSuffix(err.Error(), "error 0") || strings.Contains(err.Error(), "completed successfully") {
+		t.Fatalf("missing actual bind error: %v", err)
+	}
+}
 
 func TestWindowsLayouts(t *testing.T) {
 	if unsafe.Sizeof(querySet{}) != 120 || unsafe.Sizeof(csAddress{}) != 40 {
@@ -21,7 +35,7 @@ func TestWindowsLayouts(t *testing.T) {
 		t.Fatal("Bluetooth discovery structures do not match the Windows ABI")
 	}
 	var address sockaddrBth
-	if unsafe.Sizeof(address) != 40 || unsafe.Offsetof(address.Address) != 8 || unsafe.Offsetof(address.Port) != 32 {
+	if unsafe.Sizeof(address) != 30 || unsafe.Offsetof(address.Address) != 2 || unsafe.Offsetof(address.Port) != 26 {
 		t.Fatal("Bluetooth socket address does not match the Windows ABI")
 	}
 	var radio radioInfo
