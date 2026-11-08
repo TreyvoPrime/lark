@@ -169,3 +169,75 @@ body.tray-outlines .tree-row.folder { background: transparent; }
   #modal form { padding: 14px; }
 }
 @media (prefers-reduced-motion: reduce) { *, *::before, *::after { transition: none !important; animation: none !important; } }
+
+/* Lark 4.8 — Distinctly Lark: shared premium desktop treatment.
+   These overrides deliberately stay on the existing theme variables so custom
+   themes, scaling, keyboard navigation, and the editor rendering path remain intact. */
+:root {
+  --control-height: 30px;
+  --radius-control: 7px;
+  --radius-surface: 12px;
+  --lark-ease: cubic-bezier(.2, .75, .25, 1);
+  --lark-shadow: 0 18px 48px color-mix(in srgb, #000 28%, transparent);
+}
+[data-theme="slate"], [data-theme="graphite"] {
+  --bg: #10151d; --bg-elev: #171e29; --bg-sunken: #0c1118;
+  --line: #283241; --text: #edf2f8; --muted: #98a6b9; --faint: #718197;
+  --accent: #76d7ad; --accent-ink: #082019; --select: #203b35;
+  --shadow: var(--lark-shadow);
+}
+[data-theme="daylight"] {
+  --bg: #f3f5f7; --bg-elev: #fff; --bg-sunken: #e9edf1;
+  --line: #d9e0e7; --text: #16202b; --muted: #637286; --faint: #718197;
+  --accent: #14795f; --accent-ink: #fff; --select: #dcefe7;
+  --shadow: 0 18px 48px #31445b1c;
+}
+body { letter-spacing: -.005em; }
+#shell { background: var(--bg); }
+#top {
+  min-height: 50px; padding: 8px 12px; gap: 8px;
+  background: color-mix(in srgb, var(--bg-elev) 94%, var(--bg));
+  border-bottom: 1px solid color-mix(in srgb, var(--line) 88%, transparent);
+}
+#top .brand { gap: 7px; margin-right: 3px; }
+#top .brand img { width: 27px; height: 27px; filter: drop-shadow(0 3px 7px color-mix(in srgb, var(--accent) 22%, transparent)); }
+#top .brand .word { font-size: 16px; font-weight: 720; letter-spacing: -.035em; }
+#top .brand .ver { display: inline-flex; align-items: center; height: 19px; padding: 0 6px; border-radius: 99px; color: var(--accent); background: color-mix(in srgb, var(--accent) 12%, transparent); font-size: 10px; font-weight: 750; }
+#top .top-group { gap: 4px; }
+#top .top-sep { height: 22px; opacity: .62; }
+#top button, #toolbar-more > summary, #top .main-pick select { border-color: transparent; background: transparent; }
+#top button:hover, #toolbar-more > summary:hover { background: color-mix(in srgb, var(--text) 7%, transparent); border-color: transparent; }
+#top button[aria-expanded="true"] { background: color-mix(in srgb, var(--accent) 14%, transparent); border-color: color-mix(in srgb, var(--accent) 38%, transparent); }
+#top #run.run-btn { min-width: 70px; padding-inline: 13px; border-color: color-mix(in srgb, var(--accent) 72%, #fff); box-shadow: 0 7px 18px color-mix(in srgb, var(--accent) 24%, transparent); }
+#top #run.run-btn:hover { transform: translateY(-1px); box-shadow: 0 10px 24px color-mix(in srgb, var(--accent) 32%, transparent); }
+#top #run.run-btn:active { transform: translateY(1px); }
+#workspace { background: var(--bg-sunken); }
+#files { background: color-mix(in srgb, var(--bg-elev) 78%, var(--bg)); border-right-color: color-mix(in srgb, var(--line) 75%, transparent); }
+.tray-head { min-height: 39px; padding: 7px 11px; border-bottom: 1px solid color-mix(in srgb, var(--line) 58%, transparent); }
+.tray-label, .debug-side-head { font-weight: 760; letter-spacing: .085em; }
+.file-tray { padding: 7px 7px; }
+.tree-row, body.tray-outlines .tree-row { height: 29px; border-radius: 7px; border-color: transparent !important; }
+.tree-row:hover { background: color-mix(in srgb, var(--text) 6%, transparent); }
+.tree-row.active { background: color-mix(in srgb, var(--accent) 15%, transparent); box-shadow: inset 2px 0 0 var(--accent); }
+.tree-row .name { font-size: 12.5px; }
+.file-tray .tree-kids, body.tray-outlines .file-tray .tree-kids { border-left-color: color-mix(in srgb, var(--line) 70%, transparent); }
+#tabs, .tabs-secondary { height: 39px; padding: 4px 7px 0; gap: 3px; background: color-mix(in srgb, var(--bg-elev) 84%, var(--bg)); border-bottom-color: var(--line); }
+.tab { height: 35px; padding: 0 12px; border: 1px solid transparent; border-bottom: 0; border-radius: 8px 8px 0 0; color: var(--muted); }
+.tab:hover { background: color-mix(in srgb, var(--text) 5%, transparent); }
+.tab.on { background: var(--bg-sunken); color: var(--text); border-color: color-mix(in srgb, var(--line) 80%, transparent); box-shadow: inset 0 2px 0 var(--accent); }
+#console { border-top: 1px solid color-mix(in srgb, var(--line) 88%, transparent); background: color-mix(in srgb, var(--bg-elev) 74%, var(--bg)); }
+#console .pane-head { height: 37px; padding: 0 12px; background: color-mix(in srgb, var(--bg-elev) 87%, var(--bg)); border-bottom: 1px solid color-mix(in srgb, var(--line) 65%, transparent); }
+#console-out, #terminal-out { padding: 13px 15px; line-height: 1.65; }
+#status { height: 29px; padding: 0 12px; background: color-mix(in srgb, var(--bg-elev) 92%, var(--bg)); border-top-color: color-mix(in srgb, var(--line) 78%, transparent); color: var(--faint); }
+.popover, #context, #toolbar-overflow, .scratch-menu, .CodeMirror-hints, .CodeMirror-dialog { border: 1px solid color-mix(in srgb, var(--line) 88%, transparent); box-shadow: var(--lark-shadow); }
+.popover, #context, #toolbar-overflow, .scratch-menu { animation: lark-pop 140ms var(--lark-ease); }
+#modal form, .theme-overlay-card, .update-modal-card, .extras-card, #palette, .palette-card, .scratch-pad { border: 1px solid color-mix(in srgb, var(--line) 86%, transparent); box-shadow: var(--lark-shadow); }
+#modal form { padding: 22px; }
+.theme-tile, .project-tile, .help-tile { border-radius: 9px; border-color: color-mix(in srgb, var(--line) 82%, transparent); transition: transform 140ms var(--lark-ease), border-color 140ms var(--lark-ease), background-color 140ms var(--lark-ease); }
+.theme-tile:hover, .project-tile:hover, .help-tile:hover { transform: translateY(-1px); border-color: color-mix(in srgb, var(--accent) 48%, var(--line)); }
+.CodeMirror { background: var(--bg-sunken); }
+.editor-minimap { background: color-mix(in srgb, var(--bg-elev) 86%, var(--bg)); border-left-color: color-mix(in srgb, var(--line) 72%, transparent); }
+.minimap-viewport { border-radius: 4px; background: color-mix(in srgb, var(--accent) 16%, transparent); }
+@keyframes lark-pop { from { opacity: 0; transform: translateY(-4px) scale(.985); } to { opacity: 1; transform: none; } }
+@media (max-width: 980px) { #top { min-height: 46px; } #top .top-sep { display: none; } #top .top-group { gap: 1px; } }
+@media (prefers-reduced-motion: reduce) { *, *::before, *::after { transition-duration: 0ms !important; animation-duration: 0ms !important; } }
