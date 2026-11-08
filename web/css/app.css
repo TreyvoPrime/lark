@@ -1429,40 +1429,22 @@ select:focus, input:focus, textarea:focus, button:focus-visible {
   box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--accent) 55%, transparent);
 }
 .project-tile-preview {
-  height: 72px;
-  border-radius: 7px;
-  border: 1px solid rgba(0, 0, 0, 0.18);
-  background:
-    linear-gradient(180deg, color-mix(in srgb, var(--bg-elev) 88%, var(--accent)), var(--bg-sunken));
-  color: color-mix(in srgb, var(--text) 78%, var(--accent));
-  overflow: hidden;
-}
-.project-tile-preview.empty {
   display: grid;
   place-items: center;
-  color: var(--accent);
-  background:
-    linear-gradient(135deg, color-mix(in srgb, var(--accent) 28%, var(--bg)) 0 42%, transparent 42%),
-    linear-gradient(160deg, var(--bg-elev), var(--bg-sunken));
+  height: 72px;
+  border-radius: 7px;
+  color: var(--folder-color, var(--accent));
+  background: color-mix(in srgb, var(--folder-color, var(--accent)) 11%, var(--bg-elev));
 }
-.project-tile-preview.empty svg {
-  width: 22px;
-  height: 22px;
-  opacity: 0.9;
-}
-.project-tile-preview.code {
-  display: block;
-  padding: 7px 8px;
-  font-family: var(--mono);
-  font-size: 9px;
-  line-height: 1.35;
-  white-space: pre;
-  text-align: left;
-  letter-spacing: 0;
-  color: color-mix(in srgb, var(--text) 70%, var(--accent));
-  -webkit-mask-image: linear-gradient(180deg, #000 55%, transparent);
-  mask-image: linear-gradient(180deg, #000 55%, transparent);
-}
+.project-tile-preview svg { width: 48px; height: 40px; }
+.project-tile-preview[data-color="0"] { --folder-color: #68b7e3; }
+.project-tile-preview[data-color="1"] { --folder-color: #d99c5d; }
+.project-tile-preview[data-color="2"] { --folder-color: #a98ce0; }
+.project-tile-preview[data-color="3"] { --folder-color: #69bd9c; }
+.project-tile-preview[data-color="4"] { --folder-color: #df829a; }
+.project-tile-preview[data-color="5"] { --folder-color: #d3b45d; }
+.project-tile-preview[data-color="6"] { --folder-color: #7c9ee6; }
+.project-tile-preview[data-color="7"] { --folder-color: #d48971; }
 .project-tile-name {
   font-size: 13px;
   font-weight: 650;

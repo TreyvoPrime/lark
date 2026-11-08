@@ -2063,7 +2063,7 @@
   }
 
   function projectFolderSvg() {
-    return '<svg viewBox="0 0 16 16" aria-hidden="true"><path fill="currentColor" d="M1.75 1A1.75 1.75 0 0 0 0 2.75v10.5C0 14.216.784 15 1.75 15h12.5A1.75 1.75 0 0 0 16 13.25v-8.5A1.75 1.75 0 0 0 14.25 3H7.5a.25.25 0 0 1-.2-.1l-.9-1.2C6.18 1.26 5.84 1 5.45 1H1.75Z"/></svg>';
+    return '<svg viewBox="0 0 64 52" aria-hidden="true"><path fill="currentColor" opacity=".68" d="M5 5a4 4 0 0 1 4-4h14l6 7h26a4 4 0 0 1 4 4v7H5z"/><path fill="currentColor" d="M5 15a4 4 0 0 1 4-4h48a4 4 0 0 1 4 4v29a5 5 0 0 1-5 5H8a5 5 0 0 1-5-5V19a4 4 0 0 1 2-4z"/><path fill="white" opacity=".16" d="M8 16h48a3 3 0 0 1 3 3v1H5v-1a3 3 0 0 1 3-3z"/></svg>';
   }
 
   function makeProjectTile(project) {
@@ -2075,14 +2075,10 @@
     if (active) btn.classList.add("active");
     const preview = document.createElement("span");
     preview.className = "project-tile-preview";
-    const snippet = (project.preview || "").trim();
-    if (snippet) {
-      preview.classList.add("code");
-      preview.textContent = snippet;
-    } else {
-      preview.classList.add("empty");
-      preview.innerHTML = projectFolderSvg();
-    }
+    let hash = 0;
+    for (const ch of String(project.id || project.name || "")) hash = (Math.imul(hash, 31) + ch.charCodeAt(0)) >>> 0;
+    preview.dataset.color = String(hash % 8);
+    preview.innerHTML = projectFolderSvg();
     const name = document.createElement("span");
     name.className = "project-tile-name";
     name.textContent = project.name;
@@ -6783,6 +6779,7 @@
       closePopovers();
       const action = {
         "new-project": newProject,
+        "import-file": () => { if (!state.project) return toast("Open a project first."); $("import-file").click(); },
         "import-folder": () => $("import-folder").click(),
         "import-zip": () => $("import-zip").click(),
         download: downloadZip,
@@ -6894,6 +6891,25 @@
       });
     });
     // Theme tiles are bound inside renderThemeGrid (overlay stays open on apply).
+    $("import-file").addEventListener("change", async (event) => {
+      const files = [...event.target.files];
+      event.target.value = "";
+      if (!files.length) return;
+      if (!state.project) return toast("Open a project first.");
+      const projectId = state.project.id;
+      try {
+        for (const file of files) {
+          if (!state.project || state.project.id !== projectId) throw new Error("The project changed; import the remaining files again.");
+          if (fileByPath(file.name) || state.dirs.includes(file.name)) { toast(file.name + " already exists; it was not overwritten."); continue; }
+          if (file.size > 20000000) { toast(file.name + " exceeds the 20 MB limit."); continue; }
+          const content = await file.text();
+          if (!state.project || state.project.id !== projectId) throw new Error("The project changed; import the remaining files again.");
+          if (content.includes("\0")) { toast(file.name + " is not a text file."); continue; }
+          await writeNewFile(file.name, content);
+          toast("Imported " + file.name + " into the project.");
+        }
+      } catch (err) { toast(err.message); }
+    });
     $("import-folder").addEventListener("change", (event) => {
       const files = [...event.target.files];
       event.target.value = "";
