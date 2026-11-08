@@ -1,42 +1,42 @@
 {
-  "version": "4.6.5",
-  "notes": "Lark 4.6.5: Desktop and Executable updates with Lark Share collaboration.",
+  "version": "4.6.6",
+  "notes": "Lark 4.6.6: Desktop and Executable updates with Lark Share collaboration.",
   "page": "https://treyvoprime.github.io/lark-download/",
   "downloads": {
-    "windows": "https://github.com/TreyvoPrime/lark/releases/download/v4.6.5/lark-desktop-update.zip",
-    "mac": "https://github.com/TreyvoPrime/lark/releases/download/v4.6.5/lark-desktop-update.zip",
-    "linux": "https://github.com/TreyvoPrime/lark/releases/download/v4.6.5/lark-desktop-update.zip",
-    "any": "https://github.com/TreyvoPrime/lark/releases/download/v4.6.5/lark-desktop-update.zip",
-    "desktop": "https://github.com/TreyvoPrime/lark/releases/download/v4.6.5/lark-desktop-update.zip",
-    "desktop-windows": "https://github.com/TreyvoPrime/lark/releases/download/v4.6.5/lark-desktop-update.zip",
-    "desktop-mac": "https://github.com/TreyvoPrime/lark/releases/download/v4.6.5/lark-desktop-update.zip",
-    "desktop-linux": "https://github.com/TreyvoPrime/lark/releases/download/v4.6.5/lark-desktop-update.zip",
-    "executable": "https://github.com/TreyvoPrime/lark/releases/download/v4.6.5/lark-executable-update.zip",
-    "executable-windows": "https://github.com/TreyvoPrime/lark/releases/download/v4.6.5/lark-executable-update.zip"
+    "windows": "https://github.com/TreyvoPrime/lark/releases/download/v4.6.6/lark-desktop-update.zip",
+    "mac": "https://github.com/TreyvoPrime/lark/releases/download/v4.6.6/lark-desktop-update.zip",
+    "linux": "https://github.com/TreyvoPrime/lark/releases/download/v4.6.6/lark-desktop-update.zip",
+    "any": "https://github.com/TreyvoPrime/lark/releases/download/v4.6.6/lark-desktop-update.zip",
+    "desktop": "https://github.com/TreyvoPrime/lark/releases/download/v4.6.6/lark-desktop-update.zip",
+    "desktop-windows": "https://github.com/TreyvoPrime/lark/releases/download/v4.6.6/lark-desktop-update.zip",
+    "desktop-mac": "https://github.com/TreyvoPrime/lark/releases/download/v4.6.6/lark-desktop-update.zip",
+    "desktop-linux": "https://github.com/TreyvoPrime/lark/releases/download/v4.6.6/lark-desktop-update.zip",
+    "executable": "https://github.com/TreyvoPrime/lark/releases/download/v4.6.6/lark-executable-update.zip",
+    "executable-windows": "https://github.com/TreyvoPrime/lark/releases/download/v4.6.6/lark-executable-update.zip"
   },
   "desktop": {
-    "windows": "https://github.com/TreyvoPrime/lark/releases/download/v4.6.5/LarkDesktopSetup.exe",
-    "windows-zip": "https://github.com/TreyvoPrime/lark/releases/download/v4.6.5/lark-desktop-windows.zip",
-    "mac": "https://github.com/TreyvoPrime/lark/releases/download/v4.6.5/lark-desktop-mac.zip",
-    "linux": "https://github.com/TreyvoPrime/lark/releases/download/v4.6.5/lark-desktop-linux.zip"
+    "windows": "https://github.com/TreyvoPrime/lark/releases/download/v4.6.6/LarkDesktopSetup.exe",
+    "windows-zip": "https://github.com/TreyvoPrime/lark/releases/download/v4.6.6/lark-desktop-windows.zip",
+    "mac": "https://github.com/TreyvoPrime/lark/releases/download/v4.6.6/lark-desktop-mac.zip",
+    "linux": "https://github.com/TreyvoPrime/lark/releases/download/v4.6.6/lark-desktop-linux.zip"
   },
   "executable": {
-    "windows": "https://github.com/TreyvoPrime/lark/releases/download/v4.6.5/lark-executable-windows.zip"
+    "windows": "https://github.com/TreyvoPrime/lark/releases/download/v4.6.6/lark-executable-windows.zip"
   },
   "sha256": {
-    "any": "23be301660b3d4ac29ab5b06fc299b17bbcdb1ee9cebf1162608269441f4ecdf",
-    "windows": "23be301660b3d4ac29ab5b06fc299b17bbcdb1ee9cebf1162608269441f4ecdf",
-    "mac": "23be301660b3d4ac29ab5b06fc299b17bbcdb1ee9cebf1162608269441f4ecdf",
-    "linux": "23be301660b3d4ac29ab5b06fc299b17bbcdb1ee9cebf1162608269441f4ecdf",
-    "desktop": "23be301660b3d4ac29ab5b06fc299b17bbcdb1ee9cebf1162608269441f4ecdf",
-    "desktop-windows": "23be301660b3d4ac29ab5b06fc299b17bbcdb1ee9cebf1162608269441f4ecdf",
-    "desktop-mac": "23be301660b3d4ac29ab5b06fc299b17bbcdb1ee9cebf1162608269441f4ecdf",
-    "desktop-linux": "23be301660b3d4ac29ab5b06fc299b17bbcdb1ee9cebf1162608269441f4ecdf",
-    "lark-desktop-update.zip": "23be301660b3d4ac29ab5b06fc299b17bbcdb1ee9cebf1162608269441f4ecdf",
-    "lark-update.zip": "23be301660b3d4ac29ab5b06fc299b17bbcdb1ee9cebf1162608269441f4ecdf",
-    "executable": "bb0f185d29fc46e14e03da033eb88f5ac1ecc46322f105049598d8740b5d1fe8",
-    "executable-windows": "bb0f185d29fc46e14e03da033eb88f5ac1ecc46322f105049598d8740b5d1fe8",
-    "lark-executable-update.zip": "bb0f185d29fc46e14e03da033eb88f5ac1ecc46322f105049598d8740b5d1fe8",
-    "LarkDesktopSetup.exe": "f4eefc4ba7d5d610c3299af57557bd0aa01cf5ef038e64f6a5e99a18b7802ee8"
+    "any": "6c4865e0003da9eee72bc661c4f670cbb4b31dce3693c0202039f80ca22b29b0",
+    "windows": "6c4865e0003da9eee72bc661c4f670cbb4b31dce3693c0202039f80ca22b29b0",
+    "mac": "6c4865e0003da9eee72bc661c4f670cbb4b31dce3693c0202039f80ca22b29b0",
+    "linux": "6c4865e0003da9eee72bc661c4f670cbb4b31dce3693c0202039f80ca22b29b0",
+    "desktop": "6c4865e0003da9eee72bc661c4f670cbb4b31dce3693c0202039f80ca22b29b0",
+    "desktop-windows": "6c4865e0003da9eee72bc661c4f670cbb4b31dce3693c0202039f80ca22b29b0",
+    "desktop-mac": "6c4865e0003da9eee72bc661c4f670cbb4b31dce3693c0202039f80ca22b29b0",
+    "desktop-linux": "6c4865e0003da9eee72bc661c4f670cbb4b31dce3693c0202039f80ca22b29b0",
+    "lark-desktop-update.zip": "6c4865e0003da9eee72bc661c4f670cbb4b31dce3693c0202039f80ca22b29b0",
+    "lark-update.zip": "6c4865e0003da9eee72bc661c4f670cbb4b31dce3693c0202039f80ca22b29b0",
+    "executable": "9ca6c58f861aee81a464de35f8d2d4acd5a580e4ab6627c44b374607d7b0afbb",
+    "executable-windows": "9ca6c58f861aee81a464de35f8d2d4acd5a580e4ab6627c44b374607d7b0afbb",
+    "lark-executable-update.zip": "9ca6c58f861aee81a464de35f8d2d4acd5a580e4ab6627c44b374607d7b0afbb",
+    "LarkDesktopSetup.exe": "32685f738a5effd8867bf22cd89f9046d0e029a9f7612a1092813fdf0d318aa1"
   }
 }
