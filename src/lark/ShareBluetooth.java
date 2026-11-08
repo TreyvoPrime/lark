@@ -34,9 +34,25 @@ final class ShareBluetooth implements AutoCloseable {
         if (!System.getProperty("os.name", "").toLowerCase().contains("windows"))
             throw new RequestFail(503, "Bluetooth Share is currently available on Windows only.");
         Path jar = Paths.get(ShareBluetooth.class.getProtectionDomain().getCodeSource().getLocation().toURI());
-        Path helper = (Files.isDirectory(jar) ? jar : jar.getParent()).resolve("lark-bluetooth.exe");
-        if (!Files.isRegularFile(helper)) throw new RequestFail(503, "Bluetooth Share is unavailable in this installation.");
+        Path helper = findHelper(Updates.installDir(), jar);
+        if (helper == null) throw new RequestFail(503, "Bluetooth Share is missing its Windows helper. Install the full Lark Desktop installer or extract the complete Executable package, then restart Lark.");
         return helper;
+    }
+    static Path findHelper(Path installDir, Path codeLocation) {
+        if (installDir != null) {
+            Path installed = installDir.resolve("app").resolve("lark-bluetooth.exe");
+            if (Files.isRegularFile(installed)) return installed;
+            Path portable = installDir.resolve("lark-bluetooth.exe");
+            if (Files.isRegularFile(portable)) return portable;
+        }
+        if (codeLocation != null) {
+            Path parent = Files.isDirectory(codeLocation) ? codeLocation : codeLocation.getParent();
+            if (parent != null) {
+                Path adjacent = parent.resolve("lark-bluetooth.exe");
+                if (Files.isRegularFile(adjacent)) return adjacent;
+            }
+        }
+        return null;
     }
     static Json.Arr discover() throws Exception {
         Process process = new ProcessBuilder(helper().toString(), "discover").redirectErrorStream(true).start();
