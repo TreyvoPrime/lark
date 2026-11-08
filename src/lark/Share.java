@@ -42,6 +42,11 @@ final class Share implements AutoCloseable {
     Share(Projects projects, Settings settings) { this.projects = projects; this.settings = settings; }
 
     Json.Obj control(Json.Obj body) throws Exception {
+        if ("relay-wake".equals(body.str("action", ""))) {
+            String url = settings.shareRelayUrl == null ? "" : settings.shareRelayUrl.trim();
+            if (!url.isBlank()) ShareRelay.wake(url);
+            return ShareSession.ok();
+        }
         if ("relay-progress".equals(body.str("action", ""))) return relayProgress();
         if ("relay-cancel".equals(body.str("action", ""))) {
             Thread thread = initializationThread;

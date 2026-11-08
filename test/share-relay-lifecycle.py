@@ -33,15 +33,16 @@ with tempfile.TemporaryDirectory(prefix="relay-test-", dir=build) as temporary:
 const opts={key:f.readFileSync(process.argv[2]),cert:f.readFileSync(process.argv[3])};
 h.createServer(opts,(q,r)=>{count++;r.writeHead(count>2?200:503,{"content-type":"application/json"});r.end(count>2?JSON.stringify({ok:true}):"{}")}).listen(Number(process.argv[4]),"127.0.0.1");
 h.createServer(opts,(q,r)=>{r.writeHead(503);r.end("{}")}).listen(Number(process.argv[5]),"127.0.0.1");
-const relay=require(process.argv[7]), handler=relay.createServer().listeners("request")[0];
-const actual=h.createServer(opts,(q,r)=>{if(q.url==="/test/reset"){relay.rooms.clear();r.writeHead(200);r.end("ok");setTimeout(()=>actual.closeAllConnections(),100)}else handler(q,r)});
+const relay=require(process.argv[7]), handler=relay.createServer().listeners("request")[0]; let healthCount=0;
+const actual=h.createServer(opts,(q,r)=>{if(q.url==="/test/reset"){relay.rooms.clear();r.writeHead(200);r.end("ok");setTimeout(()=>actual.closeAllConnections(),100)}else if(q.url==="/test/health-count"){r.writeHead(200);r.end(String(healthCount))}else{if(q.url==="/health")healthCount++;handler(q,r)}});
 actual.listen(Number(process.argv[6]),"127.0.0.1");''', encoding="utf-8")
     env = os.environ.copy(); env["LARK_HOME"] = str(root / "home")
     server = subprocess.Popen(["node", str(script), str(key), str(cert), str(port1), str(port2), str(port3), str(repo / "relay" / "server.js")], env=env, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL, creationflags=getattr(subprocess, "CREATE_NO_WINDOW", 0))
     try:
         time.sleep(0.5)
-        subprocess.run(["javac", "--release", "17", "-encoding", "UTF-8", "-cp", "build", "-d", "build", "test/ShareRelayLifecycleCheck.java", "test/ShareRelayRecoveryCheck.java"], cwd=repo, env=env, check=True)
+        subprocess.run(["javac", "--release", "17", "-encoding", "UTF-8", "-cp", "build", "-d", "build", "test/ShareRelayLifecycleCheck.java", "test/ShareRelayRecoveryCheck.java", "test/ShareRelayWakeCheck.java"], cwd=repo, env=env, check=True)
         subprocess.run(["java", "-Djavax.net.ssl.trustStore=" + str(store), "-Djavax.net.ssl.trustStorePassword=testpass123", "-cp", "build", "lark.ShareRelayLifecycleCheck", f"https://127.0.0.1:{port1}", f"https://127.0.0.1:{port2}"], cwd=repo, env=env, check=True, timeout=40)
+        subprocess.run(["java", "-Djavax.net.ssl.trustStore=" + str(store), "-Djavax.net.ssl.trustStorePassword=testpass123", "-cp", "build", "lark.ShareRelayWakeCheck", f"https://127.0.0.1:{port3}"], cwd=repo, env=env, check=True, timeout=15)
         subprocess.run(["java", "-Djavax.net.ssl.trustStore=" + str(store), "-Djavax.net.ssl.trustStorePassword=testpass123", "-cp", "build", "lark.ShareRelayRecoveryCheck", f"https://127.0.0.1:{port3}"], cwd=repo, env=env, check=True, timeout=45)
     finally:
         server.terminate(); server.wait(timeout=10)

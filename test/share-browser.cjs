@@ -58,6 +58,7 @@ async function start(home) {
     await hd.getByRole('heading', { name: 'Deploying Relay' }).waitFor();
     await hd.getByText('Status: Waiting for Relay').waitFor();
     await hd.getByText('Elapsed: 1 seconds').waitFor();
+    check(/Estimated remaining: approximately \d+ seconds/.test(await hd.textContent()), 'First relay connection shows a numerical estimate');
     check(await hd.locator('progress').isVisible(), 'Relay progress and elapsed time are visible');
     const invite = hd.getByLabel('Private invitation', { exact: true });
     await invite.waitFor();

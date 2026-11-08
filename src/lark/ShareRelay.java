@@ -17,6 +17,8 @@ import java.util.concurrent.Flow;
 /** HTTPS-only bounded request broker. The remote service is trusted with Share traffic in this prototype. */
 final class ShareRelay {
     private static final HttpClient HTTP = HttpClient.newBuilder().connectTimeout(Duration.ofSeconds(5)).build();
+    private static final java.util.concurrent.atomic.AtomicBoolean WAKING = new java.util.concurrent.atomic.AtomicBoolean();
+    private static final java.util.concurrent.atomic.AtomicLong LAST_WAKE = new java.util.concurrent.atomic.AtomicLong();
     private final String base, room, hostKey, capability;
     private final long readinessLatency;
 
@@ -61,6 +63,18 @@ final class ShareRelay {
         throw new IOException("Unable to reach the Lark Share relay. Check your internet connection or retry.");
     }
     long readinessLatency() { return readinessLatency; }
+    /** One user-initiated health request can start a sleeping relay while the host fills out the form. */
+    static void wake(String address) throws Exception {
+        String prefix = validate(address);
+        String root = prefix.substring(0, prefix.length() - "/v1/rooms/".length());
+        long now = System.currentTimeMillis(), previous = LAST_WAKE.get();
+        if (now - previous < 15_000 || !WAKING.compareAndSet(false, true)) return;
+        LAST_WAKE.set(now);
+        try {
+            HttpRequest request = HttpRequest.newBuilder(URI.create(root + "/health")).timeout(Duration.ofSeconds(10)).GET().build();
+            HTTP.sendAsync(request, HttpResponse.BodyHandlers.discarding()).whenComplete((response, error) -> WAKING.set(false));
+        } catch (Exception e) { WAKING.set(false); throw e; }
+    }
     private static HttpResponse.BodyHandler<String> limited(int limit) {
         return info -> new HttpResponse.BodySubscriber<>() {
             private final CompletableFuture<String> result = new CompletableFuture<>();

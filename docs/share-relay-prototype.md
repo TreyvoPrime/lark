@@ -4,7 +4,7 @@ The relay lets Lark Share work when participant computers cannot connect directl
 
 ## Connecting and recovery
 
-When a host starts or a guest joins through the relay, Lark checks `/health`, waits for the service to wake, and continues automatically. The **Deploying Relay** panel displays elapsed time, connection stages, and a cancellable wait. The timing estimate is based on the last successful startup on that device, when available. This wakes an existing service; it does not create a Render deployment.
+When someone opens Share, Lark sends one bounded readiness request so a sleeping relay can start while they prepare the session. When a host starts or a guest joins, Lark checks `/health`, waits for the service to wake, and continues automatically. The **Deploying Relay** panel displays elapsed time, connection stages, and a cancellable wait. The estimate starts at approximately 60 seconds when no previous timing is available and uses the last successful startup on that device afterward; actual times can vary. This wakes an existing service; it does not create a Render deployment.
 
 Readiness checks use bounded retries with backoff and jitter. Hosting starts only after the relay registers its room. If a host connection is interrupted, Lark attempts to restore the same room with bounded retries. The Share diagnostics page shows status and a small in-memory, credential-free connection log; retry there if automatic recovery stops. Guest edits retain their operation identities and recovery copies while reconnecting. Existing custom relay addresses are retained. For advanced use, **Share → Connection** allows another HTTPS relay or a direct LAN session.
 

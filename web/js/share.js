@@ -120,7 +120,7 @@
     element('h3', 'Deploying Relay', box);
     element('p', 'Connecting to the existing Lark Share relay…', box);
     const elapsed = element('p', 'Elapsed: 0 seconds', box);
-    const estimate = element('p', 'Estimated remaining: Estimating…', box);
+    const estimate = element('p', 'Estimated remaining: approximately 60 seconds', box);
     const stage = element('p', 'Status: Checking relay', box); stage.setAttribute('role', 'status');
     const progress = element('progress', null, box); progress.setAttribute('aria-label', 'Connecting to relay');
     const cancel = element('button', 'Cancel connection', box); cancel.type = 'button'; cancel.disabled = true;
@@ -128,13 +128,12 @@
     cancel.onclick = async () => { cancelling = true; cancel.disabled = true; stage.textContent = 'Status: Cancelling…'; try { await api('relay-cancel'); } catch (err) { report(err); } };
     const started = Date.now(); let stopped = false, pending = false, previous = 0;
     try { previous = Number(localStorage.getItem('lark-share-relay-startup-ms')) || 0; } catch (_) { }
+    const estimateMs = previous > 0 && previous <= 120000 ? Math.max(5000, previous) : 60000;
     const labels = {CHECKING:'Checking Relay',WAKING:'Waking Relay',WAITING:'Waiting for Relay',CONNECTING:'Establishing Secure Connection',AUTHENTICATING:'Authenticating',REGISTERING:'Registering Hosting Session',CONNECTED:'Relay Connected',FAILED:'Connection failed'};
     const tick = async () => {
       elapsed.textContent = 'Elapsed: ' + Math.floor((Date.now() - started) / 1000) + ' seconds';
-      if (previous >= 1000 && previous <= 120000) {
-        const remaining = Math.ceil((previous - (Date.now() - started)) / 1000);
-        estimate.textContent = remaining > 0 ? 'Estimated remaining: approximately ' + remaining + ' seconds' : 'Estimated remaining: taking longer than the previous connection';
-      }
+      const remaining = Math.ceil((estimateMs - (Date.now() - started)) / 1000);
+      estimate.textContent = remaining > 0 ? 'Estimated remaining: approximately ' + remaining + ' seconds' : 'Estimated remaining: taking longer than estimated';
       if (pending || stopped) return; pending = true;
       try { const state = await api('relay-progress'); if (!stopped && !cancelling && labels[state.state]) { stage.textContent = 'Status: ' + labels[state.state]; cancel.disabled = !['CHECKING','WAKING','WAITING','CONNECTING','AUTHENTICATING','REGISTERING'].includes(state.state); } } catch (_) { }
       finally { pending = false; }
@@ -496,7 +495,7 @@
   document.addEventListener('lark-share-error', event => { error.textContent = event.detail; });
   document.addEventListener('lark-share-retry', event => { editorPaused = !!event.detail; retry.hidden = !editorPaused && !statusPaused; if (editorPaused) { statusPaused = true; if (timer) clearInterval(timer); timer = null; } });
   button.onclick = async () => {
-    if (!dialog.open) dialog.showModal();
+    if (!dialog.open) { dialog.showModal(); api('relay-wake').catch(() => {}); }
     try { await refresh(); home(); } catch (err) { report(err); }
   };
   // Reattach to an active backend session after a page reload without waiting
