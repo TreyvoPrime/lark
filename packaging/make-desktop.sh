@@ -33,6 +33,10 @@ fi
     .
 )
 cp packaging/desktop/bin/LarkDesktop.exe "packaging/desktop/bin/Lark Desktop.exe"
+(
+  cd packaging/bluetooth
+  GOOS=windows GOARCH=amd64 CGO_ENABLED=0 go build -trimpath -ldflags="-s -w" -o ../lark-bluetooth.exe .
+)
 ls -lh packaging/desktop/bin/LarkDesktop.exe
 
 echo "Building Desktop icon (.ico)..."
@@ -79,6 +83,7 @@ stage_desktop() {
   mkdir -p "$stage/app"
   cp "packaging/desktop/bin/Lark Desktop.exe" "$stage/Lark Desktop.exe"
   cp dist/lark.jar "$stage/app/lark.jar"
+  cp packaging/lark-bluetooth.exe "$stage/app/lark-bluetooth.exe"
   cp packaging/desktop/README-DESKTOP.txt "$stage/README.txt"
   cp packaging/desktop/start-lark-desktop.sh "$stage/start-lark-desktop.sh"
   cp packaging/desktop/start-lark-desktop.sh "$stage/Launch Lark Desktop.command"

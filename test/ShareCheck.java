@@ -49,8 +49,10 @@ public final class ShareCheck {
             check(device.str("credential").length() == 64, "Strong device credential");
             check(session.command(authenticated(session, device, "poll")).arr("participants").size() == 0, "Pending device has no participant data");
             denied(() -> session.command(authenticated(session, device, "files")), 403);
+            denied(() -> session.command(authenticated(session, device, "connection-test")), 403);
             denied(() -> session.command(authenticated(session, device, "read").put("path", "Main.java")), 403);
             session.decide(device.str("device"), true);
+            check(session.command(authenticated(session, device, "connection-test")).str("sample").length() == 16384, "Approved connection test returns a bounded sample");
             check(session.command(authenticated(session, device, "files")).arr("files").size() == 2, "Approved file list");
             String source = session.command(authenticated(session, device, "read").put("path", "Main.java")).str("content");
             Files.writeString(root.resolve("Main.java"), "class Main { int changed; }\n");

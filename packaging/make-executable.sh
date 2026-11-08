@@ -32,6 +32,10 @@ fi
     -o ../bin/Lark.exe \
     .
 )
+(
+  cd packaging/bluetooth
+  GOOS=windows GOARCH=amd64 CGO_ENABLED=0 go build -trimpath -ldflags="-s -w" -o ../lark-bluetooth.exe .
+)
 ls -lh packaging/executable/bin/Lark.exe
 
 fetch_cached() {
@@ -54,6 +58,7 @@ stage_executable() {
   mkdir -p "$stage/app"
   cp packaging/executable/bin/Lark.exe "$stage/Lark.exe"
   cp dist/lark.jar "$stage/app/lark.jar"
+  cp packaging/lark-bluetooth.exe "$stage/app/lark-bluetooth.exe"
   cp packaging/executable/README.txt "$stage/README.txt"
   printf 'executable\n' > "$stage/app/executable.marker"
   printf '%s\n' "$github_latest/update.json" > "$stage/app/update-feed.url"

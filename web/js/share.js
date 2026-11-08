@@ -18,6 +18,17 @@
   const close = element('button', 'Close', heading); close.type = 'button'; close.onclick = () => dialog.close();
   element('p', 'Encrypted collaboration · Save and review source before running collaborator-modified code.', dialog);
   const status = element('p', 'Disconnected', dialog); status.setAttribute('role', 'status');
+  const bluetoothStats = element('p', '', dialog); bluetoothStats.hidden = true;
+  const bluetoothTest = element('button', 'Test connection', dialog); bluetoothTest.type = 'button'; bluetoothTest.hidden = true;
+  const bluetoothTestResult = element('p', '', dialog); bluetoothTestResult.setAttribute('role', 'status');
+  bluetoothTest.onclick = async () => {
+    bluetoothTest.disabled = true; bluetoothTestResult.textContent = 'Testing the Bluetooth connection…';
+    try {
+      const result = await api('bluetooth-test');
+      bluetoothTestResult.textContent = `Test received ${(result.bytes / 1024).toFixed(0)} KiB in ${(result.elapsedMs / 1000).toFixed(2)} seconds: ${(result.bytesPerSecond / 1024).toFixed(1)} KiB/s, including connection overhead.`;
+    } catch (err) { bluetoothTestResult.textContent = 'Connection test failed: ' + err.message; }
+    finally { bluetoothTest.disabled = false; }
+  };
   const notice = element('p', '', dialog); notice.setAttribute('role', 'status'); notice.className = 'share-presence-notice';
   let knownPeople = null, noticeTimer = null;
   const popup = element('div', '', document.body); popup.className = 'share-presence-popup'; popup.setAttribute('role', 'status'); popup.hidden = true;
@@ -85,6 +96,15 @@
     return best.replace(/\+/g, '-').replace(/\//g, '_');
   }
   function startPage(next) { page = next; generation++; content.replaceChildren(); error.textContent = ''; }
+  function bluetoothProgress(parent, message) {
+    const box = element('div', null, parent); box.className = 'share-connection-progress';
+    const label = element('p', message, box); label.setAttribute('role', 'status');
+    const bar = element('progress', null, box); bar.setAttribute('aria-label', 'Bluetooth connection progress');
+    const elapsed = element('p', '', box); const started = performance.now();
+    const update = () => { elapsed.textContent = `Elapsed: ${Math.floor((performance.now() - started) / 1000)}s · Transfer speed: unavailable`; };
+    const interval = setInterval(update, 1000); update();
+    return () => { clearInterval(interval); box.remove(); return Math.round(performance.now() - started); };
+  }
   function showInvitation(data) {
     element('p', 'Send this private invitation to the intended participant over a trusted channel. Anyone holding it can request approval. End the session to invalidate it.', content);
     if (data.relay) element('p', 'This invitation uses encrypted Share through the HTTPS relay. Verify the host fingerprint over a trusted channel.', content);
@@ -94,10 +114,11 @@
       try { await navigator.clipboard.writeText(data.invitation); }
       catch (_) { invite.focus(); invite.select(); document.execCommand('copy'); }
     });
-    if (/^127\./.test(data.address || '')) element('p', 'This session listens on 127.0.0.1, so only this computer can join. Host on a Wi-Fi or Ethernet address to invite another computer.', content).className = 'share-error';
+    if (!data.bluetooth && /^127\./.test(data.address || '')) element('p', 'This session listens on 127.0.0.1, so only this computer can join. Host on a Wi-Fi or Ethernet address to invite another computer.', content).className = 'share-error';
     element('p', 'SHA-256: ' + data.fingerprint, content).className = 'share-fingerprint';
     if (data.relay) element('p', 'Relay sessions use private invitations. LAN discovery and short codes are turned off.', content);
-    else showCode(latest || data);
+    else if (!data.bluetooth) showCode(latest || data);
+    if (data.bluetooth) element('p', 'Pair the computers in Windows Bluetooth settings, then send this invitation to the guest.', content);
   }
   // Short LAN code: found over this network only, never broadcast; the host still approves each guest.
   function showCode(data) {
@@ -154,6 +175,10 @@
     const name = field(form, 'Session name', 'text', match?.name || projects.projects?.[0]?.name || 'Java source review'); name.required = true;
     project.onchange = () => { name.value = project.selectedOptions[0]?.textContent || ''; };
     const displayName = field(form, 'Your display name'); displayName.required = true;
+    const connection = field(form, 'Connection', 'select');
+    [['bluetooth','Bluetooth'],['existing','Existing network connection']].forEach(([v,l]) => { const o = element('option', l, connection); o.value = v; });
+    const group = field(form, 'Bluetooth session size', 'select');
+    [['direct','Two people'],['group','Small group (up to four people)']].forEach(([v,l]) => { const o = element('option', l, group); o.value = v; });
     const submit = element('button', 'Host session', form); submit.type = 'submit';
     form.onsubmit = async event => {
       event.preventDefault(); if (busy) return; busy = true; submit.disabled = true;
@@ -161,8 +186,9 @@
       try {
         status.textContent = 'Starting Share…';
         await window.LarkEditorShare.flush();
-        if (latest.relayUrl) stopProgress = showRelayProgress(form);
-        const data = await api('host', { project: project.value, name: name.value, displayName: displayName.value, bird: window.LarkBirds.selected() });
+        if (connection.value === 'bluetooth') stopProgress = bluetoothProgress(form, 'Starting Bluetooth Share…');
+        else if (latest.relayUrl) stopProgress = showRelayProgress(form);
+        const data = await api('host', { project: project.value, name: name.value, displayName: displayName.value, bird: window.LarkBirds.selected(), connection: connection.value, group: group.value });
         stopProgress(true);
         latest = data; startPage('invitation'); showInvitation(data); await refresh();
       } catch (err) { report(err); status.textContent = 'Disconnected'; } finally { stopProgress(); busy = false; submit.disabled = false; }
@@ -171,6 +197,43 @@
   function joinPage() {
     startPage('join');
     const form = element('form', null, content);
+    element('p', 'For Bluetooth, pair both computers in Windows, then paste the host’s private invitation below.', form);
+    action(form, 'Open Windows Bluetooth pairing', async () => { try { await api('bluetooth-settings'); } catch (err) { report(err); } });
+    const devices = element('div', null, form);
+    action(form, 'Find nearby Bluetooth devices', async () => {
+      devices.replaceChildren(); element('p', 'Searching for Bluetooth devices…', devices);
+      const finishScan = bluetoothProgress(devices, 'Finding nearby devices and Lark sessions…');
+      try {
+        const result = await api('bluetooth-discover'); finishScan(); devices.replaceChildren();
+        if (!result.devices.length) element('p', 'No Bluetooth devices found. Make sure the other computer is discoverable in Windows.', devices);
+        result.devices.forEach(device => {
+          const row = element('div', null, devices);
+          const label = element('span', `${device.name || 'Unnamed device'} · ${device.address} · ${device.paired ? 'Paired' : 'Not paired'}${device.lark ? ' · Lark Share available' : ''}`, row);
+          if (!device.paired) {
+            const button = action(row, 'Pair', async () => {
+              button.disabled = true; label.textContent = 'Complete the pairing prompt in Windows on both computers…';
+              try { await api('bluetooth-pair', { address: device.address }); label.textContent = `${device.name || 'Device'} · Paired`; button.remove(); }
+              catch (err) { label.textContent = `${device.name || 'Device'} · Pairing failed`; button.disabled = false; report(err); }
+            });
+          }
+          if (device.lark) {
+            const join = action(row, 'Request to join', async () => {
+              if (!displayName.value.trim()) { displayName.focus(); error.textContent = 'Enter your display name first.'; return; }
+              join.disabled = true;
+              const finishConnection = bluetoothProgress(row, 'Connecting over Bluetooth and requesting host approval…');
+              try {
+                latest = await api('request', { bluetooth: true, address: device.address, displayName: displayName.value });
+                const duration = finishConnection();
+                startPage('home'); await refresh();
+                element('p', 'Ask the host to compare this verification code before approving: ' + (latest.verification || '?'), content).className = 'share-fingerprint';
+                element('p', `Connection request completed in ${(duration / 1000).toFixed(1)} seconds. Waiting for host approval.`, content);
+              } catch (err) { finishConnection(); join.disabled = false; report(err); }
+            });
+          }
+        });
+        element('p', 'Ask the host to verify the matching code before approving your request.', devices);
+      } catch (err) { finishScan(); devices.replaceChildren(); report(err); }
+    });
     const invitation = field(form, 'Share code (like 7K9M2P) or private invitation from the host', 'textarea'); invitation.maxLength = 8192; invitation.required = true;
     const displayName = field(form, 'Your display name'); displayName.required = true;
     const identity = element('p', 'Paste the invitation to inspect the host identity before connecting.', form);
@@ -194,7 +257,7 @@
       let stopProgress = () => {};
       try {
         status.textContent = 'Connecting';
-        try { const decoded = JSON.parse(atob(normalizeInvitation(invitation.value).replace(/-/g, '+').replace(/_/g, '/'))); if (decoded.relay) stopProgress = showRelayProgress(form); } catch (_) { }
+        try { const decoded = JSON.parse(atob(normalizeInvitation(invitation.value).replace(/-/g, '+').replace(/_/g, '/'))); if (decoded.bluetooth) stopProgress = bluetoothProgress(form, 'Connecting over Bluetooth and requesting host approval…'); else if (decoded.relay) stopProgress = showRelayProgress(form); } catch (_) { }
         latest = await api('join', { invitation: invitation.value, displayName: displayName.value, bird: window.LarkBirds.selected(), verified: verified.checked });
         stopProgress(true);
         startPage('home'); await refresh();
@@ -449,6 +512,14 @@
       button.textContent = 'Share' + (pending ? ` (${pending} requests)` : latest.hosting || latest.joined ? ' •' : '');
       button.title = 'Lark Share: ' + latest.connection;
       status.textContent = latest.connection + (latest.session?.name ? ' · ' + latest.session.name : '');
+      bluetoothStats.hidden = !latest.bluetoothActive;
+      bluetoothTest.hidden = !(latest.bluetoothActive && latest.joined && latest.session?.status === 'approved');
+      if (!latest.bluetoothActive) bluetoothTestResult.textContent = '';
+      if (latest.bluetoothActive) {
+        const rate = value => value < 0 ? 'Measuring…' : value === 0 ? 'Idle' : value < 1024 ? `${value} B/s` : `${(value / 1024).toFixed(1)} KiB/s`;
+        const response = Number.isFinite(latest.bluetoothResponseMs) ? `${latest.bluetoothResponseMs} ms` : 'Unavailable';
+        bluetoothStats.textContent = `Bluetooth · Sent: ${rate(latest.bluetoothSentBytesPerSecond)} · Received: ${rate(latest.bluetoothReceivedBytesPerSecond)} · Response: ${response}`;
+      }
       if ((latest.hosting || latest.joined && latest.session?.status === 'approved') && !window.LarkShareEditing.sessionActive()) {
         await window.LarkShareEditing.start({ id: latest.sessionId, identity: latest.identity, hosting: latest.hosting, project: latest.project, name: latest.session.name });
       }

@@ -889,6 +889,7 @@ public final class Updates {
                         || "Install Lark Desktop.command".equals(base)
                         || "desktop.marker".equals(base)
                         || "executable.marker".equals(base)
+                        || "lark-bluetooth.exe".equals(base)
                         || "lark-icon.ico".equals(base) || "lark-icon.png".equals(base)
                         || "README.txt".equals(base) || "update-feed.url".equals(base);
                 if (!allowed) continue;

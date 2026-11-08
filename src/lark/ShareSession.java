@@ -35,6 +35,14 @@ final class ShareSession implements AutoCloseable {
     private final Map<String, Set<String>> writers = new HashMap<>();
     private String defaultRole = "editor";
     private long idleMs = IDLE_MS;
+    private int maxGuests = 32;
+
+    /** Set before accepting connections; counts pending and approved devices. */
+    synchronized void guestLimit(int limit) {
+        if (limit < 1 || limit > 32) throw new IllegalArgumentException("Invalid guest limit");
+        if (!devices.isEmpty()) throw new IllegalStateException("Guest limit must be set before joining");
+        maxGuests = limit;
+    }
 
     private static final class Device {
         final String id = token(), credential = token(), name;
@@ -162,6 +170,8 @@ final class ShareSession implements AutoCloseable {
         if (!device.status.equals("approved")) throw new RequestFail(403, "Host approval required.");
         active = clock.getAsLong();
         return switch (action) {
+            // A bounded sample for an approved guest's explicit connection test.
+            case "connection-test" -> ok().put("sample", "LarkShare0123456".repeat(1024));
             case "files" -> {
                 Json.Arr list = new Json.Arr();
                 files.keySet().forEach(p -> list.add(new Json.Obj().put("path", p)));
@@ -204,7 +214,7 @@ final class ShareSession implements AutoCloseable {
                 throw new RequestFail(409, d.status.equals("pending") ? "You already asked to join. Waiting for the host to answer." : "This computer is already in the session.");
         if (nearby && devices.values().stream().filter(d -> d.status.equals("pending") && d.nearby).count() >= 8)
             throw new RequestFail(429, "The host has too many unanswered requests. Try again in a couple of minutes.");
-        if (devices.values().stream().filter(Device::live).count() >= 32) throw new RequestFail(429, "Session device limit reached.");
+        if (devices.values().stream().filter(Device::live).count() >= maxGuests) throw new RequestFail(429, "Session device limit reached.");
         Device device = new Device(label(request.str("name", "")), devices.size());
         device.seen = device.requested = clock.getAsLong();
         device.bird = bird(request.str("bird", "classic")); device.client = client; device.ip = ip; device.nearby = nearby;
@@ -306,7 +316,7 @@ final class ShareSession implements AutoCloseable {
     static String bird(String value) {
         return Set.of("classic", "blue-jay", "cardinal", "goldfinch", "robin", "snow-owl", "hummingbird", "raven", "eagle", "falcon", "parrot", "puffin", "kingfisher", "flamingo", "woodpecker", "toucan", "penguin", "peacock", "cockatiel", "bluebird").contains(value) ? value : "classic";
     }
-    synchronized Json.Obj discoveryInfo() { requireLive(); cleanup(); return new Json.Obj().put("name", name).put("host", host).put("bird", hostBird).put("status", devices.values().stream().filter(Device::live).count() < 32 ? "available" : "full").put("count", 1 + devices.values().stream().filter(d -> d.status.equals("approved")).count()); }
+    synchronized Json.Obj discoveryInfo() { requireLive(); cleanup(); return new Json.Obj().put("name", name).put("host", host).put("bird", hostBird).put("status", devices.values().stream().filter(Device::live).count() < maxGuests ? "available" : "full").put("count", 1 + devices.values().stream().filter(d -> d.status.equals("approved")).count()); }
     synchronized void settings(String role, long minutes) {
         requireLive(); if (!Set.of("editor", "viewer").contains(role) || minutes < 5 || minutes > 120) throw new RequestFail(400, "Choose a role and 5–120 minute inactivity limit.");
         defaultRole = role; idleMs = minutes * 60_000;

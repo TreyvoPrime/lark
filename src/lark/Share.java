@@ -12,6 +12,7 @@ final class Share implements AutoCloseable {
     private final Settings settings;
     private ShareSession hosting;
     private ShareTransport transport;
+    private ShareBluetooth bluetooth;
     private ShareDiscovery discovery;
     private ShareRelay relay;
     private ShareCrypto relayCrypto;
@@ -42,6 +43,13 @@ final class Share implements AutoCloseable {
     Share(Projects projects, Settings settings) { this.projects = projects; this.settings = settings; }
 
     Json.Obj control(Json.Obj body) throws Exception {
+        if ("bluetooth-discover".equals(body.str("action", ""))) return ShareSession.ok().put("devices", ShareBluetooth.discover());
+        if ("bluetooth-pair".equals(body.str("action", ""))) { ShareBluetooth.pair(body.str("address", "")); return ShareSession.ok(); }
+        if ("bluetooth-settings".equals(body.str("action", ""))) {
+            if (!System.getProperty("os.name", "").toLowerCase().contains("windows")) throw new RequestFail(503, "Bluetooth settings are available on Windows only.");
+            new ProcessBuilder("rundll32.exe", "url.dll,FileProtocolHandler", "ms-settings:bluetooth").start();
+            return ShareSession.ok();
+        }
         if ("relay-wake".equals(body.str("action", ""))) {
             String url = settings.shareRelayUrl == null ? "" : settings.shareRelayUrl.trim();
             if (!url.isBlank()) ShareRelay.wake(url);
@@ -112,8 +120,10 @@ final class Share implements AutoCloseable {
             }
             case "host" -> {
                 if (hosting != null || target != null) throw new RequestFail(409, "End or leave your current Share session first.");
-                String relayUrl = settings.shareRelayUrl == null ? "" : settings.shareRelayUrl.trim();
+                boolean useBluetooth = body.str("connection", "").equals("bluetooth");
+                String relayUrl = useBluetooth ? "" : (settings.shareRelayUrl == null ? "" : settings.shareRelayUrl.trim());
                 String requestedAddress = body.str("address", "");
+                if (useBluetooth) requestedAddress = "127.0.0.1";
                 if (requestedAddress.isBlank()) {
                     requestedAddress = relayUrl.isBlank() ? Mobile.lanAddresses().stream().findFirst().orElse("") : "127.0.0.1";
                     if (requestedAddress.isBlank()) throw new RequestFail(503, "Connection unavailable on this network.");
@@ -124,8 +134,13 @@ final class Share implements AutoCloseable {
                 long port = body.longVal("port");
                 if (port < 0 || port > 65535) throw new RequestFail(400, "Invalid Share port.");
                 ShareSession session = new ShareSession(projects.projectDir(body.str("project", "")), body.str("name", ""), body.str("displayName", ""));
+                if (useBluetooth) session.guestLimit(body.str("group", "direct").equals("group") ? 3 : 1);
                 try { transport = new ShareTransport(session, bind, (int) port); }
                 catch (Exception e) { session.close(); throw e; }
+                if (useBluetooth) {
+                    try { bluetooth = ShareBluetooth.start("host", Integer.toString(transport.port())); }
+                    catch (Exception e) { transport.close(); transport = null; throw e; }
+                }
                 session.avatar(settings.shareBird);
                 relayError = ""; relay = null;
                 if (!relayUrl.isBlank()) {
@@ -146,7 +161,7 @@ final class Share implements AutoCloseable {
                     ShareRelay activeRelay = relay;
                     relayWorker = ShareTransport.daemon("lark-share-relay-host").newThread(() -> relayLoop(activeRelay, session)); relayWorker.start();
                 }
-                if (relayUrl.isBlank() && (!body.has("discovery") || body.bool("discovery"))) discoverable(true);
+                if (!useBluetooth && relayUrl.isBlank() && (!body.has("discovery") || body.bool("discovery"))) discoverable(true);
                 if (discovery != null) {
                     codes = new ShareCode(transport.fingerprint, System::currentTimeMillis);
                     transport.codes = codes;
@@ -156,21 +171,28 @@ final class Share implements AutoCloseable {
                 hostInvitation = new Json.Obj().put("version", ShareSession.VERSION).put("address", bind.getHostAddress())
                         .put("port", transport.port()).put("fingerprint", transport.fingerprint)
                         .put("session", session.id()).put("invitation", session.invitation());
+                if (useBluetooth) hostInvitation.put("bluetooth", bluetooth.ready[1]).put("channel", Integer.parseInt(bluetooth.ready[2]));
                 if (relay != null) hostInvitation.put("relay", relayUrl).put("relayPublicKey", relayCrypto.publicKey()).put("fingerprint", relayCrypto.fingerprint());
                 // An invitation is sensitive and is returned ONLY for an explicit local host action.
                 return status().put("invitation", Base64.getUrlEncoder().withoutPadding().encodeToString(hostInvitation.write().getBytes(StandardCharsets.UTF_8)))
-                        .put("fingerprint", hostInvitation.str("fingerprint")).put("address", bind.getHostAddress());
+                        .put("fingerprint", hostInvitation.str("fingerprint")).put("address", bind.getHostAddress()).put("bluetooth", useBluetooth);
             }
             case "invitation" -> {
                 if (hosting == null) throw new RequestFail(403, "Only the host can issue invitations.");
                 hosting.localStatus();
                 return ShareSession.ok().put("invitation", Base64.getUrlEncoder().withoutPadding()
-                        .encodeToString(hostInvitation.write().getBytes(StandardCharsets.UTF_8))).put("fingerprint", hostInvitation.str("fingerprint")).put("address", bindAddress.getHostAddress()).put("relay", relay != null);
+                        .encodeToString(hostInvitation.write().getBytes(StandardCharsets.UTF_8))).put("fingerprint", hostInvitation.str("fingerprint")).put("address", bindAddress.getHostAddress()).put("relay", relay != null).put("bluetooth", bluetooth != null);
             }
             case "request" -> {
                 // Request Access from a Nearby card. No invitation secret: the host sees a pending request and decides.
                 if (hosting != null || target != null) throw new RequestFail(409, "End or leave your current Share session first.");
+                boolean bluetoothRequest = body.bool("bluetooth");
                 String address = body.str("address", ""); long port = body.longVal("port");
+                if (bluetoothRequest) {
+                    if (!address.matches("[a-fA-F0-9]{12}")) throw new RequestFail(400, "Invalid Bluetooth device address.");
+                    bluetooth = ShareBluetooth.start("guest", address, "0");
+                    address = "127.0.0.1"; port = Integer.parseInt(bluetooth.ready[1]);
+                }
                 ShareTransport.lanAddress(address);
                 if (port < 1 || port > 65535) throw new RequestFail(400, "Invalid Share port.");
                 String[] seen = new String[1];
@@ -179,10 +201,10 @@ final class Share implements AutoCloseable {
                     reply = ShareTransport.exchange(address, (int) port, null, new Json.Obj().put("version", ShareSession.VERSION).put("action", "request")
                             .put("name", ShareSession.label(body.str("displayName", ""))).put("bird", ShareSession.bird(settings.shareBird))
                             .put("client", client).put("device", deviceName()), seen);
-                } catch (RequestFail e) { throw e; }
-                catch (Exception e) { throw new RequestFail(503, "Couldn't reach that host. It may have stopped sharing, or your network blocks computers from connecting to each other (common on school and guest Wi-Fi)."); }
-                if (!reply.bool("ok")) throw new RequestFail((int) reply.longVal("code"), reply.str("error", "The host refused the request."));
-                if (seen[0] == null || !reply.str("session", "").matches("[a-f0-9]{64}")) throw new RequestFail(502, "That host gave an invalid answer.");
+                } catch (RequestFail e) { if (bluetoothRequest && bluetooth != null) { bluetooth.close(); bluetooth = null; } throw e; }
+                catch (Exception e) { if (bluetoothRequest && bluetooth != null) { bluetooth.close(); bluetooth = null; } throw new RequestFail(503, bluetoothRequest ? "Couldn't reach that Bluetooth host. Check pairing and try again." : "Couldn't reach that host. It may have stopped sharing, or your network blocks computers from connecting to each other (common on school and guest Wi-Fi)."); }
+                if (!reply.bool("ok")) { if (bluetoothRequest && bluetooth != null) { bluetooth.close(); bluetooth = null; } throw new RequestFail((int) reply.longVal("code"), reply.str("error", "The host refused the request.")); }
+                if (seen[0] == null || !reply.str("session", "").matches("[a-f0-9]{64}")) { if (bluetoothRequest && bluetooth != null) { bluetooth.close(); bluetooth = null; } throw new RequestFail(502, "That host gave an invalid answer."); }
                 // Trust on first use: from now on every request is pinned to this certificate. Both screens show
                 // the same verification snippet so the host can confirm it's really this guest's connection.
                 target = new Json.Obj().put("version", ShareSession.VERSION).put("address", address).put("port", port)
@@ -217,6 +239,12 @@ final class Share implements AutoCloseable {
                 if (parsed.longVal("version") != ShareSession.VERSION) throw new RequestFail(409, "Incompatible Lark Share protocol.");
                 if (!parsed.str("session", "").matches("[a-f0-9]{64}") || !parsed.str("invitation", "").matches("[a-f0-9]{64}"))
                     throw new RequestFail(400, "Invalid invitation credentials.");
+                if (!parsed.str("bluetooth", "").isBlank()) {
+                    String address = parsed.str("bluetooth", ""); long channel = parsed.longVal("channel");
+                    if (!address.matches("[a-fA-F0-9]{12}") || channel < 1 || channel > 30) throw new RequestFail(400, "Invalid Bluetooth invitation.");
+                    bluetooth = ShareBluetooth.start("guest", address, Long.toString(channel));
+                    parsed.put("address", "127.0.0.1").put("port", Integer.parseInt(bluetooth.ready[1]));
+                }
                 if (!parsed.str("relay", "").isBlank()) {
                     String invitedRelay = ShareRelay.validate(parsed.str("relay"));
                     boolean official = invitedRelay.equals(ShareRelay.validate(Settings.DEFAULT_SHARE_RELAY));
@@ -232,8 +260,9 @@ final class Share implements AutoCloseable {
                 if (!parsed.str("relay", "").isBlank()) initializationThread = Thread.currentThread();
                 try { result = send(parsed, request(parsed, "join").put("invitation", parsed.str("invitation")).put("client", client).put("device", deviceName())
                         .put("name", ShareSession.label(body.str("displayName", ""))).put("bird", ShareSession.bird(settings.shareBird))); }
-                catch (RequestFail e) { throw e; }
+                catch (RequestFail e) { if (bluetooth != null) { bluetooth.close(); bluetooth = null; } throw e; }
                 catch (Exception e) {
+                    if (bluetooth != null) { bluetooth.close(); bluetooth = null; throw new RequestFail(503, "Could not connect over Bluetooth. Pair the computers in Windows and try again."); }
                     if (e instanceof InterruptedException) { relayState = "FAILED"; throw new RequestFail(503, "Relay connection cancelled."); }
                     if (!parsed.str("relay", "").isBlank()) { relayState = "FAILED"; relayError = "Couldn't reach the Share relay. Check that its HTTPS address is available and approved by your network, then retry."; throw new RequestFail(503, relayError); }
                     if (ShareTransport.lanAddress(parsed.str("address", "")).isLoopbackAddress())
@@ -297,6 +326,16 @@ final class Share implements AutoCloseable {
             case "leave" -> {
                 if (target != null) { try { peer("leave"); } catch (Exception ignored) { } }
                 close(); return status();
+            }
+            case "bluetooth-test" -> {
+                if (bluetooth == null || target == null) throw new RequestFail(409, "Join a Bluetooth session to test its connection.");
+                long started = System.nanoTime();
+                Json.Obj sample = peer("connection-test");
+                long elapsed = Math.max(1, System.nanoTime() - started);
+                int bytes = sample.str("sample", "").getBytes(StandardCharsets.UTF_8).length;
+                if (bytes != 16384) throw new RequestFail(502, "The host returned an invalid test sample.");
+                return ShareSession.ok().put("bytes", bytes).put("elapsedMs", Math.max(1, elapsed / 1_000_000))
+                        .put("bytesPerSecond", (long) (bytes * 1_000_000_000.0 / elapsed));
             }
             case "status" -> { return status(); }
             default -> throw new RequestFail(400, "Unknown Share control.");
@@ -508,7 +547,9 @@ final class Share implements AutoCloseable {
                     }
                     avatarDirty = false;
                 }
+                long pollStarted = System.nanoTime();
                 Json.Obj remote = peer("poll");
+                if (bluetooth != null) result.put("bluetoothResponseMs", (System.nanoTime() - pollStarted) / 1_000_000);
                 connection = remote.str("status", "pending").equals("approved") ? "Connected" : "Waiting for Approval";
                 result.put("session", remote);
             } catch (Exception e) {
@@ -521,6 +562,7 @@ final class Share implements AutoCloseable {
             }
             result.put("connection", connection);
         }
+        if (bluetooth != null) result.put("bluetoothActive", true).put("bluetoothSentBytesPerSecond", bluetooth.sentRate()).put("bluetoothReceivedBytesPerSecond", bluetooth.receivedRate());
         return result;
     }
     private Json.Obj relayProgress() {
@@ -559,6 +601,7 @@ final class Share implements AutoCloseable {
             throw new RequestFail(409, "Collaborators changed this project. Open Share → Review Changes before running, debugging, testing or opening a terminal.");
     }
     @Override public synchronized void close() {
+        if (bluetooth != null) bluetooth.close(); bluetooth = null;
         if (relayWorker != null) relayWorker.interrupt(); relayWorker = null;
         if (relay != null) relay.close(); relay = null; relayCrypto = null;
         if (discovery != null) discovery.close(); discovery = null;
