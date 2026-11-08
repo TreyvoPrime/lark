@@ -1,12 +1,18 @@
 # Lark Share relay
 
-The relay lets Lark Share work when participant computers cannot connect directly. Lark hosts and guests make outbound HTTPS requests to the same service. The host still owns the project and decides who can join, which role they receive, and which Java source files are shared. The existing LAN invitation path remains available.
+The relay lets Lark Share work when participant computers cannot connect directly. Lark hosts and guests make outbound HTTPS requests to the same service. Lark defaults to `https://larrk-relay.onrender.com`; a normal host or guest does not need to enter this address. The host still owns the project and decides who can join, which role they receive, and which Java source files are shared. The existing LAN invitation path remains available.
+
+## Connecting and recovery
+
+When a host starts or a guest joins through the relay, Lark checks `/health`, waits for the service to wake, and continues automatically. The **Deploying Relay** panel displays elapsed time, connection stages, and a cancellable wait. The timing estimate is based on the last successful startup on that device, when available. This wakes an existing service; it does not create a Render deployment.
+
+Readiness checks use bounded retries with backoff and jitter. Hosting starts only after the relay registers its room. If a host connection is interrupted, Lark attempts to restore the same room with bounded retries. The Share diagnostics page shows status and a small in-memory, credential-free connection log; retry there if automatic recovery stops. Guest edits retain their operation identities and recovery copies while reconnecting. Existing custom relay addresses are retained. For advanced use, **Share → Connection** allows another HTTPS relay or a direct LAN session.
 
 ## Deploy on Render
 
 1. Push this repository to GitHub and open Render's **New → Blueprint** flow for the repository. The root `render.yaml` creates a Node web service named `lark-share-relay` on the free plan.
 2. Wait for the service health check to pass, then copy its HTTPS address, for example `https://lark-share-relay.onrender.com`.
-3. In **Lark → Settings → Share**, paste that address under **Share relay HTTPS address** on both computers. Save it and start a new Share session.
+3. Lark uses `https://larrk-relay.onrender.com` by default. To use a different approved service, enter its address under **Lark → Share → Connection** on each computer; choose **Local network** for direct LAN sessions.
 4. The host copies the private invitation. The guest chooses **Join Session**, pastes the invitation and verifies it with the host over a trusted channel. The host must still approve the participant.
 
 The relay address is a service endpoint, not a secret. Invitations are secrets: share them only with the intended person, and end the session to close the relay room. Lark does not send short LAN codes through the relay; use the private invitation.
@@ -30,6 +36,6 @@ npm test
 npm start
 ```
 
-The local relay uses HTTP for local development only. Lark intentionally accepts **HTTPS addresses only** in its Share settings. Deploy the service first or use a local HTTPS test setup to exercise the complete Java-client flow.
+The local relay uses HTTP for local development only. Lark intentionally accepts **HTTPS addresses only** in its Share connection controls. It uses HTTPS long polling, not WebSockets. Deploy the service first or use a local HTTPS test setup to exercise the complete Java-client flow. Run `python test/share-relay-lifecycle.py` from the repository root after building the app to test cold starts, cancellation, room recovery and edit replay with local TLS mocks; this requires Node, Java and OpenSSL.
 
-Render free service sleep, bandwidth, and account limits can change. Review Render's current plan terms before using the service with a group. A school may require its own hosted endpoint or a domain administrator to approve the service.
+Render free service sleep, bandwidth, and account limits can change. An inactive service can take time to wake; retries cannot guarantee availability. Lark does not send background requests solely to keep an unused relay awake. Review Render's current plan terms before using the service with a group. A school may require its own hosted endpoint or a domain administrator to approve the service. The relay server changes must be deployed to Render and the client changes distributed in a new Lark build before users receive them.

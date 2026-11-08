@@ -5,6 +5,7 @@
   const documents = new Map(), opening = new Map();
   let session = null, timer = null, working = false, following = null, presence = [], lastPresence = 0;
   let connectionFailures = 0, retryAfter = 0, retryPaused = false;
+  const MAX_PENDING_OPERATIONS = 1024, MAX_SHARE_NODES = 250000, MAX_SHARE_HISTORY = 10000, MAX_SHARE_TEXT = 96 * 1024;
   const marks = [];
   let presenceKey = '', gutterDoc = null, followViewKey = '', followOpening = null, followInput = null;
   const gutterName = 'lark-share-gutter';
@@ -39,6 +40,17 @@
   let soonTimer = null;
   function soon() { if (!soonTimer) soonTimer = setTimeout(() => { soonTimer = null; tick(); }, 16); }
   function bind(entry) {
+    entry.doc.on('beforeChange', (_, change) => {
+      if (entry.remote || change.origin === '+share' || !session || documents.get(entry.path) !== entry) return;
+      const removed = entry.doc.indexFromPos(change.to) - entry.doc.indexFromPos(change.from);
+      const added = change.text.join('\n').length;
+      const operations = Math.ceil(removed / 128) + Math.ceil(added / 512);
+      if (entry.pending.length + operations > MAX_PENDING_OPERATIONS || entry.model.nodes.size + added > MAX_SHARE_NODES || entry.model.seen.size + operations > MAX_SHARE_HISTORY || entry.model.text().length - removed + added > MAX_SHARE_TEXT) {
+        change.cancel();
+        if (entry.pending.length) recover(entry);
+        document.dispatchEvent(new CustomEvent('lark-share-error', { detail: 'Share has reached its editing or pending-change limit. Reconnect or export recovery, then start a new session if needed.' }));
+      }
+    });
     entry.doc.on('change', (_, change) => {
       // CodeMirror defers doc "change" events to the end of an outer operation, so the
       // entry.remote flag alone is not enough: remote/undo paints are tagged '+share'.
@@ -46,7 +58,7 @@
       const before = entry.model.text(), start = offset(before, change.from), end = offset(before, change.to), text = change.text.join('\n');
       const anchor = entry.model.anchor(start), removed = before.slice(start, end);
       const ops = entry.model.edit(start, end - start, text, entry.actor);
-      if (!entry.historyAction) { entry.undo.push({ anchor, removed, inserted: ops.flatMap(op => Array.from({ length: op.text.length }, (_, i) => `${op.seq + i}@${op.actor}`)) }); entry.redo = []; }
+      if (!entry.historyAction) { entry.undo.push({ anchor, removed, inserted: ops.flatMap(op => Array.from({ length: op.text.length }, (_, i) => `${op.seq + i}@${op.actor}`)) }); if (entry.undo.length > 300) entry.undo.shift(); entry.redo = []; }
       enqueue(entry, ops);
     });
   }
@@ -137,7 +149,7 @@
       if (error.network) {
         connectionFailures++;
         retryPaused = connectionFailures >= 8;
-        retryAfter = Date.now() + Math.min(8000, 250 * 2 ** Math.min(connectionFailures - 1, 5));
+        retryAfter = Date.now() + Math.min(8000, 250 * 2 ** Math.min(connectionFailures - 1, 5)) + Math.floor(Math.random() * 250);
       }
       status(retryPaused || error.code === 403 || error.code === 410 ? 'Connection Lost' : 'Reconnecting');
       document.dispatchEvent(new CustomEvent('lark-share-error', { detail: retryPaused ? 'Connection lost. Retry when the network is available.' : error.message }));
@@ -203,8 +215,14 @@
   }
   function hash(s) { let n = 0; for (const c of s) n = (n * 31 + c.charCodeAt(0)) >>> 0; return n; }
   function undo(entry, redo) {
-    const source = redo ? entry.redo : entry.undo, target = redo ? entry.undo : entry.redo, record = source.pop(); if (!record) return;
+    const source = redo ? entry.redo : entry.undo, target = redo ? entry.undo : entry.redo, record = source[source.length - 1]; if (!record) return;
     const removedIds = record.inserted.filter(id => entry.model.nodes.has(id) && !entry.model.nodes.get(id).deleted);
+    const count = Math.ceil(removedIds.length / 128) + Math.ceil(record.removed.length / 512);
+    if (entry.pending.length + count > MAX_PENDING_OPERATIONS || entry.model.nodes.size + record.removed.length > MAX_SHARE_NODES || entry.model.seen.size + count > MAX_SHARE_HISTORY || entry.model.text().length - removedIds.length + record.removed.length > MAX_SHARE_TEXT) {
+      if (entry.pending.length) recover(entry);
+      document.dispatchEvent(new CustomEvent('lark-share-error', { detail: 'Share has reached its editing or pending-change limit. Reconnect or export recovery, then start a new session if needed.' })); return;
+    }
+    source.pop();
     const operations = [], removedText = removedIds.map(id => entry.model.nodes.get(id).value).join('');
     for (let i = 0; i < removedIds.length; i += 128) { const op = { seq: ++entry.model.clock, actor: entry.actor, after: record.anchor, text: '', remove: removedIds.slice(i, i + 128) }; entry.model.apply(op); operations.push(op); }
     const inserted = entry.model.edit(entry.model.index(record.anchor), 0, record.removed, entry.actor); operations.push(...inserted);

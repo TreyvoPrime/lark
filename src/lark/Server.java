@@ -220,9 +220,14 @@ public final class Server {
             try {
                 byte[] data = exchange.getRequestBody().readNBytes(16 * 1024 + 1);
                 if (data.length > 16 * 1024) throw new RequestFail(413, "Share control request is too large.");
-                sendJson(exchange, 200, share.control(ShareTransport.parse(data)));
+                Json.Obj request;
+                try { request = ShareTransport.parse(data); }
+                catch (IOException e) { throw new RequestFail(400, "Invalid Share request."); }
+                sendJson(exchange, 200, share.control(request));
             } catch (RequestFail e) { throw e; }
             catch (javax.net.ssl.SSLException e) { throw new RequestFail(502, "Share host identity verification failed. Verify a fresh invitation with the host."); }
+            catch (IOException e) { throw new RequestFail(503, "Share connection unavailable. Pending edits remain on this device; retry when the connection returns."); }
+            catch (InterruptedException e) { Thread.currentThread().interrupt(); throw new RequestFail(503, "Share connection interrupted. Retry when the connection returns."); }
             catch (Exception e) { throw new RequestFail(400, "Share could not complete the request. Check the invitation, selected interface, and firewall. No insecure fallback is available."); }
             return;
         }

@@ -48,9 +48,20 @@ async function start(home) {
     await hd.getByRole('button', { name: 'Host Session', exact: true }).click();
     await hd.getByLabel('Session name', { exact: true }).fill('Source review');
     await hd.getByLabel('Your display name', { exact: true }).fill('Host');
+    await host.route('**/api/share', async route => {
+      let body = {}; try { body = route.request().postDataJSON(); } catch (_) { }
+      if (body.action === 'host') await new Promise(resolve => setTimeout(resolve, 1800));
+      if (body.action === 'relay-progress') return route.fulfill({ json: { ok: true, state: 'WAITING' } });
+      await route.continue();
+    });
     await hd.getByRole('button', { name: 'Host session', exact: true }).click();
+    await hd.getByRole('heading', { name: 'Deploying Relay' }).waitFor();
+    await hd.getByText('Status: Waiting for Relay').waitFor();
+    await hd.getByText('Elapsed: 1 seconds').waitFor();
+    check(await hd.locator('progress').isVisible(), 'Relay progress and elapsed time are visible');
     const invite = hd.getByLabel('Private invitation', { exact: true });
     await invite.waitFor();
+    await host.unroute('**/api/share');
     const invitation = await invite.inputValue();
     await hd.getByRole('button', { name: 'Security', exact: true }).click();
     await hd.getByRole('button', { name: 'Invitation', exact: true }).click();
@@ -76,6 +87,9 @@ async function start(home) {
     await Promise.all([insert(host, '// HOST\n'), insert(viewer, '// PEER😀\n')]);
     for (const page of [host, viewer]) await page.waitForFunction(() => { const text = window.LarkEditorShare.editor().getValue(); return text.includes('// HOST') && text.includes('// PEER'); });
     check(await value(host) === await value(viewer), 'Concurrent main-editor changes converge');
+    const beforeLimit = await value(host);
+    await insert(host, 'x'.repeat(100000));
+    check(await value(host) === beforeLimit, 'Oversized shared edit is refused before changing the document');
     await viewer.evaluate(() => CodeMirror.commands.undo(window.LarkEditorShare.editor()));
     await host.waitForFunction(() => { const text = window.LarkEditorShare.editor().getValue(); return text.includes('// HOST') && !text.includes('// PEER'); });
     check((await value(viewer)).includes('// HOST'), 'Local undo preserves other participant edits');
@@ -132,7 +146,8 @@ async function start(home) {
     check(staleSave.status === 409, 'Legacy full-file save cannot overwrite CRDT');
     const run = await fetch(servers[0].url + '/api/run', { method: 'POST', headers: { 'Content-Type': 'application/json', 'X-Lark': '1' }, body: JSON.stringify({ project }) });
     check(run.status === 409, 'Host must review collaborator-modified code before execution');
-    check(await fs.readFile(path.join(servers[0].home, '.lark', 'projects', project, current), 'utf8') === await value(host), 'Host disk equals converged source');
+    const location = await (await fetch(servers[0].url + '/api/projects/' + encodeURIComponent(project) + '/location')).json();
+    check(await fs.readFile(path.join(location.project.path, current), 'utf8') === await value(host), 'Host disk equals converged source');
     await insert(host, '// SCROLL-FIXTURE\n' + '// filler\n'.repeat(180));
     for (const page of [host, viewer]) await page.waitForFunction(() => window.LarkEditorShare.editor().getValue().includes('// SCROLL-FIXTURE') && !window.LarkShareEditing.pending());
     const scrollAway = page => page.evaluate(() => {
@@ -166,8 +181,8 @@ async function start(home) {
     await hd.getByRole('button', { name: 'Security', exact: true }).click();
     await hd.getByRole('heading', { name: 'Connection security', exact: true }).waitFor();
     check((await hd.textContent()).includes('always enabled'), 'Mandatory security displayed');
-    host.once('dialog', dialog => dialog.accept());
     await hd.getByRole('button', { name: 'End Session', exact: true }).click();
+    await host.locator('.share-confirm-dialog[open]').getByRole('button', { name: 'End session', exact: true }).click();
     await hd.getByRole('status').filter({ hasText: 'Disconnected' }).waitFor();
     check(pageErrors.length === 0, 'No browser script errors: ' + pageErrors.join('; '));
     const joinAgain = await endpoint(servers[1].url, { action: 'status' });

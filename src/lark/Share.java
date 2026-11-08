@@ -17,6 +17,16 @@ final class Share implements AutoCloseable {
     private ShareCrypto relayCrypto;
     private Thread relayWorker;
     private volatile String relayError = "";
+    private volatile String relayState = "DISCONNECTED";
+    private volatile Thread initializationThread;
+    private volatile long relayStarted, relayLastConnected;
+    private volatile long relayStartupDuration, relayLatency = -1;
+    private volatile int relayAttempts;
+    private final java.util.ArrayDeque<String> relayLog = new java.util.ArrayDeque<>();
+    private String loggedRelayState = "";
+    private final Object initializationLock = new Object();
+    private java.util.concurrent.CompletableFuture<Json.Obj> initialization;
+    private String initializationRequest;
     private InetAddress bindAddress;
     private String discoveryError = "";
     private Json.Obj target, hostInvitation;
@@ -32,6 +42,28 @@ final class Share implements AutoCloseable {
     Share(Projects projects, Settings settings) { this.projects = projects; this.settings = settings; }
 
     Json.Obj control(Json.Obj body) throws Exception {
+        if ("relay-progress".equals(body.str("action", ""))) return relayProgress();
+        if ("relay-cancel".equals(body.str("action", ""))) {
+            Thread thread = initializationThread;
+            if (thread != null) thread.interrupt();
+            return ShareSession.ok();
+        }
+        if ("host".equals(body.str("action", "")) || "join".equals(body.str("action", ""))) {
+            java.util.concurrent.CompletableFuture<Json.Obj> future; boolean owner = false;
+            synchronized (initializationLock) {
+                if (initialization == null) { initialization = new java.util.concurrent.CompletableFuture<>(); initializationRequest = body.write(); owner = true; }
+                else if (!initializationRequest.equals(body.write())) throw new RequestFail(409, "A different Share connection is already starting.");
+                future = initialization;
+            }
+            if (!owner) {
+                try { return future.get(); }
+                catch (java.util.concurrent.ExecutionException e) { if (e.getCause() instanceof Exception cause) throw cause; throw new IllegalStateException("Share connection failed.", e.getCause()); }
+            }
+            try { Json.Obj result = controlLocked(body); future.complete(result); return result; }
+            catch (Exception e) { future.completeExceptionally(e); throw e; }
+            catch (Error e) { future.completeExceptionally(e); throw e; }
+            finally { synchronized (initializationLock) { if (initialization == future) { initialization = null; initializationRequest = null; } } }
+        }
         if ("nearby".equals(body.str("action", "status"))) {
             // The LAN scan takes about 2 s and the Nearby page repeats it every few seconds. Running it outside the
             // lock keeps the host's own edits, status polls and approvals from stalling while the list is open.
@@ -52,6 +84,27 @@ final class Share implements AutoCloseable {
                 Mobile.lanInterfaces().forEach(nif -> addresses.add(new Json.Obj().put("address", nif[0]).put("name", nif[1])));
                 return ShareSession.ok().put("addresses", addresses);
             }
+            case "relay-settings" -> {
+                if (hosting != null || target != null) throw new RequestFail(409, "Leave or end the current Share session before changing its connection.");
+                String url = body.str("url", "").trim();
+                if (!url.isBlank()) {
+                    try {
+                        String normalized = ShareRelay.validate(url);
+                        url = normalized.substring(0, normalized.length() - "/v1/rooms/".length());
+                    } catch (Exception e) { throw new RequestFail(400, "Enter a valid HTTPS relay address."); }
+                }
+                settings.shareRelayUrl = url; settings.save();
+                return status();
+            }
+            case "relay-retry" -> {
+                if (hosting == null || relay == null) throw new RequestFail(409, "No relay host session to reconnect.");
+                if (relayWorker == null || !relayWorker.isAlive()) {
+                    ShareRelay active = relay; ShareSession session = hosting;
+                    relayState = "RECONNECTING"; relayAttempts = 0;
+                    relayWorker = ShareTransport.daemon("lark-share-relay-host").newThread(() -> relayLoop(active, session)); relayWorker.start();
+                }
+                return status();
+            }
             case "host" -> {
                 if (hosting != null || target != null) throw new RequestFail(409, "End or leave your current Share session first.");
                 String relayUrl = settings.shareRelayUrl == null ? "" : settings.shareRelayUrl.trim();
@@ -69,21 +122,24 @@ final class Share implements AutoCloseable {
                 try { transport = new ShareTransport(session, bind, (int) port); }
                 catch (Exception e) { session.close(); throw e; }
                 session.avatar(settings.shareBird);
-                hosting = session; bindAddress = bind; projectId = body.str("project", "");
-                connection = "Connected";
                 relayError = ""; relay = null;
                 if (!relayUrl.isBlank()) {
                     String relayHostKey = ShareSession.token();
+                    initializationThread = Thread.currentThread(); relayStarted = System.currentTimeMillis(); relayStartupDuration = 0; relayLatency = -1; relayState = "CHECKING"; relayAttempts = 0;
                     try {
                         relayCrypto = new ShareCrypto();
-                        relay = new ShareRelay(relayUrl, session.id(), relayHostKey, session.invitation());
-                        ShareRelay activeRelay = relay;
-                        relayWorker = ShareTransport.daemon("lark-share-relay-host").newThread(() -> relayLoop(activeRelay, session));
-                        relayWorker.start();
+                        relay = new ShareRelay(relayUrl, session.id(), relayHostKey, session.invitation(), stage -> relayState = stage);
+                        relayState = "CONNECTED"; relayLastConnected = System.currentTimeMillis(); relayStartupDuration = relayLastConnected - relayStarted; relayLatency = relay.readinessLatency();
                     } catch (Exception e) {
                         relay = null; transport.close(); transport = null; hosting = null; projectId = null;
-                        throw new RequestFail(503, "Could not start the Share relay: " + e.getMessage() + " Check the HTTPS address and try again.");
-                    }
+                        relayState = "FAILED"; relayError = e instanceof InterruptedException ? "Relay connection cancelled." : "Unable to reach the Lark Share relay. Check your internet connection or retry.";
+                        throw new RequestFail(503, relayError);
+                    } finally { initializationThread = null; Thread.interrupted(); }
+                }
+                hosting = session; bindAddress = bind; projectId = body.str("project", ""); connection = "Connected";
+                if (relay != null) {
+                    ShareRelay activeRelay = relay;
+                    relayWorker = ShareTransport.daemon("lark-share-relay-host").newThread(() -> relayLoop(activeRelay, session)); relayWorker.start();
                 }
                 if (relayUrl.isBlank() && (!body.has("discovery") || body.bool("discovery"))) discoverable(true);
                 if (discovery != null) {
@@ -157,23 +213,32 @@ final class Share implements AutoCloseable {
                 if (!parsed.str("session", "").matches("[a-f0-9]{64}") || !parsed.str("invitation", "").matches("[a-f0-9]{64}"))
                     throw new RequestFail(400, "Invalid invitation credentials.");
                 if (!parsed.str("relay", "").isBlank()) {
-                    if (settings.shareRelayUrl == null || settings.shareRelayUrl.isBlank()) throw new RequestFail(400, "Set the host's HTTPS relay address in Settings before joining this invitation.");
-                    if (!ShareRelay.validate(parsed.str("relay")).equals(ShareRelay.validate(settings.shareRelayUrl)))
-                        throw new RequestFail(400, "This invitation uses a different relay. Verify the service with the host before changing your Settings.");
+                    String invitedRelay = ShareRelay.validate(parsed.str("relay"));
+                    boolean official = invitedRelay.equals(ShareRelay.validate(Settings.DEFAULT_SHARE_RELAY));
+                    boolean configured = settings.shareRelayUrl != null && !settings.shareRelayUrl.isBlank() && invitedRelay.equals(ShareRelay.validate(settings.shareRelayUrl));
+                    if (!official && !configured)
+                        throw new RequestFail(400, "This invitation uses a different relay. Verify the service with the host before changing your Share connection.");
+                    initializationThread = Thread.currentThread(); relayStarted = System.currentTimeMillis(); relayStartupDuration = 0; relayLatency = -1; relayState = "CHECKING";
+                    try { relayLatency = ShareRelay.waitReady(parsed.str("relay"), stage -> relayState = stage); relayState = "AUTHENTICATING"; }
+                    catch (Exception e) { relayState = "FAILED"; relayError = e instanceof InterruptedException ? "Relay connection cancelled." : "Unable to reach the Lark Share relay. Check your internet connection or retry."; throw new RequestFail(503, relayError); }
+                    finally { initializationThread = null; Thread.interrupted(); }
                 }
                 Json.Obj result;
+                if (!parsed.str("relay", "").isBlank()) initializationThread = Thread.currentThread();
                 try { result = send(parsed, request(parsed, "join").put("invitation", parsed.str("invitation")).put("client", client).put("device", deviceName())
                         .put("name", ShareSession.label(body.str("displayName", ""))).put("bird", ShareSession.bird(settings.shareBird))); }
                 catch (RequestFail e) { throw e; }
                 catch (Exception e) {
-                    if (!parsed.str("relay", "").isBlank()) throw new RequestFail(503, "Couldn't reach the Share relay. Check that its HTTPS address is available and approved by your network, then retry. Your local project is unchanged.");
+                    if (e instanceof InterruptedException) { relayState = "FAILED"; throw new RequestFail(503, "Relay connection cancelled."); }
+                    if (!parsed.str("relay", "").isBlank()) { relayState = "FAILED"; relayError = "Couldn't reach the Share relay. Check that its HTTPS address is available and approved by your network, then retry."; throw new RequestFail(503, relayError); }
                     if (ShareTransport.lanAddress(parsed.str("address", "")).isLoopbackAddress())
                         throw new RequestFail(503, "This invitation points at 127.0.0.1 (\"this computer only\"), so it can't work from another computer. On the host, end the session and host again on its Wi-Fi or Ethernet address, then send the new invitation.");
                     throw new RequestFail(503, "Couldn't reach the host at " + parsed.str("address", "?") + ":" + parsed.longVal("port")
                             + ". Make sure you're on the same network, or have the host pick a different address (its Ethernet or Wi-Fi adapter) and send a new invitation. If it still fails, set the host's network to Private in Windows and allow Lark through the firewall.");
-                }
+                } finally { initializationThread = null; Thread.interrupted(); }
                 device = result.str("device"); credential = result.str("credential");
                 target = parsed;
+                if (!parsed.str("relay", "").isBlank()) { relayState = "CONNECTED"; relayLastConnected = System.currentTimeMillis(); relayStartupDuration = relayLastConnected - relayStarted; relayError = ""; }
                 connection = "Waiting for Approval";
                 return status();
             }
@@ -359,18 +424,22 @@ final class Share implements AutoCloseable {
         try {
             Json.Obj result = send(target, request(target, action).put("device", device).put("credential", credential).put("path", path));
             connection = "Connected";
+            if (!target.str("relay", "").isBlank()) { relayState = "CONNECTED"; relayLastConnected = System.currentTimeMillis(); relayError = ""; }
             return result;
         } catch (RequestFail e) {
             connection = "Connection Lost";
             throw e;
-        } catch (Exception e) { connection = "Reconnecting"; throw e; }
+        } catch (Exception e) { connection = "Reconnecting"; if (!target.str("relay", "").isBlank()) { relayState = "RECONNECTING"; relayError = "Relay connection lost. Retrying when the connection returns."; } throw e; }
     }
     private static Json.Obj request(Json.Obj target, String action) {
         return new Json.Obj().put("version", ShareSession.VERSION).put("session", target.str("session")).put("action", action);
     }
-    private static Json.Obj send(Json.Obj target, Json.Obj request) throws Exception {
+    private Json.Obj send(Json.Obj target, Json.Obj request) throws Exception {
         String relay = target.str("relay", "");
-        if (!relay.isBlank()) return ShareRelay.send(relay, target.str("session"), target.str("invitation"), target.str("relayPublicKey", ""), target.str("fingerprint", ""), request);
+        if (!relay.isBlank()) {
+            try { return ShareRelay.send(relay, target.str("session"), target.str("invitation"), target.str("relayPublicKey", ""), target.str("fingerprint", ""), request); }
+            catch (java.io.IOException e) { if (this.target == target) { relayState = "RECONNECTING"; relayError = "Relay connection lost. Retrying when the connection returns."; } throw e; }
+        }
         long port = target.longVal("port");
         if (port < 1 || port > 65535) throw new RequestFail(400, "Invalid invitation port.");
         Json.Obj reply = ShareTransport.exchange(target.str("address"), (int) port, target.str("fingerprint"), request);
@@ -379,10 +448,11 @@ final class Share implements AutoCloseable {
         return reply;
     }
     private void relayLoop(ShareRelay active, ShareSession session) {
+        int failures = 0;
         while (!Thread.currentThread().isInterrupted()) {
             try {
                 Json.Obj result = active.poll();
-                relayError = "";
+                relayError = ""; relayState = "CONNECTED"; relayLastConnected = System.currentTimeMillis(); relayAttempts = 0; failures = 0;
                 Json.Obj item = result.obj("item");
                 if (item == null) continue;
                 Json.Obj envelope = item.obj("request"), response;
@@ -400,15 +470,22 @@ final class Share implements AutoCloseable {
             catch (Exception e) {
                 if (hosting != session || Thread.currentThread().isInterrupted()) break;
                 relayError = "Relay connection interrupted. Lark is trying to reconnect; unsent edits stay on this device.";
-                try { active.restore(); } catch (Exception ignored) { }
-                try { Thread.sleep(3000); } catch (InterruptedException interrupted) { Thread.currentThread().interrupt(); break; }
+                relayState = "RECONNECTING"; relayAttempts = ++failures;
+                if (failures > 8) { relayState = "FAILED"; relayError = "Unable to reconnect to the relay. Open Share and retry."; break; }
+                try { Thread.sleep(Math.min(30_000L, 1000L << Math.min(failures - 1, 5)) + java.util.concurrent.ThreadLocalRandom.current().nextLong(500)); active.restore(); relayState = "CONNECTED"; relayLastConnected = System.currentTimeMillis(); relayError = ""; }
+                catch (InterruptedException interrupted) { Thread.currentThread().interrupt(); break; }
+                catch (Exception ignored) { }
             }
         }
     }
     private Json.Obj status() throws Exception {
+        recordRelayState();
         if (hosting != null && hosting.expired()) close();
         Json.Obj result = ShareSession.ok().put("bird", ShareSession.bird(settings.shareBird)).put("connection", connection).put("hosting", hosting != null)
                 .put("joined", target != null).put("mode", "collaborative").put("project", projectId).put("sessionId", hosting != null ? hosting.id() : target != null ? target.str("session") : "").put("identity", hosting != null ? "host" : device);
+        result.put("relayUrl", settings.shareRelayUrl == null ? "" : settings.shareRelayUrl).put("defaultRelayUrl", Settings.DEFAULT_SHARE_RELAY);
+        result.put("relayState", relayState).put("relayError", relayError).put("relayAttempts", relayAttempts).put("relayLastConnected", relayLastConnected);
+        if (hosting != null && relay != null && !"CONNECTED".equals(relayState)) result.put("connection", relayState.equals("FAILED") ? "Connection Lost" : "Reconnecting").put("error", relayError);
         if (hosting != null && codes != null) { Json.Obj c = codes.status(); result.put("code", c.str("code", "")).put("codeState", c.str("codeState", "none")).put("codeExpiresIn", c.longVal("codeExpiresIn")); }
         if (hosting != null) result.put("verification", ShareTransport.verification(hostInvitation != null ? hostInvitation.str("fingerprint") : transport.fingerprint));
         if (target != null) result.put("verification", ShareTransport.verification(target.str("fingerprint", "")));
@@ -441,6 +518,21 @@ final class Share implements AutoCloseable {
         }
         return result;
     }
+    private Json.Obj relayProgress() {
+        recordRelayState();
+        Json.Arr log = new Json.Arr();
+        synchronized (relayLog) { relayLog.forEach(log::add); }
+        return ShareSession.ok().put("state", relayState).put("started", relayStarted).put("lastConnected", relayLastConnected)
+                .put("startupDuration", relayStartupDuration).put("latency", relayLatency).put("attempts", relayAttempts).put("error", relayError).put("log", log);
+    }
+    private void recordRelayState() {
+        synchronized (relayLog) {
+            if (relayState.equals(loggedRelayState)) return;
+            loggedRelayState = relayState;
+            if (relayLog.size() >= 32) relayLog.removeFirst();
+            relayLog.addLast(java.time.Instant.now() + " " + relayState);
+        }
+    }
     private void discoverable(boolean enabled) {
         if (discovery != null) { discovery.close(); discovery = null; }
         if (!enabled && codes != null) codes.revoke(); // codes are resolved only via discovery
@@ -468,6 +560,6 @@ final class Share implements AutoCloseable {
         if (transport != null) transport.close();
         else if (hosting != null) hosting.close();
         transport = null; hosting = null; codes = null; target = null; hostInvitation = null; device = null; credential = null;
-        connection = "Disconnected"; projectId = null; reviewed = null; avatarDirty = false; relayError = "";
+        connection = "Disconnected"; projectId = null; reviewed = null; avatarDirty = false; relayError = ""; relayState = "DISCONNECTED";
     }
 }

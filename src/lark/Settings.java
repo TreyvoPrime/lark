@@ -11,7 +11,7 @@ import java.util.Set;
 /** Preferences stored in the home folder. The GitHub token never leaves this machine except for GitHub. */
 public final class Settings {
     /** Public release version. Lark 4 uses 4.0, then three-position patch/minor versions. */
-    public static final String VERSION = "4.4.0";
+    public static final String VERSION = "4.5.0";
     /** Default public update feed — always the latest GitHub release JSON companion. */
     public static final String DEFAULT_UPDATE_FEED =
             "https://github.com/TreyvoPrime/lark/releases/latest/download/update.json";
@@ -57,7 +57,8 @@ public final class Settings {
     public boolean lineNumbers = true;
     public boolean minimapEnabled = true;
     public String shareBird = "classic";
-    public String shareRelayUrl = "";
+    public static final String DEFAULT_SHARE_RELAY = "https://larrk-relay.onrender.com";
+    public String shareRelayUrl = DEFAULT_SHARE_RELAY;
     public int minimapWidth = 96;
     public String minimapSide = "right";
     public boolean minimapSyntax = true;
@@ -119,7 +120,9 @@ public final class Settings {
             // Preserve the old default for existing installations without this preference.
             settings.minimapEnabled = obj.has("minimapEnabled") && obj.bool("minimapEnabled");
             settings.shareBird = ShareSession.bird(obj.str("shareBird", "classic"));
-            settings.shareRelayUrl = obj.str("shareRelayUrl", "");
+            String relay = obj.str("shareRelayUrl", "");
+            if (!relay.isBlank()) { try { ShareRelay.validate(relay); } catch (Exception e) { relay = DEFAULT_SHARE_RELAY; } }
+            settings.shareRelayUrl = obj.bool("shareRelayConfigured") || !relay.isBlank() ? relay : DEFAULT_SHARE_RELAY;
             int mapWidth = (int) obj.longVal("minimapWidth");
             settings.minimapWidth = mapWidth == 64 || mapWidth == 128 ? mapWidth : 96;
             settings.minimapSide = "left".equals(obj.str("minimapSide", "right")) ? "left" : "right";
@@ -163,6 +166,7 @@ public final class Settings {
                     .put("lineNumbers", lineNumbers)
                     .put("shareBird", ShareSession.bird(shareBird))
                     .put("shareRelayUrl", shareRelayUrl == null ? "" : shareRelayUrl)
+                    .put("shareRelayConfigured", true)
                     .put("minimapEnabled", minimapEnabled)
                     .put("minimapWidth", minimapWidth)
                     .put("minimapSide", minimapSide)

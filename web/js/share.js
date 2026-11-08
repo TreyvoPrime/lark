@@ -16,18 +16,23 @@
   const heading = element('div', null, dialog); heading.className = 'share-heading';
   element('h2', 'Lark Share', heading).id = 'share-title';
   const close = element('button', 'Close', heading); close.type = 'button'; close.onclick = () => dialog.close();
-  element('p', 'Encrypted LAN collaboration · Save and review source before running collaborator-modified code.', dialog);
+  element('p', 'Encrypted collaboration · Save and review source before running collaborator-modified code.', dialog);
   const status = element('p', 'Disconnected', dialog); status.setAttribute('role', 'status');
   const notice = element('p', '', dialog); notice.setAttribute('role', 'status'); notice.className = 'share-presence-notice';
   let knownPeople = null, noticeTimer = null;
   const popup = element('div', '', document.body); popup.className = 'share-presence-popup'; popup.setAttribute('role', 'status'); popup.hidden = true;
   const error = element('p', '', dialog); error.className = 'share-error'; error.setAttribute('role', 'alert');
   const retry = element('button', 'Retry connection', dialog); retry.type = 'button'; retry.hidden = true;
-  retry.onclick = () => window.LarkShareEditing.retry();
+  retry.onclick = () => { statusFailures = 0; statusRetryAfter = 0; statusPaused = false; retry.hidden = true; window.LarkShareEditing.retry(); refresh().catch(report); };
   const navigation = element('div', null, dialog); navigation.className = 'share-actions';
   const content = element('div', null, dialog);
   document.body.append(dialog);
   let latest = {}, timer = null, busy = false, polling = false, page = 'home', generation = 0, navigationKey = '';
+  let statusFailures = 0, statusRetryAfter = 0, statusPaused = false, editorPaused = false;
+  function statusFailure(terminal = false) {
+    statusFailures++; statusRetryAfter = Date.now() + Math.min(8000, 250 * 2 ** Math.min(statusFailures - 1, 5)) + Math.floor(Math.random() * 250);
+    if (terminal || statusFailures >= 8) { statusPaused = true; retry.hidden = false; if (timer) clearInterval(timer); timer = null; }
+  }
 
   async function api(action, values = {}) {
     const response = await fetch('/api/share', { method: 'POST', headers: { 'Content-Type': 'application/json', 'X-Lark': '1' }, body: JSON.stringify({ ...values, action }) });
@@ -110,6 +115,33 @@
     }
   }
   function toastError(text) { error.textContent = text; }
+  function showRelayProgress(parent) {
+    const box = element('section', null, parent); box.className = 'share-code';
+    element('h3', 'Deploying Relay', box);
+    element('p', 'Connecting to the existing Lark Share relay…', box);
+    const elapsed = element('p', 'Elapsed: 0 seconds', box);
+    const estimate = element('p', 'Estimated remaining: Estimating…', box);
+    const stage = element('p', 'Status: Checking relay', box); stage.setAttribute('role', 'status');
+    const progress = element('progress', null, box); progress.setAttribute('aria-label', 'Connecting to relay');
+    const cancel = element('button', 'Cancel connection', box); cancel.type = 'button'; cancel.disabled = true;
+    let cancelling = false;
+    cancel.onclick = async () => { cancelling = true; cancel.disabled = true; stage.textContent = 'Status: Cancelling…'; try { await api('relay-cancel'); } catch (err) { report(err); } };
+    const started = Date.now(); let stopped = false, pending = false, previous = 0;
+    try { previous = Number(localStorage.getItem('lark-share-relay-startup-ms')) || 0; } catch (_) { }
+    const labels = {CHECKING:'Checking Relay',WAKING:'Waking Relay',WAITING:'Waiting for Relay',CONNECTING:'Establishing Secure Connection',AUTHENTICATING:'Authenticating',REGISTERING:'Registering Hosting Session',CONNECTED:'Relay Connected',FAILED:'Connection failed'};
+    const tick = async () => {
+      elapsed.textContent = 'Elapsed: ' + Math.floor((Date.now() - started) / 1000) + ' seconds';
+      if (previous >= 1000 && previous <= 120000) {
+        const remaining = Math.ceil((previous - (Date.now() - started)) / 1000);
+        estimate.textContent = remaining > 0 ? 'Estimated remaining: approximately ' + remaining + ' seconds' : 'Estimated remaining: taking longer than the previous connection';
+      }
+      if (pending || stopped) return; pending = true;
+      try { const state = await api('relay-progress'); if (!stopped && !cancelling && labels[state.state]) { stage.textContent = 'Status: ' + labels[state.state]; cancel.disabled = !['CHECKING','WAKING','WAITING','CONNECTING','AUTHENTICATING','REGISTERING'].includes(state.state); } } catch (_) { }
+      finally { pending = false; }
+    };
+    const timer = setInterval(tick, 1000); tick();
+    return success => { if (stopped) return; stopped = true; clearInterval(timer); if (success) { try { localStorage.setItem('lark-share-relay-startup-ms', String(Date.now() - started)); } catch (_) { } } box.remove(); };
+  }
   async function hostPage() {
     startPage('host'); const current = generation;
     const projects = await fetch('/api/projects').then(r => { if (!r.ok) throw new Error('Cannot list projects.'); return r.json(); });
@@ -126,11 +158,15 @@
     const submit = element('button', 'Host session', form); submit.type = 'submit';
     form.onsubmit = async event => {
       event.preventDefault(); if (busy) return; busy = true; submit.disabled = true;
+      let stopProgress = () => {};
       try {
+        status.textContent = 'Starting Share…';
         await window.LarkEditorShare.flush();
+        if (latest.relayUrl) stopProgress = showRelayProgress(form);
         const data = await api('host', { project: project.value, name: name.value, displayName: displayName.value, bird: window.LarkBirds.selected() });
+        stopProgress(true);
         latest = data; startPage('invitation'); showInvitation(data); await refresh();
-      } catch (err) { report(err); } finally { busy = false; submit.disabled = false; }
+      } catch (err) { report(err); status.textContent = 'Disconnected'; } finally { stopProgress(); busy = false; submit.disabled = false; }
     };
   }
   function joinPage() {
@@ -147,7 +183,7 @@
       try {
         const data = JSON.parse(atob(normalizeInvitation(invitation.value).replace(/-/g, '+').replace(/_/g, '/')));
         if (!/^[a-f0-9]{64}$/i.test(data.fingerprint) || typeof data.address !== 'string' || data.address.length > 64) throw new Error();
-        identity.textContent = data.relay ? `Through approved HTTPS relay · host identity: ${data.fingerprint}` : `Host: ${data.address}:${data.port} · SHA-256: ${data.fingerprint}`;
+        identity.textContent = data.relay ? `Relay: ${data.relay} · Host SHA-256: ${data.fingerprint}` : `Host: ${data.address}:${data.port} · SHA-256: ${data.fingerprint}`;
       } catch (_) { identity.textContent = 'Invalid invitation. Ask the host for a new private invitation.'; }
     };
     const verified = field(form, 'I verified this private invitation and host identity directly with the intended host over a trusted channel.', 'checkbox'); verified.required = true;
@@ -156,12 +192,15 @@
     const submit = element('button', 'Request access', form); submit.type = 'submit';
     form.onsubmit = async event => {
       event.preventDefault(); if (busy) return; busy = true; submit.disabled = true;
+      let stopProgress = () => {};
       try {
         status.textContent = 'Connecting';
+        try { const decoded = JSON.parse(atob(normalizeInvitation(invitation.value).replace(/-/g, '+').replace(/_/g, '/'))); if (decoded.relay) stopProgress = showRelayProgress(form); } catch (_) { }
         latest = await api('join', { invitation: invitation.value, displayName: displayName.value, bird: window.LarkBirds.selected(), verified: verified.checked });
+        stopProgress(true);
         startPage('home'); await refresh();
       } catch (err) { report(err); status.textContent = 'Connection Lost'; }
-      finally { busy = false; submit.disabled = false; }
+      finally { stopProgress(); busy = false; submit.disabled = false; }
     };
   }
   function participants() {
@@ -313,22 +352,61 @@
   function home() {
     startPage('home');
     element('p', latest.hosting ? 'Hosting a collaborative Java project. Open Participants to approve or revoke devices.' : latest.joined ? 'Joined a pinned host. Open Shared Project after approval to collaborate in the editor.' : 'Host a saved Java project, or join using a private invitation.', content);
+    if (!latest.hosting && !latest.joined) element('p', latest.relayUrl ? 'Connection: Lark relay' : 'Connection: local network', content);
+  }
+  function connectionPage() {
+    startPage('connection');
+    element('h3', 'Share connection', content);
+    element('p', 'Use the Lark relay to connect across networks, or choose a direct local network connection.', content);
+    const form = element('form', null, content);
+    const mode = field(form, 'Connection method', 'select');
+    [['relay', 'Relay'], ['local', 'Local network']].forEach(([value, label]) => { const option = element('option', label, mode); option.value = value; });
+    mode.value = latest.relayUrl ? 'relay' : 'local';
+    const url = field(form, 'Relay HTTPS address', 'url', latest.relayUrl || latest.defaultRelayUrl || 'https://larrk-relay.onrender.com');
+    url.maxLength = 512; url.spellcheck = false;
+    const updateMode = () => { url.disabled = mode.value !== 'relay'; url.required = mode.value === 'relay'; };
+    mode.onchange = updateMode; updateMode();
+    action(form, 'Use Lark relay address', async () => { mode.value = 'relay'; url.value = latest.defaultRelayUrl || 'https://larrk-relay.onrender.com'; updateMode(); });
+    const save = element('button', 'Save connection', form); save.type = 'submit';
+    form.onsubmit = async event => {
+      event.preventDefault(); if (busy) return; busy = true; save.disabled = true; error.textContent = '';
+      try { latest = await api('relay-settings', { url: mode.value === 'relay' ? url.value.trim() : '' }); home(); await refresh(); }
+      catch (err) { report(err); }
+      finally { busy = false; save.disabled = false; }
+    };
+  }
+  async function diagnostics() {
+    startPage('diagnostics');
+    const info = await api('relay-progress');
+    element('h3', 'Share connection diagnostics', content);
+    element('p', 'Relay: ' + (latest.relayUrl || 'Local network'), content);
+    element('p', 'Status: ' + (info.state || 'DISCONNECTED'), content);
+    element('p', 'Last connected: ' + (info.lastConnected ? new Date(info.lastConnected).toLocaleString() : 'Not yet'), content);
+    element('p', 'Startup time: ' + (info.startupDuration ? (info.startupDuration / 1000).toFixed(1) + ' seconds' : info.started ? Math.floor((Date.now() - info.started) / 1000) + ' seconds elapsed' : 'Not started'), content);
+    element('p', 'Relay response time: ' + (info.latency >= 0 ? info.latency + ' ms' : 'Not measured'), content);
+    element('p', 'Reconnect attempts: ' + (info.attempts || 0), content);
+    element('p', 'Hosting: ' + (latest.hosting ? (info.state === 'CONNECTED' ? 'Registered' : 'Reconnecting') : 'Not hosting'), content);
+    if (info.error) element('p', info.error, content).className = 'share-error';
+    if (info.log?.length) { element('h4', 'Connection log', content); const log = element('pre', info.log.join('\n'), content); log.className = 'share-source'; }
+    if (latest.hosting && latest.relay && info.state === 'FAILED') action(content, 'Retry connection', async () => { latest = await api('relay-retry'); await diagnostics(); });
+    action(content, 'Refresh diagnostics', diagnostics);
   }
   function renderNavigation() {
-    const key = JSON.stringify([!!latest.hosting, !!latest.joined, latest.session?.status]);
+    const key = JSON.stringify([!!latest.hosting, !!latest.joined, latest.session?.status, latest.relayState]);
     if (navigationKey === key) return;
     navigationKey = key;
     navigation.replaceChildren();
     if (!latest.hosting && !latest.joined) {
       action(navigation, 'Host Session', hostPage); action(navigation, 'Join Session', joinPage);
-      action(navigation, 'Nearby Sessions', nearby); action(navigation, 'Change Avatar', chooseBird);
+      action(navigation, 'Nearby Sessions', nearby); action(navigation, 'Connection', connectionPage); action(navigation, 'Diagnostics', diagnostics); action(navigation, 'Change Avatar', chooseBird);
       return;
     }
     if (latest.hosting) action(navigation, 'Invitation', async () => { const data = await api('invitation'); startPage('invitation'); showInvitation(data); });
     action(navigation, 'Change Avatar', chooseBird);
     action(navigation, 'Recovery', recovery);
-    action(navigation, 'Participants', participants); action(navigation, 'Security', security);
+    action(navigation, 'Participants', participants); action(navigation, 'Security', security); action(navigation, 'Diagnostics', diagnostics);
     if (latest.hosting) action(navigation, 'Review Changes', review);
+    if (latest.hosting && latest.relay && latest.relayState === 'FAILED') action(navigation, 'Retry relay', async () => { latest = await api('relay-retry'); await refresh(); });
     if (latest.hosting || latest.joined && latest.session?.status === 'approved') action(navigation, 'Shared Project', () => dialog.close());
     if (latest.hosting || latest.joined) action(navigation, latest.hosting ? 'End Session' : 'Leave Session', async () => {
       const hosting = latest.hosting;
@@ -348,6 +426,8 @@
     if (polling) return; polling = true;
     try {
       latest = await api('status');
+      if (latest.joined && (latest.connection === 'Reconnecting' || latest.connection === 'Connection Lost')) statusFailure(latest.connection === 'Connection Lost');
+      else { statusFailures = 0; statusRetryAfter = 0; if (!editorPaused) { statusPaused = false; retry.hidden = true; } }
       window.LarkBirds.save(latest.bird || 'classic');
       const people = latest.session?.participants;
       if (people && (!latest.joined || latest.session?.status === 'approved')) {
@@ -381,9 +461,10 @@
       renderNavigation();
       // Do not replace focused controls while a keyboard user is interacting.
       if (page === 'participants' && !content.contains(document.activeElement)) drawParticipants();
-      if (latest.hosting || latest.joined) { if (!timer) timer = setInterval(() => refresh().catch(report), 4000); }
+      if ((latest.hosting || latest.joined) && !statusPaused) { if (!timer) timer = setInterval(() => { if (Date.now() >= statusRetryAfter) refresh().catch(report); }, 4000); }
       else if (timer) { clearInterval(timer); timer = null; }
-    } finally { polling = false; }
+    } catch (err) { if (latest.joined) statusFailure(); throw err; }
+    finally { polling = false; }
   }
   const avatars = element('div', null, button.parentElement); avatars.id = 'share-avatars';
   const explorer = element('details'); explorer.id = 'share-explorer'; explorer.hidden = true;
@@ -413,7 +494,7 @@
   document.addEventListener('lark-share-follow', event => { unfollow.hidden = !event.detail; unfollow.textContent = event.detail ? 'Stop following ' + event.detail.name : 'Stop following'; });
   document.addEventListener('lark-share-state', event => { button.dataset.connection = event.detail; button.title = 'Lark Share: ' + event.detail; });
   document.addEventListener('lark-share-error', event => { error.textContent = event.detail; });
-  document.addEventListener('lark-share-retry', event => { retry.hidden = !event.detail; });
+  document.addEventListener('lark-share-retry', event => { editorPaused = !!event.detail; retry.hidden = !editorPaused && !statusPaused; if (editorPaused) { statusPaused = true; if (timer) clearInterval(timer); timer = null; } });
   button.onclick = async () => {
     if (!dialog.open) dialog.showModal();
     try { await refresh(); home(); } catch (err) { report(err); }

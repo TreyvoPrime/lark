@@ -6752,14 +6752,6 @@
       window.LarkShareEditing?.refreshPositions();
     });
     bindPref("setting-format-save", (el) => ({ formatOnSave: el.checked }));
-    const relayInput = $("setting-share-relay");
-    if (relayInput) relayInput.addEventListener("change", async () => {
-      try {
-        state.settings = await api("PUT", "/api/settings", { shareRelayUrl: relayInput.value.trim() });
-        relayInput.value = state.settings.shareRelayUrl || "";
-        toast("Share relay saved.");
-      } catch (err) { toast(err.message); relayInput.value = state.settings.shareRelayUrl || ""; }
-    });
     const feedInput = $("setting-update-feed");
     if (feedInput) {
       feedInput.addEventListener("change", async () => {
@@ -7785,7 +7777,6 @@
         formatOnSave: !!state.settings.formatOnSave
       }, false);
       if ($("setting-update-feed")) $("setting-update-feed").value = state.settings.updateFeed || "";
-      if ($("setting-share-relay")) $("setting-share-relay").value = state.settings.shareRelayUrl || "";
       showGithub();
       const version = (state.settings.javaVersion || "").split(".")[0];
       const bits = [];

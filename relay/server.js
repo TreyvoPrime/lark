@@ -14,6 +14,7 @@ const WAIT_MS = 25_000;
 const rooms = new Map();
 const sendRates = new Map();
 const registerRates = new Map();
+let lastErrorLog = 0;
 
 function token(value) { return typeof value === 'string' && /^[a-f0-9]{64}$/.test(value); }
 function text(value, max = 80) { return typeof value === 'string' && value.length <= max; }
@@ -86,10 +87,9 @@ function handler(req, res) {
       if (!rate || now - rate[0] >= 60_000) { rate = [now, 0]; sendRates.set(ip, rate); }
       if (++rate[1] > 1200) return send(res, 429, { error: 'Too many Share messages from this network. Wait a minute and retry.' });
       if (room.pending.size >= MAX_PENDING) return send(res, 429, { error: 'Too many simultaneous Share requests.' });
-      room.lastSeen = Date.now();
       const requestId = crypto.randomBytes(18).toString('hex');
       let settled = false;
-      const finish = (code, value) => { if (settled) return; settled = true; clearTimeout(timer); room.pending.delete(requestId); if (!res.destroyed) send(res, code, value); };
+      const finish = (code, value) => { if (settled) return; settled = true; clearTimeout(timer); room.pending.delete(requestId); const index = room.queue.indexOf(requestId); if (index >= 0) room.queue.splice(index, 1); if (!res.destroyed) send(res, code, value); };
       const timer = setTimeout(() => finish(504, { error: 'Share host did not answer in time.' }), WAIT_MS + 5000);
       room.pending.set(requestId, { id: requestId, request, finish });
       room.queue.push(requestId);
@@ -126,7 +126,10 @@ function handler(req, res) {
     const wake = () => { if (settled) return; if (take()) { settled = true; clearTimeout(timer); } else room.waiter = wake; };
     room.waiter = wake;
     res.on('close', () => { if (!settled) { settled = true; clearTimeout(timer); if (room.waiter === wake) room.waiter = null; } });
-  }).catch(error => { if (!res.headersSent && !res.destroyed) send(res, error.status || 400, { error: error.status === 413 ? 'Request too large.' : 'Invalid relay request.' }); });
+  }).catch(error => {
+    if (!error.status && Date.now() - lastErrorLog > 30_000) { lastErrorLog = Date.now(); console.warn('Relay could not process a request for action:', url.pathname.split('/').pop()); }
+    if (!res.headersSent && !res.destroyed) send(res, error.status || 400, { error: error.status === 413 ? 'Request too large.' : 'Invalid relay request.' });
+  });
 }
 
 function createServer() {
@@ -138,7 +141,7 @@ function createServer() {
 }
 if (require.main === module) {
   const server = createServer();
-  server.listen(Number(process.env.PORT || 10000), '0.0.0.0');
+  server.listen(Number(process.env.PORT || 10000), '0.0.0.0', () => console.log('Lark Share relay is listening.'));
   setInterval(clean, 5000).unref();
   process.on('SIGTERM', () => { for (const room of rooms.values()) for (const pending of room.pending.values()) pending.finish(503, { error: 'Relay restarting.' }); server.close(() => process.exit(0)); setTimeout(() => process.exit(0), 5000).unref(); });
 }

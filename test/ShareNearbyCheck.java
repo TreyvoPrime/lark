@@ -36,6 +36,7 @@ public final class ShareNearbyCheck {
     static void automaticHosting() throws Exception {
         if (Mobile.lanAddresses().isEmpty()) { System.out.println("SKIP automatic hosting: no LAN interface"); return; }
         Settings settings = Settings.load();
+        settings.shareRelayUrl = ""; // This test exercises direct LAN hosting.
         Files.createDirectories(settings.projectsDir());
         Path project = Files.createTempDirectory(settings.projectsDir(), "sharetest");
         Files.writeString(project.resolve("Main.java"), "class Main {}\n");

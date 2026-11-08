@@ -84,7 +84,7 @@ h_executable=$(hash_file release/lark-executable-update.zip)
 h_setup=$(hash_file release/LarkDesktopSetup.exe)
 
 python3 - <<PY
-import json, pathlib
+import hashlib, json, pathlib
 p = pathlib.Path("release/update.json")
 data = json.loads(p.read_text())
 sha = {}
@@ -111,6 +111,14 @@ for k, v in pairs:
 data["sha256"] = sha
 p.write_text(json.dumps(data, indent=2) + "\n")
 print("Wrote sha256 entries:", len(sha))
+for name in ("lark-desktop-linux.zip", "lark-desktop-mac.zip", "lark-desktop-windows.zip", "lark-executable-windows.zip", "LarkDesktopSetup.exe"):
+    artifact = pathlib.Path("release") / name
+    digest = hashlib.sha256()
+    with artifact.open("rb") as stream:
+        for chunk in iter(lambda: stream.read(1024 * 1024), b""):
+            digest.update(chunk)
+    (artifact.parent / (name + ".sha256")).write_text(digest.hexdigest() + "  " + name + "\n", encoding="utf-8")
+print("Wrote SHA-256 sidecars for release downloads")
 PY
 
 ls -lh release/*.zip release/*.exe release/update.json 2>/dev/null | head -50

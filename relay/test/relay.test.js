@@ -43,6 +43,15 @@ test('a waiting host receives a later guest request', async () => {
   await call(`/v1/rooms/${id}/reply`, { hostKey, id: item.id, response: { data: 'encrypted' } });
   assert.equal((await guest).status, 200);
 });
+test('abandoned requests are removed from the queue', async () => {
+  const controller = new AbortController();
+  const guest = fetch(base + `/v1/rooms/${id}/send`, { method: 'POST', headers: { 'content-type': 'application/json' }, signal: controller.signal,
+    body: JSON.stringify({ capability, request: { session: id, action: 'encrypted' } }) }).catch(() => {});
+  for (let i = 0; i < 50 && rooms.get(id).pending.size === 0; i++) await new Promise(resolve => setTimeout(resolve, 10));
+  assert.equal(rooms.get(id).pending.size, 1); controller.abort(); await guest;
+  for (let i = 0; i < 50 && rooms.get(id).pending.size; i++) await new Promise(resolve => setTimeout(resolve, 10));
+  assert.equal(rooms.get(id).pending.size, 0); assert.equal(rooms.get(id).queue.length, 0);
+});
 test('room close rejects pending guests and removes room state', async () => {
   const guest = call(`/v1/rooms/${id}/send`, { capability, request: { version: 2, session: id, action: 'poll' } });
   const close = await call(`/v1/rooms/${id}/close`, { hostKey }); assert.equal(close.status, 200);
