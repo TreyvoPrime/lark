@@ -20,3 +20,14 @@ Visit the [Lark website](https://lark.rocks/) to learn more and find downloads f
 Lark is built in the open. You can explore the code, share ideas, or [report an issue](https://github.com/TreyvoPrime/lark/issues) to help make it better.
 
 Lark is available under the [MIT License](LICENSE).
+
+## Rust host preview
+
+`lark-host` is the first step in moving Lark's native host and backend to Rust without changing the browser IDE or its Java API. It starts the current Java backend, waits for its health endpoint, prevents ordinary duplicate launches, and opens the IDE window itself.
+
+```text
+./lark-host.sh --no-browser
+lark-host.bat --port 43123
+```
+
+The Java backend remains the compatibility implementation in this phase. Rust owns the launch boundary and will progressively take ownership of API groups in later releases.

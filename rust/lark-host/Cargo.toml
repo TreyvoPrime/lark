@@ -1,0 +1,10 @@
+[package]
+name = "lark-host"
+version = "0.1.0"
+edition = "2024"
+license = "MIT"
+description = "Rust host for the Lark IDE's existing Java backend"
+
+[[bin]]
+name = "lark-host"
+path = "src/main.rs"
