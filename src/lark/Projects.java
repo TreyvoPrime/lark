@@ -24,6 +24,7 @@ import java.util.zip.ZipOutputStream;
 
 /** Real folders on disk. One project is a directory of source files. */
 public final class Projects {
+    public static final int MAX_TEXT_FILE_BYTES = 20_000_000;
     public record TextFile(String path, String content) {}
     public record PublishFile(String path, byte[] content) {}
 
@@ -38,6 +39,21 @@ public final class Projects {
 
     public Projects(Settings settings) {
         this.settings = settings;
+        Path legacy = Settings.home().resolve("projects");
+        if (!legacy.equals(root()) && Files.isDirectory(legacy)) {
+            Json.Arr entries = externalProjects();
+            boolean changed = false;
+            try (Stream<Path> dirs = Files.list(legacy)) {
+                for (Path dir : dirs.filter(Files::isDirectory).toList()) {
+                    String id = dir.getFileName().toString();
+                    if (idOk(id) && externalDir(id) == null && !Files.exists(root().resolve(id))) {
+                        entries.add(new Json.Obj().put("id", id).put("path", dir.toAbsolutePath().toString()));
+                        changed = true;
+                    }
+                }
+                if (changed) saveExternalProjects(entries);
+            } catch (IOException e) { throw new RequestFail(500, "Couldn't retain the existing projects list."); }
+        }
     }
 
     public Path root() {
@@ -62,13 +78,99 @@ public final class Projects {
         settings.save();
     }
 
+    private Path registryFile() { return Settings.home().resolve("external-projects.json"); }
+
+    private synchronized Json.Arr externalProjects() {
+        try {
+            if (Files.isRegularFile(registryFile())) {
+                Json.Arr entries = Json.parseObj(Files.readString(registryFile())).arr("projects");
+                if (entries != null) return entries;
+            }
+        } catch (IOException | RuntimeException ignored) { }
+        return new Json.Arr();
+    }
+
+    private synchronized void saveExternalProjects(Json.Arr entries) throws IOException {
+        Files.createDirectories(registryFile().getParent());
+        Path temporary = Files.createTempFile(registryFile().getParent(), "projects-", ".tmp");
+        try {
+            Files.writeString(temporary, new Json.Obj().put("projects", entries).write());
+            try { Files.move(temporary, registryFile(), StandardCopyOption.ATOMIC_MOVE, StandardCopyOption.REPLACE_EXISTING); }
+            catch (java.nio.file.AtomicMoveNotSupportedException e) { Files.move(temporary, registryFile(), StandardCopyOption.REPLACE_EXISTING); }
+        } finally { Files.deleteIfExists(temporary); }
+    }
+
+    private Path externalDir(String id) {
+        for (Json.Value value : externalProjects().values()) {
+            if (value instanceof Json.Obj entry && id.equals(entry.str("id", ""))) {
+                return Path.of(entry.str("path", "")).toAbsolutePath().normalize();
+            }
+        }
+        return null;
+    }
+
+    private Path singleFile(String id) {
+        for (Json.Value value : externalProjects().values()) {
+            if (value instanceof Json.Obj entry && id.equals(entry.str("id", "")) && !entry.str("file", "").isBlank())
+                return Path.of(entry.str("path", "")).resolve(entry.str("file", "")).normalize();
+        }
+        return null;
+    }
+
+    private void requireFolderProject(String id) {
+        if (singleFile(id) != null) throw new RequestFail(400, "This is a single-file workspace. Open a folder project for this operation.");
+    }
+
+    public synchronized String openSingleFile(Path selected) {
+        try {
+            Path file = selected.toRealPath();
+            if (!Files.isRegularFile(file) || Files.size(file) > MAX_TEXT_FILE_BYTES) throw new RequestFail(400, "Choose a text file up to 20 MB.");
+            String text = Files.readString(file);
+            if (text.indexOf(0) >= 0) throw new RequestFail(400, "Choose a text file, not a binary file.");
+            for (Json.Value value : externalProjects().values()) {
+                if (value instanceof Json.Obj entry && file.equals(singleFile(entry.str("id", "")))) return entry.str("id", "");
+            }
+            String id = "external-" + java.util.UUID.randomUUID();
+            Json.Arr entries = externalProjects();
+            Path workspace = root().resolve(id);
+            Files.createDirectories(workspace);
+            writeUnlocked(workspace, file.getFileName().toString(), text);
+            writeMeta(workspace, new Meta(file.getFileName().toString(), ""));
+            entries.add(new Json.Obj().put("id", id).put("path", workspace.toAbsolutePath().toString()).put("file", file.toString()));
+            saveExternalProjects(entries);
+            return id;
+        } catch (IOException e) { throw new RequestFail(400, "Couldn't open that text file."); }
+    }
+
+    /** Register a user-selected empty directory without overwriting existing files. */
+    public synchronized String createAt(Path selected, String name, String template) {
+        String clean = cleanName(name);
+        Path dir = selected.toAbsolutePath().normalize();
+        if (!Files.isDirectory(dir)) throw new RequestFail(400, "Choose an existing folder.");
+        try (Stream<Path> contents = Files.list(dir)) {
+            if (contents.findAny().isPresent()) throw new RequestFail(400, "Choose an empty folder for a new project.");
+        } catch (IOException e) { throw new RequestFail(400, "Couldn't inspect that folder."); }
+        String kind = TEMPLATES.contains(template) ? template : "empty";
+        String id = "external-" + java.util.UUID.randomUUID().toString();
+        try {
+            for (TextFile file : templateFiles(kind)) writeUnlocked(dir, file.path, file.content);
+            writeMeta(dir, new Meta(clean, templateMain(kind)));
+            Json.Arr entries = externalProjects();
+            entries.add(new Json.Obj().put("id", id).put("path", dir.toString()));
+            saveExternalProjects(entries);
+        } catch (IOException e) { throw new RequestFail(500, "Couldn't create the project in the selected folder."); }
+        settings.lastProject = id;
+        settings.save();
+        return id;
+    }
+
     public List<Json.Obj> list() {
         List<Json.Obj> out = new ArrayList<>();
-        if (!Files.isDirectory(root())) return out;
+        try { Files.createDirectories(root()); } catch (IOException e) { throw new RequestFail(500, "Couldn't access projects."); }
         try (Stream<Path> dirs = Files.list(root())) {
             for (Path dir : dirs.filter(Files::isDirectory).sorted().toList()) {
                 String id = dir.getFileName().toString();
-                if (!idOk(id)) continue;
+                if (!idOk(id) || externalDir(id) != null) continue;
                 Meta meta = readMeta(dir);
                 out.add(new Json.Obj()
                         .put("id", id)
@@ -78,6 +180,17 @@ public final class Projects {
             }
         } catch (IOException e) {
             throw new RequestFail(500, "Couldn't list projects.");
+        }
+        for (Json.Value value : externalProjects().values()) {
+            if (!(value instanceof Json.Obj entry)) continue;
+            String id = entry.str("id", "");
+            Path dir = externalDir(id);
+            if (!idOk(id) || dir == null || !Files.isDirectory(dir)) continue;
+            Path single = singleFile(id);
+            if (single != null && !Files.isRegularFile(single)) continue;
+            Meta meta = single == null ? readMeta(dir) : new Meta(single.getFileName().toString(), "");
+            out.add(new Json.Obj().put("id", id).put("name", meta.name).put("mainClass", meta.mainClass)
+                    .put("preview", previewSnippet(dir, meta.mainClass)));
         }
         out.sort(Comparator.comparing(o -> o.str("name", "").toLowerCase(Locale.ROOT)));
         return out;
@@ -160,7 +273,7 @@ public final class Projects {
                 Files.createDirectories(dir);
                 for (TextFile file : files) {
                     checkRelative(file.path);
-                    if (file.content != null && file.content.length() > 400_000) {
+                    if (file.content != null && file.content.getBytes(StandardCharsets.UTF_8).length > MAX_TEXT_FILE_BYTES) {
                         throw new RequestFail(400, "One of those files is too large to import.");
                     }
                     writeUnlocked(dir, file.path, file.content == null ? "" : file.content);
@@ -190,10 +303,10 @@ public final class Projects {
                     continue;
                 }
                 if (skip(rel)) continue;
-                byte[] data = zip.readNBytes(400_001);
-                if (data.length > 400_000) throw new RequestFail(400, "A file in that zip is too large.");
+                byte[] data = zip.readNBytes(MAX_TEXT_FILE_BYTES + 1);
+                if (data.length > MAX_TEXT_FILE_BYTES) throw new RequestFail(400, "A file in that zip is too large.");
                 total += data.length;
-                if (total > 5_000_000) throw new RequestFail(400, "That zip is too large.");
+                if (total > 80_000_000) throw new RequestFail(400, "That zip is too large.");
                 if (files.size() >= 200) throw new RequestFail(400, "That zip has too many files.");
                 if (!isUtf8(data)) continue;
                 files.add(new TextFile(rel, new String(data, StandardCharsets.UTF_8)));
@@ -206,6 +319,15 @@ public final class Projects {
 
     public Json.Obj read(String id) {
         Path dir = projectDir(id);
+        Path single = singleFile(id);
+        if (single != null) {
+            try {
+                if (Files.size(single) > MAX_TEXT_FILE_BYTES) throw new RequestFail(400, "This file exceeds the 20 MB limit.");
+                return new Json.Obj().put("id", id).put("name", single.getFileName().toString()).put("mainClass", "")
+                    .put("singleFile", true).put("path", single.toString()).put("dirs", new Json.Arr()).put("runConfigs", new Json.Arr())
+                    .put("files", new Json.Arr().add(new Json.Obj().put("path", single.getFileName().toString()).put("content", Files.readString(single))));
+            } catch (IOException e) { throw new RequestFail(400, "Couldn't read the selected file."); }
+        }
         synchronized (lock(id)) {
             Meta meta = readMeta(dir);
             Json.Arr files = new Json.Arr();
@@ -219,7 +341,7 @@ public final class Projects {
                         dirs.add(rel);
                     } else if (Files.isRegularFile(path)) {
                         Json.Obj file = new Json.Obj().put("path", rel);
-                        if (Files.size(path) > 400_000) {
+                        if (Files.size(path) > MAX_TEXT_FILE_BYTES) {
                             file.put("tooBig", true);
                         } else {
                             try {
@@ -247,6 +369,7 @@ public final class Projects {
 
     /** Read project files for publishing without following links outside the project. */
     public List<PublishFile> publishFiles(String id) {
+        requireFolderProject(id);
         Path dir = projectDir(id);
         synchronized (lock(id)) {
             List<PublishFile> files = new ArrayList<>();
@@ -275,12 +398,15 @@ public final class Projects {
     }
 
     public void writeFile(String id, String rel, String content) {
+        Path single = singleFile(id);
+        if (single != null && !single.getFileName().toString().equals(rel)) throw new RequestFail(400, "Only the selected file belongs to this workspace.");
         if (content == null) content = "";
-        if (content.length() > 400_000) throw new RequestFail(400, "That file is too large for Lark.");
+        if (content.getBytes(StandardCharsets.UTF_8).length > MAX_TEXT_FILE_BYTES) throw new RequestFail(400, "That file is too large for Lark.");
         checkRelative(rel);
         Path dir = projectDir(id);
         synchronized (lock(id)) {
             try {
+                if (single != null) writeUnlocked(single.getParent(), single.getFileName().toString(), content);
                 writeUnlocked(dir, rel, content);
             } catch (IOException e) {
                 throw new RequestFail(500, "Couldn't save " + rel + ".");
@@ -289,6 +415,7 @@ public final class Projects {
     }
 
     public void mkdir(String id, String rel) {
+        requireFolderProject(id);
         checkRelative(rel);
         Path dir = projectDir(id);
         synchronized (lock(id)) {
@@ -301,6 +428,7 @@ public final class Projects {
     }
 
     public void deletePath(String id, String rel) {
+        requireFolderProject(id);
         checkRelative(rel);
         Path dir = projectDir(id);
         synchronized (lock(id)) {
@@ -315,6 +443,7 @@ public final class Projects {
     }
 
     public void move(String id, String from, String to) {
+        requireFolderProject(id);
         checkRelative(from);
         checkRelative(to);
         if (from.equals(to)) return;
@@ -340,6 +469,7 @@ public final class Projects {
 
     public void updateMeta(String id, String name, String mainClass, Json.Arr runConfigs,
                            boolean hasName, boolean hasMain, boolean hasConfigs) {
+        if (singleFile(id) != null) return;
         Path dir = projectDir(id);
         synchronized (lock(id)) {
             Meta meta = readMeta(dir);
@@ -383,13 +513,29 @@ public final class Projects {
         return out;
     }
 
+    public Json.Obj location(String id) {
+        Path dir = projectDir(id);
+        Path single = singleFile(id);
+        return new Json.Obj().put("path", (single == null ? dir : single).toAbsolutePath().toString()).put("singleFile", single != null);
+    }
+
     public void delete(String id) {
+        Path external = externalDir(id);
+        Path single = singleFile(id);
         Path dir = projectDir(id);
         synchronized (lock(id)) {
             try {
-                deleteTree(dir);
+                if (single != null) Files.deleteIfExists(single);
+                else deleteTree(dir);
+                if (external != null) {
+                    Json.Arr retained = new Json.Arr();
+                    for (Json.Value value : externalProjects().values()) {
+                        if (!(value instanceof Json.Obj entry) || !id.equals(entry.str("id", ""))) retained.add(value);
+                    }
+                    saveExternalProjects(retained);
+                }
             } catch (IOException e) {
-                throw new RequestFail(500, "Couldn't delete the project.");
+                throw new RequestFail(500, "Couldn't completely delete the project. Check its folder and try again.");
             }
         }
         locks.remove(id);
@@ -400,6 +546,7 @@ public final class Projects {
     }
 
     public void exportZip(String id, OutputStream out) {
+        requireFolderProject(id);
         Path dir = projectDir(id);
         synchronized (lock(id)) {
             try (ZipOutputStream zip = new ZipOutputStream(out);
@@ -419,8 +566,9 @@ public final class Projects {
 
     public Path projectDir(String id) {
         if (!idOk(id)) throw new RequestFail(400, "That project name isn't valid.");
-        Path dir = root().resolve(id).normalize();
-        if (!dir.startsWith(root().normalize()) || !Files.isDirectory(dir)) {
+        Path external = externalDir(id);
+        Path dir = external != null ? external : root().resolve(id).normalize();
+        if ((external == null && !dir.startsWith(root().normalize())) || !Files.isDirectory(dir)) {
             throw new RequestFail(404, "That project isn't here.");
         }
         return dir;
@@ -885,7 +1033,7 @@ public final class Projects {
     private String uniqueId(String base) {
         String id = base;
         int n = 2;
-        while (Files.exists(root().resolve(id))) {
+        while (Files.exists(root().resolve(id)) || externalDir(id) != null) {
             id = base + "-" + n++;
             if (n > 500) throw new RequestFail(400, "Too many projects with that name.");
         }

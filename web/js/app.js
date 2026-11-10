@@ -241,12 +241,13 @@
 
   const $ = (id) => document.getElementById(id);
 
-  async function api(method, path, body) {
+  async function api(method, path, body, skipLocal = false) {
     // Guests may watch, stop and answer their OWN local run jobs (started through /api/share/run).
     const guestLocalJob = /^\/api\/run\/[^/]+(\/(stop|input))?$/.test(path);
     if (sharedGuest && !guestLocalJob && (/^\/api\/(run|debug|tests|terminal|check|github|recovery)(\/|$)/.test(path) || (path.startsWith("/api/projects/") && method !== "GET")))
       throw new Error("Shared guests cannot execute host tools or change the shared file structure.");
     if (method === "POST" && /^\/api\/(run|debug|tests|terminal)$/.test(path) && window.LarkShareEditing?.sessionActive()) await window.LarkShareEditing.flush();
+    if (!skipLocal) await window.LarkLocalFiles.before(method, path, body);
     const res = await fetch(path, {
       method: method,
       headers: { "Content-Type": "application/json", "X-Lark": "1" },
@@ -1454,6 +1455,7 @@
   }
 
   function parsedFile(file) {
+    if ((file.content || "").length > 400000) return { pkg: "", symbols: [], mains: [], warnings: [], imports: [], types: [] };
     const hit = parsedCache.get(file.path);
     if (hit && hit.source === file.content) return hit.result;
     const result = window.LarkJava.parseJava(file.content || "");
@@ -1897,29 +1899,62 @@
     const delay = Number(state.settings.autoSaveDelayMs) || 800;
     state.timers.set(path, setTimeout(() => {
       state.timers.delete(path);
-      saveFile(path, true);
+      saveFile(path, true).catch(() => {});
     }, delay));
   }
 
+  const saveQueues = new Map();
   async function saveFile(path, fromAutosave) {
+    const projectId = state.project && state.project.id;
+    if (!projectId) return;
+    const key = projectId + "\0" + path;
+    const previous = saveQueues.get(key) || Promise.resolve();
+    const operation = previous.catch(() => {}).then(() => {
+      if (!state.project || state.project.id !== projectId) return;
+      return performSaveFile(path, fromAutosave);
+    });
+    saveQueues.set(key, operation);
+    try { await operation; } finally {
+      if (saveQueues.get(key) === operation) saveQueues.delete(key);
+    }
+  }
+
+  async function performSaveFile(path, fromAutosave) {
     if (window.LarkShareEditing?.active(path)) { setSaveStatus("Shared document"); return; }
     const doc = docs.get(path);
     let content = doc ? doc.getValue() : (fileByPath(path) || {}).content;
     if (content == null || !state.project) return;
-    if (state.settings && state.settings.formatOnSave && String(path).endsWith(".java")) {
-      const pretty = window.LarkJava.beautifyJava(content, {
+    if (state.settings && state.settings.formatOnSave && content.length <= 400000 && String(path).endsWith(".java")) {
+      let pretty = window.LarkJava.beautifyJava(content, {
         indentSize: (state.settings && state.settings.indentSize) || 4,
         indentWithTabs: !!(state.settings && state.settings.indentWithTabs)
       });
+      // Keep the lines containing selections unchanged while typing. Formatting
+      // their indentation can otherwise move or clamp the caret during autosave.
+      const selections = doc ? doc.listSelections() : [];
+      const originalLines = content.split("\n");
+      const formattedLines = pretty.split("\n");
+      if (originalLines.length === formattedLines.length) {
+        selections.forEach((selection) => {
+          const start = Math.min(selection.anchor.line, selection.head.line);
+          const end = Math.max(selection.anchor.line, selection.head.line);
+          for (let line = start; line <= end; line++) formattedLines[line] = originalLines[line];
+        });
+        pretty = formattedLines.join("\n");
+      } else if (selections.length) {
+        pretty = content;
+      }
       if (pretty !== content) {
         content = pretty;
         if (doc) {
-          const cur = (cm && state.active === path) ? cm.getCursor() : (cmB && state.activeB === path ? cmB.getCursor() : null);
           suppress = true;
-          doc.setValue(pretty);
+          const beforeLines = doc.getValue().split("\n");
+          const afterLines = pretty.split("\n");
+          for (let line = beforeLines.length - 1; line >= 0; line--) {
+            if (beforeLines[line] !== afterLines[line]) doc.replaceRange(afterLines[line], {line, ch:0}, {line, ch:beforeLines[line].length}, "+format");
+          }
+          doc.setSelections(selections);
           suppress = false;
-          if (cur && cm && state.active === path) cm.setCursor(cur);
-          if (cur && cmB && state.activeB === path) cmB.setCursor(cur);
         }
       }
     }
@@ -1929,8 +1964,11 @@
         content: content
       });
       const file = fileByPath(path);
-      if (file) file.content = content;
-      state.dirty.delete(path);
+      // A newer edit may have arrived while this request was in flight.
+      if (!doc || doc.getValue() === content) {
+        if (file) file.content = content;
+        state.dirty.delete(path);
+      }
       renderTabs();
       renderTabsB();
       if (state.dirty.size) setSaveStatus("Saving…");
@@ -1938,14 +1976,14 @@
     } catch (err) {
       setSaveStatus("Not saved");
       toast(err.message);
+      throw err;
     }
   }
 
   async function flushSaves() {
-    const pending = [...state.timers.keys()];
+    const pending = [...state.timers.keys(), ...state.dirty];
     state.timers.forEach((timer) => clearTimeout(timer));
     state.timers.clear();
-    if (state.active) pending.push(state.active);
     const unique = [...new Set(pending)];
     for (const path of unique) await saveFile(path);
   }
@@ -1960,8 +1998,10 @@
       return false;
     }
     const before = cm.getValue();
-    const cursor = cm.getCursor();
-    const pretty = window.LarkJava.beautifyJava(before, {
+    if (before.length > 400000) { toast("Beautify is paused for large files to keep editing responsive."); return false; }
+    const selections = cm.listSelections();
+    const scroll = cm.getScrollInfo();
+    let pretty = window.LarkJava.beautifyJava(before, {
       indentSize: (state.settings && state.settings.indentSize) || 4,
       indentWithTabs: !!(state.settings && state.settings.indentWithTabs)
     });
@@ -1970,14 +2010,22 @@
       toast("Already tidy.");
       return false;
     }
-    suppress = true;
-    cm.setValue(pretty);
-    suppress = false;
-    const maxLine = Math.max(0, cm.lineCount() - 1);
-    cm.setCursor({
-      line: Math.min(cursor.line, maxLine),
-      ch: cursor.ch
+    const oldLines = before.split("\n"), newLines = pretty.split("\n");
+    if (oldLines.length !== newLines.length) { toast("Formatting would change line positions; left unchanged."); return false; }
+    selections.forEach(({anchor,head}) => {
+      for (let line = Math.min(anchor.line,head.line); line <= Math.max(anchor.line,head.line); line++) newLines[line] = oldLines[line];
     });
+    pretty = newLines.join("\n");
+    suppress = true;
+    try {
+      cm.operation(() => {
+        for (let line = oldLines.length - 1; line >= 0; line--) {
+          if (oldLines[line] !== newLines[line]) cm.replaceRange(newLines[line],{line,ch:0},{line,ch:oldLines[line].length},"+format");
+        }
+        cm.setSelections(selections);
+        cm.scrollTo(scroll.left, scroll.top);
+      });
+    } finally { suppress = false; }
     cm.focus();
     const file = fileByPath(state.active);
     if (file) file.content = pretty;
@@ -2044,9 +2092,7 @@
     btn.append(preview, name, meta);
     btn.addEventListener("click", async () => {
       try {
-        if (!state.project || state.project.id !== project.id) {
-          await openProject(project.id);
-        }
+        await openProject(project.id);
         closeProjectOverlay();
       } catch (err) {
         toast(err.message);
@@ -2473,7 +2519,10 @@
       box.appendChild(p);
       return;
     }
-    state.projects.slice(0, 8).forEach((project) => {
+    let dismissed = [];
+    try { dismissed = JSON.parse(localStorage.getItem("lark-hidden-recent-projects") || "[]"); } catch (_) {}
+    if (!Array.isArray(dismissed)) dismissed = [];
+    state.projects.filter((project) => !dismissed.includes(project.id)).slice(0, 8).forEach((project) => {
       const btn = document.createElement("button");
       btn.type = "button";
       btn.className = "welcome-recent-row";
@@ -2489,8 +2538,22 @@
       arrow.textContent = "→";
       btn.append(copy, arrow);
       btn.addEventListener("click", () => openProject(project.id).catch((err) => toast(err.message)));
-      box.appendChild(btn);
+      const row = document.createElement("div");
+      const remove = document.createElement("button");
+      remove.type = "button";
+      const removeIcon = document.createElement("span");
+      removeIcon.className = "welcome-recent-remove-icon";
+      removeIcon.setAttribute("aria-hidden", "true");
+      remove.appendChild(removeIcon);
+      remove.title = "Delete project and files";
+      remove.setAttribute("aria-label", "Delete " + project.name + " and its files");
+      remove.addEventListener("click", () => deleteProject(project).catch(error => toast(error.message)));
+      row.className = "welcome-recent-item";
+      remove.className = "welcome-recent-remove";
+      row.append(remove, btn);
+      box.appendChild(row);
     });
+    if (!box.children.length) box.appendChild(note("No recent projects. Use Choose project to reopen one."));
   }
 
   function folderIconStorageKey() {
@@ -2720,6 +2783,7 @@
 
   function scheduleCompileCheck() {
     if (sharedGuest || window.LarkShareEditing?.active(state.active)) return;
+    if ((fileByPath(state.active)?.content || "").length > 400000) return;
     ++state.checkSeq;
     if (state.checkTimer) clearTimeout(state.checkTimer);
     state.checkTimer = setTimeout(() => {
@@ -3105,6 +3169,10 @@
     if (!box) return;
     box.replaceChildren();
     const file = state.active ? fileByPath(state.active) : null;
+    if (file && file.content.length > 400000) {
+      box.appendChild(note("Large-file mode: background analysis and formatting paused."));
+      return;
+    }
     if (!file || !file.path.endsWith(".java")) {
       box.appendChild(note("Open a .java file."));
       return;
@@ -3184,6 +3252,7 @@
   }
 
   async function openProject(id) {
+    if (state.project) await flushSaves();
     if (window.LarkShareEditing?.sessionActive() && (sharedGuest || (window.LarkShareEditing.project() !== id))) throw new Error("Leave or end Share before switching projects.");
     window.LarkFlow?.projectChanged();
     hideWelcome();
@@ -3194,6 +3263,22 @@
       if (oldTerminal) { try { await api("POST", "/api/terminal/" + encodeURIComponent(oldTerminal.id) + "/stop", {}); } catch (_) { } }
       if ($("terminal-git-status")) $("terminal-git-status").textContent = "";
     }
+    const localEntry = await window.LarkLocalFiles.get(id);
+    if (localEntry) {
+      const selectedFiles = await window.LarkLocalFiles.read(id,localEntry);
+      const selectedPaths = new Set(selectedFiles.map(file => file.path));
+      for (const old of data.project.files || []) {
+        if (!selectedPaths.has(old.path)) await api("DELETE", "/api/projects/" + encodeURIComponent(id) + "/file?path=" + encodeURIComponent(old.path), null, true);
+      }
+      for (const file of selectedFiles) await api("PUT", "/api/projects/" + encodeURIComponent(id) + "/file", file, true);
+      data.project.files = selectedFiles;
+      data.project.path = "Selected " + localEntry.handle.kind + ": " + localEntry.handle.name + " (changes save here)";
+      data.project.singleFile = localEntry.handle.kind === "file";
+    }
+    try {
+      const hidden = JSON.parse(localStorage.getItem("lark-hidden-recent-projects") || "[]");
+      if (Array.isArray(hidden)) localStorage.setItem("lark-hidden-recent-projects", JSON.stringify(hidden.filter(item => item !== id)));
+    } catch (_) {}
     state.project = data.project;
     state.files = (data.project.files || []).filter((file) => !file.binary && !file.tooBig);
     state.dirs = data.project.dirs || [];
@@ -3219,7 +3304,7 @@
     renderTree();
     renderMains();
     renderProblems();
-    const file = fileForMain(data.project.mainClass) || (state.files.find((item) => item.path.endsWith(".java")) || {}).path;
+    const file = fileForMain(data.project.mainClass) || (state.files.find((item) => item.path.endsWith(".java")) || state.files[0] || {}).path;
     if (file) openPath(file);
     else showEmpty();
     api("PUT", "/api/settings", { lastProject: id }).catch(() => {});
@@ -4297,7 +4382,7 @@
   async function runSharedCopy() {
     // The host's code runs with this user's permissions, so make that explicit once per session.
     if (!sharedRunTrusted) {
-      if (!window.confirm("Run the host's code on your computer?\n\nThe code can read and change files on this computer like any program you run. Only run code from people you trust.")) return;
+      if (!await formDialog({title:"Run shared code?", ok:"Run code", note:"The host's code can read and change files on this computer. Only run code from people you trust."})) return;
       sharedRunTrusted = true;
     }
     setRunning(true, false);
@@ -5075,7 +5160,34 @@
     return state.paletteItemsView || paletteEntries($("palette-input").value);
   }
 
+  async function openSingleFile() {
+    if (window.showOpenFilePicker) {
+      let handle;
+      try { [handle] = await window.showOpenFilePicker({multiple:false,startIn:"documents"}); }
+      catch (error) { if (error.name === "AbortError") return; throw error; }
+      await flushSaves();
+      const file = await handle.getFile();
+      if (file.size > 20000000) throw new Error("Choose a text file up to 20 MB.");
+      const content = await file.text();
+      if (content.includes("\0")) throw new Error("Choose a text file, not a binary file.");
+      const data = await api("POST", "/api/import", {name:file.name,files:[{path:file.name,content}]});
+      await window.LarkLocalFiles.attach(data.id,handle,[]);
+      await refreshProjects(data.id);
+      return;
+    }
+    await flushSaves();
+    toast("Choose a code file in the system file picker.");
+    const data = await api("POST", "/api/project/open-file", {});
+    if (!data.cancelled) await refreshProjects(data.id);
+  }
+
   async function newProject() {
+    let selectedFolder = null;
+    if (window.showDirectoryPicker) {
+      try { selectedFolder = await window.showDirectoryPicker({mode:"readwrite",startIn:"documents"}); }
+      catch (error) { if (error.name === "AbortError") return; throw error; }
+      for await (const entry of selectedFolder.values()) throw new Error("Choose or create an empty folder for the new project.");
+    }
     let options = ["empty", "library", "factorial", "quiz", "sorting", "recursion", "calculator", "grades"];
     try {
       const catalog = await api("GET", "/api/templates");
@@ -5086,40 +5198,44 @@
     const values = await formDialog({
       title: "New project",
       ok: "Create",
-      note: "Pick a preset to start with working Java you can Run immediately.",
+      note: selectedFolder ? "Save location: the folder you selected — " + selectedFolder.name : "Choose a preset, then select an empty folder for your project.",
       fields: [
-        { name: "name", label: "Name", value: "" },
+        { name: "name", label: "Name", value: selectedFolder ? selectedFolder.name : "" },
         { name: "template", label: "Preset", type: "select", value: options[0], options: options }
       ]
     });
     if (!values || !values.name.trim()) return;
     const template = String(values.template || "empty").split(" — ")[0].trim();
-    const data = await api("POST", "/api/projects", { name: values.name.trim(), template: template });
+    const data = await api("POST", selectedFolder ? "/api/projects" : "/api/project/create-selected", { name: values.name.trim(), template: template });
+    if (data.cancelled) return;
+    if (selectedFolder) {
+      const initial = await api("GET", "/api/projects/" + encodeURIComponent(data.id));
+      await window.LarkLocalFiles.attach(data.id, selectedFolder, initial.project.files);
+    }
     await refreshProjects(data.id);
   }
 
-  async function deleteProject() {
-    if (!state.project) return;
+  async function deleteProject(project = state.project) {
+    if (!project) return;
+    if (window.LarkShareEditing?.sessionActive()) throw new Error("Leave or end Share before deleting a project.");
+    const detail = state.project?.id === project.id ? state.project : (await api("GET", "/api/projects/" + encodeURIComponent(project.id) + "/location")).project;
+    const linked = await window.LarkLocalFiles.get(project.id);
+    const location = linked ? "Selected " + linked.handle.kind + ": " + linked.handle.name : detail.path;
     const yes = await formDialog({
-      title: "Delete " + state.project.name,
-      ok: "Delete",
-      note: "The folder is removed from this computer."
+      title: "Delete " + project.name + "?", ok: "Delete permanently",
+      note: "This permanently deletes the project and its files from your computer. This cannot be undone.\n\nLocation: " + location
     });
     if (!yes) return;
-    const id = state.project.id;
-    await api("DELETE", "/api/projects/" + encodeURIComponent(id));
-    state.projects = state.projects.filter((project) => project.id !== id);
-    const next = state.projects[0];
-    if (next) await openProject(next.id);
-    else {
-      state.project = null;
-      state.files = [];
-      state.dirs = [];
-      state.open = [];
-      renderProjects();
-      renderTree();
-      showEmpty();
+    if (state.project?.id === project.id) await flushSaves();
+    await api("DELETE", "/api/projects/" + encodeURIComponent(project.id));
+    state.projects = state.projects.filter(item => item.id !== project.id);
+    if (state.project?.id === project.id) {
+      state.project = null; state.files = []; state.dirs = []; state.open = []; state.active = null;
+      state.dirty.clear(); docs.clear(); state.timers.forEach(clearTimeout); state.timers.clear();
+      renderTree(); showWelcome();
     }
+    renderProjects(); renderWelcomeRecent();
+    toast("Deleted " + project.name + " and its files.");
   }
 
   async function downloadZip() {
@@ -5137,7 +5253,7 @@
   async function importFolder(fileList) {
     const files = [];
     for (const file of fileList) {
-      if (file.size > 400000) continue;
+      if (file.size > 20000000) continue;
       const rel = file.webkitRelativePath || file.name;
       const path = rel.split("/").slice(1).join("/");
       if (!path || path.split("/").some((part) => part.startsWith(".") || part === "out" || part === "bin")) continue;
@@ -6207,8 +6323,8 @@
     const details = $("toolbar-more");
     const overflow = $("toolbar-overflow");
     const breakpoint = window.matchMedia("(max-width: 1280px)");
-    const actions = ["project-menu", "github", "java-assist", "extras", "beautify",
-      "run-config", "split-editor", "scratch", "theme", "settings", "help"].map(id => {
+    const actions = ["extras", "beautify",
+      "split-editor", "scratch", "theme", "settings", "help"].map(id => {
       const button = $(id);
       const placeholder = document.createComment("toolbar:" + id);
       button.before(placeholder);
@@ -6629,7 +6745,21 @@
     bindPref("setting-tray-outlines", (el) => ({ trayOutlines: el.checked }));
     bindPref("setting-autosave", (el) => ({ autoSave: el.checked }));
     bindPref("setting-autosave-delay", (el) => ({ autoSaveDelayMs: Number(el.value) }));
+    const sharePositions = $("setting-share-positions");
+    sharePositions.checked = localStorage.getItem("lark-share-show-positions") !== "false";
+    sharePositions.addEventListener("change", () => {
+      localStorage.setItem("lark-share-show-positions", String(sharePositions.checked));
+      window.LarkShareEditing?.refreshPositions();
+    });
     bindPref("setting-format-save", (el) => ({ formatOnSave: el.checked }));
+    const relayInput = $("setting-share-relay");
+    if (relayInput) relayInput.addEventListener("change", async () => {
+      try {
+        state.settings = await api("PUT", "/api/settings", { shareRelayUrl: relayInput.value.trim() });
+        relayInput.value = state.settings.shareRelayUrl || "";
+        toast("Share relay saved.");
+      } catch (err) { toast(err.message); relayInput.value = state.settings.shareRelayUrl || ""; }
+    });
     const feedInput = $("setting-update-feed");
     if (feedInput) {
       feedInput.addEventListener("change", async () => {
@@ -6708,10 +6838,64 @@
         else if (act === "manage") manageRunConfigs().catch((e) => toast(e.message));
       });
     }
+    // External files are copied into the open project; never overwrite existing files.
+    const fileDropHint = document.createElement("div");
+    fileDropHint.className = "external-file-drop-hint";
+    fileDropHint.textContent = "Drop files here";
+    fileDropHint.hidden = true;
+    fileDropHint.setAttribute("aria-hidden", "true");
+    document.body.appendChild(fileDropHint);
+    const hideFileDropHint = () => { fileDropHint.hidden = true; };
+    document.addEventListener("dragover", (event) => {
+      if (!event.dataTransfer || !Array.from(event.dataTransfer.types).includes("Files")) return;
+      event.preventDefault();
+      const tree = $("tree");
+      if (!tree) return hideFileDropHint();
+      const rect = tree.getBoundingClientRect();
+      if (!rect.width || !rect.height) return hideFileDropHint();
+      Object.assign(fileDropHint.style, { left: rect.left + "px", top: rect.top + "px", width: rect.width + "px", height: rect.height + "px" });
+      fileDropHint.hidden = false;
+    });
+    document.addEventListener("dragleave", (event) => {
+      if (!event.relatedTarget) hideFileDropHint();
+    });
+    document.addEventListener("dragend", hideFileDropHint);
+    window.addEventListener("blur", hideFileDropHint);
+    document.addEventListener("drop", async (event) => {
+      hideFileDropHint();
+      const files = Array.from(event.dataTransfer?.files || []);
+      if (!files.length) return;
+      event.preventDefault();
+      event.stopPropagation();
+      try {
+        if (!state.project || !$("welcome").hidden) {
+          const imported = [];
+          for (const file of files) {
+            if (file.size > 20000000) throw new Error(file.name + " exceeds the 20 MB limit.");
+            const content = await file.text();
+            if (content.includes("\0")) throw new Error(file.name + " is not a text file.");
+            imported.push({path:file.name,content});
+          }
+          await flushSaves();
+          const data = await api("POST", "/api/import", {name:files[0].name,files:imported});
+          await refreshProjects(data.id);
+          toast("Files copied to " + state.project.path);
+          return;
+        }
+        for (const file of files) {
+          if (fileByPath(file.name)) { toast(file.name + " already exists; it was not overwritten."); continue; }
+          if (file.size > 20000000) { toast(file.name + " exceeds the 20 MB limit."); continue; }
+          const content = await file.text();
+          if (content.includes("\0")) { toast(file.name + " is not a text file."); continue; }
+          await writeNewFile(file.name, content);
+        }
+      } catch (err) { toast(err.message); }
+    }, true);
     document.querySelectorAll("[data-welcome]").forEach((button) => {
       button.addEventListener("click", () => {
         const act = button.dataset.welcome;
         if (act === "new-project") newProject().catch((err) => toast(err.message));
+        else if (act === "open-file") openSingleFile().catch((err) => toast(err.message));
         else if (act === "import-folder") $("import-folder").click();
         else if (act === "import-zip") $("import-zip").click();
         else if (act === "github") $("github").click();
@@ -7048,7 +7232,17 @@
       refreshAllEditors();
     });
     bindSplitters();
-    $("console-toggle").addEventListener("click", () => setConsoleOpen($("center").classList.contains("console-collapsed")));
+    $("console-toggle").addEventListener("click", () => {
+      const opening = $("center").classList.contains("console-collapsed");
+      if (opening) showConsoleTab("output");
+      setConsoleOpen(opening);
+    });
+    $("console-fullscreen").addEventListener("click", () => {
+      const on = $("center").classList.toggle("console-fullscreen");
+      $("console-fullscreen").setAttribute("aria-pressed", String(on));
+      $("console-fullscreen").textContent = on ? "Exit fullscreen" : "Fullscreen";
+      setConsoleOpen(true);
+    });
     $("close-console").addEventListener("click", () => setConsoleOpen(false));
     $("console-toggle").setAttribute("aria-expanded", "true");
     ["shell", "workspace", "center"].forEach((id) => {
@@ -7591,6 +7785,7 @@
         formatOnSave: !!state.settings.formatOnSave
       }, false);
       if ($("setting-update-feed")) $("setting-update-feed").value = state.settings.updateFeed || "";
+      if ($("setting-share-relay")) $("setting-share-relay").value = state.settings.shareRelayUrl || "";
       showGithub();
       const version = (state.settings.javaVersion || "").split(".")[0];
       const bits = [];
@@ -7638,6 +7833,12 @@
     current: () => ({ path: state.active, doc: docs.get(state.active), project: state.project?.id }),
     notice: toast,
     flush: flushSaves,
+    async saveCopy(name, files) {
+      if (!files.length) throw new Error("There are no shared files to save.");
+      const result = await api("POST", "/api/import", {name: name + " copy", files});
+      toast("Saved a project copy. You can open it from Choose project.");
+      return result.id;
+    },
     async prepareHost(id) { if (state.project?.id !== id) await openProject(id); setSplit(false, "a"); },
     async guest(name, files) {
       await flushSaves(); sharePreviousProject = state.project?.id; sharedGuest = true; sharedRunTrusted = false;
@@ -7650,9 +7851,18 @@
     },
     async leave() {
       state.dirty.clear();
-      if (sharedGuest) { sharedGuest = false; const prior = sharePreviousProject; sharePreviousProject = null; if (prior) await openProject(prior); else { state.project = null; state.files = []; showWelcome(); renderTree(); } }
-      else if (state.project) await openProject(state.project.id);
+      if (sharedGuest) {
+        sharedGuest = false;
+        const prior = sharePreviousProject; sharePreviousProject = null;
+        state.project = null; state.active = null; state.files = []; docs.clear();
+        if (prior) await openProject(prior); else { showWelcome(); renderTree(); }
+      } else if (state.project) {
+        const id = state.project.id;
+        state.active = null;
+        await openProject(id);
+      }
     },
+    openCopy: id => refreshProjects(id),
     open: path => openPath(path),
     updated(path, text) { const file = fileByPath(path); if (file) file.content = text; state.dirty.delete(path); renderTabs(); setSaveStatus("Shared · synchronized"); }
   };

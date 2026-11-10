@@ -165,7 +165,10 @@ final class ShareTransport implements AutoCloseable {
         return parse(bytes);
     }
     static Json.Obj parse(byte[] bytes) throws IOException {
-        if (bytes.length > ShareSession.MAX_FRAME) throw new IOException("Share message exceeds its size limit.");
+        return parse(bytes, ShareSession.MAX_FRAME);
+    }
+    static Json.Obj parse(byte[] bytes, int limit) throws IOException {
+        if (bytes.length > limit) throw new IOException("Share message exceeds its size limit.");
         String text = StandardCharsets.UTF_8.newDecoder().decode(ByteBuffer.wrap(bytes)).toString();
         // The existing JSON parser is recursive. Bound nesting before calling it.
         int depth = 0; boolean quoted = false, escape = false;
