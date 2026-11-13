@@ -2845,8 +2845,14 @@
       return;
     }
     const lower = q.toLowerCase();
-    state.files.forEach((file) => {
-      if (!file.path.endsWith(".java") && !file.path.endsWith(".txt")) return;
+    const searchable = state.files.filter(file => file.path.endsWith(".java") || file.path.endsWith(".txt"));
+    const nativeMatches = window.LarkSearch?.matches(searchable, q);
+    if (nativeMatches) {
+      const lines = searchable.map(file => (file.content || "").split("\n"));
+      nativeMatches.forEach(([fileIndex, lineIndex]) => {
+        state.searchHits.push({ file: searchable[fileIndex].path, line: lineIndex + 1, text: lines[fileIndex][lineIndex].trim() });
+      });
+    } else searchable.forEach((file) => {
       const lines = (file.content || "").split("\n");
       lines.forEach((line, i) => {
         if (!line.toLowerCase().includes(lower)) return;

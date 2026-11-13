@@ -8,7 +8,7 @@ for old in release/lark-mobile*; do
     exit 1
   fi
 done
-for tool in go zip python3 makensis; do
+for tool in go cargo zip python3 makensis; do
   if ! command -v "$tool" >/dev/null 2>&1; then
     echo "Release build requires $tool. Install it or add it to PATH before building." >&2
     exit 1

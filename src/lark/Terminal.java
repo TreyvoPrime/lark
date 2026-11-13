@@ -49,7 +49,7 @@ public final class Terminal {
             sessions.remove(id);
             throw new RequestFail(500, e.getMessage() == null ? "Couldn't start a shell." : e.getMessage());
         }
-        pool.submit(session::pump);
+        if (!session.nativeSession) pool.submit(session::pump);
         return snapshot(id);
     }
 
@@ -113,6 +113,12 @@ public final class Terminal {
         private long lastGitCheck;
         final Charset charset;
         final boolean windows;
+        volatile boolean nativeSession;
+        final Object nativeLock = new Object();
+        java.io.DataInputStream nativeIn;
+        java.io.DataOutputStream nativeOut;
+        volatile boolean nativeAlive = true;
+        volatile String nativeText = "";
 
         Session(String id, Path cwd) {
             this.id = id;
@@ -132,12 +138,52 @@ public final class Terminal {
                 // Non-interactive keeps piped stdin quiet (no job-control noise).
                 pb = new ProcessBuilder(shell);
             }
+            ProcessBuilder fallback = pb;
+            Path helper = NativeTools.find();
+            if (helper != null) {
+                java.util.List<String> command = new java.util.ArrayList<>();
+                command.add(helper.toString());
+                command.add("terminal-session");
+                command.addAll(pb.command());
+                pb = new ProcessBuilder(command);
+            }
             pb.directory(cwd.toFile());
-            pb.redirectErrorStream(true);
+            if (helper == null) pb.redirectErrorStream(true);
+            else pb.redirectError(ProcessBuilder.Redirect.DISCARD);
             Map<String, String> env = pb.environment();
             env.put("TERM", "dumb");
             env.put("LARK_TERMINAL", "1");
-            process = pb.start();
+            try {
+                process = pb.start();
+                if (helper != null) {
+                    nativeIn = new java.io.DataInputStream(process.getInputStream());
+                    nativeOut = new java.io.DataOutputStream(process.getOutputStream());
+                    Process starting = process;
+                    java.util.concurrent.CompletableFuture<Integer> ready = java.util.concurrent.CompletableFuture.supplyAsync(() -> {
+                        try { return nativeIn.read(); } catch (IOException e) { return -1; }
+                    });
+                    try {
+                        if (ready.get(10, TimeUnit.SECONDS) != 0) throw new IOException("Native terminal could not start");
+                        nativeSession = true;
+                    } catch (InterruptedException e) {
+                        Thread.currentThread().interrupt();
+                        starting.destroyForcibly();
+                        throw new IOException("Native terminal interrupted", e);
+                    } catch (java.util.concurrent.ExecutionException | java.util.concurrent.TimeoutException e) {
+                        starting.destroyForcibly();
+                        throw new IOException("Native terminal could not start", e);
+                    }
+                }
+            } catch (IOException failure) {
+                if (helper == null) throw failure;
+                if (process != null) process.destroyForcibly();
+                nativeSession = false;
+                nativeIn = null; nativeOut = null;
+                fallback.directory(cwd.toFile()).redirectErrorStream(true);
+                fallback.environment().put("TERM", "dumb");
+                fallback.environment().put("LARK_TERMINAL", "1");
+                process = fallback.start();
+            }
             stdin = process.getOutputStream();
             append("— Lark terminal — " + cwd + "\n");
             String searchPath = env.entrySet().stream().filter(e -> e.getKey().equalsIgnoreCase("PATH"))
@@ -166,6 +212,22 @@ public final class Terminal {
         void checkGit() {
             Process git = null;
             try {
+                Path nativeHelper = NativeTools.find();
+                if (nativeHelper != null) {
+                    ProcessBuilder nativeBuilder = new ProcessBuilder(nativeHelper.toString(), "git-status");
+                    nativeBuilder.directory(cwd.toFile()).redirectErrorStream(true);
+                    git = nativeBuilder.start();
+                    if (!git.waitFor(2, TimeUnit.SECONDS)) {
+                        git.descendants().forEach(ProcessHandle::destroyForcibly);
+                        git.destroyForcibly();
+                        gitStatus = "Git status unavailable";
+                        return;
+                    }
+                    if (git.exitValue() == 0) {
+                        gitStatus = new String(git.getInputStream().readNBytes(65536), StandardCharsets.UTF_8).strip();
+                        return;
+                    }
+                }
                 ProcessBuilder builder = new ProcessBuilder("git", "--no-optional-locks", "status", "--porcelain=v1", "--branch");
                 builder.directory(cwd.toFile()).redirectErrorStream(true);
                 builder.environment().put("GIT_TERMINAL_PROMPT", "0");
@@ -210,6 +272,19 @@ public final class Terminal {
         void write(String text, boolean sensitive) {
             if (done || stdin == null) throw new RequestFail(400, "The shell is not running. Open Terminal again.");
             String line = text.endsWith("\n") ? text : text + "\n";
+            if (nativeSession) {
+                byte[] bytes = line.getBytes(charset);
+                try {
+                    synchronized (nativeLock) {
+                        nativeOut.writeByte(2); nativeOut.writeBoolean(sensitive); nativeOut.writeInt(bytes.length);
+                        nativeOut.write(bytes); nativeOut.flush();
+                        int status = nativeIn.readUnsignedByte();
+                        if (status == 1) throw new RequestFail(429, "Terminal input is busy. Cancel the running process or try again.");
+                        if (status != 0) throw new RequestFail(400, "The shell is not running. Open Terminal again.");
+                    }
+                } catch (IOException e) { throw new RequestFail(400, "The shell is not running. Open Terminal again."); }
+                return;
+            }
             try {
                 input.execute(() -> {
                     try {
@@ -259,7 +334,7 @@ public final class Terminal {
 
         boolean alive() {
             Process proc = process;
-            return !done && proc != null && proc.isAlive();
+            return !done && proc != null && proc.isAlive() && (!nativeSession || nativeAlive);
         }
 
         Json.Obj snapshot() {
@@ -267,6 +342,21 @@ public final class Terminal {
             synchronized (lock) {
                 text = out.toString();
             }
+            if (nativeSession && !done) {
+                try {
+                    synchronized (nativeLock) {
+                        nativeOut.writeByte(1); nativeOut.flush();
+                        nativeAlive = nativeIn.readUnsignedByte() != 0;
+                        int length = nativeIn.readInt();
+                        if (length < 0 || length > OUT_CAP + 4) throw new IOException("Invalid terminal output length");
+                        byte[] bytes = nativeIn.readNBytes(length);
+                        if (bytes.length != length) throw new IOException("Truncated terminal output");
+                        nativeText = new String(bytes, charset);
+                        if (!nativeAlive) { done = true; finishedAt = System.currentTimeMillis(); }
+                    }
+                } catch (IOException e) { done = true; nativeAlive = false; finishedAt = System.currentTimeMillis(); }
+            }
+            if (nativeSession) text += nativeText;
             return new Json.Obj()
                     .put("ok", true)
                     .put("id", id)

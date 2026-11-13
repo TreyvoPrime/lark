@@ -874,6 +874,14 @@ public final class Updates {
                     Files.copy(zin, staged, StandardCopyOption.REPLACE_EXISTING);
                     continue;
                 }
+                if ("app/lark-native.exe".equals(name)) {
+                    Path staged = ensureInsideInstall(root, root.resolve("app/lark-native.exe.pending"));
+                    Files.createDirectories(staged.getParent());
+                    Files.copy(zin, staged, StandardCopyOption.REPLACE_EXISTING);
+                    Path target = ensureInsideInstall(root, root.resolve("app/lark-native.exe"));
+                    tryApplyPending(staged, target, target.resolveSibling("lark-native.exe.bak"));
+                    continue;
+                }
                 boolean underApp = name.startsWith("app/");
                 boolean topLevel = !name.contains("/");
                 boolean allowed = "Start Lark.bat".equals(base) || "Start Lark.vbs".equals(base)

@@ -8,6 +8,9 @@
 !ifndef LARK_VERSION
   !define LARK_VERSION "3.7.0"
 !endif
+!ifndef LARK_FILE_VERSION
+  !define LARK_FILE_VERSION "3.7.0.0"
+!endif
 !ifndef LARK_PAYLOAD
   !define LARK_PAYLOAD "payload"
 !endif
@@ -40,7 +43,7 @@ SetCompressor /SOLID lzma
 !insertmacro MUI_UNPAGE_INSTFILES
 !insertmacro MUI_LANGUAGE "English"
 
-VIProductVersion "${LARK_VERSION}.0"
+VIProductVersion "${LARK_FILE_VERSION}"
 VIAddVersionKey /LANG=1033 "ProductName" "Lark Desktop"
 VIAddVersionKey /LANG=1033 "FileDescription" "Lark Desktop Setup"
 VIAddVersionKey /LANG=1033 "FileVersion" "${LARK_VERSION}"

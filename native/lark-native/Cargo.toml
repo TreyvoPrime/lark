@@ -1,0 +1,10 @@
+[package]
+name = "lark-native"
+version = "0.1.0"
+edition = "2021"
+publish = false
+
+[profile.release]
+lto = true
+strip = true
+codegen-units = 1

@@ -332,7 +332,11 @@ public final class Projects {
             Meta meta = readMeta(dir);
             Json.Arr files = new Json.Arr();
             Json.Arr dirs = new Json.Arr();
-            try (Stream<Path> walk = Files.walk(dir)) {
+            NativeTools.ProjectContents nativeContents = NativeTools.readProject(dir);
+            if (nativeContents != null) {
+                files = nativeContents.files();
+                dirs = nativeContents.dirs();
+            } else try (Stream<Path> walk = Files.walk(dir)) {
                 for (Path path : walk.sorted().toList()) {
                     if (path.equals(dir)) continue;
                     String rel = rel(dir, path);
@@ -420,7 +424,8 @@ public final class Projects {
         Path dir = projectDir(id);
         synchronized (lock(id)) {
             try {
-                Files.createDirectories(resolve(dir, rel));
+                Path path = resolve(dir, rel);
+                if (!NativeTools.mkdir(path)) Files.createDirectories(path);
             } catch (IOException e) {
                 throw new RequestFail(500, "Couldn't create that folder.");
             }
@@ -455,8 +460,10 @@ public final class Projects {
             if (Files.exists(target)) throw new RequestFail(400, "There's already something at that path.");
             if (target.startsWith(source)) throw new RequestFail(400, "Can't move a folder into itself.");
             try {
-                Files.createDirectories(target.getParent());
-                Files.move(source, target);
+                if (!NativeTools.operation("move", source, target)) {
+                    Files.createDirectories(target.getParent());
+                    Files.move(source, target);
+                }
             } catch (IOException e) {
                 throw new RequestFail(500, "Couldn't rename that.");
             }
@@ -1015,6 +1022,7 @@ public final class Projects {
 
     public static void deleteTree(Path path) throws IOException {
         if (!Files.exists(path)) return;
+        if (NativeTools.operation("delete", path)) return;
         if (Files.isDirectory(path)) {
             try (Stream<Path> walk = Files.walk(path)) {
                 for (Path child : walk.sorted(Comparator.reverseOrder()).toList()) {
@@ -1134,6 +1142,7 @@ public final class Projects {
 
     private static void writeUnlocked(Path root, String rel, String content) throws IOException {
         Path file = resolve(root, rel);
+        if (NativeTools.writeFile(file, content)) return;
         Files.createDirectories(file.getParent());
         Path tmp = file.resolveSibling(file.getFileName().toString() + ".larktmp");
         Files.writeString(tmp, content, StandardCharsets.UTF_8);
@@ -1165,7 +1174,8 @@ public final class Projects {
                 .put("name", meta.name)
                 .put("mainClass", meta.mainClass == null ? "" : meta.mainClass)
                 .put("runConfigs", meta.runConfigs == null ? new Json.Arr() : meta.runConfigs);
-        Files.writeString(dir.resolve(".lark.json"), obj.write());
+        Path path = dir.resolve(".lark.json");
+        if (!NativeTools.writeFile(path, obj.write())) Files.writeString(path, obj.write());
     }
 
     static boolean isUtf8(byte[] data) {

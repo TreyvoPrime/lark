@@ -1100,6 +1100,7 @@ public final class Server {
         if (rel.endsWith(".html")) return "text/html; charset=utf-8";
         if (rel.endsWith(".css")) return "text/css; charset=utf-8";
         if (rel.endsWith(".js")) return "text/javascript; charset=utf-8";
+        if (rel.endsWith(".wasm")) return "application/wasm";
         if (rel.endsWith(".lua")) return "text/plain; charset=utf-8";
         if (rel.endsWith(".svg")) return "image/svg+xml";
         if (rel.endsWith(".png")) return "image/png";

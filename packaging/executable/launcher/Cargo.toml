@@ -1,0 +1,13 @@
+[package]
+name = "lark-executable-launcher"
+version = "0.1.0"
+edition = "2021"
+publish = false
+
+[features]
+desktop = []
+
+[profile.release]
+lto = true
+strip = true
+codegen-units = 1

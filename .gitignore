@@ -8,3 +8,6 @@ apk/
 packaging/desktop/bin/
 packaging/desktop/payload/
 packaging/executable/bin/
+packaging/executable/launcher/target/
+native/lark-native/target/
+native/lark-search/target/

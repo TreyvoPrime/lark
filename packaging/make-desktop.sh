@@ -7,6 +7,7 @@ if [ "${LARK_SKIP_PACKAGE:-}" != "1" ] || [ ! -f dist/lark.jar ]; then
 fi
 root=$(pwd)
 version=$(sed -n 's/.*VERSION = "\([^"]*\)".*/\1/p' src/lark/Settings.java | head -n 1)
+file_version=$(printf '%s\n' "$version" | awk -F. '{printf "%d.%d.%d.%d", $1, $2, $3, $4}')
 feed_base=${LARK_UPDATE_BASE:-}
 cache=${LARK_JDK_CACHE:-"$root/release/.jdk-cache"}
 mkdir -p "$cache" release packaging/desktop/bin
@@ -20,17 +21,17 @@ else
 fi
 
 echo "Building Lark Desktop.exe (Windows, no console)..."
-if ! command -v go >/dev/null 2>&1; then
-  echo "Go is required to build the Desktop launcher." >&2
+if ! command -v cargo >/dev/null 2>&1 || ! command -v go >/dev/null 2>&1; then
+  echo "Rust, Cargo and Go are required to build the Desktop package." >&2
   exit 1
 fi
 (
-  cd packaging/desktop/launcher
-  GOOS=windows GOARCH=amd64 CGO_ENABLED=0 go build \
-    -trimpath \
-    -ldflags="-s -w -H windowsgui" \
-    -o ../bin/LarkDesktop.exe \
-    .
+  cd packaging/executable/launcher
+  case "$(uname -s)" in MINGW*|MSYS*|CYGWIN*) target=x86_64-pc-windows-msvc ;; *) target=x86_64-pc-windows-gnu ;; esac
+  cargo build --locked --release --features desktop --target "$target"
+  cp "target/$target/release/lark-executable-launcher.exe" ../../desktop/bin/LarkDesktop.exe
+  cargo build --locked --release --target "$target" --manifest-path ../../../native/lark-native/Cargo.toml
+  cp "../../../native/lark-native/target/$target/release/lark-native.exe" ../../desktop/bin/lark-native.exe
 )
 cp packaging/desktop/bin/LarkDesktop.exe "packaging/desktop/bin/Lark Desktop.exe"
 (
@@ -84,6 +85,7 @@ stage_desktop() {
   cp "packaging/desktop/bin/Lark Desktop.exe" "$stage/Lark Desktop.exe"
   cp dist/lark.jar "$stage/app/lark.jar"
   cp packaging/lark-bluetooth.exe "$stage/app/lark-bluetooth.exe"
+  cp packaging/desktop/bin/lark-native.exe "$stage/app/lark-native.exe"
   cp packaging/desktop/README-DESKTOP.txt "$stage/README.txt"
   cp packaging/desktop/start-lark-desktop.sh "$stage/start-lark-desktop.sh"
   cp packaging/desktop/start-lark-desktop.sh "$stage/Launch Lark Desktop.command"
@@ -123,6 +125,7 @@ else
   cp -a "$payload"/. "$nsi_dir/payload/"
   makensis \
     -D"LARK_VERSION=$version" \
+    -D"LARK_FILE_VERSION=$file_version" \
     -D"LARK_PAYLOAD=payload" \
     -D"LARK_OUT=$root/release/LarkDesktopSetup.exe" \
     "$nsi_dir/lark-desktop.nsi"
@@ -154,6 +157,12 @@ pack_unix() {
   stage=$(mktemp -d)
   mkdir -p "$stage/app"
   cp dist/lark.jar "$stage/app/lark.jar"
+  case "$os" in linux) native=${LARK_NATIVE_LINUX:-} ;; mac) native=${LARK_NATIVE_MAC:-} ;; esac
+  if [ -n "$native" ] && [ -f "$native" ]; then
+    cp "$native" "$stage/app/lark-native"; chmod 755 "$stage/app/lark-native"
+  elif [ "${LARK_REQUIRE_NATIVE:-0}" = 1 ]; then
+    echo "Missing native helper for $os/$arch" >&2; exit 1
+  fi
   cp packaging/desktop/README-DESKTOP.txt "$stage/README.txt"
   cp packaging/desktop/start-lark-desktop.sh "$stage/start-lark-desktop.sh"
   cp packaging/desktop/start-lark-desktop.sh "$stage/Launch Lark Desktop.command"

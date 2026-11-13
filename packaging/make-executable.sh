@@ -20,17 +20,17 @@ else
 fi
 
 echo "Building Lark.exe (Executable, Windows, no console)..."
-if ! command -v go >/dev/null 2>&1; then
-  echo "Go is required to build the Executable launcher." >&2
+if ! command -v cargo >/dev/null 2>&1 || ! command -v go >/dev/null 2>&1; then
+  echo "Rust, Cargo and Go are required to build the Executable package." >&2
   exit 1
 fi
 (
   cd packaging/executable/launcher
-  GOOS=windows GOARCH=amd64 CGO_ENABLED=0 go build \
-    -trimpath \
-    -ldflags="-s -w -H windowsgui" \
-    -o ../bin/Lark.exe \
-    .
+  case "$(uname -s)" in MINGW*|MSYS*|CYGWIN*) target=x86_64-pc-windows-msvc ;; *) target=x86_64-pc-windows-gnu ;; esac
+  cargo build --locked --release --target "$target"
+  cp "target/$target/release/lark-executable-launcher.exe" ../bin/Lark.exe
+  cargo build --locked --release --target "$target" --manifest-path ../../../native/lark-native/Cargo.toml
+  cp "../../../native/lark-native/target/$target/release/lark-native.exe" ../bin/lark-native.exe
 )
 (
   cd packaging/bluetooth
@@ -59,6 +59,7 @@ stage_executable() {
   cp packaging/executable/bin/Lark.exe "$stage/Lark.exe"
   cp dist/lark.jar "$stage/app/lark.jar"
   cp packaging/lark-bluetooth.exe "$stage/app/lark-bluetooth.exe"
+  cp packaging/executable/bin/lark-native.exe "$stage/app/lark-native.exe"
   cp packaging/executable/README.txt "$stage/README.txt"
   printf 'executable\n' > "$stage/app/executable.marker"
   printf '%s\n' "$github_latest/update.json" > "$stage/app/update-feed.url"
