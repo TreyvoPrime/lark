@@ -34,15 +34,15 @@ jobs:
             test/Check.java test/DesktopWindowCheck.java test/ShareCheck.java test/ShareEditingCheck.java \
             test/ShareBirdCheck.java test/ShareLanBirdCheck.java test/ShareCodeCheck.java test/ShareNearbyCheck.java \
             test/TerminalGitCheck.java test/TerminalCancellationCheck.java \
-            test/SettingsMinimapCheck.java test/FlowCheck.java test/GitHubAuthCheck.java
+            test/SettingsMinimapCheck.java test/FlowCheck.java test/GitHubAuthCheck.java test/ProjectWatchersCheck.java test/ProjectWatcherHttpCheck.java
           case "$RUNNER_OS" in Windows) classpath='dist/lark.jar;build/test';; *) classpath='dist/lark.jar:build/test';; esac
           export LARK_HOME="$RUNNER_TEMP/lark-share-check"
-          for check in Check DesktopWindowCheck ShareCheck ShareEditingCheck ShareBirdCheck ShareLanBirdCheck ShareCodeCheck ShareNearbyCheck TerminalGitCheck TerminalCancellationCheck FlowCheck GitHubAuthCheck; do
+          for check in Check DesktopWindowCheck ShareCheck ShareEditingCheck ShareBirdCheck ShareLanBirdCheck ShareCodeCheck ShareNearbyCheck TerminalGitCheck TerminalCancellationCheck FlowCheck GitHubAuthCheck ProjectWatchersCheck ProjectWatcherHttpCheck; do
             java -cp "$classpath" "lark.$check"
           done
           LARK_HOME="$RUNNER_TEMP/lark-settings-check" java -cp "$classpath" lark.SettingsMinimapCheck
       - name: Run editor and collaboration regressions
-        run: node --test test/java-parse.test.js test/diagnostic-range.test.cjs test/share-document.test.cjs test/share-scroll.test.cjs test/theme-palettes.test.cjs test/site-releases.test.cjs test/terminal-input.test.cjs
+        run: node --test test/java-parse.test.js test/diagnostic-range.test.cjs test/share-document.test.cjs test/share-scroll.test.cjs test/theme-palettes.test.cjs test/site-releases.test.cjs test/terminal-input.test.cjs test/project-watch-ui.test.cjs
   desktop-launcher:
     runs-on: windows-latest
     defaults:

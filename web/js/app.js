@@ -254,7 +254,7 @@
       body: body == null ? undefined : JSON.stringify(body)
     });
     const data = await res.json().catch(() => ({ ok: false, error: "Lark sent a response that wasn't JSON." }));
-    if (!res.ok || data.ok === false) throw new Error(data.error || "Request failed");
+    if (!res.ok || data.ok === false) { const error = new Error(data.error || "Request failed"); error.status = res.status; throw error; }
     return data;
   }
 
@@ -1904,6 +1904,8 @@
   }
 
   const saveQueues = new Map();
+  const watcherOwnWrites = new Map();
+  let lastWatcherWritePrune = 0;
   async function saveFile(path, fromAutosave) {
     const projectId = state.project && state.project.id;
     if (!projectId) return;
@@ -1924,6 +1926,12 @@
     const doc = docs.get(path);
     let content = doc ? doc.getValue() : (fileByPath(path) || {}).content;
     if (content == null || !state.project) return;
+    const currentFile = fileByPath(path);
+    const conflictVersion = currentFile?.conflictVersion || 0;
+    if (currentFile?.externalConflict) {
+      if (fromAutosave) { setSaveStatus("External change · save paused"); return; }
+      if (!window.confirm("This file changed outside Lark. Save your editor contents over the external version?")) throw new Error("Save cancelled; your edits are still open.");
+    }
     if (state.settings && state.settings.formatOnSave && content.length <= 400000 && String(path).endsWith(".java")) {
       let pretty = window.LarkJava.beautifyJava(content, {
         indentSize: (state.settings && state.settings.indentSize) || 4,
@@ -1958,14 +1966,29 @@
         }
       }
     }
+    const ownKey = state.project.id + "\0" + path;
+    let ownWrite;
     try {
+      const own = watcherOwnWrites.get(ownKey) || [];
+      ownWrite = { content: content, until: Date.now() + 10000, pending: true };
+      if (Date.now() - lastWatcherWritePrune > 30000) {
+        lastWatcherWritePrune = Date.now();
+        watcherOwnWrites.forEach((entries, key) => {
+          const active = entries.filter(entry => entry.until > lastWatcherWritePrune);
+          if (active.length) watcherOwnWrites.set(key, active); else watcherOwnWrites.delete(key);
+        });
+      }
+      own.push(ownWrite);
+      watcherOwnWrites.set(ownKey, own.slice(-5));
       await api("PUT", "/api/projects/" + encodeURIComponent(state.project.id) + "/file", {
         path: path,
         content: content
       });
+      ownWrite.pending = false;
       const file = fileByPath(path);
+      if (file && (file.conflictVersion || 0) === conflictVersion) { file.missingFromDisk = false; file.externalConflict = false; }
       // A newer edit may have arrived while this request was in flight.
-      if (!doc || doc.getValue() === content) {
+      if ((!doc || doc.getValue() === content) && !file?.externalConflict) {
         if (file) file.content = content;
         state.dirty.delete(path);
       }
@@ -1974,18 +1997,20 @@
       if (state.dirty.size) setSaveStatus("Saving…");
       else setSaveStatus(fromAutosave ? "Autosaved" : "Saved");
     } catch (err) {
+      const own = (watcherOwnWrites.get(ownKey) || []).filter(entry => entry !== ownWrite);
+      if (own.length) watcherOwnWrites.set(ownKey, own); else watcherOwnWrites.delete(ownKey);
       setSaveStatus("Not saved");
       toast(err.message);
       throw err;
     }
   }
 
-  async function flushSaves() {
+  async function flushSaves(background = false) {
     const pending = [...state.timers.keys(), ...state.dirty];
     state.timers.forEach((timer) => clearTimeout(timer));
     state.timers.clear();
     const unique = [...new Set(pending)];
-    for (const path of unique) await saveFile(path);
+    for (const path of unique) await saveFile(path, background);
   }
 
   function beautifyActiveFile() {
@@ -2149,6 +2174,7 @@
     }
     state.dirs.forEach((dir) => ensure(dir));
     state.files.forEach((file) => {
+      if (file.missingFromDisk) return;
       const parent = ensure(parentDir(file.path));
       parent.children.push({ name: file.path.slice(file.path.lastIndexOf("/") + 1), path: file.path, dir: false });
     });
@@ -2792,7 +2818,8 @@
     if (!state.project) return;
     const project = state.project.id;
     const seq = ++state.checkSeq;
-    await flushSaves();
+    await flushSaves(true);
+    if ([...state.dirty].some(path => fileByPath(path)?.externalConflict)) return;
     if (seq !== state.checkSeq || !state.project || state.project.id !== project) return;
     try {
       const data = await api("POST", "/api/check", { project });
@@ -3253,20 +3280,176 @@
     return match ? match.path : null;
   }
 
+  let projectWatch = null;
+  let projectWatchTimer = null;
+  let projectMutationDepth = 0;
+  function stopProjectWatch(watch = projectWatch) {
+    if (!watch) return;
+    if (watch === projectWatch) { projectWatch = null; clearTimeout(projectWatchTimer); }
+    if (watch.id) api("DELETE", "/api/projects/" + encodeURIComponent(watch.project) + "/watch/" + encodeURIComponent(watch.id)).catch(() => {});
+  }
+  function ownWatcherWrite(project, path, content) {
+    const key = project + "\0" + path;
+    const entries = (watcherOwnWrites.get(key) || []).filter(entry => entry.until > Date.now());
+    if (entries.length) watcherOwnWrites.set(key, entries); else watcherOwnWrites.delete(key);
+    return entries.some(entry => entry.content === content);
+  }
+  function hasPendingWatcherWrite(project, changes) {
+    const prefix = project + "\0";
+    for (const [key, entries] of watcherOwnWrites) {
+      if (!key.startsWith(prefix) || !entries.some(entry => entry.pending)) continue;
+      const path = key.slice(prefix.length);
+      if (!changes || changes.some(change => change.path === path || path.startsWith(change.path + "/"))) return true;
+    }
+    return false;
+  }
+  function applyProjectChanges(changes) {
+    let changed = false, conflict = false, sharedConflict = false;
+    const open = new Set(state.open || []);
+    for (const entry of changes || []) {
+      const path = entry.path;
+      if (!path || !entry.type) continue;
+      if (entry.type === "unavailable") {
+        const file = fileByPath(path);
+        if (file && (state.dirty.has(path) || open.has(path))) {
+          if (!file.externalConflict) conflict = true;
+          file.externalConflict = true; file.conflictVersion = (file.conflictVersion || 0) + 1;
+          clearTimeout(state.timers.get(path)); state.timers.delete(path);
+        }
+        continue;
+      }
+      if (entry.type === "delete") {
+        const prefix = path + "/";
+        const dirs = state.dirs.filter(dir => dir !== path && !dir.startsWith(prefix));
+        if (dirs.length !== state.dirs.length) { state.dirs = dirs; changed = true; }
+        state.files = state.files.filter(file => {
+          if (file.path !== path && !file.path.startsWith(prefix)) return true;
+          changed = true;
+          if (state.dirty.has(file.path) || open.has(file.path) || window.LarkShareEditing?.active(file.path)) {
+            if (window.LarkShareEditing?.active(file.path)) sharedConflict = true;
+            if (!file.externalConflict) conflict = true;
+            file.externalConflict = true; file.conflictVersion = (file.conflictVersion || 0) + 1; file.missingFromDisk = true;
+            clearTimeout(state.timers.get(file.path)); state.timers.delete(file.path);
+            return true;
+          }
+          docs.delete(file.path); parsedCache.delete(file.path);
+          return false;
+        });
+        continue;
+      }
+      if (entry.type === "directory") {
+        if (!state.dirs.includes(path)) { state.dirs.push(path); changed = true; }
+        continue;
+      }
+      if (entry.type !== "file" || typeof entry.content !== "string") continue;
+      let file = fileByPath(path);
+      if (!file) { state.files.push({ path: path, content: entry.content }); changed = true; continue; }
+      if (file.missingFromDisk) { file.missingFromDisk = false; changed = true; }
+      if (entry.content === file.content || ownWatcherWrite(state.project.id, path, entry.content)) continue;
+      if (state.dirty.has(path) || window.LarkShareEditing?.active(path)) {
+        if (window.LarkShareEditing?.active(path)) sharedConflict = true;
+        if (!file.externalConflict) conflict = true;
+        file.externalConflict = true;
+        file.conflictVersion = (file.conflictVersion || 0) + 1;
+        clearTimeout(state.timers.get(path)); state.timers.delete(path);
+        continue;
+      }
+      file.content = entry.content; parsedCache.delete(path); changed = true;
+      const doc = docs.get(path);
+      if (doc && doc.getValue() !== entry.content) {
+        const selections = doc.listSelections();
+        const views = [state.active === path ? cm : null, state.activeB === path ? cmB : null]
+          .filter(Boolean).map(editor => ({ editor, scroll: editor.getScrollInfo() }));
+        suppress = true;
+        try { doc.replaceRange(entry.content, {line: 0, ch: 0}, doc.posFromIndex(doc.getValue().length), "+external"); doc.setSelections(selections); }
+        finally { suppress = false; }
+        views.forEach(({ editor, scroll }) => editor.scrollTo(scroll.left, scroll.top));
+      }
+    }
+    if (changed) {
+      const tree = $("tree"), scroll = tree ? tree.scrollTop : 0;
+      renderTree(); if (tree) tree.scrollTop = scroll;
+      renderTabs(); renderTabsB(); renderMains(); refreshLocalProblems(); renderProblems();
+    }
+    if (conflict) {
+      setSaveStatus("External change · save paused");
+      toast(sharedConflict ? "A shared file changed outside Lark. The shared document is preserved; end Share before choosing how to save it." : "A file changed outside Lark. Your open edits are preserved; save manually to choose whether to overwrite it.");
+    }
+  }
+  async function reconcileProjectWatch(watch) {
+    const data = await api("GET", "/api/projects/" + encodeURIComponent(watch.project));
+    if (projectWatch !== watch || state.project?.id !== watch.project || projectMutationDepth || hasPendingWatcherWrite(watch.project, null)) return false;
+    const incoming = data.project.files || [], dirs = data.project.dirs || [];
+    const paths = new Set(incoming.map(file => file.path));
+    const dirPaths = new Set(dirs);
+    const changes = state.dirs.filter(path => !dirPaths.has(path)).map(path => ({ path, type: "delete" }));
+    state.files.forEach(file => { if (!paths.has(file.path) && !file.missingFromDisk) changes.push({ path: file.path, type: "delete" }); });
+    dirs.forEach(path => changes.push({ path, type: "directory" }));
+    incoming.forEach(file => changes.push({ path: file.path, type: file.binary || file.tooBig ? "unavailable" : "file", content: file.content }));
+    applyProjectChanges(changes);
+    return true;
+  }
+  async function pollProjectWatch(watch) {
+    if (projectWatch !== watch || state.project?.id !== watch.project) return;
+    if (projectMutationDepth) { projectWatchTimer = setTimeout(() => pollProjectWatch(watch), 250); return; }
+    if (!watch.id) {
+      try {
+        const next = await api("POST", "/api/projects/" + encodeURIComponent(watch.project) + "/watch", {});
+        if (projectWatch !== watch) { stopProjectWatch({ project: watch.project, id: next.id }); return; }
+        watch.id = next.id; watch.cursor = next.cursor; watch.needsReconcile = true;
+      } catch (_) { if (projectWatch === watch) projectWatchTimer = setTimeout(() => pollProjectWatch(watch), 3000); return; }
+    }
+    try {
+      if (watch.needsReconcile) {
+        if (!await reconcileProjectWatch(watch)) { projectWatchTimer = setTimeout(() => pollProjectWatch(watch), 250); return; }
+        watch.needsReconcile = false;
+      }
+      const result = await api("GET", "/api/projects/" + encodeURIComponent(watch.project) + "/watch/" + encodeURIComponent(watch.id) + "?cursor=" + watch.cursor);
+      if (projectWatch !== watch) return;
+      if (projectMutationDepth) { projectWatchTimer = setTimeout(() => pollProjectWatch(watch), 250); return; }
+      if (!result.overflow && hasPendingWatcherWrite(watch.project, result.changes)) { projectWatchTimer = setTimeout(() => pollProjectWatch(watch), 250); return; }
+      if (result.overflow) {
+        if (!await reconcileProjectWatch(watch)) { projectWatchTimer = setTimeout(() => pollProjectWatch(watch), 250); return; }
+      } else applyProjectChanges(result.changes);
+      watch.cursor = result.cursor;
+    } catch (error) {
+      if (projectWatch !== watch) return;
+      if (error.status !== 404) {
+        projectWatchTimer = setTimeout(() => pollProjectWatch(watch), 1500);
+        return;
+      }
+      try {
+        const next = await api("POST", "/api/projects/" + encodeURIComponent(watch.project) + "/watch", {});
+        if (projectWatch !== watch) { stopProjectWatch({ project: watch.project, id: next.id }); return; }
+        stopProjectWatch(watch);
+        watch = { project: watch.project, id: next.id, cursor: next.cursor, needsReconcile: true };
+        projectWatch = watch;
+      } catch (_) { /* Retry without scanning while the connection is unavailable. */ }
+    }
+    if (projectWatch === watch) projectWatchTimer = setTimeout(() => pollProjectWatch(watch), 750);
+  }
+
   async function openProject(id) {
     if (state.project) await flushSaves();
     if (window.LarkShareEditing?.sessionActive() && (sharedGuest || (window.LarkShareEditing.project() !== id))) throw new Error("Leave or end Share before switching projects.");
     window.LarkFlow?.projectChanged();
     hideWelcome();
     try { localStorage.setItem("lark-skip-welcome", "1"); } catch (e) {}
-    const data = await api("GET", "/api/projects/" + encodeURIComponent(id));
+    let nextWatch = null;
+    try { if (!sharedGuest) nextWatch = await api("POST", "/api/projects/" + encodeURIComponent(id) + "/watch", {}); }
+    catch (_) { /* Opening a project must remain possible if watching is unavailable. */ }
+    let data;
+    try { data = await api("GET", "/api/projects/" + encodeURIComponent(id)); }
+    catch (error) { if (nextWatch) stopProjectWatch({ project: id, id: nextWatch.id }); throw error; }
     if (state.project?.id !== id) {
+      watcherOwnWrites.clear();
       const oldTerminal = state.terminal; state.terminal = null; state.terminalEpoch++; state.terminalStart = null; stopTerminalPoll();
       if (oldTerminal) { try { await api("POST", "/api/terminal/" + encodeURIComponent(oldTerminal.id) + "/stop", {}); } catch (_) { } }
       if ($("terminal-git-status")) $("terminal-git-status").textContent = "";
     }
     const localEntry = await window.LarkLocalFiles.get(id);
     if (localEntry) {
+      if (nextWatch) { stopProjectWatch({ project: id, id: nextWatch.id }); nextWatch = null; }
       const selectedFiles = await window.LarkLocalFiles.read(id,localEntry);
       const selectedPaths = new Set(selectedFiles.map(file => file.path));
       for (const old of data.project.files || []) {
@@ -3306,6 +3489,19 @@
     renderTree();
     renderMains();
     renderProblems();
+    stopProjectWatch();
+    if (nextWatch) {
+      projectWatch = { project: id, id: nextWatch.id, cursor: nextWatch.cursor };
+      const watch = projectWatch;
+      projectWatchTimer = setTimeout(() => pollProjectWatch(watch), 0);
+    } else if (!sharedGuest && !localEntry) {
+      toast("Automatic file updates are unavailable. Lark will retry.");
+      const watch = { project: id, id: null, cursor: 0 };
+      projectWatch = watch;
+      projectWatchTimer = setTimeout(() => pollProjectWatch(watch), 3000);
+    } else if (localEntry) {
+      toast("This browser-linked copy cannot watch the original folder. Reopen it with Open folder for automatic updates.");
+    }
     const file = fileForMain(data.project.mainClass) || (state.files.find((item) => item.path.endsWith(".java")) || state.files[0] || {}).path;
     if (file) openPath(file);
     else showEmpty();
@@ -3319,6 +3515,7 @@
     renderProjects();
     if (id) await openProject(id);
     else if (!state.projects.length) {
+      stopProjectWatch();
       state.project = null;
       state.files = [];
       state.dirs = [];
@@ -4081,6 +4278,8 @@
     });
     if (!values) return;
     const path = values.path.trim().replace(/^\/+|\/+$/g, "");
+    projectMutationDepth++;
+    try {
     await api("POST", "/api/projects/" + encodeURIComponent(state.project.id) + "/mkdir", { path: path });
     if (!state.dirs.includes(path)) state.dirs.push(path);
     path.split("/").slice(0, -1).forEach((_, index, arr) => {
@@ -4089,11 +4288,15 @@
     });
     state.selected = path;
     renderTree();
+    } finally { projectMutationDepth--; }
   }
 
   async function writeNewFile(path, content) {
+    projectMutationDepth++;
+    try {
     await api("PUT", "/api/projects/" + encodeURIComponent(state.project.id) + "/file", { path: path, content: content });
-    state.files.push({ path: path, content: content });
+    const existing = fileByPath(path);
+    if (existing) { existing.content = content; existing.missingFromDisk = false; } else state.files.push({ path: path, content: content });
     const parts = path.split("/");
     parts.pop();
     let acc = "";
@@ -4103,6 +4306,7 @@
     });
     openPath(path);
     renderMains();
+    } finally { projectMutationDepth--; }
   }
 
   async function removePath(path) {
@@ -4113,6 +4317,8 @@
       note: "This removes it from the project folder on disk."
     });
     if (!yes) return;
+    projectMutationDepth++;
+    try {
     await api("DELETE", "/api/projects/" + encodeURIComponent(state.project.id) + "/file?path=" + encodeURIComponent(path));
     const prefix = path + "/";
     state.files = state.files.filter((file) => file.path !== path && !file.path.startsWith(prefix));
@@ -4128,6 +4334,7 @@
     renderTree();
     renderTabs();
     renderMains();
+    } finally { projectMutationDepth--; }
   }
 
   async function renamePath(path) {
@@ -4145,6 +4352,8 @@
   async function movePath(from, to) {
     if (!state.project || !from || !to || from === to) return;
     await flushSaves();
+    projectMutationDepth++;
+    try {
     await api("POST", "/api/projects/" + encodeURIComponent(state.project.id) + "/move", { from: from, to: to });
     const file = fileByPath(from);
     const wasDir = state.dirs.includes(from);
@@ -4195,6 +4404,7 @@
       renderTabsB();
     }
     renderMains();
+    } finally { projectMutationDepth--; }
   }
 
   function fixPackage(oldPath, newPath, content) {
@@ -5162,8 +5372,19 @@
     return state.paletteItemsView || paletteEntries($("palette-input").value);
   }
 
+  function localNativePicker() {
+    return !sharedGuest && ["localhost", "127.0.0.1", "::1", "[::1]"].includes(location.hostname);
+  }
+
+  async function openExistingFolder() {
+    if (!localNativePicker()) { $("import-folder").click(); return; }
+    await flushSaves();
+    const data = await api("POST", "/api/project/open-folder", {});
+    if (!data.cancelled) await refreshProjects(data.id);
+  }
+
   async function openSingleFile() {
-    if (window.showOpenFilePicker) {
+    if (window.showOpenFilePicker && !localNativePicker()) {
       let handle;
       try { [handle] = await window.showOpenFilePicker({multiple:false,startIn:"documents"}); }
       catch (error) { if (error.name === "AbortError") return; throw error; }
@@ -5185,7 +5406,7 @@
 
   async function newProject() {
     let selectedFolder = null;
-    if (window.showDirectoryPicker) {
+    if (window.showDirectoryPicker && !localNativePicker()) {
       try { selectedFolder = await window.showDirectoryPicker({mode:"readwrite",startIn:"documents"}); }
       catch (error) { if (error.name === "AbortError") return; throw error; }
       for await (const entry of selectedFolder.values()) throw new Error("Choose or create an empty folder for the new project.");
@@ -6891,7 +7112,7 @@
         const act = button.dataset.welcome;
         if (act === "new-project") newProject().catch((err) => toast(err.message));
         else if (act === "open-file") openSingleFile().catch((err) => toast(err.message));
-        else if (act === "import-folder") $("import-folder").click();
+        else if (act === "import-folder") openExistingFolder().catch((err) => toast(err.message));
         else if (act === "import-zip") $("import-zip").click();
         else if (act === "github") $("github").click();
       });

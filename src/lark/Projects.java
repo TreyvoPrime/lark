@@ -117,6 +117,12 @@ public final class Projects {
         return null;
     }
 
+    Path watchTarget(String id) {
+        Path dir = projectDir(id);
+        Path single = singleFile(id);
+        return single == null ? dir : single;
+    }
+
     private void requireFolderProject(String id) {
         if (singleFile(id) != null) throw new RequestFail(400, "This is a single-file workspace. Open a folder project for this operation.");
     }
@@ -140,6 +146,24 @@ public final class Projects {
             saveExternalProjects(entries);
             return id;
         } catch (IOException e) { throw new RequestFail(400, "Couldn't open that text file."); }
+    }
+
+    /** Open an existing selected directory directly, without copying or changing its files. */
+    public synchronized String openFolder(Path selected) {
+        Path dir = selected.toAbsolutePath().normalize();
+        if (!Files.isDirectory(dir)) throw new RequestFail(400, "Choose an existing folder.");
+        Json.Arr entries = externalProjects();
+        for (Json.Value value : entries.values()) {
+            if (value instanceof Json.Obj entry && entry.str("file", "").isBlank()
+                    && dir.toString().equals(entry.str("path", ""))) return entry.str("id", "");
+        }
+        String id = "external-" + java.util.UUID.randomUUID();
+        entries.add(new Json.Obj().put("id", id).put("path", dir.toString()));
+        try { saveExternalProjects(entries); }
+        catch (IOException e) { throw new RequestFail(500, "Couldn't open the selected folder."); }
+        settings.lastProject = id;
+        settings.save();
+        return id;
     }
 
     /** Register a user-selected empty directory without overwriting existing files. */

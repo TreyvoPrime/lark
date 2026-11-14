@@ -37,6 +37,7 @@ public final class Server {
     private final Terminal terminal;
     private final Recovery recovery;
     private final Share share;
+    private final ProjectWatchers projectWatchers = new ProjectWatchers();
     private static final class PushJob {
         final String id = java.util.UUID.randomUUID().toString();
         volatile String status = "running", stage = "Starting...", error = "";
@@ -150,6 +151,7 @@ public final class Server {
     }
 
     public void stop() {
+        projectWatchers.close();
         share.close();
         try {
             terminal.shutdown();
@@ -426,10 +428,10 @@ public final class Server {
             sendJson(exchange, 200, new Json.Obj().put("ok", true).put("id", id));
             return;
         }
-        if (("/api/project/create-selected".equals(path) || "/api/project/open-file".equals(path)) && "POST".equals(method)) {
+        if (("/api/project/create-selected".equals(path) || "/api/project/open-file".equals(path) || "/api/project/open-folder".equals(path)) && "POST".equals(method)) {
             if (lan || !isLoopbackPeer(exchange)) throw new RequestFail(403, "Choose files on the local computer.");
             Json.Obj body = body(exchange);
-            boolean folder = path.endsWith("create-selected");
+            boolean folder = !path.endsWith("open-file");
             Path selected;
             try { selected = NativePicker.choose(folder); }
             catch (RequestFail e) { throw e; }
@@ -438,7 +440,8 @@ public final class Server {
                 sendJson(exchange, 200, new Json.Obj().put("ok", true).put("cancelled", true));
                 return;
             }
-            String id = folder ? projects.createAt(selected, body.str("name", ""), body.str("template", "empty")) : projects.openSingleFile(selected);
+            String id = path.endsWith("open-folder") ? projects.openFolder(selected)
+                    : folder ? projects.createAt(selected, body.str("name", ""), body.str("template", "empty")) : projects.openSingleFile(selected);
             sendJson(exchange, 200, new Json.Obj().put("ok", true).put("id", id));
             return;
         }
@@ -742,6 +745,22 @@ public final class Server {
         if (parts.length >= 4 && "api".equals(parts[1]) && "projects".equals(parts[2])) {
             String id = decode(parts[3]);
             String tail = parts.length >= 5 ? parts[4] : "";
+            if ("watch".equals(tail) && parts.length == 5 && "POST".equals(method)) {
+                sendJson(exchange, 200, projectWatchers.start(id, projects.watchTarget(id)));
+                return;
+            }
+            if ("watch".equals(tail) && parts.length == 6 && "GET".equals(method)) {
+                long cursor;
+                try { cursor = Long.parseLong(query(exchange, "cursor")); }
+                catch (Exception e) { throw new RequestFail(400, "Invalid watcher cursor."); }
+                sendJson(exchange, 200, projectWatchers.poll(id, decode(parts[5]), cursor));
+                return;
+            }
+            if ("watch".equals(tail) && parts.length == 6 && "DELETE".equals(method)) {
+                projectWatchers.stop(id, decode(parts[5]));
+                sendJson(exchange, 200, new Json.Obj().put("ok", true));
+                return;
+            }
             if (parts.length == 5 && "location".equals(tail) && "GET".equals(method)) {
                 sendJson(exchange, 200, new Json.Obj().put("ok", true).put("project", projects.location(id)));
                 return;
