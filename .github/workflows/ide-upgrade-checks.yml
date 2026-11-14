@@ -42,7 +42,7 @@ jobs:
           done
           LARK_HOME="$RUNNER_TEMP/lark-settings-check" java -cp "$classpath" lark.SettingsMinimapCheck
       - name: Run editor and collaboration regressions
-        run: node --test test/java-parse.test.js test/diagnostic-range.test.cjs test/share-document.test.cjs test/share-scroll.test.cjs test/theme-palettes.test.cjs test/site-releases.test.cjs test/terminal-input.test.cjs test/project-watch-ui.test.cjs
+        run: node --test test/java-parse.test.js test/diagnostic-range.test.cjs test/file-save.test.cjs test/share-document.test.cjs test/share-scroll.test.cjs test/theme-palettes.test.cjs test/site-releases.test.cjs test/terminal-input.test.cjs test/project-watch-ui.test.cjs
   desktop-launcher:
     runs-on: windows-latest
     defaults:

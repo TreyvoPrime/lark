@@ -3,7 +3,8 @@ async page => {
   const results=[];
   const assert=(v,label)=>{if(!v)throw new Error(label);results.push(label);};
   const root=page.locator('#lark-flow');
-  if(!await root.count()) {await page.getByRole('button',{name:'Extras',exact:true}).click();await page.getByRole('button',{name:'Lark Flow…',exact:true}).click();}
+  const openFlow=async()=>{await page.locator('#tree').getByRole('button',{name:'Book.java',exact:true}).click({button:'right'});await page.getByRole('button',{name:'Open in Lark Flow',exact:true}).click();};
+  if(!await root.count()) await openFlow();
   await root.locator('.flow-node').first().waitFor();
   await root.getByRole('combobox',{name:'Flow method'}).selectOption({label:'library.Book.lend()'});
   await root.getByRole('button',{name:'Fit',exact:true}).click();
@@ -66,7 +67,7 @@ async page => {
   await root.getByRole('button',{name:'Fit',exact:true}).click();
   const chosen=await root.getByRole('combobox',{name:'Flow method'}).inputValue();
   await root.getByRole('button',{name:'Close Lark Flow',exact:true}).click();assert(await root.count()===0,'Close removes workspace and listeners');
-  await page.getByRole('button',{name:'Extras',exact:true}).click();await page.getByRole('button',{name:'Lark Flow…',exact:true}).click();
+  await openFlow();
   await root.locator('.flow-node').first().waitFor();assert(await root.getByRole('combobox',{name:'Flow method'}).inputValue()===chosen,'Selected method restored');
   await page.evaluate(r=>window.__flowBrowserResults=r,results);
 }

@@ -3,7 +3,7 @@ const fs = require('node:fs');
 const vm = require('node:vm');
 const {test} = require('node:test');
 const source=fs.readFileSync('web/js/app.js','utf8');
-const saveSource=source.slice(source.indexOf('  const saveQueues = new Map();'),source.indexOf('  async function flushSaves()'));
+const saveSource=source.slice(source.indexOf('  const saveQueues = new Map();'),source.indexOf('  async function flushSaves('));
 function harness(text, formatter=x=>x) {
  let content=text;
  const selections=[{anchor:{line:1,ch:8},head:{line:1,ch:8}}];
