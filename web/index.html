@@ -14,6 +14,7 @@
   <link rel="stylesheet" href="css/flow.css?v=__LARK_V__">
   <link rel="stylesheet" href="css/share.css?v=__LARK_V__">
   <script src="js/theme-boot.js?v=__LARK_V__"></script>
+  <script src="js/input-assistance.js?v=__LARK_V__"></script>
 </head>
 <body>
   <div id="shell">
@@ -84,18 +85,33 @@
             <span class="tray-label">Explorer</span>
           </div>
           <span class="pane-actions tray-actions" role="group" aria-label="New">
+            <button type="button" id="outline-show" title="Show project and outline" aria-label="Show project and outline" hidden>▤</button>
             <button type="button" id="tray-new" class="tray-new" title="New class, file, or folder" aria-label="New" aria-haspopup="menu">+</button>
           </span>
         </div>
         <div id="tree" class="file-tray"></div>
+        <section id="bookmark-panel" class="bookmark-panel">
+          <div class="splitter bookmark-splitter" data-split="bookmarks" title="Drag to resize Bookmarks"></div>
+          <div class="pane-head bookmark-head"><button type="button" id="bookmark-collapse" aria-expanded="true" aria-controls="bookmark-content" title="Collapse Bookmarks">▾</button><span>Bookmarks</span><div class="bookmark-head-actions"><button type="button" id="bookmark-groups" title="Manage bookmark groups">Groups</button><button type="button" id="bookmark-toggle" title="Toggle bookmark at caret" aria-label="Toggle bookmark at caret">+</button></div></div>
+          <div id="bookmark-content">
+          <div class="bookmark-search-wrap"><span aria-hidden="true">⌕</span><input id="bookmark-search" type="search" placeholder="Search bookmarks" aria-label="Search bookmarks"></div>
+          <div class="bookmark-filter"><select id="bookmark-group-filter" aria-label="Bookmark group"><option value="all">All groups</option></select></div>
+          <div class="bookmark-navigation" role="group" aria-label="Bookmark navigation">
+            <button type="button" id="bookmark-previous" title="Previous bookmark" aria-label="Previous bookmark">↑</button>
+            <button type="button" id="bookmark-next" title="Next bookmark" aria-label="Next bookmark">↓</button>
+            <select id="bookmark-scope" aria-label="Bookmark navigation scope"><option value="file">Current file</option><option value="project">Whole project</option></select>
+          </div>
+          <div id="bookmark-list"></div>
+          </div>
+        </section>
         <div id="structure">
           <div class="splitter" data-split="outline" title="Drag to resize Outline"></div>
           <div class="structure-project" title="Current project">
             <span class="tray-label">Project</span>
             <strong id="tray-project">Project</strong>
           </div>
-          <div class="pane-head structure-head"><span>Outline</span></div>
-          <div id="structure-list"></div>
+          <div class="pane-head structure-head"><button type="button" id="outline-collapse" aria-expanded="true" aria-controls="structure-list" title="Collapse Outline">▾</button><span>Outline</span><button type="button" id="outline-hide" title="Hide project and outline" aria-label="Hide project and outline">×</button></div>
+          <div id="structure-list" tabindex="0" aria-label="File outline"></div>
         </div>
       </aside>
       <div id="center">
@@ -477,6 +493,7 @@
       <div class="scratch-actions">
         <button type="button" id="scratch-run" class="primary" title="Run scratch (Ctrl+Enter)">Run</button>
         <button type="button" id="scratch-copy" title="Copy this scratch">Copy</button>
+        <button type="button" id="scratch-detach" title="Detach Scratch to New Window" aria-label="Detach Scratch to New Window">↗</button>
         <button type="button" id="scratch-more" title="Scratch actions" aria-haspopup="menu" aria-expanded="false">⋯</button>
         <button type="button" id="scratch-close" class="close-split" title="Close scratch" aria-label="Close scratch">×</button>
       </div>
@@ -510,6 +527,8 @@
           <button type="button" role="menuitem" data-scratch-act="rename">Rename…</button>
           <button type="button" role="menuitem" data-scratch-act="duplicate">Duplicate</button>
           <button type="button" role="menuitem" data-scratch-act="promote">Promote…</button>
+          <button type="button" role="menuitem" data-scratch-act="restore-setting">Toggle restore on startup</button>
+          <button type="button" role="menuitem" data-scratch-act="restore-windows">Restore detached windows</button>
         </div>
       </section>
       <section class="menu-panel-section" aria-label="Danger">
@@ -708,9 +727,15 @@
     </div>
   </aside>
   <div id="editor-context" class="editor-context" hidden role="menu">
+    <button type="button" id="ctx-bookmark" role="menuitem" hidden>Toggle Bookmark</button>
     <button type="button" id="ctx-flow" role="menuitem">Open method in Lark Flow</button>
     <button type="button" id="ctx-copy" role="menuitem">Copy</button>
     <button type="button" id="ctx-paste" role="menuitem">Paste</button>
+  </div>
+  <div id="bookmark-context" class="editor-context" hidden role="menu">
+    <button type="button" id="bookmark-context-edit" role="menuitem">Edit bookmark</button>
+    <button type="button" id="bookmark-context-move" role="menuitem">Move bookmark</button>
+    <button type="button" id="bookmark-context-remove" role="menuitem">Remove bookmark</button>
   </div>
 
   <div id="modal" hidden>
@@ -757,6 +782,7 @@
   <script src="js/minimap.js?v=__LARK_V__"></script>
   <script src="js/local-files.js?v=__LARK_V__"></script>
   <script src="js/lark-search.js?v=__LARK_V__"></script>
+  <script src="js/bookmark-anchor.js?v=__LARK_V__"></script>
   <script src="js/app.js?v=__LARK_V__"></script>
   <script src="js/share-document.js?v=__LARK_V__"></script>
   <script src="js/share-birds.js?v=__LARK_V__"></script>

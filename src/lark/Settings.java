@@ -11,13 +11,14 @@ import java.util.Set;
 /** Preferences stored in the home folder. The GitHub token never leaves this machine except for GitHub. */
 public final class Settings {
     /** Public release version. Lark 4 uses 4.0, then three-position patch/minor versions. */
-    public static final String VERSION = "4.8.5";
+    public static final String VERSION = "4.8.6";
     /** Default public update feed — always the latest GitHub release JSON companion. */
     public static final String DEFAULT_UPDATE_FEED =
             "https://github.com/TreyvoPrime/lark/releases/latest/download/update.json";
     /** Desktop-channel companion feed (same JSON; downloads.desktop-* keys preferred). */
     public static final String DEFAULT_DESKTOP_UPDATE_FEED = DEFAULT_UPDATE_FEED;
     public static final Set<String> THEMES = Set.of(
+            "carbon-rose", "evergreen-gold", "electric-charcoal", "linen-ink", "rose-quartz",
             "desk", "slate", "studio", "daylight", "moss", "ember", "fog",
             "blossom", "candy", "midnight", "citrus", "harbor",
             "graphite", "navy", "terminal", "parchment", "ultraviolet", "forest", "monochrome", "amber",

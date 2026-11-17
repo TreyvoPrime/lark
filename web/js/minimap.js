@@ -7,6 +7,7 @@
       this.editor = editor;
       this.options = Object.assign({}, defaults, options);
       this.diagnostics = [];
+      this.bookmarks = [];
       this.listeners = [];
       this.node = document.createElement("div");
       this.node.className = "editor-minimap";
@@ -26,7 +27,7 @@
       this.host.append(this.node);
       const on = (name, fn) => { editor.on(name, fn); this.listeners.push([name, fn]); };
       on("changes", () => this.schedule(180));
-      on("swapDoc", () => { this.diagnostics = []; this.clearCanvas(); this.schedule(0); });
+      on("swapDoc", () => { this.diagnostics = []; this.bookmarks = []; this.clearCanvas(); this.schedule(0); });
       on("scroll", () => this.updateViewport());
       on("refresh", () => this.schedule(80));
       on("optionChange", () => this.schedule(80));
@@ -165,6 +166,7 @@
       this.editor.scrollTo(null, this.editor.heightAtLine(line, "local"));
     }
     setDiagnostics(problems) { this.diagnostics = problems || []; this.scheduleMarkers(); }
+    setBookmarks(bookmarks) { this.bookmarks = bookmarks || []; this.scheduleMarkers(); }
     scheduleMarkers() { clearTimeout(this.markerTimer); this.markerTimer = setTimeout(() => this.drawMarkers(), 120); }
     drawMarkers() {
       cancelAnimationFrame(this.markerFrame);
@@ -174,6 +176,7 @@
       const ctx = canvas.getContext("2d"), colors = this.colors();
       const draw = (line, color, x) => { ctx.fillStyle = color; ctx.fillRect(x, Math.min(height - 2, line * this.lineScale), 4, 2); };
       if (this.options.markers) this.diagnostics.forEach(p => { if (p.line > 0) draw(p.line - 1, p.severity === "error" ? colors.error : colors.warning, width - 5); });
+      if (this.options.markers) this.bookmarks.forEach(line => { if (line >= 0) draw(line, colors.search || "#4e8fd1", width - 11); });
       const ed = this.editor, query = ed.state.search && ed.state.search.query;
       if (!query || !ed.getSearchCursor) return;
       const cursor = ed.getSearchCursor(query, { line: 0, ch: 0 }, { caseFold: typeof query === "string" && query === query.toLowerCase(), multiline: true }), doc = ed.getDoc(), revision = this.revision;

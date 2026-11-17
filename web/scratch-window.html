@@ -1,0 +1,34 @@
+<!doctype html>
+<html lang="en" data-theme="slate">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Scratch - Lark</title>
+  <link rel="icon" href="favicon.png">
+  <link rel="stylesheet" href="vendor/codemirror/codemirror.min.css">
+  <link rel="stylesheet" href="css/fonts.css">
+  <link rel="stylesheet" href="css/app.css?v=__LARK_V__">
+  <link rel="stylesheet" href="css/scratch-window.css?v=__LARK_V__">
+  <script src="js/theme-boot.js?v=__LARK_V__"></script>
+  <script src="js/input-assistance.js?v=__LARK_V__"></script>
+</head>
+<body>
+  <header class="detached-head">
+    <strong id="scratch-name">Scratch</strong>
+    <button type="button" id="scratch-rename">Rename</button>
+    <button type="button" id="scratch-on-top" aria-pressed="false" title="Keep Scratch on Top">Keep on Top</button>
+    <button type="button" id="scratch-run">Run</button>
+    <button type="button" id="scratch-stop" disabled>Stop</button>
+    <button type="button" id="scratch-insert">Insert into Active Editor</button>
+    <button type="button" id="scratch-dock">Dock to Lark</button>
+  </header>
+  <main id="detached-editor" aria-label="Scratch editor"></main>
+  <pre id="scratch-output" aria-label="Scratch output" hidden></pre>
+  <footer><span>Java</span><span id="scratch-position">Ln 1, Col 1</span><span id="scratch-save">Opening...</span></footer>
+  <script src="vendor/codemirror/codemirror.min.js"></script>
+  <script src="vendor/codemirror/mode/clike/clike.min.js"></script>
+  <script src="vendor/codemirror/addon/edit/closebrackets.min.js"></script>
+  <script src="vendor/codemirror/addon/edit/matchbrackets.min.js"></script>
+  <script src="js/scratch-window.js?v=__LARK_V__"></script>
+</body>
+</html>

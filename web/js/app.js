@@ -1,5 +1,10 @@
 (function () {
   const THEME_NAMES = {
+    "carbon-rose": "Carbon Rose",
+    "evergreen-gold": "Evergreen Gold",
+    "electric-charcoal": "Electric Charcoal",
+    "linen-ink": "Linen Ink",
+    "rose-quartz": "Rose Quartz",
     "arctic-white": "Arctic White",
     "pearl": "Pearl",
     "cloud-blue": "Cloud Blue",
@@ -71,6 +76,7 @@
     pink: "blossom"
   };
   const THEME_IDS = [
+"carbon-rose", "evergreen-gold", "electric-charcoal", "linen-ink", "rose-quartz",
     "arctic-white", "pearl", "cloud-blue", "sakura", "glacier-mint", "silverstone", "lark-snowfall", "lark-mint", "lark-lavender", "lark-paper", "lark-twilight", "lark-meadow",
     "desk", "slate", "studio", "daylight", "moss", "ember", "fog",
     "blossom", "candy", "midnight", "citrus", "harbor",
@@ -82,6 +88,11 @@
   ];
   /** Preview chip colors for the theme overlay tiles. */
   const THEME_SWATCHES = {
+    "carbon-rose": { bg: "#19191c", accent: "#ed9bb8" },
+    "evergreen-gold": { bg: "#17201e", accent: "#dbbd78" },
+    "electric-charcoal": { bg: "#191c20", accent: "#83bfff" },
+    "linen-ink": { bg: "#f6f5f2", accent: "#286b59" },
+    "rose-quartz": { bg: "#fcf5f7", accent: "#963e65" },
     "arctic-white": { bg: "#FFFFFF", accent: "#3282E6" },
     "pearl": { bg: "#FCFCFD", accent: "#7162B5" },
     "cloud-blue": { bg: "#F7FAFF", accent: "#3D85D8" },
@@ -237,6 +248,8 @@
   let scratchResize = null;
   let scratchDeck = null;
   let scratchSwitching = false;
+  const detachedScratchWindows = new Map();
+  const detachedScratchRuns = new Map();
   let assignSketch = "";
 
   const $ = (id) => document.getElementById(id);
@@ -419,6 +432,14 @@
         const parsed = JSON.parse(raw);
         if (parsed && parsed.items && Array.isArray(parsed.order) && parsed.order.length) {
           scratchDeck = parsed;
+          scratchDeck.order.forEach(id => {
+            try {
+              const recovered = JSON.parse(localStorage.getItem("lark-scratch-recovery:" + id) || "null");
+              if (recovered && scratchDeck.items[id] && typeof recovered.source === "string" && recovered.updatedAt > (scratchDeck.items[id].updatedAt || 0)) {
+                Object.assign(scratchDeck.items[id], recovered);
+              }
+            } catch (_) { /* Keep the existing deck if recovery data is invalid. */ }
+          });
           if (!scratchDeck.items[scratchDeck.active]) scratchDeck.active = scratchDeck.order[0];
           return scratchDeck;
         }
@@ -452,8 +473,21 @@
     return deck.items[deck.active] || deck.items[deck.order[0]];
   }
 
+  function restoreScratchRecovery(item) {
+    if (!item) return;
+    try {
+      const recovered = JSON.parse(localStorage.getItem("lark-scratch-recovery:" + item.id) || "null");
+      if (recovered && recovered.id === item.id && typeof recovered.source === "string" && recovered.updatedAt > (item.updatedAt || 0)) {
+        Object.assign(item, recovered);
+        persistScratchDeck();
+      }
+    } catch (_) { /* Keep the last readable deck copy. */ }
+  }
+
   function syncEditorIntoActiveScratch() {
     if (!cmScratch || !scratchDeck || scratchSwitching) return;
+    const detached = detachedScratchWindows.get(scratchDeck.active);
+    if (detached && !detached.closed) return;
     const item = scratchDeck.items[scratchDeck.active];
     if (!item) return;
     item.source = cmScratch.getValue();
@@ -495,9 +529,19 @@
     setScratchHeading();
   }
 
-  function selectScratch(id) {
+  async function scratchOwnedElsewhere(id) {
+    if (!navigator.locks || !navigator.locks.query) return false;
+    try { const locks = await navigator.locks.query(); return locks.held.some(lock => lock.name === "lark-scratch:" + id); }
+    catch (_) { return false; }
+  }
+
+  async function selectScratch(id) {
     const deck = loadScratchDeck();
+    const detached = detachedScratchWindows.get(id);
+    if (detached && !detached.closed) { detached.focus(); return; }
+    if (await scratchOwnedElsewhere(id)) { toast("This Scratch pad is open in another window."); return; }
     if (!deck.items[id] || id === deck.active) return;
+    restoreScratchRecovery(deck.items[id]);
     syncEditorIntoActiveScratch();
     deck.active = id;
     persistScratchDeck();
@@ -729,7 +773,7 @@
     const host = $("scratch-editor");
     if (!host || typeof CodeMirror === "undefined") return null;
     const item = activeScratchItem();
-    const saved = (item && item.source != null && item.source !== "") ? item.source : SCRATCH_STARTER;
+    const saved = item && item.source != null ? item.source : SCRATCH_STARTER;
     cmScratch = CodeMirror(host, {
       value: saved,
       mode: "text/x-java",
@@ -883,10 +927,14 @@
     handle.addEventListener("pointercancel", endResize);
   }
 
-  function openScratch() {
+  async function openScratch() {
     const pad = $("scratch-pad");
     if (!pad) return;
     loadScratchDeck();
+    const detached = detachedScratchWindows.get(scratchDeck.active);
+    if (detached && !detached.closed) { detached.focus(); return; }
+    if (await scratchOwnedElsewhere(scratchDeck.active)) { toast("This Scratch pad is open in another window."); return; }
+    restoreScratchRecovery(activeScratchItem());
     pad.hidden = false;
     document.body.classList.add("scratch-open");
     restoreScratchPos();
@@ -916,6 +964,111 @@
     const pad = $("scratch-pad");
     if (pad) pad.hidden = true;
     document.body.classList.remove("scratch-open");
+  }
+
+  function openDetachedScratch(item) {
+    const existing = detachedScratchWindows.get(item.id);
+    if (existing && !existing.closed) { existing.focus(); return true; }
+    const geometry = item.windowGeometry || {};
+    const width = Math.max(400, Math.min(Number(geometry.width) || 840, screen.availWidth));
+    const height = Math.max(300, Math.min(Number(geometry.height) || 620, screen.availHeight));
+    const screenLeft = Number(screen.availLeft) || 0;
+    const screenTop = Number(screen.availTop) || 0;
+    const left = Math.max(screenLeft, Math.min(Number(geometry.left) || screenLeft, screenLeft + screen.availWidth - width));
+    const top = Math.max(screenTop, Math.min(Number(geometry.top) || screenTop, screenTop + screen.availHeight - height));
+    const popup = window.open("scratch-window.html#" + encodeURIComponent(item.id), "lark-scratch-" + item.id, `popup,width=${width},height=${height},left=${left},top=${top},resizable=yes,scrollbars=yes`);
+    if (!popup) return false;
+    detachedScratchWindows.set(item.id, popup);
+    item.detached = true;
+    persistScratchDeck();
+    return true;
+  }
+
+  function detachScratch() {
+    if (!navigator.locks || !navigator.locks.query) return toast("Detaching Scratch requires browser window-lock support.");
+    const editor = ensureScratchEditor();
+    const item = activeScratchItem();
+    if (!editor || !item) return;
+    syncEditorIntoActiveScratch();
+    item.editorState = { selections: editor.listSelections(), scroll: editor.getScrollInfo(), history: editor.getHistory() };
+    if (!openDetachedScratch(item)) return toast("Allow pop-up windows to detach Scratch.");
+    $("scratch-pad").hidden = true;
+    document.body.classList.remove("scratch-open");
+  }
+
+  window.addEventListener("message", event => {
+    if (event.origin !== location.origin || !event.data || event.data.kind !== "lark-scratch") return;
+    const message = event.data;
+    const popup = detachedScratchWindows.get(message.id);
+    if (!popup || event.source !== popup) return;
+    const item = loadScratchDeck().items[message.id];
+    if (!item) return;
+    if (message.action === "ready") {
+      popup.postMessage({ kind: "lark-scratch", action: "init", id: item.id, item, theme: document.documentElement.dataset.theme }, location.origin);
+    } else if (message.action === "run") {
+      runDetachedScratch(message.id, popup, message.source);
+    } else if (message.action === "stop") {
+      const run = detachedScratchRuns.get(message.id);
+      if (run) { run.cancelled = true; if (run.id) api("POST", "/api/run/" + encodeURIComponent(run.id) + "/stop", {}).catch(() => {}); }
+    } else if (message.action === "insert") {
+      const editor = activeCm();
+      if (!state.project || !activePath() || !editor || editor.getOption("readOnly") || editor.getOption("disableInput")) {
+        return toast("Open a writable source editor before inserting Scratch text.");
+      }
+      if (typeof message.text !== "string" || !message.text) return;
+      editor.replaceSelection(message.text, "around", "+input");
+      toast("Inserted Scratch selection into " + activePath() + ".");
+    } else if (message.action === "update" || message.action === "dock") {
+      if (typeof message.source === "string") item.source = message.source;
+      if (typeof message.name === "string") item.name = sanitizeScratchName(message.name);
+      if (message.editorState) item.editorState = message.editorState;
+      if (message.windowGeometry) item.windowGeometry = message.windowGeometry;
+      if (typeof message.alwaysOnTop === "boolean") item.alwaysOnTop = message.alwaysOnTop;
+      item.updatedAt = Date.now();
+      persistScratchDeck();
+      if (message.action === "dock") {
+        item.detached = false;
+        persistScratchDeck();
+        const run = detachedScratchRuns.get(message.id);
+        if (run) { run.cancelled = true; if (run.id) api("POST", "/api/run/" + encodeURIComponent(run.id) + "/stop", {}).catch(() => {}); }
+        detachedScratchWindows.delete(message.id);
+        (async () => {
+          for (let attempt = 0; attempt < 20 && await scratchOwnedElsewhere(message.id); attempt++) await new Promise(resolve => setTimeout(resolve, 50));
+          await selectScratch(message.id);
+          await openScratch();
+          if (cmScratch && scratchOpen() && item.editorState) {
+            scratchSwitching = true; cmScratch.setValue(item.source); scratchSwitching = false;
+            try { cmScratch.setHistory(item.editorState.history); cmScratch.setSelections(item.editorState.selections); cmScratch.scrollTo(item.editorState.scroll.left, item.editorState.scroll.top); } catch (_) { /* Restore available state. */ }
+            cmScratch.focus();
+          }
+        })();
+      }
+      renderScratchDeck();
+    }
+  });
+
+  async function runDetachedScratch(id, popup, source) {
+    if (detachedScratchRuns.has(id)) return;
+    const run = { id: null, cancelled: false };
+    detachedScratchRuns.set(id, run);
+    const send = (output, done) => {
+      if (!popup.closed) popup.postMessage({ kind: "lark-scratch", action: "run-status", id, output, done }, location.origin);
+    };
+    try {
+      const wrapped = wrapScratchSource(typeof source === "string" ? source : "");
+      const result = await api("POST", "/api/scratch/run", { source: wrapped.source, mainClass: wrapped.mainClass, args: "", stdin: "" });
+      run.id = result.id;
+      if (run.cancelled || popup.closed) await api("POST", "/api/run/" + encodeURIComponent(run.id) + "/stop", {});
+      const poll = async () => {
+        try {
+          const job = await api("GET", "/api/run/" + encodeURIComponent(result.id));
+          send(job.output || "", job.done);
+          if (job.done || popup.closed) { detachedScratchRuns.delete(id); return; }
+          setTimeout(poll, 200);
+        } catch (error) { detachedScratchRuns.delete(id); send(error.message, true); }
+      };
+      poll();
+    } catch (error) { detachedScratchRuns.delete(id); send(error.message || "Scratch run failed.", true); }
   }
 
   function toggleScratch() {
@@ -960,6 +1113,26 @@
     if (act === "promote") return promoteScratch();
     if (act === "clear") return clearScratch();
     if (act === "delete") return deleteScratch();
+    if (act === "restore-setting") {
+      const enabled = localStorage.getItem("lark-scratch-restore-windows") !== "1";
+      localStorage.setItem("lark-scratch-restore-windows", enabled ? "1" : "0");
+      closeScratchMenu(); return toast("Restore Scratch windows on startup: " + (enabled ? "on" : "off"));
+    }
+    if (act === "restore-windows") { closeScratchMenu(); return restoreDetachedScratchWindows(); }
+  }
+
+  async function restoreDetachedScratchWindows() {
+    if (!navigator.locks || !navigator.locks.query) return toast("Scratch window restoration requires browser window-lock support.");
+    const deck = loadScratchDeck();
+    let blocked = false;
+    for (const id of deck.order) {
+      const item = deck.items[id];
+      if (!item) continue;
+      restoreScratchRecovery(item);
+      if (!item.detached || await scratchOwnedElsewhere(id)) continue;
+      if (!openDetachedScratch(item)) blocked = true;
+    }
+    if (blocked) toast("Allow pop-ups, then choose Restore detached windows in Scratch.");
   }
 
   function closeExtras() {
@@ -1492,7 +1665,7 @@
       mode: "text/x-java",
       theme: "lark",
       lineNumbers: !(state.settings && state.settings.lineNumbers === false),
-      gutters: ["CodeMirror-linenumbers", "breakpoints"],
+      gutters: ["CodeMirror-linenumbers", "breakpoints", "lark-bookmarks"],
       indentUnit: 4,
       tabSize: 4,
       indentWithTabs: false,
@@ -1627,7 +1800,10 @@
       "Ctrl-Alt-M": () => extractMethodAtSelection().catch((e) => toast(e.message)),
       "Cmd-Alt-M": () => extractMethodAtSelection().catch((e) => toast(e.message)),
       "Ctrl-Alt-V": () => introduceVarAtSelection().catch((e) => toast(e.message)),
-      "Cmd-Alt-V": () => introduceVarAtSelection().catch((e) => toast(e.message))
+      "Cmd-Alt-V": () => introduceVarAtSelection().catch((e) => toast(e.message)),
+      "Ctrl-Alt-B": () => toggleBookmark(activeCm(), activePath()),
+      "Alt-PageDown": () => cycleBookmark(1),
+      "Alt-PageUp": () => cycleBookmark(-1)
     };
   }
 
@@ -1635,8 +1811,36 @@
     if (!editor || editor._larkWired) return;
     editor._larkWired = true;
     editor.on("changes", () => window.LarkFlow?.changed());
+    editor.on("beforeChange", (ed, change) => {
+      if (suppress) return;
+      const path = which === "b" ? state.activeB : state.active;
+      projectBookmarks().filter(item => item.path === path).forEach(item => {
+        const mark = bookmarkMarks.get(item.id);
+        const position = mark && mark.find();
+        const removedWholeLine = change.from.line === change.to.line && position && position.line === change.from.line &&
+          change.from.ch === 0 && change.to.ch >= ed.getLine(position.line).length && change.text.join("") === "";
+        if (position && (removedWholeLine || (position.line >= change.from.line && position.line < change.to.line))) {
+          mark.clear(); bookmarkMarks.delete(item.id); item.status = "unresolved";
+        }
+      });
+    });
+    editor.on("changes", () => {
+      const path = which === "b" ? state.activeB : state.active;
+      const project = bookmarkKey();
+      if (!path || !project || !projectBookmarks().some(item => item.path === path)) return;
+      clearTimeout(bookmarkSaveTimers.get(editor));
+      bookmarkSaveTimers.set(editor, setTimeout(() => {
+        bookmarkSaveTimers.delete(editor);
+        if (bookmarkKey() !== project || (which === "b" ? state.activeB : state.active) !== path) return;
+        updateBookmarkPositions(path, editor);
+        paintBookmarks(path, editor);
+      }, 400));
+    });
     editor.on("cursorActivity", () => window.LarkFlow?.cursor());
-    editor.on("gutterClick", (ed, line, gutter) => {
+    editor.on("gutterClick", (ed, line, gutter, event) => {
+      if (event && event.button !== 0) return;
+      if (event && event.target && event.target.closest && event.target.closest(".bookmark-marker")) return;
+      if (gutter === "lark-bookmarks") { toggleBookmark(ed, which === "b" ? state.activeB : state.active, line); return; }
       if (gutter !== "breakpoints" && gutter !== "CodeMirror-linenumbers") return;
       const path = which === "b" ? state.activeB : state.active;
       toggleBreakpoint(path, line + 1, ed);
@@ -1670,6 +1874,354 @@
       const raw = JSON.parse(localStorage.getItem("lark-recent-files") || "[]");
       state.recent = Array.isArray(raw) ? raw.filter((p) => typeof p === "string") : [];
     } catch (e) { state.recent = []; }
+  }
+
+  const bookmarkMarks = new Map();
+  function invalidateBookmarkAnchors(path) {
+    projectBookmarks().filter(item => item.path === path).forEach(item => {
+      bookmarkMarks.get(item.id)?.clear(); bookmarkMarks.delete(item.id); item.status = "unresolved";
+    });
+  }
+  function repaintOpenBookmarks(path) {
+    if (cm && state.active === path) paintBookmarks(path, cm);
+    if (cmB && state.activeB === path) paintBookmarks(path, cmB);
+    renderBookmarks();
+  }
+  const bookmarkSaveTimers = new Map();
+  function flushBookmarkTimer(editor, path) {
+    if (!editor || !bookmarkSaveTimers.has(editor)) return;
+    clearTimeout(bookmarkSaveTimers.get(editor)); bookmarkSaveTimers.delete(editor);
+    if (path) updateBookmarkPositions(path, editor);
+  }
+  window.addEventListener("beforeunload", () => {
+    flushBookmarkTimer(cm, state.active);
+    flushBookmarkTimer(cmB, state.activeB);
+  });
+  let bookmarkStorageError = false;
+  function bookmarkKey() {
+    return state.project && state.project.id !== "share-remote" ? "lark-bookmarks-v1:" + state.project.id : null;
+  }
+  function readBookmarks() {
+    const key = bookmarkKey();
+    if (!key) return [];
+    try {
+      const data = JSON.parse(localStorage.getItem(key) || '{"version":1,"items":[]}');
+      if (data.version !== 1 || !Array.isArray(data.items) || data.items.some(item => !item || typeof item.path !== "string" || !item.anchor || typeof item.anchor.text !== "string")) {
+        throw new Error("Invalid bookmark data");
+      }
+      bookmarkStorageError = false;
+      return data.items;
+    } catch (_) {
+      bookmarkStorageError = true;
+      toast("Bookmark data could not be read; it has been preserved.");
+      return [];
+    }
+  }
+  let bookmarkItems = [];
+  let bookmarkProjectKey = null;
+  function projectBookmarks() {
+    const key = bookmarkKey();
+    if (key !== bookmarkProjectKey) {
+      bookmarkProjectKey = key;
+      bookmarkItems = readBookmarks();
+    }
+    return bookmarkItems;
+  }
+  function saveBookmarks() {
+    const key = bookmarkKey();
+    if (!key || bookmarkStorageError) return;
+    try { localStorage.setItem(key, JSON.stringify({ version: 1, items: projectBookmarks() })); }
+    catch (_) { toast("Could not save bookmarks; check browser storage."); }
+  }
+  function updateBookmarkPositions(path, editor) {
+    const entries = projectBookmarks().filter(item => item.path === path);
+    entries.forEach(item => {
+      const mark = bookmarkMarks.get(item.id);
+      const position = mark && mark.find();
+      if (!position) { if (mark) item.status = "unresolved"; return; }
+      item.line = position.line;
+      item.anchor = captureEditorAnchor(editor, position.line);
+      item.status = "resolved";
+    });
+    if (editor._larkMinimap) editor._larkMinimap.setBookmarks(entries.filter(item => item.status === "resolved").map(item => item.line));
+    saveBookmarks();
+    renderBookmarks();
+  }
+  function captureEditorAnchor(editor, line) {
+    const first = Math.max(0, line - 1);
+    const last = Math.min(editor.lineCount() - 1, line + 1);
+    const nearby = [];
+    for (let index = first; index <= last; index++) nearby.push(editor.getLine(index));
+    const anchor = window.LarkBookmarkAnchor.capture(nearby, line - first);
+    anchor.line = line;
+    return anchor;
+  }
+  function paintBookmarks(path, editor) {
+    if (!editor || !path || !window.LarkBookmarkAnchor) return;
+    editor.clearGutter("lark-bookmarks");
+    const entries = projectBookmarks().filter(item => item.path === path);
+    let lines = null, anchorIndex = null;
+    entries.forEach(item => {
+      let mark = bookmarkMarks.get(item.id);
+      let position = mark && mark.find();
+      if (!position) {
+        if (!lines) {
+          lines = Array.from({ length: editor.lineCount() }, (_, index) => editor.getLine(index));
+          anchorIndex = window.LarkBookmarkAnchor.createIndex(lines);
+        }
+        const resolved = window.LarkBookmarkAnchor.resolve(lines, item.anchor, anchorIndex);
+        item.status = resolved.status;
+        if (resolved.status !== "resolved") return;
+        item.line = resolved.line;
+        mark = editor.getDoc().setBookmark({ line: item.line, ch: 0 }, { insertLeft: true });
+        bookmarkMarks.set(item.id, mark);
+        position = mark.find();
+      }
+      if (!position) return;
+      const marker = document.createElement("span");
+      marker.className = "bookmark-marker";
+      marker.dataset.color = item.color || "blue";
+      marker.textContent = ({ blue: "◆", green: "●", yellow: "▲", red: "■", purple: "★" })[item.color] || "◆";
+      marker.title = (item.name || item.anchor.text || "Bookmark") + " — right-click for actions";
+      marker.setAttribute("aria-label", marker.title);
+      marker.addEventListener("click", event => { event.stopPropagation(); editBookmark(item); });
+      marker.addEventListener("contextmenu", event => {
+        event.preventDefault(); event.stopPropagation();
+        showBookmarkContext(item, event.clientX, event.clientY);
+      });
+      editor.setGutterMarker(position.line, "lark-bookmarks", marker);
+    });
+    if (editor._larkMinimap) editor._larkMinimap.setBookmarks(entries.filter(item => item.status === "resolved").map(item => item.line));
+    saveBookmarks();
+    renderBookmarks();
+  }
+  async function toggleBookmark(editor, path, line) {
+    if (!editor || !path || !bookmarkKey()) return toast("Open a local project file to bookmark it.");
+    if (bookmarkStorageError) return toast("Bookmarks are unavailable until their stored data is repaired.");
+    line = typeof line === "number" ? line : editor.getCursor().line;
+    const items = projectBookmarks();
+    const existing = items.find(item => item.path === path && (bookmarkMarks.get(item.id)?.find()?.line ?? item.line) === line && item.status !== "unresolved");
+    if (existing) {
+      bookmarkMarks.get(existing.id)?.clear();
+      bookmarkMarks.delete(existing.id);
+      items.splice(items.indexOf(existing), 1);
+      saveBookmarks();
+      paintBookmarks(path, editor);
+    } else {
+      const projectKey = bookmarkKey();
+      const item = { id: crypto.randomUUID(), path, line, name: "", color: "blue", notes: "", group: "", anchor: captureEditorAnchor(editor, line), status: "resolved" };
+      items.push(item);
+      bookmarkMarks.set(item.id, editor.getDoc().setBookmark({ line, ch: 0 }, { insertLeft: true }));
+      saveBookmarks();
+      paintBookmarks(path, editor);
+      const values = await formDialog({ title: "Name bookmark", ok: "Save", note: "Leave blank to use the code at this location.", fields: [
+        { name: "name", label: "Name (optional)", value: "" }
+      ] });
+      if (!values || bookmarkKey() !== projectKey || !items.includes(item)) return;
+      item.name = values.name.trim();
+      saveBookmarks();
+      if (activePath() === path && activeCm() === editor) paintBookmarks(path, editor);
+      else renderBookmarks();
+    }
+  }
+  function bookmarkGroupNames() {
+    const key = bookmarkKey();
+    if (!key) return [];
+    try {
+      const groups = JSON.parse(localStorage.getItem(key + ":groups") || "[]");
+      if (!Array.isArray(groups) || groups.some(group => typeof group !== "string")) return [];
+      return [...new Set(groups.concat(projectBookmarks().map(item => item.group).filter(Boolean)))].sort();
+    } catch (_) { return []; }
+  }
+  async function editBookmark(item) {
+    const key = bookmarkKey();
+    const groups = bookmarkGroupNames();
+    const values = await formDialog({ title: "Edit bookmark", ok: "Save", fields: [
+      { name: "name", label: "Name", value: item.name || "" },
+      { name: "group", label: "Group", type: "select", value: item.group || "", options: [["", "Ungrouped"], ...groups.map(group => [group, group])] },
+      { name: "color", label: "Color", type: "select", value: item.color || "blue", options: ["blue", "green", "yellow", "red", "purple"] },
+      { name: "notes", label: "Notes", value: item.notes || "" }
+    ] });
+    if (!values || bookmarkKey() !== key || !projectBookmarks().includes(item)) return;
+    item.name = values.name.trim(); item.group = values.group; item.notes = values.notes.trim(); item.color = values.color;
+    saveBookmarks();
+    if (activePath() === item.path) paintBookmarks(item.path, activeCm()); else renderBookmarks();
+  }
+  function removeBookmark(item) {
+    const items = projectBookmarks();
+    const index = items.indexOf(item);
+    if (index < 0) return;
+    bookmarkMarks.get(item.id)?.clear(); bookmarkMarks.delete(item.id);
+    items.splice(index, 1); saveBookmarks();
+    if (activePath() === item.path) paintBookmarks(item.path, activeCm()); else renderBookmarks();
+  }
+  async function reviewBookmark(item) {
+    const key = bookmarkKey();
+    const context = [item.anchor.before, item.anchor.text, item.anchor.after].filter(value => value !== null).join("\n");
+    const values = await formDialog({ title: "Move bookmark", ok: "Move", note: "Saved context:\n" + (context || "(empty line)"), fields: [
+      { name: "path", label: "Project file path", value: item.path },
+      { name: "line", label: "Line number", value: String(item.line + 1) }
+    ] });
+    if (!values || bookmarkKey() !== key || !projectBookmarks().includes(item)) return;
+    const file = fileByPath(values.path.trim()); const line = Number(values.line);
+    if (!file || !Number.isInteger(line) || line < 1 || line > (file.content || "").split("\n").length) return toast("Choose an existing project file and line.");
+    const oldPath = item.path;
+    bookmarkMarks.get(item.id)?.clear(); bookmarkMarks.delete(item.id);
+    item.path = file.path; item.line = line - 1; item.status = "unresolved";
+    if (activePath() === oldPath) paintBookmarks(oldPath, activeCm());
+    openPath(file.path);
+    bookmarkMarks.get(item.id)?.clear(); bookmarkMarks.delete(item.id);
+    item.anchor = captureEditorAnchor(cm, item.line); item.status = "resolved";
+    bookmarkMarks.set(item.id, cm.getDoc().setBookmark({ line: item.line, ch: 0 }, { insertLeft: true }));
+    saveBookmarks(); paintBookmarks(item.path, cm);
+    cm.setCursor({ line: item.line, ch: 0 }); cm.scrollIntoView({ line: item.line, ch: 0 }, 80); cm.focus();
+  }
+  function showBookmarkContext(item, x, y) {
+    const menu = $("bookmark-context");
+    menu.hidden = false;
+    menu.style.left = Math.max(8, Math.min(x, window.innerWidth - menu.offsetWidth - 8)) + "px";
+    menu.style.top = Math.max(8, Math.min(y, window.innerHeight - menu.offsetHeight - 8)) + "px";
+    $("bookmark-context-edit").onclick = () => { menu.hidden = true; editBookmark(item); };
+    $("bookmark-context-move").onclick = () => { menu.hidden = true; reviewBookmark(item); };
+    $("bookmark-context-remove").onclick = () => { menu.hidden = true; removeBookmark(item); };
+  }
+  let bookmarkFilterProject = null;
+  function bookmarkMatchesGroup(item) {
+    const value = $("bookmark-group-filter")?.value || "all";
+    return value === "all" || (value === "ungrouped" ? !item.group : value === "group:" + item.group);
+  }
+  function renderBookmarks() {
+    const list = $("bookmark-list");
+    if (!list) return;
+    const filter = $("bookmark-group-filter"), key = bookmarkKey();
+    if (filter) {
+      const previous = bookmarkFilterProject === key ? filter.value : "all";
+      bookmarkFilterProject = key;
+      filter.replaceChildren();
+      [["all", "All groups"], ["ungrouped", "Ungrouped"], ...bookmarkGroupNames().map(group => ["group:" + group, group])].forEach(([value, label]) => {
+        const option = document.createElement("option"); option.value = value; option.textContent = label; filter.appendChild(option);
+      });
+      filter.value = [...filter.options].some(option => option.value === previous) ? previous : "all";
+    }
+    list.replaceChildren();
+    const query = ($("bookmark-search")?.value || "").toLowerCase();
+    let lastGroup = null, lastFile = null;
+    const matchingBookmarks = projectBookmarks().filter(item => bookmarkMatchesGroup(item) && [item.name, item.path, item.anchor.text, item.group, item.notes].join(" ").toLowerCase().includes(query));
+    if (!matchingBookmarks.length) {
+      const empty = document.createElement("div");
+      empty.className = "bookmark-empty";
+      empty.textContent = query || (filter && filter.value !== "all") ? "No matching bookmarks" : "No bookmarks yet";
+      list.appendChild(empty);
+    }
+    matchingBookmarks
+      .slice().sort((a, b) => (a.group || "Ungrouped").localeCompare(b.group || "Ungrouped") || a.path.localeCompare(b.path) || a.line - b.line).forEach(item => {
+      const group = item.group || "Ungrouped";
+      if (group !== lastGroup) {
+        const heading = document.createElement("div"); heading.className = "bookmark-group-heading"; heading.textContent = group;
+        list.appendChild(heading); lastGroup = group; lastFile = null;
+      }
+      if (lastFile !== item.path) {
+        const heading = document.createElement("div"); heading.className = "bookmark-file-heading";
+        heading.textContent = item.path.replace(/^src\//, ""); list.appendChild(heading); lastFile = item.path;
+      }
+      const row = document.createElement("div");
+      row.className = "bookmark-row";
+      const button = document.createElement("button");
+      button.type = "button";
+      const displayPath = item.path.replace(/^src\//, "");
+      const label = document.createElement("strong");
+      const mark = document.createElement("span"); mark.className = "bookmark-marker"; mark.dataset.color = item.color || "blue";
+      mark.textContent = ({ blue: "◆", green: "●", yellow: "▲", red: "■", purple: "★" })[item.color] || "◆";
+      label.append(mark, document.createTextNode(" " + (item.name || item.anchor.text || item.path.split("/").pop())));
+      const detail = document.createElement("small"); detail.textContent = displayPath + ":" + (item.line + 1) + (item.status !== "resolved" ? " · Location needs review" : "");
+      button.append(label, detail);
+      button.title = [displayPath, item.anchor.text, item.notes].filter(Boolean).join("\n");
+      button.addEventListener("click", () => navigateBookmark(item));
+      const edit = document.createElement("button");
+      edit.type = "button"; edit.textContent = "Edit"; edit.title = "Edit bookmark";
+      edit.addEventListener("click", () => editBookmark(item));
+      const remove = document.createElement("button");
+      remove.type = "button"; remove.textContent = "×"; remove.title = "Remove bookmark";
+      remove.addEventListener("click", () => removeBookmark(item));
+      if (item.status !== "resolved") {
+        const relocate = document.createElement("button"); relocate.type = "button"; relocate.textContent = "Set here";
+        relocate.textContent = "Review";
+        relocate.title = "Review saved context and choose a new location";
+        relocate.addEventListener("click", () => reviewBookmark(item));
+        row.append(button, relocate, edit, remove);
+      } else row.append(button, edit, remove);
+      list.appendChild(row);
+    });
+  }
+  function navigateBookmark(item) {
+    if (!fileByPath(item.path)) return toast("Bookmark file is unavailable.");
+    if (activePath() !== item.path) openPath(item.path);
+    if (item.status !== "resolved") return toast("Bookmark location needs review.");
+    const editor = activeCm();
+    const doc = editor.getDoc();
+    editor.setCursor({ line: item.line, ch: 0 }); editor.scrollIntoView({ line: item.line, ch: 0 }, 80); editor.focus();
+    const handle = doc.addLineClass(item.line, "background", "bookmark-navigation-highlight");
+    setTimeout(() => { try { doc.removeLineClass(handle, "background", "bookmark-navigation-highlight"); } catch (_) {} }, 1200);
+  }
+  function cycleBookmark(direction) {
+    const path = activePath();
+    const scope = $("bookmark-scope")?.value || "file";
+    const items = projectBookmarks().filter(item => bookmarkMatchesGroup(item) && item.status === "resolved" && fileByPath(item.path) && (scope !== "file" || item.path === path)).sort((a, b) => a.path.localeCompare(b.path) || a.line - b.line);
+    if (!items.length) return toast("No resolved bookmarks.");
+    const line = activeCm()?.getCursor().line ?? 0;
+    if (items.length === 1 && items[0].path === path && items[0].line === line) return;
+    const next = direction > 0 ? items.find(item => item.path > path || (item.path === path && item.line > line)) : [...items].reverse().find(item => item.path < path || (item.path === path && item.line < line));
+    navigateBookmark(next || (direction > 0 ? items[0] : items[items.length - 1]));
+  }
+  async function manageBookmarkGroups() {
+    const key = bookmarkKey();
+    if (!key) return toast("Open a local project first.");
+    const groupKey = key + ":groups";
+    while (bookmarkKey() === key) {
+      let groups;
+      try {
+        groups = JSON.parse(localStorage.getItem(groupKey) || "[]");
+        if (!Array.isArray(groups) || groups.some(group => typeof group !== "string")) throw new Error();
+      } catch (_) { return toast("Bookmark groups could not be read; stored data was preserved."); }
+      groups = [...new Set(groups.concat(projectBookmarks().map(item => item.group).filter(Boolean)))].sort((a, b) => a.localeCompare(b));
+      const result = formDialog({ title: "Bookmark groups", ok: "Create group", note: "Deleting a group keeps its bookmarks.", fields: [
+        { name: "newName", label: "New group", value: "" }
+      ] });
+      const list = document.createElement("div"); list.className = "bookmark-group-manager";
+      if (!groups.length) {
+        const empty = document.createElement("p"); empty.className = "bookmark-group-empty"; empty.textContent = "No groups yet."; list.appendChild(empty);
+      }
+      groups.forEach(group => {
+        const row = document.createElement("div"); row.className = "bookmark-group-manager-row";
+        const details = document.createElement("div"); details.className = "bookmark-group-manager-details";
+        const name = document.createElement("input"); name.type = "text"; name.value = group; name.setAttribute("aria-label", "Name for " + group);
+        const count = projectBookmarks().filter(item => item.group === group).length;
+        const meta = document.createElement("small"); meta.textContent = count + (count === 1 ? " bookmark" : " bookmarks");
+        details.append(name, meta);
+        const rename = document.createElement("button"); rename.type = "button"; rename.textContent = "Rename"; rename.setAttribute("aria-label", "Rename " + group);
+        rename.addEventListener("click", () => closeModal({ action: "rename", group, newName: name.value }));
+        const remove = document.createElement("button"); remove.type = "button"; remove.textContent = "Delete"; remove.setAttribute("aria-label", "Delete " + group);
+        remove.addEventListener("click", () => { if (window.confirm("Delete group '" + group + "'? Its bookmarks will be kept.")) closeModal({ action: "delete", group }); });
+        row.append(details, rename, remove); list.appendChild(row);
+      });
+      $("modal-fields").prepend(list);
+      const values = await result;
+      if (!values || bookmarkKey() !== key) return;
+      const action = values.action || "create", group = values.group || "", next = (values.newName || "").trim();
+      if (action !== "delete" && (!next || groups.includes(next))) { toast("Enter a unique group name."); continue; }
+      if (action === "create") groups.push(next);
+      else {
+        if (!groups.includes(group)) { toast("That group does not exist."); continue; }
+        groups = groups.filter(name => name !== group);
+        if (action === "rename") groups.push(next);
+      }
+      try { localStorage.setItem(groupKey, JSON.stringify(groups)); } catch (_) { toast("Could not save bookmark groups."); continue; }
+      if (action !== "create") {
+        projectBookmarks().forEach(item => { if (item.group === group) item.group = action === "rename" ? next : ""; });
+        saveBookmarks();
+      }
+      renderBookmarks();
+    }
   }
 
   function bpSet(path) {
@@ -1955,6 +2507,7 @@
       if (pretty !== content) {
         content = pretty;
         if (doc) {
+          invalidateBookmarkAnchors(path);
           suppress = true;
           const beforeLines = doc.getValue().split("\n");
           const afterLines = pretty.split("\n");
@@ -1963,6 +2516,7 @@
           }
           doc.setSelections(selections);
           suppress = false;
+          repaintOpenBookmarks(path);
         }
       }
     }
@@ -2041,6 +2595,7 @@
       for (let line = Math.min(anchor.line,head.line); line <= Math.max(anchor.line,head.line); line++) newLines[line] = oldLines[line];
     });
     pretty = newLines.join("\n");
+    invalidateBookmarkAnchors(state.active);
     suppress = true;
     try {
       cm.operation(() => {
@@ -2051,6 +2606,7 @@
         cm.scrollTo(scroll.left, scroll.top);
       });
     } finally { suppress = false; }
+    repaintOpenBookmarks(state.active);
     cm.focus();
     const file = fileByPath(state.active);
     if (file) file.content = pretty;
@@ -2630,6 +3186,9 @@
   function openPath(path, opts) {
     const file = fileByPath(path);
     if (!file) return;
+    const previousEditor = opts && opts.side === "b" && state.split ? cmB : cm;
+    const previousPath = opts && opts.side === "b" && state.split ? state.activeB : state.active;
+    flushBookmarkTimer(previousEditor, previousPath);
     const editorWasHidden = $("editor").hidden || ($("editors-row") && $("editors-row").hidden);
     hideWelcome();
     ensureEditor();
@@ -2670,6 +3229,7 @@
     if (target.getOption("mode") !== mode) target.setOption("mode", mode);
     if (editorWasHidden || intoB) target.refresh();
     paintBreakpoints(path, target);
+    paintBookmarks(path, target);
     renderTabs();
     renderTabsB();
     const cursor = target.getCursor();
@@ -2704,7 +3264,7 @@
       mode: "text/x-java",
       theme: "lark",
       lineNumbers: !(state.settings && state.settings.lineNumbers === false),
-      gutters: ["CodeMirror-linenumbers", "breakpoints"],
+      gutters: ["CodeMirror-linenumbers", "breakpoints", "lark-bookmarks"],
       indentUnit: (state.settings && state.settings.indentSize) || 4,
       tabSize: (state.settings && state.settings.indentSize) || 4,
       indentWithTabs: !!(state.settings && state.settings.indentWithTabs),
@@ -2931,9 +3491,12 @@
     if (plan.importHints && plan.importHints.length) {
       const withImp = window.LarkJava.ensureImports(next, plan.importHints);
       if (withImp) {
+        updateBookmarkPositions(path, editor);
+        invalidateBookmarkAnchors(path);
         suppress = true;
         editor.setValue(withImp);
         suppress = false;
+        repaintOpenBookmarks(path);
         next = withImp;
       }
     }
@@ -3222,7 +3785,9 @@
       const label = sym.kind === "method" || sym.kind === "ctor"
         ? sym.name + (sym.detail || "()")
         : (sym.kind === "field" ? sym.detail + " " + sym.name : sym.name);
-      btn.append(document.createTextNode(label), kind);
+      const name = document.createElement("span");
+      name.className = "outline-name"; name.textContent = label;
+      btn.append(name, kind);
       btn.title = sym.signature || label;
       btn.addEventListener("click", () => jumpTo(file.path, sym.line, 1));
       box.appendChild(btn);
@@ -3320,6 +3885,10 @@
       }
       if (entry.type === "delete") {
         const prefix = path + "/";
+        projectBookmarks().filter(item => item.path === path || item.path.startsWith(prefix)).forEach(item => {
+          bookmarkMarks.get(item.id)?.clear(); bookmarkMarks.delete(item.id); item.status = "unresolved";
+        });
+        saveBookmarks();
         const dirs = state.dirs.filter(dir => dir !== path && !dir.startsWith(prefix));
         if (dirs.length !== state.dirs.length) { state.dirs = dirs; changed = true; }
         state.files = state.files.filter(file => {
@@ -3357,12 +3926,14 @@
       file.content = entry.content; parsedCache.delete(path); changed = true;
       const doc = docs.get(path);
       if (doc && doc.getValue() !== entry.content) {
+        invalidateBookmarkAnchors(path);
         const selections = doc.listSelections();
         const views = [state.active === path ? cm : null, state.activeB === path ? cmB : null]
           .filter(Boolean).map(editor => ({ editor, scroll: editor.getScrollInfo() }));
         suppress = true;
         try { doc.replaceRange(entry.content, {line: 0, ch: 0}, doc.posFromIndex(doc.getValue().length), "+external"); doc.setSelections(selections); }
         finally { suppress = false; }
+        repaintOpenBookmarks(path);
         views.forEach(({ editor, scroll }) => editor.scrollTo(scroll.left, scroll.top));
       }
     }
@@ -3432,6 +4003,8 @@
   async function openProject(id) {
     if (state.project) await flushSaves();
     if (window.LarkShareEditing?.sessionActive() && (sharedGuest || (window.LarkShareEditing.project() !== id))) throw new Error("Leave or end Share before switching projects.");
+    flushBookmarkTimer(cm, state.active);
+    flushBookmarkTimer(cmB, state.activeB);
     window.LarkFlow?.projectChanged();
     hideWelcome();
     try { localStorage.setItem("lark-skip-welcome", "1"); } catch (e) {}
@@ -3480,6 +4053,7 @@
     state.timers.forEach((timer) => clearTimeout(timer));
     state.timers.clear();
     docs.clear();
+    bookmarkMarks.clear();
     parsedCache.clear();
     clearMarks();
     location.hash = encodeURIComponent(id);
@@ -3487,6 +4061,7 @@
     $("path-note").textContent = data.project.path;
     renderProjects();
     renderTree();
+    renderBookmarks();
     renderMains();
     renderProblems();
     stopProjectWatch();
@@ -4188,11 +4763,13 @@
       const next = window.LarkJava.ensureImports(editor.getValue(), [pick]);
       if (!next) return toast(pick + " is already imported.");
       const cursor = editor.getCursor();
+      const path = activePath() || state.active;
+      invalidateBookmarkAnchors(path);
       suppress = true;
       editor.setValue(next);
       editor.setCursor(cursor);
       suppress = false;
-      const path = activePath() || state.active;
+      repaintOpenBookmarks(path);
       const file = fileByPath(path);
       if (file) file.content = next;
       state.dirty.add(path);
@@ -4232,11 +4809,13 @@
         const withImp = window.LarkJava.ensureImports(editor.getValue(), ["java.util.Objects"]);
         if (withImp) {
           const cursor = editor.getCursor();
+          const path = activePath() || state.active;
+          invalidateBookmarkAnchors(path);
           suppress = true;
           editor.setValue(withImp);
           editor.setCursor(cursor);
           suppress = false;
-          const path = activePath() || state.active;
+          repaintOpenBookmarks(path);
           const file = fileByPath(path);
           if (file) file.content = withImp;
           state.dirty.add(path);
@@ -4321,6 +4900,10 @@
     try {
     await api("DELETE", "/api/projects/" + encodeURIComponent(state.project.id) + "/file?path=" + encodeURIComponent(path));
     const prefix = path + "/";
+    projectBookmarks().filter(item => item.path === path || item.path.startsWith(prefix)).forEach(item => {
+      bookmarkMarks.get(item.id)?.clear(); bookmarkMarks.delete(item.id); item.status = "unresolved";
+    });
+    saveBookmarks(); renderBookmarks();
     state.files = state.files.filter((file) => file.path !== path && !file.path.startsWith(prefix));
     state.dirs = state.dirs.filter((dir) => dir !== path && !dir.startsWith(prefix));
     state.open.filter((item) => item === path || item.startsWith(prefix)).forEach((item) => docs.delete(item));
@@ -4351,10 +4934,16 @@
 
   async function movePath(from, to) {
     if (!state.project || !from || !to || from === to) return;
+    flushBookmarkTimer(cm, state.active);
+    flushBookmarkTimer(cmB, state.activeB);
     await flushSaves();
     projectMutationDepth++;
     try {
     await api("POST", "/api/projects/" + encodeURIComponent(state.project.id) + "/move", { from: from, to: to });
+    projectBookmarks().forEach(item => {
+      if (item.path === from || item.path.startsWith(from + "/")) item.path = to + item.path.slice(from.length);
+    });
+    saveBookmarks();
     const file = fileByPath(from);
     const wasDir = state.dirs.includes(from);
     if (file) {
@@ -4366,11 +4955,13 @@
       if (doc) {
         docs.delete(from);
         if (content !== doc.getValue()) {
+          invalidateBookmarkAnchors(to);
           suppress = true;
           const cursor = doc.getCursor();
           doc.setValue(content);
           doc.setCursor(cursor);
           suppress = false;
+          repaintOpenBookmarks(to);
         }
         docs.set(to, doc);
         await api("PUT", "/api/projects/" + encodeURIComponent(state.project.id) + "/file", { path: to, content: content });
@@ -4392,9 +4983,20 @@
     state.files.forEach((item) => {
       if (item.path.startsWith(from + "/")) item.path = to + item.path.slice(from.length);
     });
+    if (wasDir) {
+      [...docs.entries()].forEach(([path, doc]) => {
+        if (path.startsWith(from + "/")) { docs.delete(path); docs.set(to + path.slice(from.length), doc); }
+      });
+    }
+    [...state.breakpoints.entries()].forEach(([path, points]) => {
+      if (path === from || path.startsWith(from + "/")) {
+        state.breakpoints.delete(path); state.breakpoints.set(to + path.slice(from.length), points);
+      }
+    });
     state.open = state.open.map((item) => item === from ? to : item.startsWith(from + "/") ? to + item.slice(from.length) : item);
-    if (state.active === from) state.active = to;
-    if (state.activeB === from) state.activeB = to;
+    if (state.active === from || state.active?.startsWith(from + "/")) state.active = to + state.active.slice(from.length);
+    if (state.activeB === from || state.activeB?.startsWith(from + "/")) state.activeB = to + state.activeB.slice(from.length);
+    renderBookmarks();
     state.selected = to;
     state.collapsed.delete(from);
     if (fileByPath(to) && (state.active === to || state.open.includes(to))) openPath(to);
@@ -4962,6 +5564,7 @@
     file.content = next;
     parsedCache.delete(path);
     const doc = docs.get(path);
+    invalidateBookmarkAnchors(path);
     if (doc) {
       suppress = true;
       doc.setValue(next);
@@ -4971,6 +5574,7 @@
       cm.setValue(next);
       suppress = false;
     }
+    repaintOpenBookmarks(path);
     state.dirty.add(path);
     await saveFile(path);
     refreshLocalProblems();
@@ -5288,7 +5892,13 @@
     [
       ["Lark Flow: Open current method", () => openFlow(null, true)],
       ["Lark Flow: Refresh diagram", () => { openFlow(); window.LarkFlow.refresh(); }],
-      ["Lark Flow: Fit diagram", () => { openFlow(); window.LarkFlow.fit(); }]
+      ["Lark Flow: Fit diagram", () => { openFlow(); window.LarkFlow.fit(); }],
+      ["Scratch: Detach current scratch", () => detachScratch()],
+      ["Scratch: New scratchpad", () => newScratch().catch(error => toast(error.message))],
+      ["Bookmarks: Toggle bookmark", () => toggleBookmark(activeCm(), activePath())],
+      ["Bookmarks: Next bookmark", () => cycleBookmark(1)],
+      ["Bookmarks: Previous bookmark", () => cycleBookmark(-1)],
+      ["Bookmarks: Show bookmarks", () => { $("shell").classList.remove("files-collapsed"); $("files").classList.add("open"); $("bookmark-search").focus(); }]
     ].forEach(([label, action]) => {
       if (!q || label.toLowerCase().includes(q.toLowerCase())) items.push({ kind: "command", label, action, score: 100, meta: "Extras" });
     });
@@ -5889,9 +6499,9 @@
       handle.setAttribute("aria-label", "Resize " + (handle.dataset.split || "panel"));
       function updateAria() {
         const type = handle.dataset.split;
-        const size = type === "console" ? $("console").getBoundingClientRect().height : type === "outline" ? $("structure").getBoundingClientRect().height : $("files").getBoundingClientRect().width;
-        const min = type === "console" ? 72 : type === "outline" ? 88 : 160;
-        const max = type === "console" ? consolePanelMax() : type === "outline" ? outlinePanelMax() : filesPanelMax();
+        const size = type === "console" ? $("console").getBoundingClientRect().height : type === "outline" ? $("structure").getBoundingClientRect().height : type === "bookmarks" ? $("bookmark-panel").getBoundingClientRect().height : $("files").getBoundingClientRect().width;
+        const min = type === "console" ? 72 : type === "outline" ? 88 : type === "bookmarks" ? 70 : 160;
+        const max = type === "console" ? consolePanelMax() : type === "outline" ? outlinePanelMax() : type === "bookmarks" ? Math.max(70, $("files").getBoundingClientRect().height * .65) : filesPanelMax();
         handle.setAttribute("aria-valuemin", String(min)); handle.setAttribute("aria-valuemax", String(Math.round(max)));
         handle.setAttribute("aria-valuenow", String(Math.round(size))); handle.setAttribute("aria-valuetext", Math.round(size) + " pixels");
       }
@@ -5903,7 +6513,7 @@
         const amount = (event.shiftKey ? 40 : 10) * (event.key === keys[0] ? -1 : 1);
         const files = $("files").getBoundingClientRect();
         const start = { x: 0, y: 0, files: files.width, filesH: files.height, console: $("console").getBoundingClientRect().height,
-          outline: $("structure").getBoundingClientRect().height, center: $("center").getBoundingClientRect().height };
+          outline: $("structure").getBoundingClientRect().height, bookmarks: $("bookmark-panel").getBoundingClientRect().height, center: $("center").getBoundingClientRect().height };
         onMove({ clientX: amount, clientY: amount }, start);
         updateAria(); savePanels(); refreshAllEditors();
       });
@@ -5925,6 +6535,7 @@
             ($("structure") ? $("structure").getBoundingClientRect().height : 180),
             88, outlinePanelMax(filesBox.height), 180
           ),
+          bookmarks: $("bookmark-panel").getBoundingClientRect().height,
           center: $("center").getBoundingClientRect().height,
           pointerId: event.pointerId
         };
@@ -6014,6 +6625,16 @@
         savePanels();
       });
     }
+    const bookmarkSplit = document.querySelector("[data-split=bookmarks]");
+    try {
+      const saved = Number(localStorage.getItem("lark-bookmark-height"));
+      if (saved >= 70) style.setProperty("--bookmark-h", clampPanel(saved, 70, Math.max(70, $("files").getBoundingClientRect().height * .65), 160) + "px");
+    } catch (_) {}
+    drag(bookmarkSplit, "row", (ev, start) => {
+      const next = clampPanel(start.bookmarks - (ev.clientY - start.y), 70, Math.max(70, start.filesH * .65), 160);
+      style.setProperty("--bookmark-h", next + "px");
+      try { localStorage.setItem("lark-bookmark-height", String(next)); } catch (_) {}
+    });
   }
 
   function isTyping(target) {
@@ -6094,9 +6715,11 @@
       parsedCache.delete(change.path);
       const doc = docs.get(change.path);
       if (doc) {
+        invalidateBookmarkAnchors(change.path);
         suppress = true;
         doc.setValue(change.content);
         suppress = false;
+        repaintOpenBookmarks(change.path);
       }
       await api("PUT", "/api/projects/" + encodeURIComponent(state.project.id) + "/file", {
         path: change.path,
@@ -6715,6 +7338,43 @@
   }
 
   function bind() {
+    const setOutlineHidden = hidden => {
+      $("structure").hidden = hidden;
+      $("outline-show").hidden = !hidden;
+      try { localStorage.setItem("lark-outline-hidden", hidden ? "1" : "0"); } catch (_) {}
+    };
+    try { setOutlineHidden(localStorage.getItem("lark-outline-hidden") === "1"); } catch (_) { setOutlineHidden(false); }
+    $("outline-hide").addEventListener("click", () => setOutlineHidden(true));
+    $("outline-show").addEventListener("click", () => setOutlineHidden(false));
+    $("bookmark-previous")?.addEventListener("click", () => cycleBookmark(-1));
+    $("bookmark-next")?.addEventListener("click", () => cycleBookmark(1));
+    try { $("bookmark-scope").value = localStorage.getItem("lark-bookmark-scope") === "project" ? "project" : "file"; } catch (_) {}
+    $("bookmark-scope")?.addEventListener("change", event => { try { localStorage.setItem("lark-bookmark-scope", event.target.value); } catch (_) {} });
+    document.addEventListener("pointerdown", event => {
+      if ($("bookmark-context") && !event.target.closest("#bookmark-context, .bookmark-marker")) $("bookmark-context").hidden = true;
+    });
+    document.addEventListener("keydown", event => { if (event.key === "Escape" && $("bookmark-context")) $("bookmark-context").hidden = true; });
+    [["bookmark-collapse", "bookmark-panel", "bookmark-content", "Bookmarks"], ["outline-collapse", "structure", "structure-list", "Outline"]].forEach(([buttonId, panelId, contentId, label]) => {
+      const button = $(buttonId), panel = $(panelId), content = $(contentId);
+      if (!button || !panel || !content) return;
+      const setCollapsed = collapsed => {
+        panel.classList.toggle("is-collapsed", collapsed);
+        content.hidden = collapsed;
+        button.setAttribute("aria-expanded", String(!collapsed));
+        button.title = (collapsed ? "Expand " : "Collapse ") + label;
+        button.textContent = collapsed ? "▸" : "▾";
+      };
+      try { setCollapsed(localStorage.getItem("lark-tray-collapsed:" + panelId) === "1"); } catch (_) { setCollapsed(false); }
+      button.addEventListener("click", () => {
+        const collapsed = !panel.classList.contains("is-collapsed");
+        setCollapsed(collapsed);
+        try { localStorage.setItem("lark-tray-collapsed:" + panelId, collapsed ? "1" : "0"); } catch (_) {}
+      });
+    });
+    $("bookmark-toggle")?.addEventListener("click", () => toggleBookmark(activeCm(), activePath()));
+    $("bookmark-search")?.addEventListener("input", renderBookmarks);
+    $("bookmark-group-filter")?.addEventListener("change", renderBookmarks);
+    $("bookmark-groups")?.addEventListener("click", () => manageBookmarkGroups().catch(error => toast(error.message)));
     $("code-image").addEventListener("click", () => exportCodeImage().catch(err => toast(err.message)));
     setupToolbarOverflow();
     setupToolbarResize();
@@ -6728,6 +7388,7 @@
     });
     if ($("scratch")) $("scratch").addEventListener("click", () => toggleScratch());
     if ($("scratch-run")) $("scratch-run").addEventListener("click", () => runScratch().catch((err) => toast(err.message)));
+    if ($("scratch-detach")) $("scratch-detach").addEventListener("click", detachScratch);
     if ($("scratch-copy")) $("scratch-copy").addEventListener("click", () => copyScratchAll());
     if ($("scratch-close")) $("scratch-close").addEventListener("click", () => closeScratch());
     if ($("scratch-out-clear")) {
@@ -7924,6 +8585,7 @@
   }
 
   function bindEditorContextMenu() {
+    let bookmarkContext = null;
     const menu = $("editor-context");
     if (!menu) return;
     const hide = () => { menu.hidden = true; };
@@ -7937,6 +8599,10 @@
     };
     document.addEventListener("contextmenu", (event) => {
       const inEditor = event.target.closest && event.target.closest(".CodeMirror, #scratch-editor, #console-out, #terminal-out, textarea, input");
+      const gutter = event.target.closest && event.target.closest("#editor .CodeMirror-gutters, #editor-b .CodeMirror-gutters");
+      const contextEditor = gutter && gutter.closest("#editor-b") ? cmB : cm;
+      bookmarkContext = gutter && contextEditor ? { editor: contextEditor, path: contextEditor === cmB ? state.activeB : state.active, line: contextEditor.coordsChar({ left: event.clientX, top: event.clientY }, "window").line } : null;
+      if ($("ctx-bookmark")) $("ctx-bookmark").hidden = !bookmarkContext;
       if ($("ctx-flow")) $("ctx-flow").hidden = !event.target.closest("#editor, #editor-b");
       event.preventDefault();
       if (!inEditor) {
@@ -7946,6 +8612,10 @@
       showAt(event.clientX, event.clientY);
     });
     document.addEventListener("click", hide);
+    if ($("ctx-bookmark")) $("ctx-bookmark").addEventListener("click", () => {
+      if (bookmarkContext) toggleBookmark(bookmarkContext.editor, bookmarkContext.path, bookmarkContext.line);
+      hide();
+    });
     document.addEventListener("keydown", (event) => {
       if (event.key === "Escape") hide();
     });
@@ -7984,6 +8654,7 @@
   }
 
   async function boot() {
+    await window.LarkBookmarkAnchor.ready;
     try {
       ensureEditor();
       bind();
@@ -8056,6 +8727,7 @@
       }
       window.LarkEditorReady = true;
       document.dispatchEvent(new Event("lark-editor-ready"));
+      try { if (localStorage.getItem("lark-scratch-restore-windows") === "1") restoreDetachedScratchWindows(); } catch (_) { /* Storage unavailable. */ }
       checkUpdates(false).catch(() => {});
     } catch (err) {
       $("boot").textContent = err.message || "Lark couldn't open.";

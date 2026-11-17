@@ -42,6 +42,10 @@ public final class Runner {
     private final ConcurrentHashMap<String, Object> locks = new ConcurrentHashMap<>();
 
     public String start(Path project, String mainClass, String args, String stdin) {
+        return start(project, mainClass, args, stdin, false);
+    }
+
+    private String start(Path project, String mainClass, String args, String stdin, boolean cleanup) {
         String id = UUID.randomUUID().toString();
         Job job = new Job(id);
         jobs.put(id, job);
@@ -68,6 +72,11 @@ public final class Runner {
             } catch (Exception e) {
                 job.append((e.getMessage() == null ? "The run failed." : e.getMessage()) + "\n");
                 job.finish(1);
+            } finally {
+                if (cleanup) {
+                    try { Projects.deleteTree(project); } catch (IOException ignored) { /* Best effort. */ }
+                    locks.remove(key);
+                }
             }
         });
         return id;
@@ -88,15 +97,16 @@ public final class Runner {
         if (!main.matches("[A-Za-z_][A-Za-z0-9_]*")) {
             throw new RequestFail(400, "Invalid scratch main class.");
         }
-        Path dir = Settings.home().resolve("scratch-run");
+        Path dir = null;
         try {
-            if (Files.isDirectory(dir)) Projects.deleteTree(dir);
-            Files.createDirectories(dir);
+            Files.createDirectories(Settings.home());
+            dir = Files.createTempDirectory(Settings.home(), "scratch-run-");
             Files.writeString(dir.resolve(main + ".java"), source);
         } catch (IOException e) {
+            if (dir != null) try { Projects.deleteTree(dir); } catch (IOException ignored) { /* Best effort. */ }
             throw new RequestFail(500, "Couldn't prepare the scratch pad run.");
         }
-        return start(dir, main, args == null ? "" : args, stdin == null ? "" : stdin);
+        return start(dir, main, args == null ? "" : args, stdin == null ? "" : stdin, true);
     }
 
     public Json.Obj snapshot(String id) {
@@ -216,7 +226,7 @@ public final class Runner {
         if (stdin == null || stdin.isBlank()) {
             job.append("(Type under Output if the program asks a question.)\n");
         }
-        int exit = executeProcess(run, project, stdin, 300, job, null, null, true);
+        int exit = executeProcess(run, project, stdin, 0, job, null, null, true);
         if (!job.cancelled) job.append("\n— exited " + exit + "\n");
         job.finish(exit);
     }
@@ -239,6 +249,7 @@ public final class Runner {
             return 127;
         }
         job.process = process;
+        if (job.cancelled) process.destroyForcibly();
         Thread outThread = gobble(process.getInputStream(), echo ? job : null, stdout);
         Thread errThread = gobble(process.getErrorStream(), echo ? job : null, stderr);
         OutputStream os = process.getOutputStream();
@@ -262,7 +273,13 @@ public final class Runner {
         } catch (IOException ignored) {
             // The program may have closed stdin already.
         }
-        boolean finished = process.waitFor(seconds, TimeUnit.SECONDS);
+        boolean finished;
+        if (seconds <= 0) {
+            process.waitFor();
+            finished = true;
+        } else {
+            finished = process.waitFor(seconds, TimeUnit.SECONDS);
+        }
         if (keepOpen) job.closeStdin();
         if (!finished) {
             process.destroyForcibly();

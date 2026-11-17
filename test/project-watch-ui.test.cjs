@@ -11,6 +11,7 @@ function fixture() {
   const state = { project: { id: 'p' }, files: [], dirs: [], open: [], dirty: new Set(), timers: new Map() };
   const tree = { scrollTop: 41 };
   const context = { state, docs, parsedCache: new Map(), watcherOwnWrites: new Map(), window: {}, Date, Set, clearTimeout, suppress: false,
+    projectBookmarks: () => [], bookmarkMarks: new Map(), saveBookmarks() {}, invalidateBookmarkAnchors() {}, repaintOpenBookmarks() {},
     fileByPath: path => state.files.find(file => file.path === path),
     $: id => id === 'tree' ? tree : null,
     renderTree() {}, renderTabs() {}, renderTabsB() {}, renderMains() {}, refreshLocalProblems() {}, renderProblems() {},

@@ -1,0 +1,22 @@
+const assert = require('node:assert/strict');
+const { capture, createIndex, resolve } = require('../web/js/bookmark-anchor.js');
+
+const original = ['class Example {', '  void grow() {', '    count++;', '  }', '}'];
+const anchor = capture(original, 1);
+assert.deepEqual(resolve(['// inserted', ...original], anchor), { status: 'resolved', line: 2 });
+assert.deepEqual(resolve(['// inserted', ...original], anchor, createIndex(['// inserted', ...original])), { status: 'resolved', line: 2 });
+assert.deepEqual(resolve(['class Example {', '  void other() {', '    count++;', '  }', '}'], anchor), { status: 'unresolved' });
+assert.equal(resolve(['void grow() {', 'x', 'void grow() {'], { line: 0, text: 'void grow() {', before: null, after: null }).status, 'ambiguous');
+assert.deepEqual(resolve(['a', 'target', 'z', 'b', 'target', 'c'], { line: 4, text: 'target', before: 'b', after: 'c' }), { status: 'resolved', line: 4 });
+assert.equal(resolve(['', '', ''], { line: 1, text: '', before: null, after: null }).status, 'ambiguous');
+assert.equal(resolve(['other'], { line: 0, text: 'missing', before: null, after: null }).status, 'unresolved');
+assert.equal(resolve(['different', 'target', 'different'], { line: 1, text: 'target', before: 'old', after: 'context' }).status, 'unresolved');
+assert.deepEqual(resolve(['before', '', 'after'], capture(['before', '', 'after'], 1)), { status: 'resolved', line: 1 });
+assert.throws(() => capture(original, 20), RangeError);
+const largeDocument = Array.from({ length: 20000 }, (_, index) => `statement_${index}();`);
+const largeAnchors = Array.from({ length: 200 }, (_, index) => capture(largeDocument, index * 99));
+const started = performance.now();
+const index = createIndex(largeDocument);
+largeAnchors.forEach((saved, i) => assert.deepEqual(resolve(largeDocument, saved, index), { status: 'resolved', line: i * 99 }));
+console.log(`Indexed 20,000 lines and resolved 200 bookmarks in ${(performance.now() - started).toFixed(1)} ms`);
+console.log('Bookmark anchor tests passed');

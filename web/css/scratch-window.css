@@ -1,0 +1,9 @@
+html, body { height: 100%; margin: 0; }
+body { display: flex; flex-direction: column; color: var(--text); background: var(--bg); font-family: inherit; }
+.detached-head { display: flex; align-items: center; gap: 8px; padding: 8px 12px; border-bottom: 1px solid var(--border); }
+.detached-head strong { flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+#detached-editor { flex: 1; min-height: 0; }
+#detached-editor .CodeMirror { height: 100%; }
+footer { display: flex; gap: 18px; padding: 6px 12px; border-top: 1px solid var(--border); font-size: 12px; }
+#scratch-output { max-height: 30%; min-height: 4em; overflow: auto; margin: 0; padding: 10px 12px; border-top: 1px solid var(--border); white-space: pre-wrap; }
+#scratch-on-top[aria-pressed="true"] { outline: 2px solid var(--accent); }

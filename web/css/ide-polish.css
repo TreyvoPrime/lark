@@ -27,6 +27,92 @@
   --shadow: 0 6px 18px #263d4618;
 }
 body { font-family: var(--ui-font); font-size: 13px; }
+[data-theme="carbon-rose"] {
+  color-scheme: dark;
+  --bg: #19191c; --bg-elev: #242428; --bg-sunken: #19191c; --line: #35353c;
+  --text: #e4dfe5; --muted: #afa5b0; --faint: #afa5b0; --accent: #ed9bb8; --accent-ink: #18201e;
+  --hover: color-mix(in srgb, #ed9bb8 10%, #19191c); --select: color-mix(in srgb, #ed9bb8 22%, #19191c);
+  --green: #9bc58c; --red: #ee9196; --warn: #dfc47e;
+  --syn-keyword: #ed9bb8; --syn-string: #afd09b; --syn-comment: #afa5b0;
+  --syn-number: #c9a8e1; --syn-type: #dfc47e;
+  --syn-annotation: #e0b78c; --syn-def: #94ced9;
+  --syn-atom: #c9a8e1; --syn-operator: #e4dfe5; --syn-variable: #e4dfe5;
+  --shadow: 0 8px 24px #0005;
+}
+[data-theme="evergreen-gold"] {
+  color-scheme: dark;
+  --bg: #17201e; --bg-elev: #202c28; --bg-sunken: #17201e; --line: #394b43;
+  --text: #dce8df; --muted: #a3b8aa; --faint: #a3b8aa; --accent: #dbbd78; --accent-ink: #18201e;
+  --hover: color-mix(in srgb, #dbbd78 10%, #17201e); --select: color-mix(in srgb, #dbbd78 22%, #17201e);
+  --green: #9bc58c; --red: #ee9196; --warn: #dfc47e;
+  --syn-keyword: #dbbd78; --syn-string: #afd09b; --syn-comment: #a3b8aa;
+  --syn-number: #c9a8e1; --syn-type: #dfc47e;
+  --syn-annotation: #e0b78c; --syn-def: #94ced9;
+  --syn-atom: #c9a8e1; --syn-operator: #dce8df; --syn-variable: #dce8df;
+  --shadow: 0 8px 24px #0005;
+}
+[data-theme="electric-charcoal"] {
+  color-scheme: dark;
+  --bg: #191c20; --bg-elev: #24292f; --bg-sunken: #191c20; --line: #3c4650;
+  --text: #e0e8f0; --muted: #a3b2c1; --faint: #a3b2c1; --accent: #83bfff; --accent-ink: #18201e;
+  --hover: color-mix(in srgb, #83bfff 10%, #191c20); --select: color-mix(in srgb, #83bfff 22%, #191c20);
+  --green: #9bc58c; --red: #ee9196; --warn: #dfc47e;
+  --syn-keyword: #83bfff; --syn-string: #afd09b; --syn-comment: #a3b2c1;
+  --syn-number: #c9a8e1; --syn-type: #dfc47e;
+  --syn-annotation: #e0b78c; --syn-def: #94ced9;
+  --syn-atom: #c9a8e1; --syn-operator: #e0e8f0; --syn-variable: #e0e8f0;
+  --shadow: 0 8px 24px #0005;
+}
+[data-theme="linen-ink"] {
+  color-scheme: light;
+  --bg: #f6f5f2; --bg-elev: #ffffff; --bg-sunken: #f6f5f2; --line: #d4d4ce;
+  --text: #283331; --muted: #62716b; --faint: #62716b; --accent: #286b59; --accent-ink: #ffffff;
+  --hover: color-mix(in srgb, #286b59 10%, #f6f5f2); --select: color-mix(in srgb, #286b59 22%, #f6f5f2);
+  --green: #367047; --red: #ae354b; --warn: #856013;
+  --syn-keyword: #286b59; --syn-string: #367047; --syn-comment: #62716b;
+  --syn-number: #86529a; --syn-type: #856013;
+  --syn-annotation: #906025; --syn-def: #246d8b;
+  --syn-atom: #86529a; --syn-operator: #283331; --syn-variable: #283331;
+  --shadow: 0 8px 24px #24302b20;
+}
+[data-theme="rose-quartz"] {
+  color-scheme: light;
+  --bg: #fcf5f7; --bg-elev: #fffafb; --bg-sunken: #fcf5f7; --line: #dfcfd5;
+  --text: #402e38; --muted: #796470; --faint: #796470; --accent: #963e65; --accent-ink: #ffffff;
+  --hover: color-mix(in srgb, #963e65 10%, #fcf5f7); --select: color-mix(in srgb, #963e65 22%, #fcf5f7);
+  --green: #367047; --red: #ae354b; --warn: #856013;
+  --syn-keyword: #963e65; --syn-string: #367047; --syn-comment: #796470;
+  --syn-number: #86529a; --syn-type: #856013;
+  --syn-annotation: #906025; --syn-def: #246d8b;
+  --syn-atom: #86529a; --syn-operator: #402e38; --syn-variable: #402e38;
+  --shadow: 0 8px 24px #24302b20;
+}
+/* Shared application surfaces; retain native keyboard and form semantics. */
+:root { scrollbar-color: var(--line) transparent; scrollbar-width: thin; }
+*::-webkit-scrollbar { width: 8px; height: 8px; }
+*::-webkit-scrollbar-track, *::-webkit-scrollbar-corner { background: transparent; }
+*::-webkit-scrollbar-thumb { background: var(--line); border: 2px solid var(--bg-elev); border-radius: 6px; }
+*::-webkit-scrollbar-thumb:hover { background: var(--muted); }
+*::-webkit-scrollbar-button { display: none; }
+input, select, textarea, button { font-family: inherit; letter-spacing: 0; }
+input::placeholder, textarea::placeholder { color: var(--muted); opacity: .7; }
+input:not([type="checkbox"]):not([type="range"]):not([type="file"]), textarea, select {
+  box-shadow: none; transition: border-color 120ms ease, background-color 120ms ease;
+}
+input:not([type="checkbox"]):not([type="range"]):hover, textarea:hover, select:hover { border-color: var(--muted); }
+input:focus-visible, textarea:focus-visible, select:focus-visible { border-color: var(--accent); }
+button:disabled { opacity: .45; cursor: default; }
+#modal-form, #palette {
+  border-radius: 8px; border: 1px solid var(--line);
+  box-shadow: 0 16px 48px #0005;
+}
+#modal-title { font-size: 17px; font-weight: 600; letter-spacing: 0; }
+#modal-note { color: var(--muted); line-height: 1.5; }
+#modal-fields label { font-size: 12px; font-weight: 500; }
+#modal-fields input, #modal-fields select { min-height: 32px; }
+@media (prefers-reduced-motion: reduce) {
+  button, select, input, textarea, a.as-button { transition: none !important; }
+}
 button, input, select, textarea { border-radius: var(--radius-control); }
 button { background: var(--bg-elev); border: 1px solid var(--line); padding: 4px 8px; }
 button:hover { background: var(--hover); }
@@ -66,6 +152,21 @@ input:not([type="checkbox"]):not([type="range"]), select { min-height: var(--con
 }
 #top #run.run-btn:hover { background: color-mix(in srgb, var(--accent) 85%, var(--text)); }
 #top button[aria-expanded="true"] { background: var(--select); border-color: var(--accent); }
+#top button:not(#run):not([aria-expanded="true"]):not(.brand) {
+  background: color-mix(in srgb, var(--bg-elev) 75%, var(--bg));
+  border: 1px solid color-mix(in srgb, var(--line) 85%, var(--muted));
+  border-radius: 5px;
+  box-shadow: inset 0 1px 0 color-mix(in srgb, var(--text) 5%, transparent);
+}
+#top button:not(#run):not(.brand):hover {
+  background: var(--hover);
+  border-color: color-mix(in srgb, var(--accent) 45%, var(--line));
+}
+#top { border-bottom: 1px solid var(--line); }
+#top .project-pick { background: var(--bg-sunken); border-radius: 4px; }
+#console .args input { font-family: var(--mono); font-size: 12px; }
+#console-input, #terminal-input, #scratch-input { font-family: var(--mono); padding: 6px 10px; }
+.popover.menu-panel, #context, #bookmark-context, #editor-context { border: 1px solid var(--line); background: var(--bg-elev); }
 .popover, #context, #toolbar-overflow, .scratch-menu {
   border-radius: var(--radius-surface); box-shadow: var(--shadow); animation: none;
 }
@@ -260,4 +361,35 @@ body.tray-outlines .tree-row.folder { background: transparent; }
   text-overflow: ellipsis;
   white-space: nowrap;
 }
+
+/* Keep the Explorer's auxiliary sections visually continuous with its tree. */
+.bookmark-panel, #structure { background: transparent; border-top: 1px solid var(--line); }
+.bookmark-panel { overflow-x: hidden; }
+.bookmark-head, .structure-head {
+  display: flex; align-items: center; gap: 4px; min-height: 32px;
+  padding: 0 8px; border-bottom: 1px solid var(--line);
+  color: var(--muted); font-family: var(--ui-font); font-size: 11px;
+  font-weight: 600; letter-spacing: 0;
+}
+.bookmark-head > span, .structure-head > span { min-width: 0; font-weight: 600; }
+#bookmark-collapse, #outline-collapse, #outline-hide, #bookmark-toggle {
+  display: inline-grid; place-items: center; width: 24px; height: 24px;
+  padding: 0; border: 1px solid transparent; border-radius: 4px;
+  background: transparent; color: var(--muted); cursor: pointer;
+}
+#bookmark-collapse:hover, #outline-collapse:hover, #outline-hide:hover, #bookmark-toggle:hover {
+  background: var(--hover); color: var(--text);
+}
+.structure-project { padding: 8px 12px; background: transparent; }
+.structure-project .tray-label { font-size: 10px; letter-spacing: .04em; }
+.structure-project strong { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; overflow-wrap: normal; }
+#structure-list {
+  min-width: 0; overflow-x: hidden; overflow-y: auto;
+  scrollbar-width: none; padding: 5px 6px 8px;
+}
+#structure-list::-webkit-scrollbar { display: none; }
+#structure-list:focus-visible { outline: 1px solid var(--accent); outline-offset: -1px; }
+.outline-row { min-width: 0; max-width: 100%; gap: 8px; }
+.outline-row .outline-name { min-width: 0; flex: 1 1 auto; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.outline-row .kind { flex: none; font-size: 10px; }
 

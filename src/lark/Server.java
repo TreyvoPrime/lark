@@ -550,6 +550,13 @@ public final class Server {
             sendJson(exchange, 200, new Json.Obj().put("ok", true).put("id", id));
             return;
         }
+        if ("/api/scratch/always-on-top".equals(path) && "POST".equals(method)) {
+            if (!isLoopbackPeer(exchange)) throw new RequestFail(403, "Scratch window controls are local-only.");
+            Json.Obj body = body(exchange);
+            ScratchWindow.setAlwaysOnTop(body.str("id", ""), body.bool("enabled"));
+            sendJson(exchange, 200, new Json.Obj().put("ok", true));
+            return;
+        }
         if ("/api/scratch/run".equals(path) && "POST".equals(method)) {
             Json.Obj body = body(exchange);
             String args = body.str("args", "");
