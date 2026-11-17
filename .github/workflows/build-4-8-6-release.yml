@@ -1,0 +1,45 @@
+name: Build and attach Lark 4.8.6 release assets
+on:
+  workflow_dispatch:
+    inputs:
+      source_ref:
+        description: Release source branch
+        required: true
+        default: codex/lark-4.8.6
+permissions:
+  contents: read
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ inputs.source_ref }}
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '21'
+      - uses: actions/setup-go@v5
+        with:
+          go-version: '1.22'
+          cache: false
+      - name: Install release tools
+        run: sudo apt-get update && sudo apt-get install -y nsis p7zip-full python3-pil zip
+      - name: Build and verify packages
+        env:
+          LARK_RELEASE_TAG: v4.8.6
+          LARK_UPDATE_BASE: https://github.com/TreyvoPrime/lark/releases/download/v4.8.6
+          LARK_UPDATE_NOTES: Lark 4.8.6 adds detachable Scratch, improved bookmarks, long-running console programs, and five new themes.
+        run: |
+          test "$(sed -n 's/.*VERSION = "\([^"]*\)".*/\1/p' src/lark/Settings.java | head -1)" = 4.8.6
+          ./packaging/make-release.sh
+          python3 test/release-artifacts.py
+          test "$(find release -maxdepth 1 -type f \( -name '*.zip' -o -name '*.exe' -o -name '*.sha256' -o -name 'update.json' \) | wc -l)" = 18
+      - name: Attach all verified update packages to the draft
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh release view v4.8.6 --repo TreyvoPrime/lark
+          gh release upload v4.8.6 release/*.zip release/*.exe release/*.sha256 release/update.json --repo TreyvoPrime/lark --clobber
