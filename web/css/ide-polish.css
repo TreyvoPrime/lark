@@ -169,3 +169,95 @@ body.tray-outlines .tree-row.folder { background: transparent; }
   #modal form { padding: 14px; }
 }
 @media (prefers-reduced-motion: reduce) { *, *::before, *::after { transition: none !important; animation: none !important; } }
+
+/* External file drop guidance, shown only while dragging files into Lark. */
+.external-file-drop-hint:not([hidden]) {
+  position: fixed;
+  z-index: 10000;
+  box-sizing: border-box;
+  display: grid;
+  place-items: center;
+  pointer-events: none;
+  border: 2px dashed var(--accent);
+  border-radius: 8px;
+  background: color-mix(in srgb, var(--bg) 88%, var(--accent));
+  color: var(--accent);
+  font-weight: 700;
+  font-size: 14px;
+  text-align: center;
+  animation: external-drop-appear 180ms ease-out;
+}
+@keyframes external-drop-appear { from { opacity: 0; } to { opacity: 1; } }
+@media (prefers-reduced-motion: reduce) { .external-file-drop-hint:not([hidden]) { animation: none; } }
+
+/* Output tray expansion and attached recent-project action. */
+#center.console-fullscreen { grid-template-rows: minmax(0, 1fr); }
+#center.console-fullscreen #console { height: auto; }
+#center.console-fullscreen #editor-pane { display: none; }
+ .welcome-recent .welcome-recent-item {
+  display: grid;
+  grid-template-columns: 32px minmax(0, 1fr);
+  align-items: stretch;
+  gap: 8px;
+  min-width: 0;
+  border-bottom: 1px solid var(--line);
+}
+.welcome-recent .welcome-recent-remove {
+  align-self: center;
+  display: grid;
+  place-items: center;
+  width: 28px;
+  height: 28px;
+  padding: 0;
+  border: 1px solid var(--line);
+  border-radius: 6px;
+  background: var(--bg-elev);
+  color: var(--muted);
+  font-size: 17px;
+  line-height: 1;
+  text-align: center;
+}
+/* Draw the close mark geometrically so font metrics cannot shift it off center. */
+.welcome-recent-remove-icon {
+  position: relative;
+  display: block;
+  width: 12px;
+  height: 12px;
+}
+.welcome-recent-remove-icon::before,
+.welcome-recent-remove-icon::after {
+  content: "";
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  width: 12px;
+  height: 1.5px;
+  border-radius: 2px;
+  background: currentColor;
+  transform: translate(-50%, -50%) rotate(45deg);
+}
+.welcome-recent-remove-icon::after {
+  transform: translate(-50%, -50%) rotate(-45deg);
+}
+.welcome-recent .welcome-recent-remove:hover {
+  color: var(--red);
+  border-color: var(--red);
+  background: var(--hover);
+}
+.welcome-recent .welcome-recent-remove:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+}
+.welcome-recent .welcome-recent-item .welcome-recent-row {
+  width: auto;
+  min-width: 0;
+  padding: 10px 4px;
+  border-bottom: 0;
+  color: var(--text);
+}
+.welcome-recent .welcome-recent-copy span {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+

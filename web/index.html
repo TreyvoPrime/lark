@@ -25,13 +25,13 @@
 
       <div class="top-group" role="group" aria-label="Navigate">
         <button id="files-toggle" type="button" title="Toggle files (Ctrl+B)">Files</button>
-        <button id="console-toggle" type="button" title="Show or hide output">Output</button>
+        <button id="console-toggle" type="button" title="Show or hide output">Terminal</button>
         <button id="project-search" type="button" title="Search in project (Ctrl+Shift+F)">Search</button>
         <button id="project" type="button" class="project-pick" title="Switch project" aria-haspopup="dialog" aria-expanded="false">
           <span class="project-pick-label" id="project-pick-label">No project</span>
           <span class="project-pick-caret" aria-hidden="true">▾</span>
         </button>
-        <button id="project-menu" type="button" data-pop="menu-project">Project</button>
+        <button id="project-menu" type="button" data-pop="menu-project">Export</button>
         <button id="github" type="button" title="Clone or push with GitHub">GitHub</button>
       </div>
 
@@ -50,7 +50,6 @@
           <span>Main</span>
           <select id="main-class"></select>
         </label>
-        <button id="run-config" type="button" data-pop="menu-run-config" title="Run configurations">Config</button>
         <button id="run" type="button" class="primary run-btn" title="Ctrl+Enter">Run</button>
         <button id="debug" type="button" title="Start debugger (F5)">Debug</button>
       </div>
@@ -67,7 +66,7 @@
       <div class="top-group top-group-prefs" role="group" aria-label="Preferences">
         <button id="share-open" type="button" title="Lark Share: encrypted LAN collaboration" aria-haspopup="dialog">Share</button>
         <button id="theme" type="button" title="Themes">Themes</button>
-        <button id="settings" type="button" data-pop="menu-settings" title="Settings" aria-label="Settings">Aa</button>
+        <button id="settings" type="button" data-pop="menu-settings" title="Settings" aria-label="Settings">Settings</button>
         <button id="help" type="button" data-pop="menu-help" aria-label="Keyboard shortcuts">?</button>
       </div>
       <details id="toolbar-more" hidden>
@@ -132,6 +131,7 @@
                 <section>
                   <h2>Start</h2>
                   <button type="button" class="welcome-action" data-welcome="new-project">New project…</button>
+                  <button type="button" class="welcome-action" data-welcome="open-file">Open file…</button>
                   <button type="button" class="welcome-action" data-welcome="import-folder">Open folder…</button>
                   <button type="button" class="welcome-action" data-welcome="import-zip">Open zip…</button>
                   <button type="button" class="welcome-action" data-welcome="github">Clone from GitHub…</button>
@@ -141,7 +141,7 @@
                   <div id="welcome-recent" class="welcome-recent"></div>
                 </section>
                 <section>
-                  <h2>What’s new in Lark 4.0</h2>
+                  <h2>What’s new in the latest update</h2>
                   <ul class="welcome-tips">
                     <li><strong>Faster typing</strong> with cancellable, delayed Java analysis.</li>
                     <li><strong>Smarter Java</strong> signatures, navigation, references, and rename previews.</li>
@@ -162,6 +162,7 @@
               <button type="button" id="tab-debug">Debug</button>
               <button type="button" id="tab-tests">Tests</button>
               <button type="button" id="tab-terminal">Terminal</button>
+              <button type="button" id="console-fullscreen" aria-pressed="false">Fullscreen</button>
             </div>
             <label class="args">Arguments <input id="args" type="text" placeholder="optional" spellcheck="false"></label>
             <button type="button" id="clear-console">Clear</button>
@@ -329,23 +330,6 @@
       </section>
     </div>
   </div>
-  <div id="menu-run-config" class="popover menu menu-panel menu-panel-sm" hidden>
-    <div class="menu-panel-head">
-      <strong>Run configs</strong>
-      <p class="path-note">Save Main + args, then reapply in one click.</p>
-    </div>
-    <section class="menu-panel-section" aria-label="Actions">
-      <h3 class="menu-panel-label">Actions</h3>
-      <div class="menu-panel-grid">
-        <button type="button" data-run-cfg="save">Save current…</button>
-        <button type="button" data-run-cfg="manage">Manage…</button>
-      </div>
-    </section>
-    <section class="menu-panel-section" aria-label="Saved">
-      <h3 class="menu-panel-label">Saved</h3>
-      <div id="run-config-list" class="menu-panel-grid menu-panel-grid-one"></div>
-    </section>
-  </div>
   <div id="theme-overlay" class="theme-overlay" hidden>
     <div class="theme-overlay-card" role="dialog" aria-modal="true" aria-labelledby="theme-overlay-title">
       <div class="theme-overlay-head">
@@ -454,6 +438,14 @@
       <label class="settings-check"><input id="setting-minimap-syntax" type="checkbox" checked> Syntax colors</label>
       <label class="settings-check"><input id="setting-minimap-markers" type="checkbox" checked> Error and warning markers</label>
       <p class="path-note">Click the overview to jump, or drag its viewport. Search matches appear alongside the code.</p>
+    </section>
+    <section class="menu-panel-section" aria-label="Share">
+      <h3 class="menu-panel-label">Share</h3>
+      <label class="settings-check"><input id="setting-share-positions" type="checkbox" checked> Show team member positions</label>
+      <label class="settings-row settings-stack">Share relay HTTPS address
+        <input id="setting-share-relay" type="url" spellcheck="false" placeholder="https://your-service.onrender.com">
+      </label>
+      <p class="path-note">Optional. Use a relay service approved by your school.</p>
     </section>
     <section class="menu-panel-section" aria-label="Save">
       <h3 class="menu-panel-label">Save</h3>
@@ -765,6 +757,7 @@
   <script src="js/flow.js?v=__LARK_V__"></script>
   <script src="js/assist.js?v=__LARK_V__"></script>
   <script src="js/minimap.js?v=__LARK_V__"></script>
+  <script src="js/local-files.js?v=__LARK_V__"></script>
   <script src="js/app.js?v=__LARK_V__"></script>
   <script src="js/share-document.js?v=__LARK_V__"></script>
   <script src="js/share-birds.js?v=__LARK_V__"></script>

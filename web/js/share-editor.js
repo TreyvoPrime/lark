@@ -150,13 +150,14 @@
     if (!entry || !cm) return;
     cm.setOption('readOnly', entry.role === 'viewer');
     cm.state.larkShare = entry;
-    const key = JSON.stringify([entry.path, entry.model.clock, presence]);
+    const showPositions = localStorage.getItem?.('lark-share-show-positions') !== 'false';
+    const key = JSON.stringify([entry.path, entry.model.clock, presence, showPositions]);
     if (key !== presenceKey || gutterDoc !== entry.doc) {
       marks.splice(0).forEach(mark => mark.clear());
       if (gutterDoc) gutterDoc.clearGutter(gutterName);
       gutterDoc = entry.doc; presenceKey = key;
       const gutters = cm.getOption('gutters') || [];
-      const peopleHere = presence.filter(p => p.file === entry.path && p.id !== session.identity && p.connected);
+      const peopleHere = (showPositions ? presence : []).filter(p => p.file === entry.path && p.id !== session.identity && p.connected);
       if (peopleHere.length && !gutters.includes(gutterName)) cm.setOption('gutters', [...gutters, gutterName]);
       else if (!peopleHere.length && gutters.includes(gutterName)) cm.setOption('gutters', gutters.filter(g => g !== gutterName));
       const lines = new Map();
@@ -239,6 +240,17 @@
       const cm = window.LarkEditorShare?.editor(); if (cm) cm.setOption('readOnly', role !== 'editor');
     },
     sessionActive: () => !!session,
+    refreshPositions() { presenceKey = ''; drawPresence(); },
+    async snapshot() {
+      if (!session) throw new Error('The Share session is no longer active.');
+      const result = [];
+      for (const path of session.paths) {
+        const entry = documents.get(path);
+        const content = entry ? entry.model.text() : (await request('source', {path})).content;
+        result.push({path,content});
+      }
+      return result;
+    },
     retry() { connectionFailures = 0; retryAfter = 0; retryPaused = false; document.dispatchEvent(new CustomEvent('lark-share-retry', { detail: false })); soon(); },
     active: path => !!session?.paths.has(path), hosting: () => session?.hosting, project: () => session?.project, open,
     changed: path => { if (session?.paths.has(path)) return true; return false; },

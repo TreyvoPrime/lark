@@ -20,7 +20,7 @@ public final class SettingsMinimapCheck {
         if (Settings.load().minimapEnabled) throw new AssertionError("saved off");
         Settings saved = Settings.load(); saved.shareBird = "falcon"; saved.save();
         if (!Settings.load().shareBird.equals("falcon")) throw new AssertionError("saved bird");
-        for (String bird : new String[]{"parrot", "puffin", "kingfisher", "flamingo", "woodpecker"}) {
+        for (String bird : new String[]{"parrot", "puffin", "kingfisher", "flamingo", "woodpecker", "toucan", "penguin", "peacock", "cockatiel", "bluebird"}) {
             saved.shareBird = bird; saved.save();
             if (!Settings.load().shareBird.equals(bird)) throw new AssertionError("saved bird: " + bird);
         }

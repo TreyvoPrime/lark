@@ -88,6 +88,9 @@ const { webcrypto } = require('node:crypto');
   assert.deepEqual(scroll, { left: 230, top: 3100 }, 'scrolling during an in-flight request is preserved');
 
   const entry = share.debug().documents.get('Main.java');
+  const snapshot = await share.snapshot();
+  assert.equal(snapshot.length, 1, 'snapshot includes shared file');
+  assert.equal(snapshot[0].content, entry.model.text(), 'snapshot keeps current shared content');
   // A malformed response must not discard edits that were sent in the request.
   // The host may already have accepted them, so the next request retries the same IDs.
   const local = entry.model.edit(0, 0, 'local', entry.actor);

@@ -12,7 +12,7 @@ public final class ShareBirdCheck {
       s.command(avatar);
       if (!s.localStatus().write().contains("\"bird\":\"raven\"")) throw new AssertionError("avatar update");
       s.avatar("eagle");
-      for (String bird : new String[]{"parrot", "puffin", "kingfisher", "flamingo", "woodpecker"}) {
+      for (String bird : new String[]{"parrot", "puffin", "kingfisher", "flamingo", "woodpecker", "toucan", "penguin", "peacock", "cockatiel", "bluebird"}) {
         s.avatar(bird);
         if (!s.localStatus().write().contains("\"bird\":\"" + bird + "\"")) throw new AssertionError("new bird: " + bird);
       }

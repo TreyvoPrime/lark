@@ -13,6 +13,10 @@ final class Share implements AutoCloseable {
     private ShareSession hosting;
     private ShareTransport transport;
     private ShareDiscovery discovery;
+    private ShareRelay relay;
+    private ShareCrypto relayCrypto;
+    private Thread relayWorker;
+    private volatile String relayError = "";
     private InetAddress bindAddress;
     private String discoveryError = "";
     private Json.Obj target, hostInvitation;
@@ -50,10 +54,11 @@ final class Share implements AutoCloseable {
             }
             case "host" -> {
                 if (hosting != null || target != null) throw new RequestFail(409, "End or leave your current Share session first.");
+                String relayUrl = settings.shareRelayUrl == null ? "" : settings.shareRelayUrl.trim();
                 String requestedAddress = body.str("address", "");
                 if (requestedAddress.isBlank()) {
-                    requestedAddress = Mobile.lanAddresses().stream().findFirst()
-                            .orElseThrow(() -> new RequestFail(503, "Connection unavailable on this network."));
+                    requestedAddress = relayUrl.isBlank() ? Mobile.lanAddresses().stream().findFirst().orElse("") : "127.0.0.1";
+                    if (requestedAddress.isBlank()) throw new RequestFail(503, "Connection unavailable on this network.");
                 }
                 InetAddress bind = ShareTransport.lanAddress(requestedAddress);
                 if (!bind.isLoopbackAddress() && NetworkInterface.getByInetAddress(bind) == null)
@@ -66,7 +71,21 @@ final class Share implements AutoCloseable {
                 session.avatar(settings.shareBird);
                 hosting = session; bindAddress = bind; projectId = body.str("project", "");
                 connection = "Connected";
-                if (!body.has("discovery") || body.bool("discovery")) discoverable(true);
+                relayError = ""; relay = null;
+                if (!relayUrl.isBlank()) {
+                    String relayHostKey = ShareSession.token();
+                    try {
+                        relayCrypto = new ShareCrypto();
+                        relay = new ShareRelay(relayUrl, session.id(), relayHostKey, session.invitation());
+                        ShareRelay activeRelay = relay;
+                        relayWorker = ShareTransport.daemon("lark-share-relay-host").newThread(() -> relayLoop(activeRelay, session));
+                        relayWorker.start();
+                    } catch (Exception e) {
+                        relay = null; transport.close(); transport = null; hosting = null; projectId = null;
+                        throw new RequestFail(503, "Could not start the Share relay: " + e.getMessage() + " Check the HTTPS address and try again.");
+                    }
+                }
+                if (relayUrl.isBlank() && (!body.has("discovery") || body.bool("discovery"))) discoverable(true);
                 if (discovery != null) {
                     codes = new ShareCode(transport.fingerprint, System::currentTimeMillis);
                     transport.codes = codes;
@@ -76,15 +95,16 @@ final class Share implements AutoCloseable {
                 hostInvitation = new Json.Obj().put("version", ShareSession.VERSION).put("address", bind.getHostAddress())
                         .put("port", transport.port()).put("fingerprint", transport.fingerprint)
                         .put("session", session.id()).put("invitation", session.invitation());
+                if (relay != null) hostInvitation.put("relay", relayUrl).put("relayPublicKey", relayCrypto.publicKey()).put("fingerprint", relayCrypto.fingerprint());
                 // An invitation is sensitive and is returned ONLY for an explicit local host action.
                 return status().put("invitation", Base64.getUrlEncoder().withoutPadding().encodeToString(hostInvitation.write().getBytes(StandardCharsets.UTF_8)))
-                        .put("fingerprint", transport.fingerprint).put("address", bind.getHostAddress());
+                        .put("fingerprint", hostInvitation.str("fingerprint")).put("address", bind.getHostAddress());
             }
             case "invitation" -> {
                 if (hosting == null) throw new RequestFail(403, "Only the host can issue invitations.");
                 hosting.localStatus();
                 return ShareSession.ok().put("invitation", Base64.getUrlEncoder().withoutPadding()
-                        .encodeToString(hostInvitation.write().getBytes(StandardCharsets.UTF_8))).put("fingerprint", transport.fingerprint).put("address", bindAddress.getHostAddress());
+                        .encodeToString(hostInvitation.write().getBytes(StandardCharsets.UTF_8))).put("fingerprint", hostInvitation.str("fingerprint")).put("address", bindAddress.getHostAddress()).put("relay", relay != null);
             }
             case "request" -> {
                 // Request Access from a Nearby card. No invitation secret: the host sees a pending request and decides.
@@ -136,11 +156,17 @@ final class Share implements AutoCloseable {
                 if (parsed.longVal("version") != ShareSession.VERSION) throw new RequestFail(409, "Incompatible Lark Share protocol.");
                 if (!parsed.str("session", "").matches("[a-f0-9]{64}") || !parsed.str("invitation", "").matches("[a-f0-9]{64}"))
                     throw new RequestFail(400, "Invalid invitation credentials.");
+                if (!parsed.str("relay", "").isBlank()) {
+                    if (settings.shareRelayUrl == null || settings.shareRelayUrl.isBlank()) throw new RequestFail(400, "Set the host's HTTPS relay address in Settings before joining this invitation.");
+                    if (!ShareRelay.validate(parsed.str("relay")).equals(ShareRelay.validate(settings.shareRelayUrl)))
+                        throw new RequestFail(400, "This invitation uses a different relay. Verify the service with the host before changing your Settings.");
+                }
                 Json.Obj result;
                 try { result = send(parsed, request(parsed, "join").put("invitation", parsed.str("invitation")).put("client", client).put("device", deviceName())
                         .put("name", ShareSession.label(body.str("displayName", ""))).put("bird", ShareSession.bird(settings.shareBird))); }
                 catch (RequestFail e) { throw e; }
                 catch (Exception e) {
+                    if (!parsed.str("relay", "").isBlank()) throw new RequestFail(503, "Couldn't reach the Share relay. Check that its HTTPS address is available and approved by your network, then retry. Your local project is unchanged.");
                     if (ShareTransport.lanAddress(parsed.str("address", "")).isLoopbackAddress())
                         throw new RequestFail(503, "This invitation points at 127.0.0.1 (\"this computer only\"), so it can't work from another computer. On the host, end the session and host again on its Wi-Fi or Ethernet address, then send the new invitation.");
                     throw new RequestFail(503, "Couldn't reach the host at " + parsed.str("address", "?") + ":" + parsed.longVal("port")
@@ -184,6 +210,7 @@ final class Share implements AutoCloseable {
             }
             case "security" -> {
                 if (hosting == null) throw new RequestFail(403, "Only the host can change security settings.");
+                if (relay != null && body.bool("discovery")) throw new RequestFail(409, "LAN discovery and short codes are unavailable in HTTPS relay mode. Share the private invitation instead.");
                 hosting.settings(body.str("role", "editor"), body.longVal("minutes"));
                 if (body.has("discovery")) discoverable(body.bool("discovery")); return status();
             }
@@ -342,6 +369,8 @@ final class Share implements AutoCloseable {
         return new Json.Obj().put("version", ShareSession.VERSION).put("session", target.str("session")).put("action", action);
     }
     private static Json.Obj send(Json.Obj target, Json.Obj request) throws Exception {
+        String relay = target.str("relay", "");
+        if (!relay.isBlank()) return ShareRelay.send(relay, target.str("session"), target.str("invitation"), target.str("relayPublicKey", ""), target.str("fingerprint", ""), request);
         long port = target.longVal("port");
         if (port < 1 || port > 65535) throw new RequestFail(400, "Invalid invitation port.");
         Json.Obj reply = ShareTransport.exchange(target.str("address"), (int) port, target.str("fingerprint"), request);
@@ -349,14 +378,42 @@ final class Share implements AutoCloseable {
         if (reply.longVal("version") != ShareSession.VERSION) throw new RequestFail(409, "Incompatible Lark Share protocol response.");
         return reply;
     }
+    private void relayLoop(ShareRelay active, ShareSession session) {
+        while (!Thread.currentThread().isInterrupted()) {
+            try {
+                Json.Obj result = active.poll();
+                relayError = "";
+                Json.Obj item = result.obj("item");
+                if (item == null) continue;
+                Json.Obj envelope = item.obj("request"), response;
+                ShareCrypto.Incoming incoming;
+                try { incoming = relayCrypto.open(session.id(), envelope); }
+                catch (Exception invalid) { active.reply(item.str("id", ""), ShareTransport.error(400, "Invalid encrypted request.")); continue; }
+                Json.Obj request = incoming.request();
+                try {
+                    if (request.str("action", "").equals("request")) response = session.request(request, "relay:" + request.str("client", "unknown"));
+                    else response = session.command(request);
+                } catch (RequestFail e) { response = ShareTransport.error(e.status, e.getMessage()); }
+                  catch (Exception e) { response = ShareTransport.error(400, "Invalid Share message."); }
+                active.reply(item.str("id", ""), ShareCrypto.seal(session.id(), incoming, response));
+            } catch (InterruptedException e) { Thread.currentThread().interrupt(); break; }
+            catch (Exception e) {
+                if (hosting != session || Thread.currentThread().isInterrupted()) break;
+                relayError = "Relay connection interrupted. Lark is trying to reconnect; unsent edits stay on this device.";
+                try { active.restore(); } catch (Exception ignored) { }
+                try { Thread.sleep(3000); } catch (InterruptedException interrupted) { Thread.currentThread().interrupt(); break; }
+            }
+        }
+    }
     private Json.Obj status() throws Exception {
         if (hosting != null && hosting.expired()) close();
         Json.Obj result = ShareSession.ok().put("bird", ShareSession.bird(settings.shareBird)).put("connection", connection).put("hosting", hosting != null)
                 .put("joined", target != null).put("mode", "collaborative").put("project", projectId).put("sessionId", hosting != null ? hosting.id() : target != null ? target.str("session") : "").put("identity", hosting != null ? "host" : device);
         if (hosting != null && codes != null) { Json.Obj c = codes.status(); result.put("code", c.str("code", "")).put("codeState", c.str("codeState", "none")).put("codeExpiresIn", c.longVal("codeExpiresIn")); }
-        if (hosting != null) result.put("verification", ShareTransport.verification(transport.fingerprint));
+        if (hosting != null) result.put("verification", ShareTransport.verification(hostInvitation != null ? hostInvitation.str("fingerprint") : transport.fingerprint));
         if (target != null) result.put("verification", ShareTransport.verification(target.str("fingerprint", "")));
-        if (hosting != null) result.put("discovery", discovery != null).put("discoveryError", discoveryError).put("session", hosting.localStatus()).put("port", transport.port()).put("fingerprint", transport.fingerprint);
+        if (hosting != null) result.put("discovery", discovery != null).put("discoveryError", discoveryError).put("session", hosting.localStatus()).put("port", transport.port()).put("fingerprint", transport.fingerprint)
+                .put("relay", relay != null).put("relayError", relayError);
         if (target != null) {
             try {
                 if (avatarDirty) {
@@ -376,7 +433,9 @@ final class Share implements AutoCloseable {
                 // Keep the pinned target and credential for a subsequent retry; never auto-join anew.
                 connection = e instanceof RequestFail ? "Connection Lost" : "Reconnecting";
                 if (e instanceof RequestFail f && f.getMessage().contains("denied") && target.str("session", "").length() >= 12) deniedSessions.add(target.str("session").substring(0, 12));
-                result.put("error", e instanceof RequestFail ? e.getMessage() : "Cannot reach the pinned host. Make sure both computers are on the same network (wired or Wi-Fi), the host picked the right adapter, and the firewall allows Lark; then retry or leave.");
+                result.put("error", e instanceof RequestFail ? e.getMessage() : target.str("relay", "").isBlank()
+                        ? "Cannot reach the pinned host. Make sure both computers are on the same network (wired or Wi-Fi), the host picked the right adapter, and the firewall allows Lark; then retry or leave."
+                        : "Cannot reach the Share relay. Check its HTTPS address and whether your network allows it; your pending edits remain on this device.");
             }
             result.put("connection", connection);
         }
@@ -403,10 +462,12 @@ final class Share implements AutoCloseable {
             throw new RequestFail(409, "Collaborators changed this project. Open Share → Review Changes before running, debugging, testing or opening a terminal.");
     }
     @Override public synchronized void close() {
+        if (relayWorker != null) relayWorker.interrupt(); relayWorker = null;
+        if (relay != null) relay.close(); relay = null; relayCrypto = null;
         if (discovery != null) discovery.close(); discovery = null;
         if (transport != null) transport.close();
         else if (hosting != null) hosting.close();
         transport = null; hosting = null; codes = null; target = null; hostInvitation = null; device = null; credential = null;
-        connection = "Disconnected"; projectId = null; reviewed = null; avatarDirty = false;
+        connection = "Disconnected"; projectId = null; reviewed = null; avatarDirty = false; relayError = "";
     }
 }

@@ -304,7 +304,7 @@ final class ShareSession implements AutoCloseable {
     private String hostFile = "", hostAnchor = "", hostHead = "", hostBird = "classic";
     synchronized void avatar(String value) { requireLive(); hostBird = bird(value); }
     static String bird(String value) {
-        return Set.of("classic", "blue-jay", "cardinal", "goldfinch", "robin", "snow-owl", "hummingbird", "raven", "eagle", "falcon", "parrot", "puffin", "kingfisher", "flamingo", "woodpecker").contains(value) ? value : "classic";
+        return Set.of("classic", "blue-jay", "cardinal", "goldfinch", "robin", "snow-owl", "hummingbird", "raven", "eagle", "falcon", "parrot", "puffin", "kingfisher", "flamingo", "woodpecker", "toucan", "penguin", "peacock", "cockatiel", "bluebird").contains(value) ? value : "classic";
     }
     synchronized Json.Obj discoveryInfo() { requireLive(); cleanup(); return new Json.Obj().put("name", name).put("host", host).put("bird", hostBird).put("status", devices.values().stream().filter(Device::live).count() < 32 ? "available" : "full").put("count", 1 + devices.values().stream().filter(d -> d.status.equals("approved")).count()); }
     synchronized void settings(String role, long minutes) {

@@ -1,0 +1,8 @@
+{
+  "name": "lark-share-relay",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Ephemeral HTTPS message relay for Lark Share",
+  "scripts": { "start": "node server.js", "test": "node --test test/*.test.js" },
+  "engines": { "node": ">=20" }
+}
